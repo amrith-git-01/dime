@@ -46,14 +46,17 @@ export function AppHeader({
   const [avatarImageError, setAvatarImageError] = useState(false);
   const headerReadyNotifiedRef = useRef(false);
 
-  const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    setHeaderSize({ w: width, h: height });
-    if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
-      headerReadyNotifiedRef.current = true;
-      onHeaderReady?.();
-    }
-  }, []);
+  const onHeaderLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { width, height } = e.nativeEvent.layout;
+      setHeaderSize({ w: width, h: height });
+      if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
+        headerReadyNotifiedRef.current = true;
+        onHeaderReady?.();
+      }
+    },
+    [onHeaderReady],
+  );
 
   return (
     <View style={styles.root}>
