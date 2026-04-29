@@ -3,14 +3,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MessageSquareText, ScanLine } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 
-import { HOME_BENTO_SECTION_GAP } from "@/components/home/bento/homeBentoTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
 import { SettingsHubHero } from "@/components/settings/SettingsHubHero";
 import { SettingsNavRow } from "@/components/settings/SettingsNavRow";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SETTINGS_ROW_ACCENTS } from "@/components/settings/settingsBentoTokens";
 import { Button } from "@/components/ui/Button/Button";
+import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
@@ -68,7 +68,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   lede: {
     fontFamily: fontFamilies.regular,

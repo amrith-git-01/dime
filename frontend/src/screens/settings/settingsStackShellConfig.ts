@@ -1,7 +1,7 @@
 import { StyleSheet } from "react-native";
 
 import type { StackScreenShellProps } from "@/components/layout/StackScreenShell";
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 const styles = StyleSheet.create({
   scrollContent: {

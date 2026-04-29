@@ -1,7 +1,7 @@
 import type { RouteProp } from "@react-navigation/native";
 import { useRoute } from "@react-navigation/native";
 
-import { TransactionDetailBody } from "@/features/transactions/components/TransactionDetailBody";
+import { TransactionDetailBody } from "@/components/transactions/TransactionDetailBody";
 import type { MainStackParamList } from "@/navigation/types";
 
 type TransactionDetailRoute = RouteProp<
