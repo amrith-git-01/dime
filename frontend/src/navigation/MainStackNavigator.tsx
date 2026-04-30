@@ -1,6 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import { colors } from "@/constants/theme";
+import { colors } from "@/constants";
 import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
