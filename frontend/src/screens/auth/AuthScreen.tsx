@@ -5,9 +5,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { HorizontalSlidePanel } from "@/components/animations/HorizontalSlidePanel";
 import { Button } from "@/components/ui/Button/Button";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
-import { AuthScreenLayout } from "@/features/auth/components/AuthScreenLayout";
+import { AuthScreenLayout } from "@/components/auth/AuthScreenLayout";
 import { useEmailPasswordSignIn } from "@/features/auth/hooks/useEmailPasswordSignIn";
 import { useEmailPasswordSignUp } from "@/features/auth/hooks/useEmailPasswordSignUp";
 import { useGoogleSignIn } from "@/features/auth/hooks/useGoogleSignIn";
@@ -209,7 +209,11 @@ function PressableGoogleRow({
         opacity: pressed && !disabled ? 0.9 : 1,
       })}
     >
-      <MaterialCommunityIcons name="google" size={22} color="#4285F4" />
+      <MaterialCommunityIcons
+        name="google"
+        size={22}
+        color={colors.oauthGoogle}
+      />
       <Text style={styles.googleLabel}>
         {loading ? "Opening Google…" : "Continue with Google"}
       </Text>
@@ -233,7 +237,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: "#BA1A1A",
+    color: colors.error,
     textAlign: "center",
   },
   dividerRow: {
