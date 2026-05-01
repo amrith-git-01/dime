@@ -8,6 +8,7 @@ import {
 } from "@/features/transactions/cache/transactionListCache";
 import type { CounterpartyType } from "@/features/transactions/counterpartyTypes";
 import type { TransactionRow } from "@/features/transactions/types";
+import { normalizeTransactionAmount } from "@/utils/transactionAmount";
 
 type TransactionDbRecord = Record<string, unknown>;
 
@@ -43,16 +44,6 @@ function normalizeCounterpartyType(value: unknown): CounterpartyType {
   return "merchant";
 }
 
-function formatAmount(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value.toFixed(2);
-  }
-  return "0.00";
-}
-
 /** Map a Supabase realtime row payload into a list ``TransactionRow``. */
 export function mapRealtimeRecordToTransactionRow(
   record: TransactionDbRecord,
@@ -70,7 +61,7 @@ export function mapRealtimeRecordToTransactionRow(
   return {
     id,
     user_id,
-    amount: formatAmount(record.amount),
+    amount: normalizeTransactionAmount(record.amount),
     type: record.type === "credit" ? "credit" : "debit",
     counterparty_name,
     counterparty_type: normalizeCounterpartyType(record.counterparty_type),

@@ -1,6 +1,5 @@
-import { endOfMonth, formatISO, startOfMonth } from "date-fns";
-
 import { dimeApi } from "@/lib/api/dimeApi";
+import { monthRangeIso } from "@/utils/dates";
 
 import type { CounterpartyType } from "../counterpartyTypes";
 import type {
@@ -10,6 +9,8 @@ import type {
   TransactionRow,
   TransactionType,
 } from "../types";
+
+export { monthRangeIso };
 
 export type CreateTransactionBody = {
   amount: number;
@@ -25,15 +26,6 @@ export type CreateTransactionBody = {
 };
 
 const TX_PAGE_LIMIT = 50;
-
-export function monthRangeIso(year: number, monthIndex0: number) {
-  const start = startOfMonth(new Date(year, monthIndex0, 1));
-  const end = endOfMonth(new Date(year, monthIndex0, 1));
-  return {
-    from: formatISO(start),
-    to: formatISO(end),
-  };
-}
 
 export async function fetchTransactionsPage(input: {
   from?: string | null;
