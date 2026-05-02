@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Resets src/app to a minimal Expo Router shell (index + root layout).
+ * Resets src/screens and src/navigation to a minimal React Navigation shell.
  */
 
 const fs = require('fs');
@@ -9,38 +9,62 @@ const path = require('path');
 const readline = require('readline');
 
 const root = process.cwd();
-const oldDirs = [path.join('src', 'app')];
+const pathsToReset = [path.join('src', 'screens'), path.join('src', 'navigation')];
 const exampleDir = 'app-example';
-const newAppDir = path.join('src', 'app');
 const exampleDirPath = path.join(root, exampleDir);
 
-const indexContent = `import { Text, View } from "react-native";
+const homeScreen = `import { StyleSheet, Text, View } from 'react-native';
 
-export default function Index() {
+export default function HomeScreen() {
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Dime</Text>
     </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: '#111111',
+  },
+});
+`;
+
+const rootNavigator = `import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
+import HomeScreen from '@/screens/home/HomeScreen';
+
+import type { RootStackParamList } from './types';
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export default function RootNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Home" component={HomeScreen} />
+    </Stack.Navigator>
   );
 }
 `;
 
-const layoutContent = `import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+const navTypes = `export type RootStackParamList = {
+  Home: undefined;
+};
 
-export default function RootLayout() {
-  return (
-    <>
-      <Stack screenOptions={{ headerShown: false }} />
-      <StatusBar style="auto" />
-    </>
-  );
+declare global {
+  namespace ReactNavigation {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    interface RootParamList extends RootStackParamList {}
+  }
 }
 `;
 
@@ -49,62 +73,50 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-const moveDirectories = async (userInput) => {
+const run = async (userInput) => {
   try {
     if (userInput === 'y') {
       await fs.promises.mkdir(exampleDirPath, { recursive: true });
-      console.log(`📁 /${exampleDir} directory created.`);
+      console.log(`📁 /${exampleDir} created.`);
     }
 
-    for (const dir of oldDirs) {
-      const oldDirPath = path.join(root, dir);
-      if (fs.existsSync(oldDirPath)) {
+    for (const dir of pathsToReset) {
+      const full = path.join(root, dir);
+      if (fs.existsSync(full)) {
         if (userInput === 'y') {
-          const newDirPath = path.join(root, exampleDir, dir);
-          await fs.promises.mkdir(path.dirname(newDirPath), { recursive: true });
-          await fs.promises.rename(oldDirPath, newDirPath);
-          console.log(`➡️ /${dir} moved to /${exampleDir}/${dir}.`);
+          const dest = path.join(exampleDirPath, dir);
+          await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+          await fs.promises.rename(full, dest);
+          console.log(`➡️ /${dir} → /${exampleDir}/${dir}`);
         } else {
-          await fs.promises.rm(oldDirPath, { recursive: true, force: true });
+          await fs.promises.rm(full, { recursive: true, force: true });
           console.log(`❌ /${dir} deleted.`);
         }
-      } else {
-        console.log(`➡️ /${dir} does not exist, skipping.`);
       }
     }
 
-    await fs.promises.mkdir(path.join(root, newAppDir), { recursive: true });
-    console.log(`\n📁 New /${newAppDir} directory created.`);
+    await fs.promises.mkdir(path.join(root, 'src', 'screens', 'home'), { recursive: true });
+    await fs.promises.mkdir(path.join(root, 'src', 'navigation'), { recursive: true });
 
-    const indexPath = path.join(root, newAppDir, 'index.tsx');
-    await fs.promises.writeFile(indexPath, indexContent);
-    console.log(`📄 ${newAppDir}/index.tsx created.`);
-
-    const layoutPath = path.join(root, newAppDir, '_layout.tsx');
-    await fs.promises.writeFile(layoutPath, layoutContent);
-    console.log(`📄 ${newAppDir}/_layout.tsx created.`);
-
-    console.log('\n✅ Project reset complete. Next steps:');
-    console.log(
-      `1. Run \`npx expo start\` to start a development server.\n2. Edit ${newAppDir}/index.tsx to edit the main screen.${userInput === 'y'
-        ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
-        : ''
-      }`
+    await fs.promises.writeFile(
+      path.join(root, 'src', 'screens', 'home', 'HomeScreen.tsx'),
+      homeScreen
     );
+    await fs.promises.writeFile(path.join(root, 'src', 'navigation', 'RootNavigator.tsx'), rootNavigator);
+    await fs.promises.writeFile(path.join(root, 'src', 'navigation', 'types.ts'), navTypes);
+
+    console.log('\n✅ Reset complete. Run `npx expo start`.');
   } catch (error) {
-    console.error(`❌ Error during script execution: ${error.message}`);
+    console.error(`❌ ${error.message}`);
   }
 };
 
-rl.question(
-  'Do you want to move existing files to /app-example instead of deleting them? (Y/n): ',
-  (answer) => {
-    const userInput = answer.trim().toLowerCase() || 'y';
-    if (userInput === 'y' || userInput === 'n') {
-      moveDirectories(userInput).finally(() => rl.close());
-    } else {
-      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
-      rl.close();
-    }
+rl.question('Move old src/screens + src/navigation to /app-example? (Y/n): ', (answer) => {
+  const userInput = answer.trim().toLowerCase() || 'y';
+  if (userInput === 'y' || userInput === 'n') {
+    run(userInput).finally(() => rl.close());
+  } else {
+    console.log("❌ Enter 'Y' or 'N'.");
+    rl.close();
   }
-);
+});
