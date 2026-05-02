@@ -1,2 +1,63 @@
+# IDE & local tooling
 .cursor
 .vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & local env (keep *.example templates tracked)
+.env
+.env*.local
+
+# --- Frontend (Expo / React Native) ---
+node_modules/
+.expo/
+dist/
+web-build/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+# Expo Router / template artifacts
+app-example
+frontend/app-example
+
+# Generated native projects (optional bare workflow outputs)
+frontend/ios/
+frontend/android/
+
+# --- Backend (Python / uv) ---
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.pytype/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Python build / publish (name collision with frontend dist is intentional)
+build/
