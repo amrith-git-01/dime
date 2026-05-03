@@ -1,24 +1,33 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from "react-native";
+
+import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { colors, spacing, typography } from "@/constants/theme";
 
 export default function HomeScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Dime</Text>
-    </View>
+    <ScreenContainer>
+      <View style={styles.body}>
+        <Text style={styles.title}>Home</Text>
+        <Text style={styles.subtitle}>
+          Placeholder — connect transactions and balances here.
+        </Text>
+      </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  body: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
   },
   title: {
-    fontSize: 36,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    color: '#111111',
+    ...typography.screenTitle,
+    color: colors.textPrimary,
+  },
+  subtitle: {
+    ...typography.screenSubtitle,
+    marginTop: spacing.sm,
   },
 });
