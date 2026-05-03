@@ -1,10 +1,12 @@
-export type RootStackParamList = {
+export type MainTabParamList = {
   Home: undefined;
+  Analytics: undefined;
+  Settings: undefined;
 };
 
 declare global {
   namespace ReactNavigation {
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-    interface RootParamList extends RootStackParamList {}
+    interface RootParamList extends MainTabParamList {}
   }
 }
