@@ -3,19 +3,20 @@
 > **Theme:** Violet / Indigo — Light Mode First  
 > **Platform:** Android Only  
 > **Font:** Inter + JetBrains Mono  
-> **Last Updated:** April 2026
+> **Last Updated:** April 2026 — added Visual Design Language & Product Personality section
 
 ---
 
 ## 📋 Table of Contents
 
-1. [Color System](#color-system)
-2. [Typography](#typography)
-3. [Spacing & Layout](#spacing--layout)
-4. [Elevation & Shadows](#elevation--shadows)
-5. [Border Radius](#border-radius)
-6. [Iconography](#iconography)
-7. [Animation System](#animation-system)
+1. [Visual Design Language](#visual-design-language)
+2. [Color System](#color-system)
+3. [Typography](#typography)
+4. [Spacing & Layout](#spacing--layout)
+5. [Elevation & Shadows](#elevation--shadows)
+6. [Border Radius](#border-radius)
+7. [Iconography](#iconography)
+8. [Animation System](#animation-system)
    - Button Animations
    - List Animations
    - Screen Transition Animations
@@ -23,7 +24,7 @@
    - Skeleton Loaders
    - Empty States
    - Micro-interactions
-8. [Gesture Animations](#gesture-animations)
+9. [Gesture Animations](#gesture-animations)
    - Swipe Left — Delete
    - Swipe Right — Categorize
    - Long Press — Multi-select
@@ -32,11 +33,209 @@
    - Double Tap — Quick Actions
    - Drag to Reorder
    - Edge Swipe — Go Back
-9. [Component States](#component-states)
+10. [Component States](#component-states)
 
 ---
 
-## Color System
+## Visual Design Language
+
+> **One sentence:** Soft. Spacious. Confident.
+
+Paisa is not a bank app. It is not corporate, cold, or intimidating. It feels like a premium consumer product — approachable, modern, and alive. Every design decision should serve this personality.
+
+---
+
+### Product Personality
+
+| Dimension | Description |
+|---|---|
+| **Tone** | Friendly but precise — like a smart friend who knows finance |
+| **Feel** | Premium consumer, not enterprise software |
+| **Energy** | Calm and focused — never cluttered, never overwhelming |
+| **Trust** | Clean and transparent — data is always readable, never hidden |
+
+---
+
+### Core Design Principles
+
+**Principle 1 — One hero per screen**
+Every screen has exactly one dominant element that answers the user's primary question instantly. On Home it's the spending amount. On Transactions it's the list. On Insights it's the chart. Nothing competes with the hero. Everything else is supporting.
+
+**Principle 2 — Soft. Spacious. Confident.**
+Cards never touch each other. Generous gaps (16–24dp) between every element. The screen breathes. White space is not wasted space — it is what makes the content feel premium and readable.
+
+**Principle 3 — Rounded and approachable**
+Everything has high border radius. Cards use `radius.lg` (20dp). Bottom sheets use `radius.xl` (24dp). Buttons are pill-shaped (`radius.full`). Nothing is sharp or rectangular. The app feels soft and modern, not corporate.
+
+**Principle 4 — Cards are always elevated**
+Every card floats above the background. Pure white (`#FFFFFF`) on the soft violet-tinted base (`#F5F4FF`). Combined with a subtle violet-tinted shadow, cards feel dimensional and premium — not flat.
+
+**Principle 5 — Violet appears only where it matters**
+The primary violet (`#6355E8`) is used sparingly and intentionally — spending card gradient, active tab indicator, FAB, CTA buttons, focus rings. It never appears as a background color for content areas. Its rarity makes it powerful.
+
+**Principle 6 — Category icons are always containerized**
+Never bare emojis in lists. Every category icon lives inside a soft rounded square using the category's 10% opacity muted color as background. This creates visual consistency and instant scannability across the transaction list.
+
+**Principle 7 — Typography does the hierarchy work**
+Size and weight establish visual hierarchy — not color, not borders, not lines. The contrast between the 40sp hero number and the 11sp caption creates the reading order. Color reinforces hierarchy but never creates it.
+
+**Principle 8 — Color-coded data is consistent**
+Food is always coral. Transport is always teal. Shopping is always purple. These colors never change across screens — transaction list, donut chart, budget bars, category chips. Consistency builds instant recognition.
+
+**Principle 9 — Animations are physics, not decoration**
+Every animation serves a purpose — it either communicates state change or provides tactile feedback. Spring physics over duration-based easing. Animations that feel natural and respond to interruption correctly.
+
+**Principle 10 — Never show empty screens**
+Every state has been designed — loading skeletons match the exact shape of real content, empty states are encouraging not clinical, error states are friendly not technical.
+
+---
+
+### Card Design Language
+
+Cards are the primary UI surface. Every card follows these rules:
+
+```
+Background:     #FFFFFF (pure white)
+Border:         1px solid #E0DFFA (subtle violet tint)
+Border radius:  20dp (radius.lg) for main cards
+                14dp (radius.md) for list item cards
+Shadow:         0 2px 12px rgba(99, 85, 232, 0.06)
+Inner highlight: 1px solid rgba(255,255,255,0.8) on top edge
+                 Creates a subtle lifted, premium feel
+Padding:        16dp on all sides (layout.cardPadding)
+```
+
+Cards never have heavy borders. The combination of pure white surface on the soft violet base background, with a barely-there violet shadow, creates all the depth needed.
+
+---
+
+### Spending Card — Special Treatment
+
+The home screen spending card is the single most important UI element in the entire app. It gets special treatment:
+
+```
+Background:     linear-gradient(135deg, #6355E8 0%, #8B7FF5 100%)
+Border radius:  24dp (radius.xl)
+Shadow:         0 8px 32px rgba(99, 85, 232, 0.35) — colored shadow
+Padding:        20dp
+Text color:     #FFFFFF throughout
+Decorative:     Two large translucent circles (8% and 6% opacity white)
+                positioned top-right and bottom-right for depth
+```
+
+Everything on the spending card is white. The gradient and the colored shadow make it feel dimensional and premium — the clear centrepiece of the home screen.
+
+---
+
+### Bottom Navigation
+
+```
+Background:     #FFFFFF with top border 1px #E0DFFA
+Height:         64dp
+Icon size:      20dp (icon.md)
+Label size:     10sp (font.micro)
+
+Active state:
+  Icon color:   color.primary (#6355E8)
+  Label weight: 700 (Bold)
+  Indicator:    4dp × 4dp dot below label, color.primary
+
+Inactive state:
+  Icon color:   color.textSecondary (#6B6B80)
+  Label weight: 500 (Medium)
+  Label color:  color.textSecondary
+```
+
+The bottom nav is minimal. No background pill behind the active tab. Just the icon color change, label weight change, and a small indicator dot. Clean and modern.
+
+---
+
+### FAB Design
+
+```
+Size:           56dp diameter (layout.fabSize)
+Background:     color.primary (#6355E8)
+Icon:           "+" lucide icon, white, 24dp
+Shadow:         0 8px 24px rgba(99, 85, 232, 0.35) — colored shadow
+Position:       16dp from right edge, 16dp above bottom nav
+Border radius:  radius.full (pill)
+Idle animation: Subtle breathing pulse — scale 1.0 → 1.04 → 1.0
+                2800ms loop, draws attention without being annoying
+```
+
+The FAB is the most prominent interactive element on Home and Transactions screens. Its colored shadow makes it float above the content and feel premium.
+
+---
+
+### List Item Design
+
+Transaction list items follow a strict layout:
+
+```
+Height:         68dp
+Border radius:  14dp (radius.md)
+Background:     #FFFFFF
+Border:         1px solid #E0DFFA
+Shadow:         shadow.1 (very subtle)
+Padding:        12dp horizontal, 10dp vertical
+
+Layout (left to right):
+[Category Icon 40dp] [12dp gap] [Merchant + Time] [flex] [Amount right-aligned]
+
+Category icon container:
+  Size:         40dp × 40dp
+  Radius:       12dp
+  Background:   category muted color (10% opacity)
+  Emoji size:   18dp
+
+Merchant name:   16sp Inter SemiBold, color.textPrimary
+Time + method:   11sp Inter Regular, color.textSecondary
+Amount:          16sp JetBrains Mono Medium, right-aligned
+  Debit:         color.textPrimary
+  Credit:        color.success (#16A34A) with + prefix
+```
+
+---
+
+### Input Field Design
+
+```
+Height:         52dp
+Background:     #FFFFFF
+Border:         1.5px solid color.border (#E0DFFA)
+Border radius:  radius.sm (10dp)
+Padding:        14dp horizontal
+Font:           16sp Inter Regular
+
+Focus state:
+  Border:       1.5px solid color.borderFocus (#6355E8)
+  Shadow:       0 0 0 3px rgba(99, 85, 232, 0.12)
+
+Error state:
+  Border:       1.5px solid color.danger (#DC2626)
+  Shadow:       0 0 0 3px rgba(220, 38, 38, 0.10)
+```
+
+---
+
+### What Paisa Should Never Look Like
+
+These are explicit anti-patterns — things that make the app feel generic, corporate, or cheap:
+
+❌ Hard rectangular cards with no radius
+❌ Grey backgrounds (always use the violet-tinted `#F5F4FF`)
+❌ Bare emojis without containers in lists
+❌ Full-width solid color section headers
+❌ More than 3 levels of visual hierarchy in one card
+❌ Alerts and modals that feel like system dialogs
+❌ Tables with visible grid lines for financial data
+❌ Loading spinners — always use shimmer skeletons instead
+❌ Red for anything other than danger/overspent states
+❌ Green for anything other than income/credit/success states
+❌ Mixing monetary amounts in Inter (always JetBrains Mono)
+❌ Centering amounts — always right-aligned in lists
+
+---
 
 ### Primary Palette
 
