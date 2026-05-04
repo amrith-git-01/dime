@@ -1,4 +1,4 @@
-import 'react-native-reanimated';
+import "react-native-reanimated";
 
 import { registerRootComponent } from 'expo';
 
