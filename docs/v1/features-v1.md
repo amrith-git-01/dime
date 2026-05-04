@@ -25,18 +25,21 @@
 ## V1 Philosophy
 
 ### What V1 Is
+
 - **Proof of core value:** Automatic expense detection via SMS/UPI that actually works
 - **Offline-first:** Works perfectly without internet, syncs when available
 - **Privacy-focused:** All AI processing on-device, user data never leaves their control
 - **Delightfully simple:** 4 tabs, zero learning curve, obvious interactions
 
 ### What V1 Is Not
+
 - ❌ A complete personal finance suite (no investments, bill splitting, loan tracking)
 - ❌ A budgeting framework you need to learn (no envelope method, no zero-based budgeting)
 - ❌ A bank replacement (no account linking, no live balance)
 - ❌ A feature-complete app (intentionally minimal to ship fast)
 
 ### V1 Success Criteria
+
 - User can install app and see their first auto-detected expense within 60 seconds
 - 80%+ of UPI transactions are captured automatically without user intervention
 - App feels faster and more polished than any competitor
@@ -48,12 +51,12 @@
 
 We use **MoSCoW prioritization:**
 
-| Priority | Meaning | V1 Decision |
-|---|---|---|
-| **Must Have** | Core value prop, app is useless without this | Ship in V1.0 |
-| **Should Have** | Enhances experience, not critical | Ship in V1.1 if time permits |
-| **Could Have** | Nice to have, clear V2 material | Defer to V2 |
-| **Won't Have** | Explicitly rejected, scope creep risk | Never build |
+| Priority        | Meaning                                      | V1 Decision                  |
+| --------------- | -------------------------------------------- | ---------------------------- |
+| **Must Have**   | Core value prop, app is useless without this | Ship in V1.0                 |
+| **Should Have** | Enhances experience, not critical            | Ship in V1.1 if time permits |
+| **Could Have**  | Nice to have, clear V2 material              | Defer to V2                  |
+| **Won't Have**  | Explicitly rejected, scope creep risk        | Never build                  |
 
 ---
 
@@ -65,9 +68,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 1. Automatic Expense Detection
 
-**Job to be done:** *"Capture my UPI payments without me lifting a finger."*
+**Job to be done:** _"Capture my UPI payments without me lifting a finger."_
 
 #### User-Facing Behavior
+
 - App runs a background service that listens for:
   - Bank SMS messages (debit/credit alerts)
   - UPI app notifications (GPay, PhonePe, Paytm)
@@ -80,6 +84,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Rejected transaction is discarded (not saved)
 
 #### Technical Implementation
+
 - `NotificationListenerService` for UPI app notifications
 - Broadcast receiver for SMS (requires `READ_SMS` permission)
 - Regex patterns for top 10 Indian banks (HDFC, ICICI, SBI, Axis, Kotak, etc.)
@@ -90,6 +95,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Saves to WatermelonDB on confirm
 
 #### Edge Cases
+
 - **Permission denied:** Show persistent card on Home screen explaining auto-detection requires SMS permission, with CTA to grant
 - **Malformed SMS:** Falls back to showing raw text, lets user edit manually
 - **Duplicate detection:** If same amount + merchant within 5 minutes, ask user "Is this a duplicate?"
@@ -97,6 +103,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **No network:** AI categorization queued, runs when online (transaction still saved)
 
 #### Acceptance Criteria
+
 - [ ] Detects HDFC, ICICI, SBI, Axis bank SMS within 2 seconds
 - [ ] Detects GPay, PhonePe UPI notifications within 2 seconds
 - [ ] Bottom sheet appears smoothly (spring animation, no jank)
@@ -109,9 +116,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 2. Manual Expense Logging
 
-**Job to be done:** *"Add cash expenses or transactions that weren't auto-detected."*
+**Job to be done:** _"Add cash expenses or transactions that weren't auto-detected."_
 
 #### User-Facing Behavior
+
 - FAB (Floating Action Button) visible on Home and Transactions screens
 - Tap FAB → bottom sheet slides up with form:
   - **Amount** (number input, opens numpad, required)
@@ -128,6 +136,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - Haptic feedback (success vibration)
 
 #### Technical Implementation
+
 - FAB component with shadow + breathing animation (idle state)
 - Bottom sheet with form validation
 - Category grid: 2 columns × 5 rows, each cell 64dp × 64dp
@@ -135,6 +144,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Saves to WatermelonDB with `detected_via: 'manual'`
 
 #### Edge Cases
+
 - **User exits before saving:** Bottom sheet dismisses, data discarded (no auto-save)
 - **Amount = 0:** Save button stays disabled
 - **Merchant name empty:** Save button stays disabled
@@ -142,6 +152,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **No category selected:** Save button disabled
 
 #### Acceptance Criteria
+
 - [ ] FAB visible and tappable on Home and Transactions screens
 - [ ] Form opens in <200ms
 - [ ] Numpad appears automatically when sheet opens
@@ -154,9 +165,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 3. Transaction List
 
-**Job to be done:** *"See where my money went."*
+**Job to be done:** _"See where my money went."_
 
 #### User-Facing Behavior
+
 - Full-screen scrollable list grouped by date:
   - **Today** (if any)
   - **Yesterday** (if any)
@@ -165,7 +177,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - **Earlier** (grouped by month: "April 2026", "March 2026", etc.)
 - Each transaction row shows:
   - **Left:** Category icon (emoji in colored circle, 40dp diameter)
-  - **Center:** 
+  - **Center:**
     - Merchant name (bold, 16sp, text-primary)
     - Time + payment method badge (12sp, text-secondary, e.g., "9:41 PM · UPI")
   - **Right:** Amount (JetBrains Mono, 16sp, right-aligned, red for debit, green for credit)
@@ -176,6 +188,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Empty state: illustration + "No expenses yet" + CTA to add manually
 
 #### Gestures
+
 - **Swipe left (delete):**
   - Drag item left, red background expands from right
   - Trash icon appears
@@ -183,7 +196,6 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - On release: item slides off screen, height collapses, remaining items slide up
   - Snackbar appears: "Deleted" with UNDO button (5 second timeout)
   - If UNDO tapped: item reappears with bounce animation
-  
 - **Swipe right (recategorize):**
   - Drag item right, blue background expands from left
   - Pencil icon appears
@@ -199,6 +211,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - Tap outside or press X → exits multi-select
 
 #### Technical Implementation
+
 - FlatList with section headers
 - React Native Gesture Handler for swipe gestures
 - Reanimated 3 for smooth animations
@@ -207,6 +220,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Delete uses soft delete flag (can undo from snackbar)
 
 #### Edge Cases
+
 - **No transactions:** Show empty state
 - **Offline + pull to refresh:** Show "You're offline" toast
 - **Swipe conflict:** Only one item can be swiped at a time (others snap back)
@@ -215,6 +229,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **Deleted item in undo queue:** If user force-quits app, delete is permanent (no persistent undo queue)
 
 #### Acceptance Criteria
+
 - [ ] List renders 1000+ transactions without lag (use FlatList.initialNumToRender optimization)
 - [ ] Swipe gestures feel smooth (60fps, no frame drops)
 - [ ] Date grouping is correct (Today/Yesterday/This Week logic)
@@ -227,13 +242,13 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 4. Home Screen
 
-**Job to be done:** *"At a glance, am I spending too much this month?"*
+**Job to be done:** _"At a glance, am I spending too much this month?"_
 
 #### User-Facing Behavior
+
 - **Header:**
   - Greeting: "Good morning, [Name]" (changes: morning/afternoon/evening)
   - Date: "Saturday, May 2"
-  
 - **Spending Card** (hero element):
   - Total spent this month (large number, ₹ format, JetBrains Mono, 40sp)
   - Budget status subtitle:
@@ -245,20 +260,18 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
     - 80-99%: warning color (smooth transition)
     - 100%+: danger color + shake animation once
   - Tap card → opens Budgets tab
-  
 - **Top Categories** (horizontal scrollable chips):
   - Shows top 5 categories by spending this month
   - Each chip: emoji icon + "Food ₹3,200" (category name + amount)
   - Tap chip → filters Transactions tab by that category
-  
 - **Recent Transactions:**
   - Section header: "Recent" with "See all →" link
   - Last 5 transactions (compact, same layout as main list)
   - Tap "See all" → switches to Transactions tab
-  
 - **FAB:** Visible at bottom-right for quick add
 
 #### Technical Implementation
+
 - Spending card uses Victory Native XL for arc rendering (GPU, silky smooth)
 - Arc animation: `strokeDashoffset` transition over 800ms with ease-out curve
 - Budget data from Zustand store (hydrated from WatermelonDB on app launch)
@@ -267,6 +280,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Greeting logic: `new Date().getHours()` → morning (5-11), afternoon (12-17), evening (18-4)
 
 #### Edge Cases
+
 - **No budget set:** Spending card shows "Set a budget" CTA instead of ring
 - **No transactions yet:** Empty state with onboarding prompt
 - **First day of month:** Shows "₹0 spent" (not "No data")
@@ -274,6 +288,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **Offline:** All data loads from local DB, no spinner, no "offline" banner (it just works)
 
 #### Acceptance Criteria
+
 - [ ] Spending ring animates smoothly on screen mount
 - [ ] Budget status text updates correctly (under/at/over)
 - [ ] Top categories scrollable horizontally
@@ -286,9 +301,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 5. AI Auto-Categorization
 
-**Job to be done:** *"Stop asking me if Swiggy is food — the app should just know."*
+**Job to be done:** _"Stop asking me if Swiggy is food — the app should just know."_
 
 #### User-Facing Behavior
+
 - When transaction detected (SMS/UPI):
   - Gemma 4 E2B suggests category based on merchant name
   - Shown in bottom sheet: "Swiggy → 🍔 Food & Dining"
@@ -300,13 +316,15 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Fallback to "📦 Others" if AI is uncertain (confidence <70%)
 
 #### How AI Works
+
 - Uses Gemma 4 E2B via ML Kit GenAI Prompt API
 - Prompt template:
+
   ```
   Categorize this expense:
   Merchant: "{merchant_name}"
   Amount: ₹{amount}
-  
+
   Categories:
   - 🍔 Food & Dining
   - 🚗 Transport
@@ -317,15 +335,17 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - ✈️ Travel
   - 📚 Education
   - 📦 Others
-  
+
   Return only the category emoji and name, nothing else.
   If uncertain, return "📦 Others".
   ```
+
 - Response parsed, matched against category list
 - First run: AI downloads model (~1.3 GB, one-time, shows progress dialog)
 - Runs on-device, works offline, zero cost
 
 #### Learning System
+
 - Local SQLite table: `merchant_category_mappings`
 - Schema: `merchant_name (text), category_id (uuid), confidence (int), user_corrected (bool)`
 - When user changes category:
@@ -335,6 +355,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - Next time "Uber" appears, auto-suggests Food
 
 #### Technical Implementation
+
 - ML Kit GenAI API integration in `features/ai/`
 - Custom hook: `useCategorize(merchantName: string)`
 - Returns: `{ category, confidence, loading }`
@@ -342,6 +363,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Timeout: if AI takes >3 seconds, fallback to "Others" (show "AI is slow" toast)
 
 #### Edge Cases
+
 - **AI model not downloaded yet:** Show "Downloading AI model... 45%" dialog, allow user to cancel and categorize manually
 - **Device too old (no AICore):** Fallback to rule-based categorization (merchant name contains "swiggy|zomato" → Food)
 - **Network down + model not cached:** Use last-known category for merchant, or default to "Others"
@@ -349,6 +371,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **User repeatedly changes AI suggestions:** After 3 corrections for same merchant, stop auto-suggesting (always default to last user choice)
 
 #### Acceptance Criteria
+
 - [ ] AI categorization accuracy >80% for top 50 merchants
 - [ ] Categorization completes in <1 second on Snapdragon 8 Gen 1+
 - [ ] Works offline after first model download
@@ -361,9 +384,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 6. Basic Budget Tracking
 
-**Job to be done:** *"Keep me from overspending this month."*
+**Job to be done:** _"Keep me from overspending this month."_
 
 #### User-Facing Behavior
+
 - **Onboarding:** During first launch, user sets monthly budget (e.g., ₹25,000)
 - **Home screen:** Spending ring shows % of budget used
 - **Budget warning notification:**
@@ -373,6 +397,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **Reset:** Budget auto-resets on 1st of every month (hardcoded for V1)
 
 #### How It Works
+
 - One monthly budget stored in WatermelonDB `budgets` table
 - Budget amount (e.g., ₹25,000)
 - Period: monthly (only option in V1)
@@ -381,17 +406,18 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Remaining: budget - spent
 
 #### Notifications
+
 - **80% threshold:**
   - Local notification: "Budget Alert: 80% used"
   - Only fires once per month (don't spam)
   - Tapping notification opens app to Home screen
-  
 - **100% threshold:**
   - Local notification: "Budget exceeded!"
   - Fires once when crossed, plus daily reminder if still over
   - Tapping opens Home screen
 
 #### Technical Implementation
+
 - Budget stored in Zustand `useBudgetStore` (hydrated from WatermelonDB)
 - Notification scheduling: `expo-notifications`
 - Check on every transaction save: if new total crosses threshold, fire notification
@@ -401,6 +427,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - 100%+: `color.danger` + shake animation
 
 #### Edge Cases
+
 - **No budget set:** Home screen shows "Set a budget" CTA (opens budget setup sheet)
 - **Budget = 0:** Treated as "no budget set"
 - **Mid-month budget change:** If user changes budget from ₹25k → ₹30k, notification thresholds recalculate (don't re-fire if already sent)
@@ -408,6 +435,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **Credits/refunds:** Reduce spent amount (if refund in same month, frees up budget)
 
 #### Acceptance Criteria
+
 - [ ] User can set budget during onboarding
 - [ ] User can change budget in Settings
 - [ ] Spending ring updates in real-time as transactions added
@@ -420,9 +448,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 7. Local-First Data (WatermelonDB)
 
-**Job to be done:** *"App should work perfectly on the metro with no signal."*
+**Job to be done:** _"App should work perfectly on the metro with no signal."_
 
 #### User-Facing Behavior
+
 - App works 100% offline, always
 - No loading spinners (data is local)
 - No "You're offline" banners (offline is the default, online is a bonus)
@@ -433,6 +462,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - Red: offline >24 hours (tap for details)
 
 #### How It Works
+
 - All data stored in SQLite via WatermelonDB
 - Tables: `transactions`, `budgets`, `categories`, `merchant_mappings`
 - Reactive: UI updates automatically when data changes (WatermelonDB observers)
@@ -440,22 +470,28 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Sync layer: separate background process (see Feature #9)
 
 #### Technical Implementation
+
 - WatermelonDB models in `src/db/models/`
 - Schema in `src/db/schema.ts`
 - App initialization: `await database.write(() => { /* seed default categories */ })`
 - All screens use WatermelonDB `observe()` pattern:
   ```tsx
-  const transactions = useDatabase().collections.get('transactions').query().observe()
+  const transactions = useDatabase()
+    .collections.get("transactions")
+    .query()
+    .observe();
   ```
 - Changes propagate via RxJS observables → Zustand → React re-renders
 
 #### Edge Cases
+
 - **First launch:** Seed 10 default categories (Food, Transport, etc.)
 - **Database corruption:** Detect on launch, show "Data corrupted, reset required?" dialog
 - **Migration needed:** WatermelonDB handles schema migrations automatically
 - **Large dataset:** Database limited to 10,000 transactions max (archive older to cloud, keep last 2 years local)
 
 #### Acceptance Criteria
+
 - [ ] App launches in <500ms (database connection instant)
 - [ ] Transactions list renders 1000+ items without lag
 - [ ] All CRUD operations complete in <50ms
@@ -467,18 +503,21 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 8. Onboarding Flow
 
-**Job to be done:** *"Understand what this app does and grant necessary permissions."*
+**Job to be done:** _"Understand what this app does and grant necessary permissions."_
 
 #### User-Facing Behavior
+
 - First launch → onboarding (3 screens, swipeable carousel)
-  
+
 **Screen 1: Welcome**
+
 - Hero illustration (Lottie animation of phone receiving SMS → expense appearing)
 - Headline: "Your expenses, tracked automatically"
 - Subtext: "No manual logging. Your bank SMS does the work."
 - Button: "Get started"
 
 **Screen 2: Permissions**
+
 - Two permission cards:
   1. **SMS Access**
      - Icon: 💬
@@ -486,7 +525,6 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
      - Explain: "We detect payments from your bank SMS. All processing happens on your device."
      - Button: "Grant SMS access"
      - Skip: "I'll do this later" (link)
-  
   2. **Notifications Access**
      - Icon: 🔔
      - Title: "Notification access"
@@ -495,6 +533,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
      - Skip: "I'll do this later"
 
 **Screen 3: Set Budget**
+
 - Headline: "How much do you want to spend monthly?"
 - Big number input: ₹ [___]
 - Presets: ₹10k, ₹20k, ₹30k, ₹50k (tap to auto-fill)
@@ -502,26 +541,30 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Skip: "Skip for now" (defaults to ₹25,000)
 
 **After onboarding:**
+
 - Navigate to Home screen
 - Show bottom sheet: "Try adding your first expense!" (points to FAB)
 - Dismiss after 5 seconds or user interaction
 
 #### Technical Implementation
+
 - Three screens in `src/screens/Onboarding/`
 - Horizontal FlatList with snap-to-page
 - Dot indicators at bottom (active dot highlighted)
 - State managed in `useOnboardingStore` (Zustand)
-- Permissions requested via `expo-permissions`
+- Permissions requested via the relevant Expo modules (`expo-notifications`, `expo-image-picker`, `expo-camera`, and Android SMS / notification-listener flows — `expo-permissions` is deprecated)
 - On completion: set `hasCompletedOnboarding: true` in MMKV
 - Next launch: skip onboarding, go straight to Home
 
 #### Edge Cases
+
 - **Permissions denied:** App works, but shows persistent banner on Home: "Enable auto-tracking" with CTA
 - **User skips budget:** Defaults to ₹25,000, can change later in Settings
 - **User exits mid-onboarding:** Progress saved, resumes where they left off
 - **Already granted permissions (reinstall):** Skip permission screens, just show budget screen
 
 #### Acceptance Criteria
+
 - [ ] Onboarding shows on first launch only
 - [ ] Can swipe between screens smoothly
 - [ ] Dot indicators show current screen
@@ -535,9 +578,10 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 9. Cloud Sync (Background)
 
-**Job to be done:** *"My data should survive app reinstall or phone upgrade."*
+**Job to be done:** _"My data should survive app reinstall or phone upgrade."_
 
 #### User-Facing Behavior
+
 - Sync happens automatically in background (user doesn't trigger it)
 - Sync frequency:
   - Every 5 minutes when app is open and online
@@ -556,6 +600,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Conflicts resolved automatically (last-write-wins for V1)
 
 #### How It Works
+
 - Background service syncs local WatermelonDB → Supabase Postgres
 - Two-way sync:
   - **Upload:** Local changes (new/updated/deleted transactions) → POST to FastAPI → Supabase
@@ -569,6 +614,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
   - If sync fails 3 times, mark as error, show red dot
 
 #### Technical Implementation
+
 - Sync service in `src/features/sync/`
 - Uses WatermelonDB sync adapter
 - FastAPI endpoints:
@@ -581,6 +627,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Authentication: Supabase JWT in header (from `useAuthStore`)
 
 #### Edge Cases
+
 - **No internet:** Sync queued, happens when connection restored (app shows green dot → red dot)
 - **Auth token expired:** Refresh token, retry sync
 - **Sync conflict:** Last-write-wins (example: user edits transaction on phone A, also on phone B, whichever saves last wins)
@@ -589,6 +636,7 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - **User reinstalls app:** On login, full download from cloud → populates local DB
 
 #### Acceptance Criteria
+
 - [ ] Sync happens every 5 minutes when app open + online
 - [ ] Sync triggers on app foreground
 - [ ] Pull-to-refresh triggers immediate sync
@@ -603,43 +651,51 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 
 ### 10. Settings Screen
 
-**Job to be done:** *"Control the app's behavior and manage my data."*
+**Job to be done:** _"Control the app's behavior and manage my data."_
 
 #### User-Facing Behavior
+
 - Accessible from Home screen (gear icon in top-right)
 - Grouped settings:
 
 **Account**
+
 - Profile name (tap to edit)
 - Email (read-only, from Supabase Auth)
 - Logout button (red, confirms before logout)
 
 **Budget**
+
 - Monthly budget amount (tap to edit, opens number input)
 - Budget reset day (locked to "1st of month" in V1, grayed out)
 
 **Auto-Detection**
+
 - Toggle: "Detect SMS transactions" (on/off)
 - Toggle: "Detect UPI notifications" (on/off)
 - Subtext: "Disable if you don't want automatic tracking"
 
 **Privacy**
+
 - "All processing happens on your device"
 - "Your data is never sold or shared"
 - Link: "Privacy Policy" (opens web view)
 
 **Data**
+
 - "Last synced: 5 minutes ago" (read-only status)
 - Button: "Sync now" (force sync)
 - Button: "Clear all data" (red, confirms: "This will delete all transactions. Are you sure?")
 
 **About**
+
 - App version (e.g., "1.0.0")
 - Link: "Terms of Service"
 - Link: "Open source licenses"
 - "Made with ❤️ in India"
 
 #### Technical Implementation
+
 - Settings screen: `src/screens/Settings/SettingsScreen.tsx`
 - Uses MMKV for preferences (auto-detection toggles)
 - Budget stored in WatermelonDB (same as Feature #6)
@@ -647,12 +703,14 @@ These are **non-negotiable**. V1 doesn't ship without all of these working end-t
 - Clear all data: deletes all WatermelonDB records, resets to onboarding
 
 #### Edge Cases
+
 - **Toggle auto-detection off:** Background service stops, user must log manually
 - **Change budget mid-month:** Recalculates % used, doesn't reset spending
 - **Logout while offline:** Queue logout, sync pending changes first (or warn: "You have unsynced data, sync before logout?")
 - **Clear data while offline:** Confirm: "This will delete local data. Cloud backup not affected."
 
 #### Acceptance Criteria
+
 - [ ] Settings screen accessible from Home
 - [ ] Profile name editable (saves to Supabase)
 - [ ] Budget amount editable (updates immediately)
@@ -672,9 +730,10 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 
 ### 11. Category-Level Budgets
 
-**Job to be done:** *"I want to limit food spending to ₹5,000/month separately."*
+**Job to be done:** _"I want to limit food spending to ₹5,000/month separately."_
 
 #### User-Facing Behavior
+
 - Budgets tab (new, 4th tab in bottom navigation)
 - Shows list of category budgets (cards):
   - Category icon + name
@@ -688,12 +747,14 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 - Warnings work same as overall budget (80%, 100% notifications)
 
 #### Technical Implementation
+
 - `budgets` table already exists (schema supports category_id)
 - Query budgets with category join
 - Aggregate spent per category per month
 - Progress bar component (reusable)
 
 #### Acceptance Criteria
+
 - [ ] User can create budget per category
 - [ ] Progress bars show correctly
 - [ ] Notifications fire at 80% and 100% per category
@@ -703,9 +764,10 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 
 ### 12. Receipt Scanning
 
-**Job to be done:** *"I don't want to type amounts from paper receipts."*
+**Job to be done:** _"I don't want to type amounts from paper receipts."_
 
 #### User-Facing Behavior
+
 - FAB → "Scan Receipt" option (opens camera)
 - User captures photo
 - AI extracts: merchant, amount, date, line items
@@ -715,11 +777,13 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 - Thumbnail shown in transaction detail
 
 #### Technical Implementation
+
 - Gemma 4 multimodal (image + text input)
 - Image upload to DO Spaces via FastAPI
 - Receipt URL stored in `transactions.receipt_url`
 
 #### Acceptance Criteria
+
 - [ ] Camera opens smoothly
 - [ ] AI extracts data >70% accuracy
 - [ ] Receipt image stored in cloud
@@ -729,9 +793,10 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 
 ### 13. Basic Insights (Charts)
 
-**Job to be done:** *"Show me my spending patterns."*
+**Job to be done:** _"Show me my spending patterns."_
 
 #### User-Facing Behavior
+
 - Insights tab (replaces Budgets if #11 not built)
 - Three charts:
   1. **Donut chart:** Spending by category (this month)
@@ -740,11 +805,13 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 - Tap chart segment → filters transactions
 
 #### Technical Implementation
+
 - Victory Native XL for all charts
 - Data from WatermelonDB aggregations
 - Charts render on GPU (smooth 60fps)
 
 #### Acceptance Criteria
+
 - [ ] Charts load in <500ms
 - [ ] Animations smooth (no jank)
 - [ ] Tapping filters transactions
@@ -754,9 +821,10 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 
 ### 14. Search & Filters
 
-**Job to be done:** *"Find that Amazon order from last week."*
+**Job to be done:** _"Find that Amazon order from last week."_
 
 #### User-Facing Behavior
+
 - Search bar at top of Transactions screen
 - Search by merchant name or amount
 - Filters button → sheet with:
@@ -766,10 +834,12 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 - Results update in real-time
 
 #### Technical Implementation
+
 - WatermelonDB query with `Q.where()` conditions
 - Search debounced (300ms)
 
 #### Acceptance Criteria
+
 - [ ] Search returns results in <100ms
 - [ ] Filters apply correctly
 - [ ] Clear filters button resets
@@ -778,18 +848,21 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 
 ### 15. Transaction Notes (Text)
 
-**Job to be done:** *"Remember why I made this payment."*
+**Job to be done:** _"Remember why I made this payment."_
 
 #### User-Facing Behavior
+
 - Optional note field in manual entry form
 - Shows in transaction detail below amount
 - Max 200 characters
 
 #### Technical Implementation
+
 - `transactions.note` column (already in schema)
 - Simple text input
 
 #### Acceptance Criteria
+
 - [ ] Note saves and displays
 - [ ] Works in auto-detected transactions (editable)
 
@@ -800,42 +873,52 @@ These enhance V1 but aren't critical. Ship if time permits in first release, oth
 Explicitly **deferred to V2**. Don't build these in V1.
 
 ### 16. Recurring Transaction Detection
+
 - AI detects patterns (e.g., Netflix every month)
 - Suggests creating recurring entry
 
 ### 17. Bill Reminders
+
 - "Electricity bill due in 3 days"
 - Notifications + calendar integration
 
 ### 18. Multi-Currency Support
+
 - Switch between ₹ / $ / €
 - Exchange rate conversion
 
 ### 19. Export Data
+
 - Export to CSV, PDF, Excel
 - Email or share as file
 
 ### 20. Dark Mode
+
 - System-aware theme switching
 - (Easy with NativeWind, but not priority)
 
 ### 21. Android Widgets
+
 - Home screen widget showing spending
 - Quick-add expense widget
 
 ### 22. Voice Notes
+
 - Audio memo attached to transaction
 - Stored in DO Spaces
 
 ### 23. Shared Budgets
+
 - Family accounts, shared expenses
 - Multi-user sync
 
 ### 24. Income Tracking
+
 - Separate tab for income vs expenses
 - Net cash flow calculation
 
 ### 25. Goals / Savings Targets
+
 - "Save ₹50,000 for vacation"
 - Progress tracking
 
@@ -846,26 +929,32 @@ Explicitly **deferred to V2**. Don't build these in V1.
 Explicitly **rejected**. Not in V1, V2, or ever (unless strategy changes).
 
 ### ❌ Bank Account Linking
+
 - **Why not:** Privacy nightmare, regulatory compliance, expensive third-party APIs
 - **Alternative:** SMS/UPI auto-detection covers 80% of use cases without invasive access
 
 ### ❌ Investment Tracking
+
 - **Why not:** Different product category, different user persona, needs live market data
 - **Alternative:** Let users use Zerodha/Groww for investments, we focus on expenses
 
 ### ❌ Bill Splitting / Group Expenses
+
 - **Why not:** Splitwise exists and does this well, adds social layer complexity
 - **Alternative:** Users can manually log their share of split bills
 
 ### ❌ Gamification (Points, Streaks, Badges)
+
 - **Why not:** Finance apps should be utility-first, not engagement-hacking
 - **Alternative:** Focus on clarity and speed, not artificial retention
 
 ### ❌ Cryptocurrency Tracking
+
 - **Why not:** Volatile, regulatory unclear in India, niche audience
 - **Alternative:** N/A
 
 ### ❌ Loan/EMI Tracking
+
 - **Why not:** Complex amortization logic, different mental model than expenses
 - **Alternative:** Could be V3 if user research shows demand
 
@@ -978,6 +1067,7 @@ Explicitly **rejected**. Not in V1, V2, or ever (unless strategy changes).
 ### V1 Launch Success Criteria
 
 **Technical Metrics:**
+
 - [ ] App launches in <500ms on mid-range device (Snapdragon 778G)
 - [ ] Transaction list scrolls at 60fps with 1000+ items
 - [ ] Auto-detection latency <2 seconds from SMS received to bottom sheet shown
@@ -987,6 +1077,7 @@ Explicitly **rejected**. Not in V1, V2, or ever (unless strategy changes).
 - [ ] App size <50 MB (excluding AI model download)
 
 **User Engagement Metrics:**
+
 - [ ] 70%+ of new users complete onboarding
 - [ ] 50%+ of users grant SMS permission
 - [ ] 40%+ of users grant notification permission
@@ -996,6 +1087,7 @@ Explicitly **rejected**. Not in V1, V2, or ever (unless strategy changes).
 - [ ] Day 30 retention >20%
 
 **Quality Metrics:**
+
 - [ ] Play Store rating >4.0 stars
 - [ ] <5% uninstall rate in first week
 - [ ] Support tickets <1 per 100 users
@@ -1007,6 +1099,7 @@ Explicitly **rejected**. Not in V1, V2, or ever (unless strategy changes).
 Recommended build sequence for solo dev (8-10 weeks):
 
 ### Week 1-2: Foundation + Manual Logging
+
 1. Bare Expo project setup
 2. WatermelonDB schema + models
 3. Home screen (basic layout, no charts)
@@ -1019,6 +1112,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 3: Visual Polish
+
 7. Apply NativeWind styling to all screens
 8. Extract colors to constants
 9. Add basic animations (FAB press, bottom sheet slide)
@@ -1030,6 +1124,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 4: Auto-Detection
+
 12. SMS permission request
 13. Background SMS listener
 14. Regex patterns for top 5 banks
@@ -1041,6 +1136,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 5: AI Integration
+
 17. ML Kit GenAI setup
 18. Gemma 4 model download flow
 19. Merchant name cleanup
@@ -1052,6 +1148,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 6: Budget + Home Screen
+
 22. Budget setup (onboarding + settings)
 23. Spending ring (Victory Native XL)
 24. Budget calculations
@@ -1063,6 +1160,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 7: Cloud Sync
+
 27. FastAPI backend (basic CRUD endpoints)
 28. Deploy to DigitalOcean
 29. Supabase setup (tables, RLS policies)
@@ -1074,6 +1172,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 8: Gestures + Polish
+
 32. Swipe-to-delete
 33. Swipe-to-recategorize
 34. Pull-to-refresh
@@ -1086,6 +1185,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 9: Settings + Onboarding
+
 38. Settings screen
 39. Onboarding flow (3 screens)
 40. Permission requests
@@ -1096,6 +1196,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 ---
 
 ### Week 10: Testing + Bug Fixes
+
 42. Test all flows end-to-end
 43. Fix bugs
 44. Performance optimization (lazy loading, memoization)
@@ -1118,6 +1219,7 @@ Recommended build sequence for solo dev (8-10 weeks):
 > **Remember:** V1 is about **proving the core value** (automatic expense tracking). Everything else is polish. Ship fast, learn fast, iterate.
 
 **Next Steps:**
+
 1. Review this doc with stakeholders (yourself!)
 2. Lock Must-Have scope
 3. Create GitHub issues from this (one per feature)
@@ -1125,4 +1227,4 @@ Recommended build sequence for solo dev (8-10 weeks):
 
 ---
 
-*Last updated: May 2026 · Version 1.0 · Owned by: Solo Dev*
+_Last updated: May 2026 · Version 1.0 · Owned by: Solo Dev_
