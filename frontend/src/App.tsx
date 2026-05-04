@@ -1,8 +1,10 @@
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import * as NavigationBar from "expo-navigation-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
 import { Platform, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,6 +14,10 @@ import { loadableAppFonts } from "@/constants/fonts";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
 
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
+});
+WebBrowser.maybeCompleteAuthSession();
 void SplashScreen.preventAutoHideAsync();
 
 export default function App() {
