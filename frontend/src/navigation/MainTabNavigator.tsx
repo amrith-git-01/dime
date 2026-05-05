@@ -1,10 +1,12 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import * as Haptics from "expo-haptics";
-import { BarChart3, House, Settings } from "lucide-react-native";
-import { Platform, StyleSheet, View } from "react-native";
+import { useCallback } from "react";
+import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppHeader } from "@/components/layout/AppHeader";
+import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants/theme";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import SettingsScreen from "@/screens/settings/SettingsScreen";
@@ -13,96 +15,74 @@ import type { MainTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
-/**
- * One continuous surface (incl. Android gesture / 3-button inset) so the system
- * nav region matches {@link colors.barBackground}. Icon contrast is handled natively
- * via `NavigationBar.setStyle('light')` (Material: light bar, dark controls).
- */
-function TabBarBackground() {
-  return <View style={styles.tabBarBackgroundSolid} />;
-}
-
 export default function MainTabNavigator() {
-  const insets = useSafeAreaInsets();
-  const tabBarBottomPadding = Math.max(insets.bottom, spacing.sm);
-  const tabBarHeight = spacing.tabBarHeight + tabBarBottomPadding;
+  const safeInsets = useSafeAreaInsets();
+  const tabBarReservedHeight =
+    spacing.tabBarHeight + Math.max(safeInsets.bottom, spacing.sm);
+  const onNotificationsPress = useCallback(() => {
+    void triggerLightHaptic();
+    Alert.alert("Notifications", "You have no notifications yet.");
+  }, []);
 
   return (
-    <Tabs.Navigator
-      screenListeners={{
-        tabPress: () => {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        },
-      }}
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.inactive,
-        tabBarBackground: () => <TabBarBackground />,
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            height: tabBarHeight,
-            paddingBottom: tabBarBottomPadding,
-          },
-        ],
-      }}
-    >
-      <Tabs.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => (
-            <House size={spacing.iconTab} color={color} strokeWidth={2} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="Analytics"
-        component={AnalyticsScreen}
-        options={{
-          title: "Analytics",
-          tabBarIcon: ({ color }) => (
-            <BarChart3 size={spacing.iconTab} color={color} strokeWidth={2} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color }) => (
-            <Settings size={spacing.iconTab} color={color} strokeWidth={2} />
-          ),
-        }}
-      />
-    </Tabs.Navigator>
+    <View style={styles.root}>
+      <View style={styles.headerSlot}>
+        <AppHeader onNotificationsPress={onNotificationsPress} />
+      </View>
+      <View style={styles.navigatorSlot}>
+        <Tabs.Navigator
+          tabBar={(props) => <DimeTabBar {...props} />}
+          screenListeners={{
+            tabPress: () => {
+              void triggerLightHaptic();
+            },
+          }}
+          screenOptions={{
+            headerShown: false,
+            tabBarShowLabel: false,
+            /** Matches DimeTabBar so scene layout reserves correct space before first layout. */
+            tabBarStyle: { height: tabBarReservedHeight },
+          }}
+        >
+          <Tabs.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              title: "Home",
+            }}
+          />
+          <Tabs.Screen
+            name="Analytics"
+            component={AnalyticsScreen}
+            options={{
+              title: "Analytics",
+            }}
+          />
+          <Tabs.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{
+              title: "Settings",
+            }}
+          />
+        </Tabs.Navigator>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
-    backgroundColor: "transparent",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  tabBarBackgroundSolid: {
+  root: {
     flex: 1,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.pageBackground,
+  },
+  headerSlot: {
+    flexShrink: 0,
+    zIndex: 2,
+    elevation: 4,
+  },
+  navigatorSlot: {
+    flex: 1,
+    minHeight: 0,
   },
 });

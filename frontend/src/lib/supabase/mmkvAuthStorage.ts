@@ -16,3 +16,8 @@ export const supabaseAuthMmkvStorage = {
     return Promise.resolve();
   },
 };
+
+/** Clears every key in the Supabase auth MMKV instance (use after `signOut` if you want no leftovers). */
+export function clearSupabaseAuthMmkv(): void {
+  authMmkv.clearAll();
+}
