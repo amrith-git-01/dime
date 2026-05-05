@@ -1,8 +1,10 @@
 import { Eye, EyeOff, X } from "lucide-react-native";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import {
   Platform,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   type TextInputProps,
@@ -10,10 +12,12 @@ import {
 } from "react-native";
 
 import { formStyles } from "@/constants/formStyles";
-import { colors } from "@/constants/theme";
+import { colors, spacing } from "@/constants/theme";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;
+  /** Shown on the same row as the label, right-aligned (e.g. character count). */
+  labelRight?: ReactNode;
   errorMessage?: string | null;
   showClear?: boolean;
   showPasswordToggle?: boolean;
@@ -21,6 +25,7 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
 
 export function TextField({
   label,
+  labelRight,
   errorMessage,
   showClear = true,
   showPasswordToggle = false,
@@ -28,6 +33,8 @@ export function TextField({
   value,
   onChangeText,
   editable = true,
+  onFocus,
+  onBlur,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -38,7 +45,16 @@ export function TextField({
   const showClearButton = showClear && hasValue && editable !== false;
   return (
     <View>
-      <Text style={formStyles.fieldLabel}>{label}</Text>
+      {labelRight ? (
+        <View style={styles.labelRow}>
+          <Text style={[formStyles.fieldLabel, styles.labelInRow]}>
+            {label}
+          </Text>
+          {labelRight}
+        </View>
+      ) : (
+        <Text style={formStyles.fieldLabel}>{label}</Text>
+      )}
       <View
         style={[
           formStyles.fieldShell,
@@ -53,8 +69,14 @@ export function TextField({
           onChangeText={onChangeText}
           editable={editable}
           secureTextEntry={effectiveSecure}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           textAlignVertical={Platform.OS === "android" ? "center" : undefined}
           {...rest}
         />
@@ -83,9 +105,23 @@ export function TextField({
           </Pressable>
         ) : null}
       </View>
-      {errorMessage ? (
+      {typeof errorMessage === "string" && errorMessage.length > 0 ? (
         <Text style={formStyles.fieldError}>{errorMessage}</Text>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  labelInRow: {
+    flex: 1,
+    marginBottom: 0,
+  },
+});

@@ -10,10 +10,23 @@ export const colors = {
   primary: "#4F46E5",
   inactive: "#6B7280",
   border: "#E5E7EB",
+  /** Hairline above light surfaces (e.g. bottom tab bar). */
+  borderLight: "#E5E7EB",
   barBackground: "#FFFFFF",
   pageBackground: "#f9f9ff",
   textPrimary: "#151c27",
   textSecondary: "#464555",
+  textOnPrimary: "#FFFFFF",
+  textOnPrimaryMuted: "rgba(255,255,255,0.88)",
+  onPrimaryHairline: "rgba(255,255,255,0.22)",
+  /** Full-bleed header gradient (design system doc spending / hero violet). */
+  headerGradientStart: "#6355E8",
+  headerGradientEnd: "#8B7FF5",
+  headerGreetingForeground: "rgba(255,255,255,0.75)",
+  headerAvatarRingBorder: "rgba(255,255,255,0.4)",
+  headerBellCircleBg: "rgba(255,255,255,0.15)",
+  /** Inactive tab icon/label on primary tab bar */
+  tabBarOnPrimaryInactive: "rgba(255,255,255,0.62)",
 } as const;
 
 /** 4dp base unit */
@@ -23,8 +36,12 @@ export const spacing = {
   md: 12,
   lg: 16,
   xl: 24,
-  tabBarHeight: 56,
-  iconTab: 24,
+  /** Tab row height before safe-area bottom inset (icon + label). */
+  tabBarHeight: 64,
+  /** Bottom tab bar icons. */
+  iconTab: 22,
+  /** Header bottom curve radius (Option A). */
+  headerCurveRadius: 24,
 } as const;
 
 export const typography = {
@@ -44,6 +61,43 @@ export const typography = {
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
+  },
+  /** Home header display name (Stitch title-lg scale) — light surfaces */
+  headerDisplayName: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 20,
+    lineHeight: 28,
+    letterSpacing: -0.01 * 20,
+    color: colors.textPrimary,
+  },
+  /** Greeting on indigo / primary header */
+  headerGreetingOnPrimary: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textOnPrimaryMuted,
+  },
+  /** Name on primary header (spending-card tone, doc-aligned) */
+  headerDisplayNameOnPrimary: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 20,
+    lineHeight: 28,
+    letterSpacing: -0.01 * 20,
+    color: colors.textOnPrimary,
+  },
+  /** Full-bleed header line 1 (greeting) */
+  headerGreetingLine: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.headerGreetingForeground,
+  },
+  /** Full-bleed header line 2 (username) */
+  headerUsernameLine: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.textOnPrimary,
   },
   /** Currency and numeric displays */
   mono: {

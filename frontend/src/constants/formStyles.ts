@@ -8,7 +8,7 @@ export const formStyles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: colors.primary,
     marginBottom: spacing.sm,
   },
   /** Keep border width constant so focus/error states do not change layout height. */

@@ -1,14 +1,12 @@
 import {
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
@@ -30,81 +28,71 @@ export function AuthScreenLayout({ mode, onModeChange, children }: Props) {
 
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView
-        style={styles.keyboardRoot}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+      <KeyboardAwareScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { minHeight: minScrollContentHeight },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+        bottomOffset={24}
       >
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { minHeight: minScrollContentHeight },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
-          showsVerticalScrollIndicator={false}
+        <Pressable
+          accessibilityRole="none"
+          style={styles.dismissPressable}
+          onPress={Keyboard.dismiss}
         >
-          <Pressable
-            accessibilityRole="none"
-            style={styles.dismissPressable}
-            onPress={Keyboard.dismiss}
-          >
-            <View style={styles.page}>
-              <Text style={styles.logo}>Dime</Text>
-              <View style={styles.segment}>
-                <Pressable
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: mode === "login" }}
-                  onPress={() => onModeChange("login")}
-                  style={styles.segmentPressable}
+          <View style={styles.page}>
+            <Text style={styles.logo}>Dime</Text>
+            <View style={styles.segment}>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "login" }}
+                onPress={() => onModeChange("login")}
+                style={styles.segmentPressable}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    mode === "login" && styles.segmentActive,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      mode === "login" && styles.segmentActive,
-                    ]}
-                  >
-                    Sign in
-                  </Text>
-                  {mode === "login" ? (
-                    <View style={styles.segmentUnderline} />
-                  ) : null}
-                </Pressable>
-                <Pressable
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: mode === "register" }}
-                  onPress={() => onModeChange("register")}
-                  style={styles.segmentPressable}
+                  Sign in
+                </Text>
+                {mode === "login" ? (
+                  <View style={styles.segmentUnderline} />
+                ) : null}
+              </Pressable>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: mode === "register" }}
+                onPress={() => onModeChange("register")}
+                style={styles.segmentPressable}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    mode === "register" && styles.segmentActive,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      mode === "register" && styles.segmentActive,
-                    ]}
-                  >
-                    Create account
-                  </Text>
-                  {mode === "register" ? (
-                    <View style={styles.segmentUnderline} />
-                  ) : null}
-                </Pressable>
-              </View>
-              <View style={styles.slideShell}>{children}</View>
+                  Create account
+                </Text>
+                {mode === "register" ? (
+                  <View style={styles.segmentUnderline} />
+                ) : null}
+              </Pressable>
             </View>
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            <View style={styles.slideShell}>{children}</View>
+          </View>
+        </Pressable>
+      </KeyboardAwareScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardRoot: {
-    flex: 1,
-  },
   scroll: {
     flex: 1,
   },
@@ -126,7 +114,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 32,
     letterSpacing: -0.24,
-    color: colors.textPrimary,
+    color: colors.primary,
     textAlign: "center",
     marginBottom: spacing.xl,
   },
@@ -148,7 +136,7 @@ const styles = StyleSheet.create({
     color: colors.inactive,
   },
   segmentActive: {
-    color: colors.textPrimary,
+    color: colors.primary,
   },
   segmentUnderline: {
     marginTop: spacing.sm,

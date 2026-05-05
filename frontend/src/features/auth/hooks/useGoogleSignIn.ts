@@ -24,9 +24,13 @@ export function useGoogleSignIn() {
     setLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
-      const { data } = await GoogleSignin.signIn();
 
-      if (!data?.idToken) throw new Error("No ID token returned");
+      const response = await GoogleSignin.signIn();
+
+      const { data } = response;
+      if (!data?.idToken) {
+        throw new Error("No ID token returned");
+      }
 
       const { error: supabaseError } = await supabase.auth.signInWithIdToken({
         provider: "google",
@@ -35,7 +39,9 @@ export function useGoogleSignIn() {
 
       if (supabaseError) throw supabaseError;
     } catch (e: unknown) {
-      if (isSignInCancelled(e)) return;
+      if (isSignInCancelled(e)) {
+        return;
+      }
       setError(e instanceof Error ? e.message : "Google sign-in failed");
     } finally {
       setLoading(false);
