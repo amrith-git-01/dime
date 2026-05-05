@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
   Pressable,
@@ -9,6 +8,7 @@ import {
 
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing } from "@/constants/theme";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ButtonVariant = "primary" | "secondary";
 
@@ -34,7 +34,7 @@ export function Button({
       accessibilityRole="button"
       disabled={isDisabled}
       onPress={(e) => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        void triggerLightHaptic();
         onPress?.(e);
       }}
       style={({ pressed }) => ({

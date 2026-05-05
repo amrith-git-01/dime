@@ -1,13 +1,15 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import * as NavigationBar from "expo-navigation-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect } from "react";
-import { Platform, StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { loadableAppFonts } from "@/constants/fonts";
@@ -21,14 +23,24 @@ WebBrowser.maybeCompleteAuthSession();
 void SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: 1,
+          },
+        },
+      }),
+  );
   const [fontsLoaded, fontError] = useFonts(loadableAppFonts);
 
   useEffect(() => {
     if (Platform.OS !== "android") {
       return;
     }
-    // Light nav surface + dark (gray) system icons — same pattern as Material edge-to-edge /
-    // windowLightNavigationBar; matches a white bottom bar (see MainTabNavigator tab bar bg).
+    // Light system navigation bar + dark controls; pairs with white bottom tab bar.
     NavigationBar.setStyle("light");
   }, []);
 
@@ -39,19 +51,45 @@ export default function App() {
     void SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  if (fontError) {
+    console.error("[App] useFonts failed:", fontError);
+    return (
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 24,
+            }}
+          >
+            <Text style={{ fontSize: 16, textAlign: "center" }}>
+              Could not load fonts. Close and reopen the app.
+            </Text>
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  if (!fontsLoaded) {
     return null;
   }
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <NavigationContainer theme={appNavigationTheme}>
-          <RootNavigator />
-        </NavigationContainer>
-        <StatusBar style="auto" />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <QueryClientProvider client={queryClient}>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <KeyboardProvider>
+            <NavigationContainer theme={appNavigationTheme}>
+              <RootNavigator />
+            </NavigationContainer>
+          </KeyboardProvider>
+          <StatusBar style="auto" />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }
 

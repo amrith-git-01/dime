@@ -63,7 +63,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Dime can read photos you pick to attach receipts to expenses."
+          "photosPermission": "Dime can read photos you pick for receipts and expense attachments."
         }
       ]
     ],
