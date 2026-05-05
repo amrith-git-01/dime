@@ -40,8 +40,13 @@ export default function App() {
     if (Platform.OS !== "android") {
       return;
     }
-    // Light system navigation bar + dark controls; pairs with white bottom tab bar.
-    NavigationBar.setStyle("light");
+
+    const applyAndroidNavBarStyle = async () => {
+      // Edge-to-edge mode blocks background/position APIs; only set button contrast.
+      await NavigationBar.setButtonStyleAsync("light");
+    };
+
+    void applyAndroidNavBarStyle();
   }, []);
 
   useEffect(() => {

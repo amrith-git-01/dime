@@ -36,8 +36,8 @@ export const spacing = {
   md: 12,
   lg: 16,
   xl: 24,
-  /** Tab row height before safe-area bottom inset (icon + label). */
-  tabBarHeight: 64,
+  /** Tab row height before safe-area bottom inset (icon-only compact). */
+  tabBarHeight: 48,
   /** Bottom tab bar icons. */
   iconTab: 22,
   /** Header bottom curve radius (Option A). */
