@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { RefreshCw } from "lucide-react-native";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, {
@@ -19,6 +19,7 @@ import { colors, spacing } from "@/constants/theme";
 import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileMutation";
 import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
+import { uploadProfileAvatarFromUrl } from "@/lib/api/uploadProfileAvatar";
 import { triggerMediumHaptic } from "@/lib/haptics/nativeHaptics";
 
 export type ProfileSetupScreenProps = {
@@ -33,6 +34,10 @@ export default function ProfileSetupScreen({
 }: ProfileSetupScreenProps) {
   const { avatarUrl, refreshAvatarSeed, username, setUsername, validation } =
     useProfileSetup();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(
+    null,
+  );
 
   const saveProfileMutation = useSaveProfileMutation();
 
@@ -70,21 +75,30 @@ export default function ProfileSetupScreen({
     (text: string) => {
       setUsername(text);
       saveProfileMutation.reset();
+      setAvatarUploadError(null);
     },
     [saveProfileMutation, setUsername],
   );
 
   const handleContinue = useCallback(async () => {
     try {
+      setAvatarUploadError(null);
+      setUploadingAvatar(true);
+      const { avatar_url: uploadedAvatarUrl } =
+        await uploadProfileAvatarFromUrl(avatarUrl);
       await saveProfileMutation.mutateAsync({
         username: username.trim(),
         currency: "INR",
+        avatarUrl: uploadedAvatarUrl,
       });
       onProfileComplete();
-    } catch {
+    } catch (error) {
       // `saveProfileMutation.error` drives `fieldError` below
+      setAvatarUploadError(parseFastApiError(error));
+    } finally {
+      setUploadingAvatar(false);
     }
-  }, [onProfileComplete, saveProfileMutation, username]);
+  }, [avatarUrl, onProfileComplete, saveProfileMutation, username]);
 
   const usernameCountLabel = useMemo(
     () => <Text style={styles.charCount}>{username.trim().length}/20</Text>,
@@ -92,11 +106,14 @@ export default function ProfileSetupScreen({
   );
 
   const fieldError = useMemo(() => {
+    if (avatarUploadError) {
+      return avatarUploadError;
+    }
     if (saveProfileMutation.error) {
       return parseFastApiError(saveProfileMutation.error);
     }
     return null;
-  }, [saveProfileMutation.error]);
+  }, [avatarUploadError, saveProfileMutation.error]);
 
   return (
     <ScreenContainer>
@@ -131,14 +148,14 @@ export default function ProfileSetupScreen({
                 accessibilityRole="button"
                 accessibilityLabel="New random avatar"
                 hitSlop={10}
-                disabled={saveProfileMutation.isPending}
+                disabled={saveProfileMutation.isPending || uploadingAvatar}
                 onPress={handleRefreshAvatar}
                 style={({ pressed }) => [
                   styles.refreshFab,
-                  pressed && !saveProfileMutation.isPending
+                  pressed && !saveProfileMutation.isPending && !uploadingAvatar
                     ? styles.refreshFabPressed
                     : null,
-                  saveProfileMutation.isPending
+                  saveProfileMutation.isPending || uploadingAvatar
                     ? styles.refreshFabDisabled
                     : null,
                 ]}
@@ -156,7 +173,7 @@ export default function ProfileSetupScreen({
               onChangeText={handleUsernameChange}
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!saveProfileMutation.isPending}
+              editable={!saveProfileMutation.isPending && !uploadingAvatar}
               showClear
               errorMessage={fieldError}
             />
@@ -175,8 +192,12 @@ export default function ProfileSetupScreen({
           <View style={styles.footer}>
             <Button
               title="Continue"
-              loading={saveProfileMutation.isPending}
-              disabled={saveProfileMutation.isPending || !validation.isValid}
+              loading={saveProfileMutation.isPending || uploadingAvatar}
+              disabled={
+                saveProfileMutation.isPending ||
+                uploadingAvatar ||
+                !validation.isValid
+              }
               onPress={() => void handleContinue()}
             />
           </View>

@@ -8,12 +8,12 @@ export default function AnalyticsScreen() {
   return (
     <TabScreenShell>
       <View style={styles.body}>
-        <Text style={styles.title}>Analytics</Text>
+        <Text style={styles.title}>Insights</Text>
         <Text style={styles.subtitle}>
-          Placeholder — charts and spending breakdown will load here.
+          Placeholder - charts and spending breakdown will load here.
         </Text>
         <View style={styles.emptyHint}>
-          <Text style={styles.emptyText}>No analytics data yet</Text>
+          <Text style={styles.emptyText}>No insights data yet</Text>
         </View>
       </View>
     </TabScreenShell>
