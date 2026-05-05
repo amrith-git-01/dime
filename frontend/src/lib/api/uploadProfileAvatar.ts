@@ -11,19 +11,9 @@ type ProfileAvatarUploadResponse = {
 export async function uploadProfileAvatarFromUrl(
   imageUrl: string,
 ): Promise<ProfileAvatarUploadResponse> {
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) {
-    throw new Error("Could not fetch selected avatar image.");
-  }
-
-  const imageBlob = await imageResponse.blob();
-  const formData = new FormData();
-  formData.append("file", imageBlob, "avatar.png");
-
   const { data } = await dimeApi.post<ProfileAvatarUploadResponse>(
-    "/api/v1/profile/avatar",
-    formData,
+    "/api/v1/profile/avatar/from-url",
+    { image_url: imageUrl },
   );
   return data;
 }
-

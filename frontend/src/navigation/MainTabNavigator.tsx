@@ -8,8 +8,9 @@ import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
+import BudgetsScreen from "@/screens/budgets/BudgetsScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
-import SettingsScreen from "@/screens/settings/SettingsScreen";
+import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
 
 import type { MainTabParamList } from "./types";
 
@@ -52,17 +53,24 @@ export default function MainTabNavigator() {
             }}
           />
           <Tabs.Screen
-            name="Analytics"
-            component={AnalyticsScreen}
+            name="Transactions"
+            component={TransactionsScreen}
             options={{
-              title: "Analytics",
+              title: "Transactions",
             }}
           />
           <Tabs.Screen
-            name="Settings"
-            component={SettingsScreen}
+            name="Budgets"
+            component={BudgetsScreen}
             options={{
-              title: "Settings",
+              title: "Budgets",
+            }}
+          />
+          <Tabs.Screen
+            name="Insights"
+            component={AnalyticsScreen}
+            options={{
+              title: "Insights",
             }}
           />
         </Tabs.Navigator>

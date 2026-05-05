@@ -2,8 +2,9 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type MainTabParamList = {
   Home: undefined;
-  Analytics: undefined;
-  Settings: undefined;
+  Transactions: undefined;
+  Budgets: undefined;
+  Insights: undefined;
 };
 
 export type RootStackParamList = {
