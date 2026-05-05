@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { HorizontalSlidePanel } from "@/components/animations/HorizontalSlidePanel";
@@ -22,6 +22,24 @@ export default function AuthScreen() {
   const signUp = useEmailPasswordSignUp();
   const google = useGoogleSignIn();
 
+  const clearAuthErrors = useCallback(() => {
+    signIn.setError(null);
+    signUp.setError(null);
+    google.setError(null);
+  }, [signIn.setError, signUp.setError, google.setError]);
+
+  const isFirstModeMount = useRef(true);
+  useEffect(() => {
+    if (isFirstModeMount.current) {
+      isFirstModeMount.current = false;
+      return;
+    }
+    setEmail("");
+    setPassword("");
+    setPasswordConfirm("");
+    clearAuthErrors();
+  }, [mode, clearAuthErrors]);
+
   const busy = signIn.loading || signUp.loading || google.loading;
   const loginBanner = signIn.error ?? google.error;
   const registerBanner = signUp.error ?? google.error;
@@ -35,7 +53,10 @@ export default function AuthScreen() {
               <TextField
                 label="Email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  clearAuthErrors();
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -45,7 +66,10 @@ export default function AuthScreen() {
               <TextField
                 label="Password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => {
+                  setPassword(v);
+                  clearAuthErrors();
+                }}
                 showPasswordToggle
                 showClear={false}
                 textContentType="password"
@@ -87,7 +111,10 @@ export default function AuthScreen() {
               <TextField
                 label="Email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  clearAuthErrors();
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -97,7 +124,10 @@ export default function AuthScreen() {
               <TextField
                 label="Password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => {
+                  setPassword(v);
+                  clearAuthErrors();
+                }}
                 showPasswordToggle
                 showClear={false}
                 textContentType="newPassword"
@@ -106,7 +136,10 @@ export default function AuthScreen() {
               <TextField
                 label="Confirm password"
                 value={passwordConfirm}
-                onChangeText={setPasswordConfirm}
+                onChangeText={(v) => {
+                  setPasswordConfirm(v);
+                  clearAuthErrors();
+                }}
                 showPasswordToggle
                 showClear={false}
                 textContentType="newPassword"

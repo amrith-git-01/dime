@@ -1,12 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
 
 export default function AnalyticsScreen() {
   return (
-    <ScreenContainer>
+    <TabScreenShell>
       <View style={styles.body}>
         <Text style={styles.title}>Analytics</Text>
         <Text style={styles.subtitle}>
@@ -16,7 +16,7 @@ export default function AnalyticsScreen() {
           <Text style={styles.emptyText}>No analytics data yet</Text>
         </View>
       </View>
-    </ScreenContainer>
+    </TabScreenShell>
   );
 }
 

@@ -1,18 +1,18 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { colors, spacing, typography } from "@/constants/theme";
 
 export default function HomeScreen() {
   return (
-    <ScreenContainer>
+    <TabScreenShell>
       <View style={styles.body}>
         <Text style={styles.title}>Home</Text>
         <Text style={styles.subtitle}>
           Placeholder — connect transactions and balances here.
         </Text>
       </View>
-    </ScreenContainer>
+    </TabScreenShell>
   );
 }
 
@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.md,
   },
   title: {
     ...typography.screenTitle,
