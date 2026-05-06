@@ -24,6 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { colors, spacing } from "@/constants/theme";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 const TAB_ICON_SIZE = 22;
 const ACTIVE_ICON_SIZE = 24;
@@ -237,6 +238,7 @@ export function DimeTabBar({
   }));
 
   const toggleAddFab = useCallback(() => {
+    void triggerLightHaptic();
     const next = !addFabOpen;
     setAddFabOpen(next);
     plusRotationDeg.value = withSpring(next ? 45 : 0, {
