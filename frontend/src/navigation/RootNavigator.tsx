@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
 
-import MainTabNavigator from "./MainTabNavigator";
+import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -92,7 +92,7 @@ export default function RootNavigator() {
           )}
         </Stack.Screen>
       ) : (
-        <Stack.Screen name="Main" component={MainTabNavigator} />
+        <Stack.Screen name="Main" component={MainStackNavigator} />
       )}
     </Stack.Navigator>
   );

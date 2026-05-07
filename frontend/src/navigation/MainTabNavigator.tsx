@@ -1,4 +1,6 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,23 +14,32 @@ import BudgetsScreen from "@/screens/budgets/BudgetsScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
 
-import type { MainTabParamList } from "./types";
+import type { MainStackParamList, MainTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
   const safeInsets = useSafeAreaInsets();
+  const stackNavigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const tabBarReservedHeight =
     spacing.tabBarHeight + Math.max(safeInsets.bottom, spacing.sm);
   const onNotificationsPress = useCallback(() => {
     void triggerLightHaptic();
     Alert.alert("Notifications", "You have no notifications yet.");
   }, []);
+  const onSettingsPress = useCallback(() => {
+    void triggerLightHaptic();
+    stackNavigation.navigate("Settings");
+  }, [stackNavigation]);
 
   return (
     <View style={styles.root}>
       <View style={styles.headerSlot}>
-        <AppHeader onNotificationsPress={onNotificationsPress} />
+        <AppHeader
+          onNotificationsPress={onNotificationsPress}
+          onSettingsPress={onSettingsPress}
+        />
       </View>
       <View style={styles.navigatorSlot}>
         <Tabs.Navigator

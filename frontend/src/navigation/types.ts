@@ -7,10 +7,15 @@ export type MainTabParamList = {
   Insights: undefined;
 };
 
+export type MainStackParamList = {
+  MainTabs: undefined;
+  Settings: undefined;
+};
+
 export type RootStackParamList = {
   Auth: undefined;
   ProfileSetup: undefined;
-  Main: NavigatorScreenParams<MainTabParamList>;
+  Main: NavigatorScreenParams<MainStackParamList>;
 };
 
 declare global {
