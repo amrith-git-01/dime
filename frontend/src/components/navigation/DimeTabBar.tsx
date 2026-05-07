@@ -215,7 +215,7 @@ export function DimeTabBar({
     opacity: actionsProgress.value,
     transform: [
       { translateX: interpolate(actionsProgress.value, [0, 1], [0, -52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -54]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -223,7 +223,7 @@ export function DimeTabBar({
   const photoActionStyle = useAnimatedStyle(() => ({
     opacity: actionsProgress.value,
     transform: [
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -78]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -58]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -232,7 +232,7 @@ export function DimeTabBar({
     opacity: actionsProgress.value,
     transform: [
       { translateX: interpolate(actionsProgress.value, [0, 1], [0, 52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -54]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     position: "absolute",
-    bottom: ACTION_BUBBLE_SIZE - 2,
+    bottom: ACTION_BUBBLE_SIZE - 14,
     left: "50%",
     marginLeft: -(OPTION_BUBBLE_SIZE / 2),
     width: OPTION_BUBBLE_SIZE,

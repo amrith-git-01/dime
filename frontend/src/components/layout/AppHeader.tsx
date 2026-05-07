@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { Bell } from "lucide-react-native";
+import { Bell, Settings } from "lucide-react-native";
 import { useCallback, useId, useState } from "react";
 import {
   LayoutChangeEvent,
@@ -16,6 +16,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
+  onSettingsPress?: () => void;
 };
 
 const AVATAR_SIZE = 40;
@@ -29,7 +30,10 @@ function timeOfDayGreeting(): string {
   return "Good evening";
 }
 
-export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
+export function AppHeader({
+  onNotificationsPress,
+  onSettingsPress,
+}: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
   const greeting = timeOfDayGreeting();
@@ -116,6 +120,26 @@ export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
             </View>
 
             <View style={styles.spacer} />
+
+            {onSettingsPress ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={8}
+                onPress={onSettingsPress}
+                style={({ pressed }) => [
+                  styles.bellCircle,
+                  pressed && styles.bellPressed,
+                  styles.headerIconGap,
+                ]}
+              >
+                <Settings
+                  size={BELL_ICON}
+                  color={colors.textOnPrimary}
+                  strokeWidth={1.5}
+                />
+              </Pressable>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"
@@ -227,6 +251,9 @@ const styles = StyleSheet.create({
   },
   bellPressed: {
     opacity: 0.85,
+  },
+  headerIconGap: {
+    marginRight: spacing.sm,
   },
   errorHint: {
     ...typography.screenSubtitle,
