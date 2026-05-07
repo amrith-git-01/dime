@@ -1,4 +1,10 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { colors, spacing, typography } from "@/constants/theme";
@@ -44,10 +50,10 @@ const progressMutedFill = (muted: string) => ({
   borderRadius: 999,
 });
 
-const progressFill = (fill: string, progress: number) => ({
-  height: "100%" as const,
+const progressFill = (fill: string, progress: number): ViewStyle => ({
+  height: "100%",
   borderRadius: 999,
-  width: `${progress * 100}%`,
+  width: `${progress * 100}%` as ViewStyle["width"],
   backgroundColor: fill,
 });
 
