@@ -87,6 +87,8 @@ def _build_transaction_payload(
     parsed: ParseExpenseResult,
     *,
     detected_via: str,
+    receipt_url: str | None = None,
+    voice_url: str | None = None,
 ) -> TransactionCreate:
     transaction_at = parsed.date or datetime.now(UTC)
     return TransactionCreate(
@@ -98,6 +100,8 @@ def _build_transaction_payload(
         note=parsed.note,
         transaction_at=transaction_at,
         detected_via=detected_via,
+        receipt_url=receipt_url,
+        voice_url=voice_url,
     )
 
 
@@ -113,7 +117,7 @@ async def process_receipt_job(
     bucket: str,
     job: ReceiptJob,
 ) -> None:
-    await upload_bytes(
+    upload = await upload_bytes(
         client=client,
         bucket=bucket,
         user_id=job.user_id,
@@ -130,7 +134,11 @@ async def process_receipt_job(
         allowed_categories,
         category_options,
     )
-    payload = _build_transaction_payload(parsed, detected_via="scan")
+    payload = _build_transaction_payload(
+        parsed,
+        detected_via="scan",
+        receipt_url=upload.public_url,
+    )
     await process_manual_job(
         client=client,
         job=ManualTransactionJob(user_id=job.user_id, payload=payload),
@@ -143,14 +151,27 @@ async def process_voice_job(
     bucket: str,
     job: VoiceJob,
 ) -> None:
+    logger.info(
+        "[voice-pipeline] job-start user_id=%s mime=%s in_bytes=%d",
+        job.user_id,
+        job.mime_type,
+        len(job.file_bytes),
+    )
+
     normalized_bytes, normalized_format = await asyncio.to_thread(
         normalize_voice_audio_for_nvidia,
         job.file_bytes,
         job.mime_type,
     )
     normalized_mime = "audio/wav" if normalized_format == "wav" else "audio/mpeg"
+    logger.info(
+        "[voice-pipeline] normalized format=%s mime=%s out_bytes=%d",
+        normalized_format,
+        normalized_mime,
+        len(normalized_bytes),
+    )
 
-    await upload_bytes(
+    upload = await upload_bytes(
         client=client,
         bucket=bucket,
         user_id=job.user_id,
@@ -159,19 +180,59 @@ async def process_voice_job(
         content_type=normalized_mime,
         extension=normalized_format,
     )
+    logger.info(
+        "[voice-pipeline] uploaded path=%s public_url=%s",
+        upload.object_path,
+        upload.public_url,
+    )
 
     allowed_categories, category_options = await load_category_options(client)
+    logger.info(
+        "[voice-pipeline] categories-loaded count=%d sample=%s",
+        len(allowed_categories),
+        allowed_categories[:5],
+    )
+
+    logger.info(
+        "[voice-pipeline] ai-call-start mode=voice mime=%s audio_bytes=%d",
+        normalized_mime,
+        len(normalized_bytes),
+    )
     parsed = await AIOrchestratorService().parse_voice(
         normalized_bytes,
         normalized_mime,
         allowed_categories,
         category_options,
     )
-    payload = _build_transaction_payload(parsed, detected_via="voice")
+    logger.info(
+        "[voice-pipeline] ai-parsed model=%s amount=%s type=%s merchant=%s "
+        "category=%s confidence=%s date=%s",
+        parsed.raw_model,
+        parsed.amount,
+        parsed.type.value,
+        parsed.counterparty_name,
+        parsed.category,
+        parsed.confidence,
+        parsed.date.isoformat() if parsed.date else None,
+    )
+
+    payload = _build_transaction_payload(
+        parsed,
+        detected_via="voice",
+        voice_url=upload.public_url,
+    )
+    logger.info(
+        "[voice-pipeline] db-insert-start user_id=%s amount=%s type=%s voice_url=%s",
+        job.user_id,
+        payload.amount,
+        payload.type,
+        payload.voice_url,
+    )
     await process_manual_job(
         client=client,
         job=ManualTransactionJob(user_id=job.user_id, payload=payload),
     )
+    logger.info("[voice-pipeline] db-insert-done user_id=%s", job.user_id)
 
 
 async def run_manual_worker(

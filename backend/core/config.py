@@ -65,31 +65,23 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_TEMPERATURE"),
     )
     ai_fallback_sms: str = Field(
-        default="google:gemma-3-4b,google:gemma-3-12b,groq:llama-3.1-8b",
+        default="nvidia:gemma-3-4b,nvidia:gemma-3-12b,groq:llama-3.1-8b",
         validation_alias=AliasChoices("AI_FALLBACK_SMS"),
     )
     ai_fallback_receipt: str = Field(
-        default="google:gemma-4-26b,google:gemma-4-31b,nvidia:gemma-3n-e4b",
+        default="google:gemma-4-26b,google:gemma-4-31b,nvidia:gemma-3-27b,nvidia:gemma-3n-e4b",
         validation_alias=AliasChoices("AI_FALLBACK_RECEIPT"),
     )
     ai_fallback_voice: str = Field(
         default="nvidia:gemma-3n-e4b,nvidia:gemma-3n-e2b",
         validation_alias=AliasChoices("AI_FALLBACK_VOICE"),
     )
-    google_model_gemma_3_4b: str = Field(
-        default="gemma-3-4b-it",
-        validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_3_4B"),
-    )
-    google_model_gemma_3_12b: str = Field(
-        default="gemma-3-12b-it",
-        validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_3_12B"),
-    )
     google_model_gemma_4_26b: str = Field(
-        default="gemma-2.5-pro",
+        default="gemma-4-26b-a4b-it",
         validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_4_26B"),
     )
     google_model_gemma_4_31b: str = Field(
-        default="gemma-2.5-pro",
+        default="gemma-4-31b-it",
         validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_4_31B"),
     )
     groq_model_llama_3_1_8b: str = Field(
@@ -103,6 +95,18 @@ class Settings(BaseSettings):
     nvidia_model_gemma_3n_e2b: str = Field(
         default="google/gemma-3n-e2b-it",
         validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3N_E2B"),
+    )
+    nvidia_model_gemma_3_4b: str = Field(
+        default="google/gemma-3-4b-it",
+        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_4B"),
+    )
+    nvidia_model_gemma_3_12b: str = Field(
+        default="google/gemma-3-12b-it",
+        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_12B"),
+    )
+    nvidia_model_gemma_3_27b: str = Field(
+        default="google/gemma-3-27b-it",
+        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_27B"),
     )
     google_ai_api_key: str | None = Field(
         default=None,

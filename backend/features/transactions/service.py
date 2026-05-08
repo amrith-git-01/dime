@@ -130,6 +130,8 @@ class TransactionService:
             "transaction_at": body.transaction_at.isoformat(),
             "merchant_id": merchant_id,
             "category_id": category_id,
+            "receipt_url": body.receipt_url,
+            "voice_url": body.voice_url,
         }
         raw = self._repo.insert(row)
         return TransactionResponse.model_validate(_flatten_embed(raw))
