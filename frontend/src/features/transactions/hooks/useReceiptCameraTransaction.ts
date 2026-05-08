@@ -5,22 +5,16 @@ import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
 
 import { prepareReceiptImageForUpload } from "@/features/transactions/receipt/prepareReceiptImageForUpload";
-import {
-  parseExpenseFile,
-  type ParseExpenseResponse,
-} from "../api/parseExpenseApi";
-import type { CreateTransactionBody } from "../api/transactionsApi";
-import { useInsertTransactionMutation } from "./useInsertTransactionMutation";
+import { submitReceipt } from "../api/submitTransactionApi";
 
 function logReceiptScan(step: string, extra?: Record<string, unknown>) {
   const payload = extra ? ` ${JSON.stringify(extra)}` : "";
   console.log(`[receipt-scan] ${step}${payload}`);
 }
 
-/** Opens camera, uploads image to backend cloud parser, then creates transaction. */
+/** Opens camera and queues receipt processing on backend. */
 export function useReceiptCameraTransaction() {
   const { userId, authReady } = useSessionUserId();
-  const insertMutation = useInsertTransactionMutation();
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
 
@@ -100,36 +94,14 @@ export function useReceiptCameraTransaction() {
         return;
       }
 
-      showBusy("Analyzing receipt in cloud…");
-      logReceiptScan("cloud-parse-start");
-      const parsed: ParseExpenseResponse = await parseExpenseFile({
-        mode: "receipt",
+      showBusy("Uploading receipt…");
+      logReceiptScan("upload-start");
+      await submitReceipt({
         fileUri: preparedUri,
         fileName: "receipt.jpg",
         mimeType: "image/jpeg",
       });
-      const payload: CreateTransactionBody = {
-        amount: Number(parsed.result.amount),
-        type: parsed.result.type,
-        merchant: parsed.result.counterparty_name,
-        category: parsed.result.category ?? null,
-        note: parsed.result.note ?? null,
-        transaction_at: parsed.result.date ?? new Date().toISOString(),
-        detected_via: "receipt_cloud",
-      };
-      logReceiptScan("cloud-parse-done", {
-        merchant: payload.merchant,
-        amount: payload.amount,
-        type: payload.type,
-      });
-
-      logReceiptScan("backend-post-start", {
-        merchant: payload.merchant,
-        amount: payload.amount,
-        type: payload.type,
-      });
-      await insertMutation.mutateAsync(payload);
-      logReceiptScan("backend-post-success", {
+      logReceiptScan("queued-success", {
         elapsedMs: Date.now() - startedAt,
       });
     } catch (e) {
@@ -144,5 +116,5 @@ export function useReceiptCameraTransaction() {
       hideBusy();
       logReceiptScan("end", { elapsedMs: Date.now() - startedAt });
     }
-  }, [authReady, hideBusy, insertMutation, showBusy, userId]);
+  }, [authReady, hideBusy, showBusy, userId]);
 }
