@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ChevronRight, X } from "lucide-react-native";
 import { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Modal,
@@ -27,6 +28,7 @@ import { colors, spacing } from "@/constants/theme";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
+import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 
 import { submitManualTransaction } from "../api/submitTransactionApi";
 import { useManualAddTransactionForm } from "../hooks/useManualAddTransactionForm";
@@ -45,6 +47,7 @@ export function ManualAddTransactionModal() {
     mutationFn: submitManualTransaction,
   });
   const form = useManualAddTransactionForm();
+  const { data: categories, loading: categoriesLoading } = useLocalCategories();
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
@@ -207,13 +210,39 @@ export function ManualAddTransactionModal() {
             </View>
 
             <View style={styles.fieldBlock}>
-              <TextField
-                label="Category"
-                labelRight={optionalTag}
-                placeholder="e.g. Food"
-                value={form.category}
-                onChangeText={form.setCategory}
-              />
+              <View style={styles.labelRow}>
+                <Text style={formStyles.fieldLabel}>Category</Text>
+                {optionalTag}
+              </View>
+              {categoriesLoading ? (
+                <View style={styles.categoriesLoading}>
+                  <ActivityIndicator color={colors.headerGradientStart} />
+                </View>
+              ) : (
+                <View style={styles.categoryGrid}>
+                  {categories.map((category) => {
+                    const selected = form.categoryId === category.id;
+                    return (
+                      <CategoryPill
+                        key={category.id}
+                        label={category.name}
+                        emoji={category.emoji}
+                        selected={selected}
+                        onPress={() => {
+                          void triggerLightHaptic();
+                          if (selected) {
+                            form.setCategoryId(null);
+                            form.setCategory("");
+                            return;
+                          }
+                          form.setCategoryId(category.id);
+                          form.setCategory(category.name);
+                        }}
+                      />
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
             <View style={styles.fieldBlock}>
@@ -223,9 +252,6 @@ export function ManualAddTransactionModal() {
                 placeholder="Add a short note"
                 value={form.note}
                 onChangeText={form.setNote}
-                multiline
-                textAlignVertical="top"
-                scrollEnabled
               />
             </View>
 
@@ -305,6 +331,35 @@ function SegmentChip({ label, selected, onPress }: SegmentChipProps) {
   );
 }
 
+type CategoryPillProps = {
+  label: string;
+  emoji: string;
+  selected: boolean;
+  onPress: () => void;
+};
+
+function CategoryPill({ label, emoji, selected, onPress }: CategoryPillProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.categoryPill,
+        selected && styles.categoryPillSelected,
+        pressed && styles.categoryPillPressed,
+      ]}
+    >
+      <Text style={styles.categoryPillEmoji}>{emoji}</Text>
+      <Text
+        style={[styles.categoryPillLabel, selected && styles.categoryPillLabelOn]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -356,6 +411,13 @@ const styles = StyleSheet.create({
   fieldBlock: {
     marginBottom: spacing.xl,
   },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
   segmentLabel: {
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
@@ -364,6 +426,55 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     color: colors.inactive,
     fontSize: 12,
+  },
+  categoriesLoading: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.pageBackground,
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  categoryPill: {
+    maxWidth: "100%",
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.pageBackground,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  categoryPillSelected: {
+    borderColor: colors.headerGradientStart,
+    backgroundColor: "rgba(79, 70, 229, 0.10)",
+  },
+  categoryPillPressed: {
+    opacity: 0.92,
+  },
+  categoryPillEmoji: {
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  categoryPillLabel: {
+    flexShrink: 0,
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  categoryPillLabelOn: {
+    color: colors.textPrimary,
   },
   amountShellMin: {
     minHeight: 52,

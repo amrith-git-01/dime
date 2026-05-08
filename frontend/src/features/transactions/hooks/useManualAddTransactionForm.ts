@@ -20,6 +20,7 @@ export function useManualAddTransactionForm() {
   const [txType, setTxType] = useState<TransactionType>("debit");
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [transactionAt, setTransactionAt] = useState(() => new Date());
 
@@ -28,6 +29,7 @@ export function useManualAddTransactionForm() {
     setTxType("debit");
     setMerchant("");
     setCategory("");
+    setCategoryId(null);
     setNote("");
     setTransactionAt(new Date());
   }, []);
@@ -46,10 +48,11 @@ export function useManualAddTransactionForm() {
       type: txType,
       merchant: m,
       category: category.trim() || null,
+      category_id: categoryId,
       note: note.trim() || null,
       transaction_at: transactionAt.toISOString(),
     };
-  }, [amountText, category, merchant, note, transactionAt, txType]);
+  }, [amountText, category, categoryId, merchant, note, transactionAt, txType]);
 
   return {
     amountText,
@@ -60,6 +63,8 @@ export function useManualAddTransactionForm() {
     setMerchant,
     category,
     setCategory,
+    categoryId,
+    setCategoryId,
     note,
     setNote,
     transactionAt,
