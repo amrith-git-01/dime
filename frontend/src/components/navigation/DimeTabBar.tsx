@@ -439,7 +439,6 @@ export function DimeTabBar({
             onPress={() => {
               void triggerLightHaptic();
               setFabOpen(false);
-              console.log("[receipt-scan] fab-photo-pressed");
               void captureReceiptAndCreate();
             }}
             style={styles.radialActionHit}

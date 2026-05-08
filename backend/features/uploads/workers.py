@@ -154,7 +154,7 @@ async def process_voice_job(
         client=client,
         bucket=bucket,
         user_id=job.user_id,
-        kind="voice",
+        kind="voice_inputs",
         file_bytes=normalized_bytes,
         content_type=normalized_mime,
         extension=normalized_format,

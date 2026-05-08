@@ -20,7 +20,7 @@ def build_receipt_parse_prompt(
         '"counterparty_type": "merchant"|"person"|"self_transfer"|"unknown", '
         '"amount": number, '
         '"type": "debit"|"credit", '
-        '"date": "ISO-8601 datetime or null", '
+        '"date": "YYYY-MM-DD or null", '
         '"category": string, '
         '"note": string or null, '
         '"confidence": number between 0 and 1, '
@@ -29,6 +29,10 @@ def build_receipt_parse_prompt(
         "Rules:\n"
         "- Primary source is receipt image; infer fields from printed/handwritten content.\n"
         "- If receipt implies transfer to person/family, set counterparty_type=person.\n"
+        "- Date must be normalized to strict YYYY-MM-DD (example: 2025-05-19).\n"
+        "- If receipt has DD-MM-YYYY or DD/MM/YYYY, convert to YYYY-MM-DD.\n"
+        "- If receipt has YYYY-MM-DD or YYYY/MM/DD, normalize separator to '-' and keep year first.\n"
+        "- If date is ambiguous or unreadable, return null (never guess).\n"
         f"{category_rules}"
         "- Keep note concise and relevant to receipt context.\n"
         "- Use null when field is unknown; do not invent impossible values.\n"

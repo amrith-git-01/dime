@@ -1,4 +1,4 @@
-import axios, { isAxiosError, type AxiosInstance } from "axios";
+import axios, { type AxiosInstance } from "axios";
 
 import { supabase } from "@/lib/supabase/client";
 
@@ -30,23 +30,6 @@ if (__DEV__) {
       "[dimeApi] EXPO_PUBLIC_API_BASE_URL is empty — requests will fail.",
     );
   }
-  dimeApi.interceptors.response.use(
-    (response) => response,
-    (error: unknown) => {
-      if (isAxiosError(error)) {
-        const { config, message, code, response } = error;
-        const path = config?.url ?? "";
-        const base = config?.baseURL ?? "";
-        console.warn("[dimeApi] request failed", {
-          message,
-          code,
-          status: response?.status,
-          url: `${base}${path}`,
-        });
-      }
-      return Promise.reject(error);
-    },
-  );
 }
 
 dimeApi.interceptors.request.use(async (config) => {

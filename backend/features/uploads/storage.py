@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Literal
-from uuid import uuid4
 
 from supabase import Client
 
-UploadKind = Literal["receipts", "voice"]
+UploadKind = Literal["receipts", "voice_inputs"]
 
 _DEFAULT_EXTENSION_BY_KIND: dict[UploadKind, str] = {
     "receipts": "jpg",
-    "voice": "wav",
+    "voice_inputs": "wav",
 }
 
 
@@ -47,7 +47,10 @@ async def upload_bytes(
     extension: str | None = None,
 ) -> str:
     ext = _normalize_extension(extension, kind)
-    object_path = f"{user_id}/{kind}/{uuid4().hex}.{ext}"
+    now = datetime.now(UTC)
+    day = now.strftime("%Y-%m-%d")
+    ts = int(now.timestamp() * 1000)
+    object_path = f"{kind}/{user_id}/{kind}/{day}/{ts}.{ext}"
     await asyncio.to_thread(
         _upload_sync,
         client=client,
