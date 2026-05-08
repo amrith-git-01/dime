@@ -1,6 +1,7 @@
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
+import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight, X } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -27,7 +28,7 @@ import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
 
-import { useInsertTransactionMutation } from "../hooks/useInsertTransactionMutation";
+import { submitManualTransaction } from "../api/submitTransactionApi";
 import { useManualAddTransactionForm } from "../hooks/useManualAddTransactionForm";
 
 const SHEET_RADIUS = 24;
@@ -40,7 +41,9 @@ export function ManualAddTransactionModal() {
   const visible = useManualAddTransactionUiStore((s) => s.visible);
   const close = useManualAddTransactionUiStore((s) => s.close);
   const { userId, authReady } = useSessionUserId();
-  const insertMutation = useInsertTransactionMutation();
+  const submitMutation = useMutation({
+    mutationFn: submitManualTransaction,
+  });
   const form = useManualAddTransactionForm();
 
   const [amountFocused, setAmountFocused] = useState(false);
@@ -50,9 +53,9 @@ export function ManualAddTransactionModal() {
     void triggerLightHaptic();
     close();
     form.reset();
-    insertMutation.reset();
+    submitMutation.reset();
     setIosPickerVisible(false);
-  }, [close, form, insertMutation]);
+  }, [close, form, submitMutation]);
 
   const openAndroidDatePicker = useCallback(() => {
     void triggerLightHaptic();
@@ -90,14 +93,14 @@ export function ManualAddTransactionModal() {
       return;
     }
     try {
-      await insertMutation.mutateAsync(payload);
+      await submitMutation.mutateAsync(payload);
       onClose();
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save transaction.";
       Alert.alert("Something went wrong", message);
     }
-  }, [authReady, form, insertMutation, onClose, userId]);
+  }, [authReady, form, onClose, submitMutation, userId]);
 
   const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
 
@@ -262,7 +265,7 @@ export function ManualAddTransactionModal() {
           <View style={styles.footerActions}>
             <Button
               title="Save"
-              loading={insertMutation.isPending}
+              loading={submitMutation.isPending}
               onPress={() => {
                 void onSave();
               }}

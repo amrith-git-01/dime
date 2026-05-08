@@ -7,6 +7,7 @@ export type CreateTransactionBody = {
   type: TransactionType;
   merchant: string;
   category: string | null;
+  category_id?: string | null;
   note: string | null;
   /** ISO-8601 datetime string */
   transaction_at: string;
@@ -15,15 +16,5 @@ export type CreateTransactionBody = {
 
 export async function fetchTransactions(): Promise<TransactionRow[]> {
   const { data } = await dimeApi.get<TransactionRow[]>("/api/v1/transactions");
-  return data;
-}
-
-export async function createTransaction(
-  body: CreateTransactionBody,
-): Promise<TransactionRow> {
-  const { data } = await dimeApi.post<TransactionRow>(
-    "/api/v1/transactions",
-    body,
-  );
   return data;
 }
