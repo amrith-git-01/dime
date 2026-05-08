@@ -13,4 +13,6 @@ export type TransactionRow = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  receipt_url: string | null;
+  voice_url: string | null;
 };

@@ -16,11 +16,6 @@ import { guessVoiceUploadMeta } from "../voice/guessVoiceMime";
 
 type CapturePhase = "idle" | "preparing" | "recording";
 
-function logVoice(step: string, extra?: Record<string, unknown>) {
-  const payload = extra ? ` ${JSON.stringify(extra)}` : "";
-  console.log(`[voice-capture] ${step}${payload}`);
-}
-
 export function useVoiceCaptureSession() {
   const visible = useVoiceCaptureUiStore((s) => s.visible);
   const close = useVoiceCaptureUiStore((s) => s.close);
@@ -86,15 +81,12 @@ export function useVoiceCaptureSession() {
 
     void (async () => {
       setPhase("preparing");
-      logVoice("open");
 
       if (!authReady) {
-        logVoice("wait-auth");
         return;
       }
 
       if (!userId) {
-        logVoice("blocked-auth");
         Alert.alert(
           "Sign in required",
           "Sign in to add a transaction by voice.",
@@ -103,12 +95,7 @@ export function useVoiceCaptureSession() {
         return;
       }
 
-      logVoice("request-mic-permission");
       const perm = await requestRecordingPermissionsAsync();
-      logVoice("mic-permission", {
-        granted: perm.granted,
-        status: perm.status,
-      });
 
       if (sessionAbortRef.current || !alive) {
         return;
@@ -131,9 +118,6 @@ export function useVoiceCaptureSession() {
           interruptionMode: "duckOthers",
         });
       } catch (e) {
-        logVoice("audio-mode-error", {
-          message: e instanceof Error ? e.message : String(e),
-        });
         Alert.alert(
           "Could not use microphone",
           "Try again or add the transaction manually.",
@@ -159,10 +143,7 @@ export function useVoiceCaptureSession() {
         }
         isRecordingRef.current = true;
         setPhase("recording");
-        logVoice("recording-started");
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        logVoice("record-start-error", { message });
+      } catch {
         Alert.alert(
           "Could not start recording",
           "Try again or add the transaction manually.",
@@ -191,9 +172,7 @@ export function useVoiceCaptureSession() {
     try {
       await recorder.stop();
       uri = recorder.uri;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      logVoice("stop-error", { message });
+    } catch {
       Alert.alert("Recording error", "Could not finish recording. Try again.");
       await hardClose();
       return;
@@ -206,7 +185,6 @@ export function useVoiceCaptureSession() {
     }
 
     if (!uri) {
-      logVoice("missing-uri");
       Alert.alert("Recording error", "No audio file was produced. Try again.");
       await hardClose();
       return;
@@ -216,7 +194,6 @@ export function useVoiceCaptureSession() {
     setPhase("idle");
 
     const { fileName, mimeType } = guessVoiceUploadMeta(uri);
-    logVoice("upload-start", { mimeType });
 
     showBusy("Uploading voice note…");
 
@@ -226,11 +203,9 @@ export function useVoiceCaptureSession() {
         fileName,
         mimeType,
       });
-      logVoice("queued");
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
-      logVoice("error", { message });
       Alert.alert("Something went wrong", message);
     } finally {
       hideBusy();
