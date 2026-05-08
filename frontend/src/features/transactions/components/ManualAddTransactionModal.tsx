@@ -29,6 +29,7 @@ import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { useToast } from "@/features/toast/useToast";
 
 import { submitManualTransaction } from "../api/submitTransactionApi";
 import { useManualAddTransactionForm } from "../hooks/useManualAddTransactionForm";
@@ -46,6 +47,7 @@ export function ManualAddTransactionModal() {
   const submitMutation = useMutation({
     mutationFn: submitManualTransaction,
   });
+  const { showToast } = useToast();
   const form = useManualAddTransactionForm();
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
 
@@ -97,13 +99,27 @@ export function ManualAddTransactionModal() {
     }
     try {
       await submitMutation.mutateAsync(payload);
+      showToast({
+        variant: "success",
+        message: "Transaction added",
+      });
       onClose();
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save transaction.";
+      showToast({
+        variant: "error",
+        message: "Could not save transaction",
+        action: {
+          label: "Retry",
+          onPress: () => {
+            void onSave();
+          },
+        },
+      });
       Alert.alert("Something went wrong", message);
     }
-  }, [authReady, form, onClose, submitMutation, userId]);
+  }, [authReady, form, onClose, showToast, submitMutation, userId]);
 
   const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
 

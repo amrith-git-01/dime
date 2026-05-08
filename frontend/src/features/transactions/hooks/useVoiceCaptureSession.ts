@@ -1,4 +1,5 @@
 import { useSessionUserId } from "@/hooks/useSessionUserId";
+import { useToast } from "@/features/toast/useToast";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
@@ -20,6 +21,7 @@ export function useVoiceCaptureSession() {
   const visible = useVoiceCaptureUiStore((s) => s.visible);
   const close = useVoiceCaptureUiStore((s) => s.close);
   const { userId, authReady } = useSessionUserId();
+  const { showToast } = useToast();
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
 
@@ -117,7 +119,7 @@ export function useVoiceCaptureSession() {
           shouldPlayInBackground: false,
           interruptionMode: "duckOthers",
         });
-      } catch (e) {
+      } catch {
         Alert.alert(
           "Could not use microphone",
           "Try again or add the transaction manually.",
@@ -203,14 +205,22 @@ export function useVoiceCaptureSession() {
         fileName,
         mimeType,
       });
+      showToast({
+        variant: "success",
+        message: "Voice transaction added",
+      });
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
+      showToast({
+        variant: "error",
+        message: "Could not upload voice note",
+      });
       Alert.alert("Something went wrong", message);
     } finally {
       hideBusy();
     }
-  }, [close, hardClose, hideBusy, recorder, showBusy]);
+  }, [close, hardClose, hideBusy, recorder, showBusy, showToast]);
 
   const statusLine =
     phase === "recording"
