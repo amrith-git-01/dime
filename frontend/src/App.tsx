@@ -16,6 +16,7 @@ import { loadableAppFonts } from "@/constants/fonts";
 import { ReceiptScanBusyOverlay } from "@/features/transactions/components/ReceiptScanBusyOverlay";
 import { VoiceCaptureBar } from "@/features/transactions/components/VoiceCaptureBar";
 import { CategoriesSyncBootstrap } from "@/features/categories/components/CategoriesSyncBootstrap";
+import { ToastHost } from "@/features/toast/components/ToastHost";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
 
@@ -96,6 +97,7 @@ export default function App() {
             <CategoriesSyncBootstrap />
             <ReceiptScanBusyOverlay />
             <VoiceCaptureBar />
+            <ToastHost />
           </KeyboardProvider>
           <StatusBar style="auto" />
         </SafeAreaProvider>
