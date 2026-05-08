@@ -5,10 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 TransactionType = Literal["debit", "credit"]
+DetectedViaType = Literal["manual", "sms", "voice", "scan", "notification"]
 
 
 class TransactionCreate(BaseModel):
@@ -16,9 +18,10 @@ class TransactionCreate(BaseModel):
     type: TransactionType
     merchant: str = Field(..., min_length=1, max_length=200)
     category: str | None = Field(default=None, max_length=120)
+    category_id: UUID | None = None
     note: str | None = Field(default=None, max_length=2000)
     transaction_at: datetime
-    detected_via: str | None = Field(default=None, max_length=64)
+    detected_via: DetectedViaType | None = None
 
     @field_validator("amount")
     @classmethod
@@ -30,7 +33,7 @@ class TransactionCreate(BaseModel):
     def strip_merchant(cls, value: str) -> str:
         return value.strip()
 
-    @field_validator("category", "note", "detected_via", mode="before")
+    @field_validator("category", "note", mode="before")
     @classmethod
     def empty_to_none(cls, value: object) -> str | None:
         if value is None:
@@ -38,6 +41,20 @@ class TransactionCreate(BaseModel):
         if isinstance(value, str):
             stripped = value.strip()
             return stripped if stripped else None
+        return None
+
+    @field_validator("detected_via", mode="before")
+    @classmethod
+    def normalize_detected_via(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if stripped == "upi":
+                return "notification"
+            return stripped
         return None
 
 
@@ -49,7 +66,7 @@ class TransactionResponse(BaseModel):
     merchant: str
     category: str | None
     note: str | None
-    detected_via: str | None
+    detected_via: DetectedViaType | None
     transaction_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -65,3 +82,17 @@ class TransactionResponse(BaseModel):
         if isinstance(value, float | int):
             return format(Decimal(str(value)), "f")
         return str(value)
+
+    @field_validator("detected_via", mode="before")
+    @classmethod
+    def normalize_response_detected_via(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if stripped == "upi":
+                return "notification"
+            return stripped
+        return None
