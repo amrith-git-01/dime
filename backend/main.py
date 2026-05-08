@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import health, me, profile
+from routes import ai, health, me, profile, transactions
 
 
 @asynccontextmanager
@@ -32,6 +32,8 @@ def create_application() -> FastAPI:
     application.include_router(health.router, prefix=api_prefix)
     application.include_router(me.router, prefix=api_prefix)
     application.include_router(profile.router, prefix=api_prefix)
+    application.include_router(transactions.router, prefix=api_prefix)
+    application.include_router(ai.router, prefix=api_prefix)
 
     @application.get("/")
     def read_root() -> dict[str, str]:
