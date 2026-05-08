@@ -1,5 +1,6 @@
 """FastAPI application entry — health + user profile + avatar routes."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.job_runner import start_workers, stop_workers
 from routes import health, me, profile, transactions
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("features").setLevel(logging.INFO)
+logging.getLogger("core").setLevel(logging.INFO)
 
 
 @asynccontextmanager

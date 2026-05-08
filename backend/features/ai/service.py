@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, UTC
@@ -14,6 +15,8 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 from core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 from .prompts import build_parse_prompt
 from .schemas import (
@@ -97,10 +100,34 @@ class AIOrchestratorService:
 
     async def _run_with_fallback(self, mode: ParseMode, payload: dict[str, Any]) -> ParseExpenseResult:
         last_error: Exception | None = None
+        candidates = self._fallbacks_for_mode(mode)
+        logger.info(
+            "[ai] run-with-fallback mode=%s candidates=%s",
+            mode.value,
+            [f"{c.provider}:{c.model}" for c in candidates],
+        )
 
-        for candidate in self._fallbacks_for_mode(mode):
+        for candidate in candidates:
+            started = time.monotonic()
+            logger.info(
+                "[ai] provider-call-start mode=%s provider=%s model=%s",
+                mode.value,
+                candidate.provider,
+                candidate.model,
+            )
             try:
                 raw = await self._call_provider(candidate, mode, payload)
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.info(
+                    "[ai] provider-call-done mode=%s provider=%s model=%s "
+                    "elapsed_ms=%d raw_chars=%d raw_excerpt=%r",
+                    mode.value,
+                    candidate.provider,
+                    candidate.model,
+                    elapsed_ms,
+                    len(raw),
+                    raw[:300],
+                )
                 parsed = self._parse_and_validate(
                     raw,
                     model_name=candidate.model,
@@ -108,14 +135,44 @@ class AIOrchestratorService:
                     allowed_categories=payload.get("allowed_categories"),
                     category_options=payload.get("category_options"),
                 )
+                logger.info(
+                    "[ai] parse-validated mode=%s model=%s amount=%s type=%s "
+                    "merchant=%s category=%s confidence=%s",
+                    mode.value,
+                    candidate.model,
+                    parsed.amount,
+                    parsed.type.value,
+                    parsed.counterparty_name,
+                    parsed.category,
+                    parsed.confidence,
+                )
                 return parsed
             except Exception as exc:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                exc_msg = str(exc) or repr(exc)
+                logger.warning(
+                    "[ai] provider-call-failed mode=%s provider=%s model=%s "
+                    "elapsed_ms=%d error_type=%s error=%s",
+                    mode.value,
+                    candidate.provider,
+                    candidate.model,
+                    elapsed_ms,
+                    type(exc).__name__,
+                    exc_msg,
+                )
                 last_error = exc
                 continue
 
+        last_msg = str(last_error) or repr(last_error) if last_error else "no candidates"
+        logger.error(
+            "[ai] all-providers-failed mode=%s last_error_type=%s last_error=%s",
+            mode.value,
+            type(last_error).__name__ if last_error else "None",
+            last_msg,
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI_PARSE_UNAVAILABLE: mode={mode.value}, error={last_error}",
+            detail=f"AI_PARSE_UNAVAILABLE: mode={mode.value}, error={last_msg}",
         )
 
     async def _call_provider(
@@ -143,10 +200,7 @@ class AIOrchestratorService:
             raise AIParseError("GOOGLE_AI_API_KEY is missing")
 
         model_id = self._google_model_id(model)
-        url = (
-            f"{settings.google_ai_base_url}/models/{model_id}:generateContent"
-            f"?key={settings.google_ai_api_key}"
-        )
+        url = f"{settings.google_ai_base_url.rstrip('/')}/models/{model_id}:generateContent"
 
         content_parts: list[dict[str, Any]] = [{"text": build_parse_prompt(mode, payload)}]
         if mode == ParseMode.receipt:
@@ -163,16 +217,20 @@ class AIOrchestratorService:
                 }
             )
 
+        generation_config: dict[str, Any] = {"temperature": settings.ai_temperature}
+        if self._google_supports_response_mime_json(model_id):
+            generation_config["responseMimeType"] = "application/json"
         body = {
             "contents": [{"role": "user", "parts": content_parts}],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "temperature": settings.ai_temperature,
-            },
+            "generationConfig": generation_config,
+        }
+        headers = {
+            "x-goog-api-key": settings.google_ai_api_key,
+            "Content-Type": "application/json",
         }
 
         async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
-            response = await client.post(url, json=body)
+            response = await client.post(url, json=body, headers=headers)
             self._raise_for_provider_status(response, provider="google")
             data = response.json()
             try:
@@ -220,8 +278,6 @@ class AIOrchestratorService:
         settings = self.settings
         if not settings.nvidia_api_key:
             raise AIParseError("NVIDIA_API_KEY is missing")
-        if mode not in (ParseMode.receipt, ParseMode.voice):
-            raise AIParseError(f"NVIDIA not configured for mode={mode.value}")
 
         model_id = self._nvidia_model_id(model)
         prompt = build_parse_prompt(mode, payload)
@@ -239,7 +295,7 @@ class AIOrchestratorService:
                     "image_url": {"url": f"data:{mime_type};base64,{image_data}"},
                 }
             )
-        else:
+        elif mode == ParseMode.voice:
             audio_bytes = payload.get("audio_bytes")
             if not isinstance(audio_bytes, (bytes, bytearray)):
                 raise AIParseError("Missing audio bytes for voice parse")
@@ -285,12 +341,21 @@ class AIOrchestratorService:
     def _google_model_id(self, model: str) -> str:
         settings = self.settings
         mapping = {
-            "gemma-3-4b": settings.google_model_gemma_3_4b,
-            "gemma-3-12b": settings.google_model_gemma_3_12b,
             "gemma-4-26b": settings.google_model_gemma_4_26b,
             "gemma-4-31b": settings.google_model_gemma_4_31b,
         }
         return mapping.get(model, model)
+
+    @staticmethod
+    def _google_supports_response_mime_json(model_id: str) -> bool:
+        """Gemma 3 and 3n on the Generative Language API reject ``responseMimeType``.
+
+        Gemma 4 and Gemini 2.x accept structured output config.
+        """
+        lowered = model_id.lower()
+        if lowered.startswith("gemma-3"):
+            return False
+        return True
 
     def _groq_model_id(self, model: str) -> str:
         settings = self.settings
@@ -304,6 +369,9 @@ class AIOrchestratorService:
         mapping = {
             "gemma-3n-e4b": settings.nvidia_model_gemma_3n_e4b,
             "gemma-3n-e2b": settings.nvidia_model_gemma_3n_e2b,
+            "gemma-3-4b": settings.nvidia_model_gemma_3_4b,
+            "gemma-3-12b": settings.nvidia_model_gemma_3_12b,
+            "gemma-3-27b": settings.nvidia_model_gemma_3_27b,
         }
         return mapping.get(model, model)
 
@@ -393,6 +461,18 @@ class AIOrchestratorService:
         self._raise_for_provider_status(response, provider="nvidia")
         return self._nvidia_extract_message_text(response.json())
 
+    @staticmethod
+    def _strip_json_fences(raw_text: str) -> str:
+        """Remove markdown ```json ... ``` fences models sometimes wrap JSON in."""
+        text = raw_text.strip()
+        if text.startswith("```"):
+            text = text.lstrip("`")
+            if text.lower().startswith("json"):
+                text = text[4:]
+            if text.endswith("```"):
+                text = text[:-3]
+        return text.strip()
+
     def _parse_and_validate(
         self,
         raw_text: str,
@@ -401,8 +481,9 @@ class AIOrchestratorService:
         allowed_categories: object,
         category_options: object,
     ) -> ParseExpenseResult:
+        cleaned = self._strip_json_fences(raw_text)
         try:
-            data = json.loads(raw_text)
+            data = json.loads(cleaned)
         except json.JSONDecodeError as exc:
             raise AIParseError(f"Model returned invalid JSON: {exc}") from exc
 

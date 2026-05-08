@@ -22,6 +22,8 @@ class TransactionCreate(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
     transaction_at: datetime
     detected_via: DetectedViaType | None = None
+    receipt_url: str | None = Field(default=None, max_length=2048)
+    voice_url: str | None = Field(default=None, max_length=2048)
 
     @field_validator("amount")
     @classmethod
@@ -71,6 +73,8 @@ class TransactionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    receipt_url: str | None = None
+    voice_url: str | None = None
 
     @field_validator("amount", mode="before")
     @classmethod
