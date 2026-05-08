@@ -2,6 +2,8 @@
   "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "baseUrl": ".",
     "paths": {
       "@/assets/*": [
