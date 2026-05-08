@@ -13,13 +13,7 @@ import {
   Target,
 } from "lucide-react-native";
 import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
-import {
-  Alert,
-  LayoutChangeEvent,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -34,6 +28,7 @@ import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useRe
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
+import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 const TAB_ICON_SIZE = 22;
 const ACTIVE_ICON_SIZE = 24;
@@ -140,6 +135,7 @@ export function DimeTabBar({
   const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
   const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
   const captureReceiptAndCreate = useReceiptCameraTransaction();
+  const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
 
   const activeRouteName = state.routes[state.index]?.name;
   const ActiveIcon = useMemo(
@@ -470,10 +466,7 @@ export function DimeTabBar({
             onPress={() => {
               void triggerLightHaptic();
               setFabOpen(false);
-              Alert.alert(
-                "Voice entry",
-                "Voice capture and parsing is not available yet. Use manual entry or a receipt photo on Android.",
-              );
+              openVoiceCapture();
             }}
             style={styles.radialActionHit}
           >
