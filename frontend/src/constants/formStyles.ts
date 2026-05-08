@@ -41,9 +41,11 @@ export const formStyles = StyleSheet.create({
     color: colors.textPrimary,
     ...Platform.select({
       android: {
+        height: "100%",
         paddingVertical: 0,
         paddingTop: 0,
         paddingBottom: 0,
+        textAlignVertical: "center",
         includeFontPadding: false,
       },
       default: {

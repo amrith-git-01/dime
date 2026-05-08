@@ -399,6 +399,8 @@ const styles = StyleSheet.create({
     margin: 0,
     ...Platform.select({
       android: {
+        height: "100%",
+        paddingVertical: 0,
         includeFontPadding: false,
         textAlignVertical: "center",
         lineHeight: 26,
