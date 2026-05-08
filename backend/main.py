@@ -6,12 +6,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import ai, health, me, profile, transactions
+from core.job_runner import start_workers, stop_workers
+from routes import health, me, profile, transactions
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    yield
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await start_workers(app)
+    try:
+        yield
+    finally:
+        await stop_workers(app)
 
 
 def create_application() -> FastAPI:
@@ -33,7 +38,6 @@ def create_application() -> FastAPI:
     application.include_router(me.router, prefix=api_prefix)
     application.include_router(profile.router, prefix=api_prefix)
     application.include_router(transactions.router, prefix=api_prefix)
-    application.include_router(ai.router, prefix=api_prefix)
 
     @application.get("/")
     def read_root() -> dict[str, str]:
