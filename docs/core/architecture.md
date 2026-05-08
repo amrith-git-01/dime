@@ -37,9 +37,9 @@ How the frontend, backend, and database relate at the highest level.
 │   React Native + Bare Expo                                   │
 │                                                              │
 │   ┌─────────────────┐        ┌──────────────────────────┐   │
-│   │  Gemma 4 E2B    │        │  WatermelonDB (SQLite)   │   │
-│   │  On-device AI   │        │  Local offline-first DB  │   │
-│   │  No internet    │        │  Syncs in background     │   │
+│   │  Cloud AI APIs  │        │  WatermelonDB (SQLite)   │   │
+│   │  via backend    │        │  Local offline-first DB  │   │
+│   │  internet req.  │        │  Syncs in background     │   │
 │   └─────────────────┘        └──────────────────────────┘   │
 │                                                              │
 └────────────────────────────┬─────────────────────────────────┘
@@ -121,7 +121,7 @@ How the frontend, backend, and database relate at the highest level.
 ```
 Bank SMS / GPay notification received
         ↓
-features/sms/ — regex parsing + Gemma 4 cleanup
+features/sms/ — regex parsing + backend cloud normalization
         ↓
 Extracted: { merchant, amount, type, date }
         ↓
@@ -167,9 +167,9 @@ User: FAB → Scan Receipt
         ↓
 features/scanner/ — camera captures image
         ↓
-features/ai/ — image sent to Gemma 4 via ML Kit GenAI API
+backend /api/v1/ai/receipt-parse — image sent to cloud model via FastAPI
         ↓
-Gemma 4 returns: { merchant, amount, date, lineItems }
+Cloud AI returns: { merchant, amount, type, category, note, transaction_at }
         ↓
 Confirm card shown to user (all fields editable)
         ↓
@@ -270,12 +270,7 @@ expense-tracker/
 │   │   │   ├── utils/               # Image preprocessing helpers
 │   │   │   ├── types.ts
 │   │   │   └── index.ts
-│   │   ├── ai/
-│   │   │   ├── hooks/               # useGemma, useCategorize
-│   │   │   ├── prompts/             # All Gemma 4 prompt templates
-│   │   │   ├── utils/               # Response parsers, validators
-│   │   │   ├── types.ts
-│   │   │   └── index.ts
+│   │   ├── ai/                      # (removed) moved to backend cloud APIs
 │   │   └── sync/
 │   │       ├── hooks/               # useSyncStatus
 │   │       ├── utils/               # Conflict resolution logic
@@ -376,21 +371,21 @@ We use React Navigation v7. Screens live in `src/screens/`. Navigation config li
 
 ### Frontend Layer Responsibilities
 
-| Layer | Folder | Responsibility | Can Import From |
-|---|---|---|---|
-| **Screens** | `src/screens/` | Layout, composition only | `components/`, `hooks/` |
-| **Components** | `src/components/` | Reusable UI, no data fetching | `constants/`, `types/` |
-| **Hooks** | `src/hooks/` | Data bridge, orchestration | `store/`, `features/`, `services/`, `db/` |
-| **Zustand** | `src/store/` | Runtime UI & session state | `types/` only |
-| **React Query** | via `hooks/` | Server state, caching | `services/`, `types/` |
-| **Features** | `src/features/` | Self-contained business logic | `db/`, `constants/`, `types/` |
-| **Services** | `src/services/` | HTTP calls to FastAPI only | `types/` only |
-| **Database** | `src/db/` | Local SQLite persistence | `types/` only |
-| **Providers** | `src/providers/` | Context setup, composition | `config/` |
-| **Config** | `src/config/` | Env vars, client config | Nothing |
-| **Utils** | `src/utils/` | Pure helper functions | Nothing |
-| **Constants** | `src/constants/` | Design tokens | Nothing |
-| **Types** | `src/types/` | TypeScript interfaces | Nothing |
+| Layer           | Folder            | Responsibility                | Can Import From                           |
+| --------------- | ----------------- | ----------------------------- | ----------------------------------------- |
+| **Screens**     | `src/screens/`    | Layout, composition only      | `components/`, `hooks/`                   |
+| **Components**  | `src/components/` | Reusable UI, no data fetching | `constants/`, `types/`                    |
+| **Hooks**       | `src/hooks/`      | Data bridge, orchestration    | `store/`, `features/`, `services/`, `db/` |
+| **Zustand**     | `src/store/`      | Runtime UI & session state    | `types/` only                             |
+| **React Query** | via `hooks/`      | Server state, caching         | `services/`, `types/`                     |
+| **Features**    | `src/features/`   | Self-contained business logic | `db/`, `constants/`, `types/`             |
+| **Services**    | `src/services/`   | HTTP calls to FastAPI only    | `types/` only                             |
+| **Database**    | `src/db/`         | Local SQLite persistence      | `types/` only                             |
+| **Providers**   | `src/providers/`  | Context setup, composition    | `config/`                                 |
+| **Config**      | `src/config/`     | Env vars, client config       | Nothing                                   |
+| **Utils**       | `src/utils/`      | Pure helper functions         | Nothing                                   |
+| **Constants**   | `src/constants/`  | Design tokens                 | Nothing                                   |
+| **Types**       | `src/types/`      | TypeScript interfaces         | Nothing                                   |
 
 ---
 
@@ -672,4 +667,4 @@ USING (
 
 ---
 
-> *Document maintained as part of project planning. Last brainstormed with Claude, April 2026.*
+> _Document maintained as part of project planning. Last brainstormed with Claude, April 2026._

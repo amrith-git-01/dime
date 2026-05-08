@@ -66,8 +66,7 @@
         {
           "photosPermission": "Dime can read photos you pick for receipts and expense attachments."
         }
-      ],
-      "react-native-litert-lm"
+      ]
     ],
     "experiments": {
       "reactCompiler": true
