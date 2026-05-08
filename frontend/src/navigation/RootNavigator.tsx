@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { colors } from "@/constants/theme";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
+import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import { supabase } from "@/lib/supabase/client";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
@@ -42,6 +43,7 @@ export default function RootNavigator() {
   }, []);
 
   const profileUserId = session?.user.id;
+  useTransactionsRealtimeSync(profileUserId ?? null);
   const meQuery = useCurrentUserProfileQuery(profileUserId);
 
   useEffect(() => {
