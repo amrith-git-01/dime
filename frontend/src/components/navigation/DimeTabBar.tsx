@@ -12,8 +12,14 @@ import {
   Plus,
   Target,
 } from "lucide-react-native";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useContext, useEffect, useMemo } from "react";
+import {
+  Alert,
+  LayoutChangeEvent,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import Animated, {
   interpolate,
   useAnimatedStyle,
@@ -24,7 +30,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { colors, spacing } from "@/constants/theme";
+import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
+import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
 
 const TAB_ICON_SIZE = 22;
 const ACTIVE_ICON_SIZE = 24;
@@ -125,7 +134,10 @@ export function DimeTabBar({
   const activeLift = useSharedValue(0);
   const plusRotationDeg = useSharedValue(0);
   const actionsProgress = useSharedValue(0);
-  const [addFabOpen, setAddFabOpen] = useState(false);
+  const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
+  const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
+  const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
+  const captureReceiptAndCreate = useReceiptCameraTransaction();
 
   const activeRouteName = state.routes[state.index]?.name;
   const ActiveIcon = useMemo(
@@ -163,6 +175,19 @@ export function DimeTabBar({
     state.routes.length,
     travelMorph,
   ]);
+
+  useEffect(() => {
+    plusRotationDeg.value = withSpring(fabOpen ? 45 : 0, {
+      damping: 16,
+      stiffness: 220,
+      mass: 0.75,
+    });
+    actionsProgress.value = withSpring(fabOpen ? 1 : 0, {
+      damping: 18,
+      stiffness: 240,
+      mass: 0.9,
+    });
+  }, [actionsProgress, fabOpen, plusRotationDeg]);
 
   const onBarLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -239,19 +264,8 @@ export function DimeTabBar({
 
   const toggleAddFab = useCallback(() => {
     void triggerLightHaptic();
-    const next = !addFabOpen;
-    setAddFabOpen(next);
-    plusRotationDeg.value = withSpring(next ? 45 : 0, {
-      damping: 16,
-      stiffness: 220,
-      mass: 0.75,
-    });
-    actionsProgress.value = withSpring(next ? 1 : 0, {
-      damping: 18,
-      stiffness: 240,
-      mass: 0.9,
-    });
-  }, [actionsProgress, addFabOpen, plusRotationDeg]);
+    toggleFab();
+  }, [toggleFab]);
 
   return (
     <View
@@ -282,74 +296,6 @@ export function DimeTabBar({
           strokeWidth={2}
         />
       </Animated.View>
-      {/* Add-transaction methods (Manual / Photo / Voice) */}
-      <View
-        pointerEvents={addFabOpen ? "box-none" : "none"}
-        style={styles.actionsRow}
-      >
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleLeft,
-            manualActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction manually"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up manual-add flow here.
-            }}
-          >
-            <Edit3
-              size={20}
-              color={colors.headerGradientStart}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleCenter,
-            photoActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction from photo"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up photo-based add flow here.
-            }}
-          >
-            <Camera
-              size={20}
-              color={colors.headerGradientStart}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleRight,
-            voiceActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction with voice"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up voice-based add flow here.
-            }}
-          >
-            <Mic size={20} color={colors.headerGradientStart} strokeWidth={2} />
-          </Pressable>
-        </Animated.View>
-      </View>
       <View style={styles.tabsRow}>
         {state.routes.slice(0, 2).map((route, index) => {
           const { options } = descriptors[route.key];
@@ -390,9 +336,9 @@ export function DimeTabBar({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              addFabOpen ? "Close add transaction" : "Add transaction"
+              fabOpen ? "Close add transaction" : "Add transaction"
             }
-            accessibilityState={{ expanded: addFabOpen }}
+            accessibilityState={{ expanded: fabOpen }}
             onPress={toggleAddFab}
             hitSlop={10}
             pressRetentionOffset={12}
@@ -443,6 +389,90 @@ export function DimeTabBar({
             />
           );
         })}
+      </View>
+      {/* Render after tabs so + stays in normal order; zIndex + hitSlop reach fanned bubbles outside 44×44 (Android). */}
+      <View
+        pointerEvents={fabOpen ? "box-none" : "none"}
+        style={styles.actionsRow}
+      >
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleLeft,
+            manualActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction manually"
+            disabled={!fabOpen}
+            hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              useManualAddTransactionUiStore.getState().open();
+              setFabOpen(false);
+            }}
+            style={styles.radialActionHit}
+          >
+            <Edit3
+              size={20}
+              color={colors.headerGradientStart}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleCenter,
+            photoActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction from photo"
+            disabled={!fabOpen}
+            hitSlop={{ top: 56, bottom: 4, left: 20, right: 20 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              setFabOpen(false);
+              console.log("[receipt-scan] fab-photo-pressed");
+              void captureReceiptAndCreate();
+            }}
+            style={styles.radialActionHit}
+          >
+            <Camera
+              size={20}
+              color={colors.headerGradientStart}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleRight,
+            voiceActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction with voice"
+            disabled={!fabOpen}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 64 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              setFabOpen(false);
+              Alert.alert(
+                "Voice entry",
+                "Voice capture and parsing is not available yet. Use manual entry or a receipt photo on Android.",
+              );
+            }}
+            style={styles.radialActionHit}
+          >
+            <Mic size={20} color={colors.headerGradientStart} strokeWidth={2} />
+          </Pressable>
+        </Animated.View>
       </View>
     </View>
   );
@@ -535,7 +565,7 @@ const styles = StyleSheet.create({
     height: OPTION_BUBBLE_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 5,
+    zIndex: 20,
   },
   actionBubble: {
     position: "absolute",
@@ -556,6 +586,13 @@ const styles = StyleSheet.create({
   actionBubbleLeft: {},
   actionBubbleCenter: {},
   actionBubbleRight: {},
+  /** Minimum touch target inside the 44×44 bubble (icon alone is too small on Android). */
+  radialActionHit: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tabItem: {
     flex: 1,
     position: "relative",

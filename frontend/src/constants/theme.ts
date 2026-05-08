@@ -8,8 +8,12 @@ import { fontFamilies } from "./fonts";
 
 export const colors = {
   primary: "#4F46E5",
+  /** Income / credit amounts (design system). */
+  success: "#16A34A",
   inactive: "#6B7280",
   border: "#E5E7EB",
+  /** Card and list row border (design system). */
+  cardBorder: "#E0DFFA",
   /** Hairline above light surfaces (e.g. bottom tab bar). */
   borderLight: "#E5E7EB",
   barBackground: "#FFFFFF",

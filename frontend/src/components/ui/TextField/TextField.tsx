@@ -77,6 +77,7 @@ export function TextField({
             setFocused(false);
             onBlur?.(e);
           }}
+          underlineColorAndroid="transparent"
           textAlignVertical={Platform.OS === "android" ? "center" : undefined}
           {...rest}
         />

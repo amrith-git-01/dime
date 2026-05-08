@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing } from "@/constants/theme";
@@ -28,13 +28,28 @@ export const formStyles = StyleSheet.create({
   fieldShellError: {
     borderColor: "#BA1A1A",
   },
+  /**
+   * Android: default font padding + vertical padding makes placeholders sit high vs
+   * typed text (especially MIUI). Zero vertical padding + no font padding; shell
+   * minHeight + alignItems:center centers the line. iOS unchanged.
+   */
   fieldInput: {
     flex: 1,
     fontFamily: fontFamilies.regular,
     fontSize: 16,
     lineHeight: 22,
     color: colors.textPrimary,
-    paddingVertical: spacing.sm,
+    ...Platform.select({
+      android: {
+        paddingVertical: 0,
+        paddingTop: 0,
+        paddingBottom: 0,
+        includeFontPadding: false,
+      },
+      default: {
+        paddingVertical: spacing.sm,
+      },
+    }),
   },
   fieldError: {
     fontFamily: fontFamilies.regular,
