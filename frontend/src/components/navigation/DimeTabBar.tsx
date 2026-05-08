@@ -12,7 +12,7 @@ import {
   Plus,
   Target,
 } from "lucide-react-native";
-import { useCallback, useContext, useEffect, useMemo } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import {
   Alert,
   LayoutChangeEvent,
@@ -124,10 +124,12 @@ export function DimeTabBar({
   descriptors,
   navigation,
   insets,
-}: BottomTabBarProps) {
+  onFirstLayout,
+}: BottomTabBarProps & { onFirstLayout?: () => void }) {
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
   const onTabBarHeightChange = useContext(BottomTabBarHeightCallbackContext);
+  const firstLayoutNotifiedRef = useRef(false);
   const barWidth = useSharedValue(0);
   const activeCenterX = useSharedValue(0);
   const travelMorph = useSharedValue(0);
@@ -198,10 +200,15 @@ export function DimeTabBar({
       const activeSlotIndex = state.index < 2 ? state.index : state.index + 1;
       activeCenterX.value = slotWidth * activeSlotIndex + slotWidth / 2;
       onTabBarHeightChange?.(height);
+      if (!firstLayoutNotifiedRef.current && width > 0 && height > 0) {
+        firstLayoutNotifiedRef.current = true;
+        onFirstLayout?.();
+      }
     },
     [
       activeCenterX,
       barWidth,
+      onFirstLayout,
       onTabBarHeightChange,
       state.index,
       state.routes.length,

@@ -1,91 +1,150 @@
-"""Cloud AI receipt parsing service."""
-
 from __future__ import annotations
 
-import base64
 import json
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, UTC
+from decimal import Decimal
 from typing import Any
 
-import httpx
+from fastapi import HTTPException, status
 
-from core.config import Settings
-from features.ai.schemas import ReceiptParseResponse
+from .schemas import (
+    CounterpartyType,
+    ExpenseType,
+    ParseExpenseResult,
+    ParseMode,
+)
 
 
-class CloudReceiptParseService:
-    def __init__(self, settings: Settings) -> None:
-        self._settings = settings
+@dataclass(frozen=True)
+class ModelCandidate:
+    provider: str
+    model: str
 
-    async def parse_receipt(self, *, image_bytes: bytes, content_type: str) -> ReceiptParseResponse:
-        if not self._settings.ai_api_key:
-            raise RuntimeError("Server missing AI_API_KEY.")
 
-        image_b64 = base64.b64encode(image_bytes).decode("ascii")
-        data_uri = f"data:{content_type};base64,{image_b64}"
+FALLBACKS: dict[ParseMode, list[ModelCandidate]] = {
+    ParseMode.sms: [
+        ModelCandidate("google", "gemma-3-4b"),
+        ModelCandidate("google", "gemma-3-12b"),
+        ModelCandidate("groq", "llama-3.1-8b"),
+    ],
+    ParseMode.receipt: [
+        ModelCandidate("google", "gemma-4-26b"),
+        ModelCandidate("google", "gemma-4-31b"),
+        ModelCandidate("nvidia", "gemma-3n-e4b"),
+    ],
+    ParseMode.voice: [
+        ModelCandidate("nvidia", "gemma-3n-e4b"),
+        ModelCandidate("nvidia", "gemma-3n-e2b"),
+    ],
+}
 
-        prompt = (
-            "Extract transaction details from this receipt image. "
-            "Return JSON only with keys: merchant (string), amount (number), "
-            "type ('debit'|'credit'), category (string|null), note (string|null), "
-            "transaction_at (ISO datetime string). "
-            "If date is missing, use current UTC datetime. "
-            "No markdown, no extra keys."
+
+class AIParseError(RuntimeError):
+    pass
+
+
+class AIOrchestratorService:
+    async def parse_sms(self, text: str) -> ParseExpenseResult:
+        return await self._run_with_fallback(
+            mode=ParseMode.sms,
+            payload={"text": text},
         )
 
-        payload = {
-            "model": self._settings.ai_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": data_uri}},
-                    ],
-                }
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.1,
-        }
-        headers = {
-            "Authorization": f"Bearer {self._settings.ai_api_key}",
-            "Content-Type": "application/json",
-        }
+    async def parse_receipt(self, image_bytes: bytes, mime_type: str) -> ParseExpenseResult:
+        return await self._run_with_fallback(
+            mode=ParseMode.receipt,
+            payload={"image_bytes": image_bytes, "mime_type": mime_type},
+        )
 
-        try:
-            async with httpx.AsyncClient(timeout=45) as client:
-                response = await client.post(
-                    self._settings.ai_base_url,
-                    headers=headers,
-                    json=payload,
+    async def parse_voice(self, audio_bytes: bytes, mime_type: str) -> ParseExpenseResult:
+        return await self._run_with_fallback(
+            mode=ParseMode.voice,
+            payload={"audio_bytes": audio_bytes, "mime_type": mime_type},
+        )
+
+    async def _run_with_fallback(self, mode: ParseMode, payload: dict[str, Any]) -> ParseExpenseResult:
+        last_error: Exception | None = None
+
+        for candidate in FALLBACKS[mode]:
+            try:
+                raw = await self._call_provider(candidate, mode, payload)
+                parsed = self._parse_and_validate(
+                    raw,
+                    model_name=candidate.model,
+                    mode=mode,
                 )
-                response.raise_for_status()
-        except Exception as exc:
-            raise RuntimeError("Cloud AI request failed.") from exc
+                return parsed
+            except Exception as exc:
+                last_error = exc
+                continue
 
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"AI_PARSE_UNAVAILABLE: mode={mode.value}, error={last_error}",
+        )
+
+    async def _call_provider(
+        self,
+        candidate: ModelCandidate,
+        mode: ParseMode,
+        payload: dict[str, Any],
+    ) -> str:
+        """
+        Replace this stub with provider adapters:
+        - google_client.parse(...)
+        - nvidia_client.parse(...)
+        - groq_client.parse(...)
+        Must return JSON string matching ParseExpenseResult shape.
+        """
+        raise AIParseError(f"Provider not implemented: {candidate.provider}/{candidate.model}")
+
+    def _parse_and_validate(
+        self,
+        raw_text: str,
+        model_name: str,
+        mode: ParseMode,
+    ) -> ParseExpenseResult:
         try:
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            parsed = self._extract_json_object(content)
-            if "transaction_at" not in parsed or not parsed["transaction_at"]:
-                parsed["transaction_at"] = datetime.utcnow().isoformat()
-            return ReceiptParseResponse.model_validate(parsed)
-        except Exception as exc:
-            raise RuntimeError("Cloud AI returned invalid response.") from exc
+            data = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise AIParseError(f"Model returned invalid JSON: {exc}") from exc
 
-    def _extract_json_object(self, content: Any) -> dict[str, Any]:
-        if isinstance(content, list):
-            text = "".join(
-                part.get("text", "") for part in content if isinstance(part, dict)
-            ).strip()
-        else:
-            text = str(content).strip()
+        # Defensive defaults
+        if not data.get("date"):
+            data["date"] = datetime.now(UTC).isoformat()
+        if not data.get("raw_model"):
+            data["raw_model"] = model_name
+        if not data.get("note"):
+            data["note"] = self._build_default_note(
+                mode=mode,
+                counterparty_name=data.get("counterparty_name"),
+            )
 
-        if text.startswith("```"):
-            text = text.replace("```json", "").replace("```", "").strip()
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            raise ValueError("No JSON object in model output.")
-        return json.loads(text[start : end + 1])
+        # Cast amount safely
+        if "amount" in data:
+            data["amount"] = Decimal(str(data["amount"]))
 
+        return ParseExpenseResult(
+            counterparty_name=data["counterparty_name"],
+            counterparty_type=CounterpartyType(data["counterparty_type"]),
+            amount=data["amount"],
+            type=ExpenseType(data["type"]),
+            date=datetime.fromisoformat(data["date"]) if data.get("date") else None,
+            category=data["category"],
+            note=data.get("note"),
+            confidence=float(data["confidence"]),
+            raw_model=data["raw_model"],
+        )
+
+    def _build_default_note(self, mode: ParseMode, counterparty_name: object) -> str:
+        name = (
+            str(counterparty_name).strip()
+            if isinstance(counterparty_name, str) and counterparty_name.strip()
+            else "counterparty"
+        )
+        if mode == ParseMode.sms:
+            return f"Auto-parsed from SMS/notification for {name}."
+        if mode == ParseMode.receipt:
+            return f"Auto-parsed from receipt for {name}."
+        return f"Auto-parsed from voice input for {name}."

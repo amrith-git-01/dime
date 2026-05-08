@@ -1,48 +1,54 @@
-"""Cloud AI routes."""
-
 from __future__ import annotations
 
-import logging
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-
-from core.config import get_settings
 from deps import get_current_user_id
-from features.ai.schemas import ReceiptParseResponse
-from features.ai.service import CloudReceiptParseService
-from utils.image_format import detect_image_format
+from features.ai.schemas import (
+    ParseExpenseResponse,
+    ParseExpenseResult,
+    ParseExpenseTextRequest,
+    ParseMode,
+)
+from features.ai.service import AIOrchestratorService
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-MAX_RECEIPT_BYTES = 8 * 1024 * 1024
 
-
-@router.post("/receipt-parse", response_model=ReceiptParseResponse)
-async def parse_receipt(
+@router.post(
+    "/parse-expense",
+    response_model=ParseExpenseResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def parse_expense(
+    mode: ParseMode = Form(...),
+    text: str | None = Form(None),
+    file: UploadFile | None = File(None),
     _user_id: str = Depends(get_current_user_id),
-    file: UploadFile = File(..., description="Receipt image (JPEG/PNG/WebP)."),
-) -> ReceiptParseResponse:
-    payload = await file.read()
-    if not payload:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Empty image file.")
-    if len(payload) > MAX_RECEIPT_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image too large.")
+) -> ParseExpenseResponse:
+    service = AIOrchestratorService()
 
-    detected = detect_image_format(payload[:32])
-    if not detected:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Unsupported image type.")
-    _, content_type = detected
+    if mode == ParseMode.sms:
+        if not text or not text.strip():
+            raise HTTPException(status_code=400, detail="text required for mode=sms")
+        req = ParseExpenseTextRequest(mode=mode, text=text.strip())
+        result: ParseExpenseResult = await service.parse_sms(req.text)
+        return ParseExpenseResponse(mode=mode, result=result)
 
-    try:
-        return await CloudReceiptParseService(get_settings()).parse_receipt(
-            image_bytes=payload,
-            content_type=content_type,
-        )
-    except RuntimeError as exc:
-        logger.exception("Cloud receipt parse failed")
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+    if mode in (ParseMode.receipt, ParseMode.voice):
+        if file is None:
+            raise HTTPException(status_code=400, detail="file required for receipt/voice mode")
 
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="uploaded file is empty")
+
+        mime = file.content_type or "application/octet-stream"
+
+        if mode == ParseMode.receipt:
+            result = await service.parse_receipt(content, mime)
+        else:
+            result = await service.parse_voice(content, mime)
+
+        return ParseExpenseResponse(mode=mode, result=result)
+
+    raise HTTPException(status_code=400, detail="unsupported mode")
