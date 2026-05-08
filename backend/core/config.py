@@ -44,6 +44,18 @@ class Settings(BaseSettings):
         default="Dime",
         validation_alias=AliasChoices("STORAGE_BUCKET", "AVATAR_STORAGE_BUCKET"),
     )
+    ai_base_url: str = Field(
+        default="https://openrouter.ai/api/v1/chat/completions",
+        validation_alias=AliasChoices("AI_BASE_URL"),
+    )
+    ai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"),
+    )
+    ai_model: str = Field(
+        default="openai/gpt-4o-mini",
+        validation_alias=AliasChoices("AI_MODEL"),
+    )
 
 
 @lru_cache
