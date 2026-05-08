@@ -122,7 +122,7 @@ export default function ProfileSetupScreen({
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode="none"
         bottomOffset={24}
       >
         <View style={styles.column}>

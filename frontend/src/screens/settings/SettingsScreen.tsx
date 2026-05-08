@@ -1,37 +1,14 @@
-import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useCallback } from "react";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { Button } from "@/components/ui/Button/Button";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
-import { useGemma } from "@/features/ai";
 import { useSignOut } from "@/features/auth/hooks/useSignOut";
-
-const SUCCESS_GREEN = "#16A34A";
-const DANGER_RED = "#DC2626";
 
 export default function SettingsScreen() {
   const { signOut, loading } = useSignOut();
-  const {
-    status: gemmaStatus,
-    downloadProgress,
-    error: gemmaError,
-    startDownload,
-    retryAfterError,
-    promptRaw,
-  } = useGemma();
-  const [gemmaTestInput, setGemmaTestInput] = useState("");
-  const [gemmaTestOutput, setGemmaTestOutput] = useState<string | null>(null);
-  const [gemmaTestLoading, setGemmaTestLoading] = useState(false);
 
   const performLogout = useCallback(async () => {
     try {
@@ -56,122 +33,6 @@ export default function SettingsScreen() {
     ]);
   }, [performLogout]);
 
-  const gemmaBody = useMemo(() => {
-    switch (gemmaStatus) {
-      case "idle":
-      case "checking":
-        return (
-          <View style={styles.gemmaRow}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.gemmaStatusText}>Checking on-device AI…</Text>
-          </View>
-        );
-      case "needs_download":
-        return (
-          <>
-            <Text style={styles.gemmaDescription}>
-              Download the Gemma model once to run receipt scan and
-              categorization on your phone. Large download — use Wi‑Fi if
-              possible.
-            </Text>
-            <Button
-              title="Download model"
-              variant="primary"
-              onPress={() => void startDownload()}
-            />
-          </>
-        );
-      case "downloading":
-        return (
-          <View style={styles.gemmaRow}>
-            <ActivityIndicator color={colors.primary} />
-            <View style={styles.gemmaProgressCol}>
-              <Text style={styles.gemmaStatusText}>Downloading model…</Text>
-              <Text style={styles.gemmaProgressMono}>{downloadProgress}%</Text>
-            </View>
-          </View>
-        );
-      case "initializing":
-      case "needs_init":
-        return (
-          <View style={styles.gemmaRow}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.gemmaStatusText}>Loading model…</Text>
-          </View>
-        );
-      case "ready":
-        return (
-          <>
-            <Text style={styles.gemmaReadyText}>On-device AI is ready.</Text>
-
-            <View style={styles.gemmaTestWrap}>
-              <Text style={styles.gemmaTestTitle}>Test prompt</Text>
-              <TextInput
-                value={gemmaTestInput}
-                onChangeText={(t) => setGemmaTestInput(t)}
-                placeholder="Type prompt and press Send…"
-                placeholderTextColor={colors.textSecondary}
-                style={styles.gemmaInput}
-                returnKeyType="send"
-                blurOnSubmit={true}
-                onSubmitEditing={() => {
-                  const prompt = gemmaTestInput.trim();
-                  if (prompt.length === 0 || gemmaTestLoading) {
-                    return;
-                  }
-                  setGemmaTestLoading(true);
-                  setGemmaTestOutput(null);
-                  void (async () => {
-                    const out = await promptRaw(prompt);
-                    setGemmaTestOutput(out ?? "(no response)");
-                    setGemmaTestLoading(false);
-                  })();
-                }}
-              />
-
-              {gemmaTestLoading ? (
-                <View style={styles.gemmaRow}>
-                  <ActivityIndicator color={colors.primary} />
-                  <Text style={styles.gemmaStatusText}>Thinking…</Text>
-                </View>
-              ) : gemmaTestOutput ? (
-                <View style={styles.gemmaOutputBox}>
-                  <Text selectable style={styles.gemmaOutputText}>
-                    {gemmaTestOutput}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          </>
-        );
-      case "error":
-        return (
-          <>
-            <Text style={styles.gemmaErrorText}>
-              {gemmaError ?? "Something went wrong."}
-            </Text>
-            <Button
-              title="Try again"
-              variant="secondary"
-              onPress={() => void retryAfterError()}
-            />
-          </>
-        );
-      default:
-        return null;
-    }
-  }, [
-    gemmaStatus,
-    downloadProgress,
-    gemmaError,
-    startDownload,
-    retryAfterError,
-    promptRaw,
-    gemmaTestInput,
-    gemmaTestLoading,
-    gemmaTestOutput,
-  ]);
-
   return (
     <TabScreenShell>
       <ScrollView
@@ -184,12 +45,11 @@ export default function SettingsScreen() {
         </Text>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>On-device AI</Text>
+          <Text style={styles.cardTitle}>AI processing</Text>
           <Text style={styles.cardSubtitle}>
-            Gemma runs offline after setup. No cloud inference for these
-            features.
+            Receipt parsing now runs through secure cloud APIs via backend.
+            Camera upload sends only the captured receipt image for extraction.
           </Text>
-          {gemmaBody}
         </View>
 
         <View style={styles.logoutWrap}>
@@ -239,83 +99,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
-  },
-  gemmaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  gemmaProgressCol: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  gemmaStatusText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  gemmaDescription: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  gemmaProgressMono: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  gemmaReadyText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: SUCCESS_GREEN,
-  },
-  gemmaErrorText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: DANGER_RED,
-  },
-  gemmaTestWrap: {
-    gap: spacing.xs,
-  },
-  gemmaTestTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textPrimary,
-  },
-  gemmaInput: {
-    minHeight: 52,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "#FFFFFF",
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textPrimary,
-  },
-  gemmaOutputBox: {
-    width: "100%",
-    padding: spacing.md,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "#FFFFFF",
-  },
-  gemmaOutputText: {
-    flexShrink: 1,
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textPrimary,
   },
   logoutWrap: {
     marginTop: spacing.xl,
