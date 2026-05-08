@@ -4,8 +4,12 @@ import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
 
-import { parseReceiptPhotoWithCloud } from "../api/receiptAiApi";
-import { prepareReceiptImageForUpload } from "../receipt/prepareReceiptImageForLlm";
+import { prepareReceiptImageForUpload } from "@/features/transactions/receipt/prepareReceiptImageForUpload";
+import {
+  parseExpenseFile,
+  type ParseExpenseResponse,
+} from "../api/parseExpenseApi";
+import type { CreateTransactionBody } from "../api/transactionsApi";
 import { useInsertTransactionMutation } from "./useInsertTransactionMutation";
 
 function logReceiptScan(step: string, extra?: Record<string, unknown>) {
@@ -98,7 +102,21 @@ export function useReceiptCameraTransaction() {
 
       showBusy("Analyzing receipt in cloud…");
       logReceiptScan("cloud-parse-start");
-      const payload = await parseReceiptPhotoWithCloud(preparedUri);
+      const parsed: ParseExpenseResponse = await parseExpenseFile({
+        mode: "receipt",
+        fileUri: preparedUri,
+        fileName: "receipt.jpg",
+        mimeType: "image/jpeg",
+      });
+      const payload: CreateTransactionBody = {
+        amount: Number(parsed.result.amount),
+        type: parsed.result.type,
+        merchant: parsed.result.counterparty_name,
+        category: parsed.result.category ?? null,
+        note: parsed.result.note ?? null,
+        transaction_at: parsed.result.date ?? new Date().toISOString(),
+        detected_via: "receipt_cloud",
+      };
       logReceiptScan("cloud-parse-done", {
         merchant: payload.merchant,
         amount: payload.amount,
