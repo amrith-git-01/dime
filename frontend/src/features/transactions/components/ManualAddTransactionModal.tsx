@@ -1,7 +1,7 @@
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight, X } from "lucide-react-native";
 import { useCallback, useState } from "react";
@@ -41,6 +41,7 @@ import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiS
 
 import { submitManualTransaction } from "../api/submitTransactionApi";
 import { useManualAddTransactionForm } from "../hooks/useManualAddTransactionForm";
+import { transactionsQueryKeys } from "../queryKeys";
 
 const SHEET_RADIUS = 24;
 const HANDLE_WIDTH = 36;
@@ -59,8 +60,14 @@ export function ManualAddTransactionModal() {
   const visible = useManualAddTransactionUiStore((s) => s.visible);
   const close = useManualAddTransactionUiStore((s) => s.close);
   const { userId, authReady } = useSessionUserId();
+  const queryClient = useQueryClient();
   const submitMutation = useMutation({
     mutationFn: submitManualTransaction,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: transactionsQueryKeys.all,
+      });
+    },
   });
   const { showToast } = useToast();
   const form = useManualAddTransactionForm();
