@@ -21,3 +21,29 @@ export function formatInrAmount(
   }
   return base;
 }
+
+/** Whole rupees for hero / chips (no paise). */
+export function formatInrCompact(amount: string | number): string {
+  const n = typeof amount === "string" ? Number.parseFloat(amount) : amount;
+  if (!Number.isFinite(n)) {
+    return "₹0";
+  }
+  const formatted = new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+  return `₹${formatted}`;
+}
+
+/** Debit-style display: leading minus, whole rupees (for outflows on light surfaces). */
+export function formatInrDebitCompact(amount: string | number): string {
+  const n = typeof amount === "string" ? Number.parseFloat(amount) : amount;
+  if (!Number.isFinite(n) || n === 0) {
+    return "₹0";
+  }
+  const formatted = new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.abs(n));
+  return `-₹${formatted}`;
+}

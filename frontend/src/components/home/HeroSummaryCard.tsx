@@ -41,7 +41,9 @@ export function HeroSummaryCard({
         {progressLabel ? (
           <View style={styles.progressHeader}>
             <Text style={styles.progressLabel}>{progressLabel}</Text>
-            <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
+            <Text style={styles.progressValue}>
+              {Math.round(progress * 100)}%
+            </Text>
           </View>
         ) : null}
         <AnimatedProgressBar

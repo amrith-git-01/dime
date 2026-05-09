@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from supabase import Client
 
 from core.job_runner import enqueue_manual, enqueue_receipt, enqueue_voice
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
-from features.transactions.schemas import TransactionCreate, TransactionResponse
+from features.transactions.schemas import (
+    HomeOverviewResponse,
+    MonthSummaryResponse,
+    TransactionCreate,
+    TransactionListResponse,
+)
 from features.transactions.service import TransactionService
 from features.uploads.workers import ManualTransactionJob, ReceiptJob, VoiceJob
 
@@ -19,13 +25,68 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
-@router.get("", response_model=list[TransactionResponse])
+@router.get("/home", response_model=HomeOverviewResponse)
+def transactions_home(
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+    timezone: str = Query(..., min_length=2, max_length=80),
+) -> HomeOverviewResponse:
+    try:
+        return TransactionService(supabase).home_overview(user, timezone=timezone)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed home overview for user id=%s", user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load home overview.",
+        ) from exc
+
+
+@router.get("/month-summary", response_model=MonthSummaryResponse)
+def transactions_month_summary(
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    timezone: str = Query(..., min_length=2, max_length=80),
+) -> MonthSummaryResponse:
+    try:
+        return TransactionService(supabase).month_summary(
+            user,
+            year=year,
+            month=month,
+            timezone=timezone,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed month summary for user id=%s", user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load month summary.",
+        ) from exc
+
+
+@router.get("", response_model=TransactionListResponse)
 def list_transactions(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
-) -> list[TransactionResponse]:
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = Query(None, alias="to"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> TransactionListResponse:
     try:
-        return TransactionService(supabase).list_mine(user)
+        from_iso = from_.isoformat() if from_ is not None else None
+        to_iso = to.isoformat() if to is not None else None
+        return TransactionService(supabase).list_mine_paginated(
+            user,
+            from_iso=from_iso,
+            to_iso=to_iso,
+            limit=limit,
+            offset=offset,
+        )
     except Exception as exc:
         logger.exception("Failed to list transactions for user id=%s", user.id)
         raise HTTPException(
