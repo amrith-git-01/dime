@@ -1,7 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { format, parseISO, startOfMonth, subDays, subMonths } from "date-fns";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
-  Pressable,  SectionList,
+  Pressable,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -9,6 +12,16 @@ import {
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { fontFamilies } from "@/constants/fonts";
+import { TransactionListRow } from "@/features/transactions/components/TransactionListRow";
+import {
+  formatTransactionListAmount,
+  signedAmount,
+} from "@/features/transactions/components/transactionListShared";
+import {
+  useMonthSummaryQuery,
+  useTransactionsMonthInfiniteQuery,
+} from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import type { TransactionRow } from "@/features/transactions/types";
 
 const palette = {
   primary: "#6355E8",
@@ -25,163 +38,73 @@ const palette = {
   danger: "#DC2626",
 } as const;
 
-const monthOptions = ["May 2026", "Apr 2026", "Mar 2026", "Feb 2026", "Jan 2026"];
-
-type TransactionCategory = {
-  name: string;
-  emoji: string;
-  color: string;
+type MonthOption = {
+  label: string;
+  year: number;
+  monthIndex0: number;
 };
 
-type MockTransaction = {
-  id: string;
-  merchant: string;
-  amount: number;
-  category: TransactionCategory;
-  time: string;
-  method: string;
-  date: string;
-};
+function buildMonthOptions(now: Date = new Date()): MonthOption[] {
+  const startCurrent = startOfMonth(now);
+  return Array.from({ length: 6 }, (_, index) => {
+    const d = subMonths(startCurrent, index);
+    return {
+      label: format(d, "MMM yyyy"),
+      year: d.getFullYear(),
+      monthIndex0: d.getMonth(),
+    };
+  });
+}
 
 type TransactionSection = {
   date: string;
   dailyTotal: number;
   sectionIndex: number;
-  data: MockTransaction[];
+  data: TransactionRow[];
 };
 
-const mockTransactions: MockTransaction[] = [
-  {
-    id: "1",
-    merchant: "Swiggy",
-    amount: -329,
-    category: { name: "Food", emoji: "\u{1F354}", color: "#FF6B6B" },
-    time: "9:41 PM",
-    method: "UPI",
-    date: "today",
-  },
-  {
-    id: "2",
-    merchant: "Uber",
-    amount: -188,
-    category: { name: "Transport", emoji: "\u{1F697}", color: "#4ECDC4" },
-    time: "6:20 PM",
-    method: "UPI",
-    date: "today",
-  },
-  {
-    id: "3",
-    merchant: "Amazon",
-    amount: -699,
-    category: { name: "Shopping", emoji: "\u{1F6CD}\uFE0F", color: "#A855F7" },
-    time: "Card \u00B7 Online",
-    method: "",
-    date: "yesterday",
-  },
-  {
-    id: "4",
-    merchant: "Apollo 24x7",
-    amount: -50,
-    category: { name: "Health", emoji: "\u{1F48A}", color: "#4ADE80" },
-    time: "3:15 PM",
-    method: "Cash",
-    date: "yesterday",
-  },
-  {
-    id: "5",
-    merchant: "BookMyShow",
-    amount: -500,
-    category: { name: "Entertainment", emoji: "\u{1F3AC}", color: "#FB923C" },
-    time: "Card \u00B7 Online",
-    method: "",
-    date: "Thu, Aug 22",
-  },
-  {
-    id: "6",
-    merchant: "Salary - TechCorp",
-    amount: 25000,
-    category: { name: "Income", emoji: "\u{1F4B0}", color: "#34D399" },
-    time: "Bank Transfer",
-    method: "",
-    date: "Wed, Aug 21",
-  },
-];
-
-const dateLabelByKey: Record<string, string> = {
-  today: "TODAY",
-  yesterday: "YESTERDAY",
-};
-
-function formatAmount(amount: number) {
-  const absolute = Math.abs(amount).toLocaleString("en-IN", {
-    maximumFractionDigits: 0,
-  });
-
-  if (amount > 0) {
-    return `+\u20B9${absolute}`;
+function sectionDateHeading(dateKey: string): string {
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const yesterdayKey = format(subDays(new Date(), 1), "yyyy-MM-dd");
+  if (dateKey === todayKey) {
+    return "TODAY";
   }
-
-  if (amount < 0) {
-    return `-\u20B9${absolute}`;
+  if (dateKey === yesterdayKey) {
+    return "YESTERDAY";
   }
-
-  return `\u20B9${absolute}`;
+  const d = parseISO(`${dateKey}T12:00:00`);
+  return format(d, "EEE, d MMM").toUpperCase();
 }
 
-function hexToRgba(hex: string, alpha: number) {
-  const normalized = hex.replace("#", "");
-  const bigint = Number.parseInt(normalized, 16);
-  const red = (bigint >> 16) & 255;
-  const green = (bigint >> 8) & 255;
-  const blue = bigint & 255;
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function groupTransactions(transactions: MockTransaction[]) {
+function groupTransactions(transactions: TransactionRow[]) {
   const order: string[] = [];
-  const grouped = new Map<string, MockTransaction[]>();
+  const grouped = new Map<string, TransactionRow[]>();
 
   transactions.forEach((transaction) => {
-    if (!grouped.has(transaction.date)) {
-      order.push(transaction.date);
-      grouped.set(transaction.date, []);
+    const parsed = parseISO(transaction.transaction_at);
+    const key = format(parsed, "yyyy-MM-dd");
+    if (!grouped.has(key)) {
+      order.push(key);
+      grouped.set(key, []);
     }
-
-    grouped.get(transaction.date)?.push(transaction);
+    grouped.get(key)?.push(transaction);
   });
 
-  return order.map((date, sectionIndex) => {
-    const data = grouped.get(date) ?? [];
+  order.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+
+  return order.map((dateKey, sectionIndex) => {
+    const data = grouped.get(dateKey) ?? [];
     const dailyTotal = data.reduce((total, transaction) => {
-      return total + transaction.amount;
+      return total + signedAmount(transaction);
     }, 0);
 
     return {
-      date: dateLabelByKey[date] ?? date.toUpperCase(),
+      date: sectionDateHeading(dateKey),
       dailyTotal,
       sectionIndex,
       data,
     };
   });
-}
-
-function summarizeTransactions(transactions: MockTransaction[]) {
-  return transactions.reduce(
-    (summary, transaction) => {
-      if (transaction.amount > 0) {
-        summary.credited += transaction.amount;
-      }
-
-      if (transaction.amount < 0) {
-        summary.debited += transaction.amount;
-      }
-
-      summary.count += 1;
-      return summary;
-    },
-    { credited: 0, debited: 0, count: 0 },
-  );
 }
 
 function transactionAnimationOrder(
@@ -194,25 +117,33 @@ function transactionAnimationOrder(
     .reduce((total, section) => total + section.data.length, rowIndex);
 }
 
-
 type TransactionsHeroCardProps = {
   selectedMonth: string;
   monthMenuOpen: boolean;
   summary: {
     credited: number;
     debited: number;
+    net: number;
     count: number;
   };
+  summaryLoading: boolean;
+  summaryFailed: boolean;
   onToggleMonthMenu: () => void;
-  onSelectMonth: (month: string) => void;
+  onSelectMonth: (index: number) => void;
+  monthOptions: MonthOption[];
+  selectedMonthIndex: number;
 };
 
 const TransactionsHeroCard = memo(function TransactionsHeroCard({
   selectedMonth,
   monthMenuOpen,
   summary,
+  summaryLoading,
+  summaryFailed,
   onToggleMonthMenu,
   onSelectMonth,
+  monthOptions,
+  selectedMonthIndex,
 }: TransactionsHeroCardProps) {
   return (
     <View style={styles.heroCard}>
@@ -222,7 +153,13 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
       <View style={styles.heroHeader}>
         <View style={styles.heroTitleBlock}>
           <Text style={styles.heroKicker}>Total Transactions</Text>
-          <Text style={styles.heroTitle}>{summary.count} transactions</Text>
+          <Text style={styles.heroTitle}>
+            {summaryFailed
+              ? "Couldn't load summary"
+              : summaryLoading
+                ? "…"
+                : `${summary.count} transactions`}
+          </Text>
         </View>
 
         <View style={styles.monthDropdownWrap}>
@@ -235,29 +172,32 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
             ]}
           >
             <Text style={styles.monthButtonText}>{selectedMonth}</Text>
-            <Text style={styles.monthChevron}>{monthMenuOpen ? "\u2303" : "\u2304"}</Text>
+            <Text style={styles.monthChevron}>
+              {monthMenuOpen ? "\u2303" : "\u2304"}
+            </Text>
           </Pressable>
 
           {monthMenuOpen ? (
             <View style={styles.monthMenu}>
-              {monthOptions.map((month) => (
+              {monthOptions.map((month, index) => (
                 <Pressable
-                  key={month}
+                  key={`${month.year}-${month.monthIndex0}`}
                   accessibilityRole="button"
-                  onPress={() => onSelectMonth(month)}
+                  onPress={() => onSelectMonth(index)}
                   style={({ pressed }) => [
                     styles.monthMenuItem,
-                    selectedMonth === month && styles.monthMenuItemActive,
+                    selectedMonthIndex === index && styles.monthMenuItemActive,
                     pressed && styles.monthMenuItemPressed,
                   ]}
                 >
                   <Text
                     style={[
                       styles.monthMenuText,
-                      selectedMonth === month && styles.monthMenuTextActive,
+                      selectedMonthIndex === index &&
+                        styles.monthMenuTextActive,
                     ]}
                   >
-                    {month}
+                    {month.label}
                   </Text>
                 </Pressable>
               ))}
@@ -270,21 +210,53 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
         <View style={styles.heroStatCard}>
           <Text style={styles.heroStatLabel}>Credited</Text>
           <Text style={[styles.heroStatValue, styles.heroCreditValue]}>
-            {formatAmount(summary.credited)}
+            {summaryFailed
+              ? "—"
+              : summaryLoading
+                ? "…"
+                : formatTransactionListAmount(summary.credited)}
           </Text>
         </View>
 
         <View style={styles.heroStatCard}>
           <Text style={styles.heroStatLabel}>Debited</Text>
-          <Text style={[styles.heroStatValue, styles.heroDebitValue]}>
-            {formatAmount(summary.debited)}
+          <Text
+            style={[
+              styles.heroStatValue,
+              summary.debited < 0 ? styles.heroDebitValue : null,
+            ]}
+          >
+            {summaryFailed
+              ? "—"
+              : summaryLoading
+                ? "…"
+                : formatTransactionListAmount(summary.debited)}
           </Text>
         </View>
+      </View>
+
+      <View style={styles.heroNetCard}>
+        <Text style={styles.heroStatLabel}>Net</Text>
+        <Text
+          style={[
+            styles.heroNetValue,
+            summary.net > 0
+              ? styles.heroCreditValue
+              : summary.net < 0
+                ? styles.heroDebitValue
+                : null,
+          ]}
+        >
+          {summaryFailed
+            ? "—"
+            : summaryLoading
+              ? "…"
+              : formatTransactionListAmount(summary.net)}
+        </Text>
       </View>
     </View>
   );
 });
-
 
 type DateHeaderProps = {
   section: TransactionSection;
@@ -328,159 +300,74 @@ const DateHeader = memo(function DateHeader({
       <Text
         style={[
           styles.dailyTotal,
-          section.dailyTotal >= 0 ? styles.positiveAmount : styles.negativeTotal,
+          section.dailyTotal >= 0
+            ? styles.positiveAmount
+            : styles.negativeTotal,
         ]}
         numberOfLines={1}
       >
-        {formatAmount(section.dailyTotal)}
+        {formatTransactionListAmount(section.dailyTotal)}
       </Text>
     </Animated.View>
   );
 });
 
-type CategoryIconProps = {
-  category: TransactionCategory;
-};
-
-const CategoryIcon = memo(function CategoryIcon({ category }: CategoryIconProps) {
-  return (
-    <View
-      style={[
-        styles.categoryIcon,
-        { backgroundColor: hexToRgba(category.color, 0.1) },
-      ]}
-    >
-      <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-    </View>
-  );
-});
-
-type TransactionRowProps = {
-  transaction: MockTransaction;
-  rowIndex: number;
-  animationOrder: number;
-};
-
-const TransactionRow = memo(function TransactionRow({
-  transaction,
-  rowIndex,
-  animationOrder,
-}: TransactionRowProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(10)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-  const pressProgress = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 220,
-        delay: 150 + animationOrder * 40,
-        useNativeDriver: false,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 220,
-        delay: 150 + animationOrder * 40,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, [animationOrder, opacity, translateY]);
-
-  const rowBackground = pressProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [
-      rowIndex % 2 === 0 ? palette.surface : palette.surfaceTint,
-      palette.primaryMuted,
-    ],
-  });
-
-  const animatePressed = (pressed: boolean) => {
-    Animated.parallel([
-      Animated.timing(pressProgress, {
-        toValue: pressed ? 1 : 0,
-        duration: 100,
-        useNativeDriver: false,
-      }),
-      Animated.spring(scale, {
-        toValue: pressed ? 0.98 : 1,
-        useNativeDriver: false,
-        speed: 28,
-        bounciness: pressed ? 0 : 8,
-      }),
-    ]).start();
-  };
-
-  const detail = [transaction.time, transaction.method].filter(Boolean).join(" \u00B7 ");
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPressIn={() => animatePressed(true)}
-      onPressOut={() => animatePressed(false)}
-    >
-      <Animated.View
-        style={[
-          styles.transactionRow,
-          {
-            backgroundColor: rowBackground,
-            opacity,
-            transform: [{ translateY }, { scale }],
-          },
-        ]}
-      >
-        <CategoryIcon category={transaction.category} />
-
-        <View style={styles.transactionBody}>
-          <Text
-            style={styles.merchantName}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {transaction.merchant}
-          </Text>
-          <Text style={styles.transactionMeta} numberOfLines={1}>
-            {detail}
-          </Text>
-        </View>
-
-        <Text
-          style={[
-            styles.transactionAmount,
-            transaction.amount > 0 && styles.positiveAmount,
-          ]}
-          numberOfLines={1}
-        >
-          {formatAmount(transaction.amount)}
-        </Text>
-      </Animated.View>
-    </Pressable>
-  );
-});
-
 export default function TransactionsScreen() {
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
 
-  const sections = useMemo(() => {
-    return groupTransactions(mockTransactions);
-  }, []);
+  const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
+
+  const summaryQuery = useMonthSummaryQuery(
+    selected.year,
+    selected.monthIndex0,
+  );
+  const infinite = useTransactionsMonthInfiniteQuery(
+    selected.year,
+    selected.monthIndex0,
+  );
 
   const summary = useMemo(() => {
-    return summarizeTransactions(mockTransactions);
+    const data = summaryQuery.data;
+    if (!data) {
+      return { credited: 0, debited: 0, net: 0, count: 0 };
+    }
+    const credited = Number.parseFloat(data.credit_total);
+    const debitMag = Number.parseFloat(data.debit_total);
+    const net = Number.parseFloat(data.net);
+    return {
+      credited: Number.isFinite(credited) ? credited : 0,
+      debited: Number.isFinite(debitMag) ? -debitMag : 0,
+      net: Number.isFinite(net) ? net : 0,
+      count: data.transaction_count,
+    };
+  }, [summaryQuery.data]);
+
+  const flatRows = useMemo(() => {
+    const pages = infinite.data?.pages ?? [];
+    return pages.flatMap((p) => p.items);
+  }, [infinite.data]);
+
+  const sections = useMemo(() => groupTransactions(flatRows), [flatRows]);
+
+  const handleSelectMonth = useCallback((index: number) => {
+    setSelectedMonthIndex(index);
+    setMonthMenuOpen(false);
   }, []);
 
-  const handleSelectMonth = (month: string) => {
-    setSelectedMonth(month);
-    setMonthMenuOpen(false);
-  };
+  const onEndReached = useCallback(() => {
+    if (infinite.hasNextPage && !infinite.isFetchingNextPage) {
+      void infinite.fetchNextPage();
+    }
+  }, [infinite]);
+
+  const listEmpty =
+    !infinite.isPending && !infinite.isFetching && flatRows.length === 0;
 
   return (
     <TabScreenShell>
       <View style={styles.screen}>
-
-        {/* SectionList gives native section headers while keeping row rendering virtualized. */}
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.id}
@@ -494,8 +381,9 @@ export default function TransactionsScreen() {
           }}
           renderItem={({ item, index, section }) => {
             return (
-              <TransactionRow
+              <TransactionListRow
                 transaction={item}
+                variant="screen"
                 rowIndex={index}
                 animationOrder={transactionAnimationOrder(
                   sections,
@@ -507,25 +395,47 @@ export default function TransactionsScreen() {
           }}
           ListHeaderComponent={
             <TransactionsHeroCard
-              selectedMonth={selectedMonth}
+              selectedMonth={selected.label}
               monthMenuOpen={monthMenuOpen}
               summary={summary}
+              summaryLoading={summaryQuery.isPending}
+              summaryFailed={summaryQuery.isError}
               onToggleMonthMenu={() => setMonthMenuOpen((open) => !open)}
               onSelectMonth={handleSelectMonth}
+              monthOptions={monthOptions}
+              selectedMonthIndex={selectedMonthIndex}
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No transactions here</Text>
-              <Text style={styles.emptyText}>No transactions are available for this period.</Text>
-            </View>
+            listEmpty ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No transactions here</Text>
+                <Text style={styles.emptyText}>
+                  No transactions are available for this period.
+                </Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            infinite.isFetchingNextPage ? (
+              <View style={styles.listFooter}>
+                <ActivityIndicator color={palette.primary} />
+              </View>
+            ) : null
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           initialNumToRender={15}
           removeClippedSubviews
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.35}
         />
+        {infinite.isPending && flatRows.length === 0 ? (
+          <View style={styles.fullLoading}>
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        ) : null}
       </View>
     </TabScreenShell>
   );
@@ -535,6 +445,15 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: palette.background,
+  },
+  fullLoading: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    pointerEvents: "none",
+  },
+  listFooter: {
+    paddingVertical: 20,
   },
   heroCard: {
     position: "relative",
@@ -682,6 +601,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
+  heroNetCard: {
+    zIndex: 1,
+    marginTop: 8,
+    minHeight: 64,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  heroNetValue: {
+    marginTop: 4,
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: palette.surface,
+  },
   heroStatLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
@@ -699,7 +637,7 @@ const styles = StyleSheet.create({
     color: "#BBF7D0",
   },
   heroDebitValue: {
-    color: "#FECACA",
+    color: "#F87171",
   },
   listContent: {
     paddingHorizontal: 16,
@@ -735,54 +673,6 @@ const styles = StyleSheet.create({
   },
   negativeTotal: {
     color: palette.danger,
-  },
-  transactionRow: {
-    minHeight: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-  },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  categoryEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
-  },
-  transactionBody: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 12,
-  },
-  merchantName: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: palette.textPrimary,
-  },
-  transactionMeta: {
-    marginTop: 2,
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: palette.textSecondary,
-  },
-  transactionAmount: {
-    width: 96,
-    flexShrink: 0,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: palette.textPrimary,
-    textAlign: "right",
   },
   positiveAmount: {
     color: palette.success,

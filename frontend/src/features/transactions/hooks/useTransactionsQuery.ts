@@ -5,6 +5,7 @@ import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { fetchTransactions } from "../api/transactionsApi";
 import { transactionsQueryKeys } from "../queryKeys";
 
+/** Latest transactions (first page, up to 100). Prefer overview hooks for home/month UX. */
 export function useTransactionsQuery() {
   const { userId, authReady } = useSessionUserId();
 
