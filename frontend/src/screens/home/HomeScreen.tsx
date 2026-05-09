@@ -2,11 +2,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
-  type ViewStyle,
+  View
 } from "react-native";
 
+import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { colors, spacing, typography } from "@/constants/theme";
 
 const topCategories = [
@@ -44,19 +45,6 @@ const recentTransactions = [
   { id: "r5", merchant: "Refund", meta: "10:44 AM · UPI", amount: "+₹120" },
 ] as const;
 
-const progressMutedFill = (muted: string) => ({
-  ...StyleSheet.absoluteFillObject,
-  backgroundColor: muted,
-  borderRadius: 999,
-});
-
-const progressFill = (fill: string, progress: number): ViewStyle => ({
-  height: "100%",
-  borderRadius: 999,
-  width: `${progress * 100}%` as ViewStyle["width"],
-  backgroundColor: fill,
-});
-
 export default function HomeScreen() {
   return (
     <TabScreenShell>
@@ -64,32 +52,21 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.card, styles.heroCard]}>
-          <Text style={styles.heroKicker}>Today's spent</Text>
-          <Text style={styles.heroAmount}>₹1,262</Text>
-          <Text style={styles.heroSubtext}>82% of daily target</Text>
-          <View style={styles.sparklineRow}>
-            <View style={[styles.sparkBar, { height: 10 }]} />
-            <View style={[styles.sparkBar, { height: 18 }]} />
-            <View style={[styles.sparkBar, { height: 12 }]} />
-            <View style={[styles.sparkBar, { height: 24 }]} />
-            <View style={[styles.sparkBar, { height: 16 }]} />
-            <View style={[styles.sparkBar, { height: 26 }]} />
-            <View style={[styles.sparkBar, { height: 20 }]} />
-          </View>
-        </View>
+        <HeroSummaryCard
+          title="Spent Today"
+          date="23 Feb"
+          amount="₹1,262"
+          subtext="82% of Daily budget"
+        />
 
-        <View style={styles.twoColRow}>
-          <View style={[styles.card, styles.metricCard]}>
-            <Text style={styles.metricLabel}>This month</Text>
-            <Text style={styles.metricValue}>₹18,420</Text>
-          </View>
-          <View style={[styles.card, styles.metricCard]}>
-            <Text style={styles.metricLabel}>Budget left</Text>
-            <Text style={styles.metricValue}>₹6,580</Text>
-          </View>
-        </View>
+        <HeroSummaryCard
+          title="Spent Monthly"
+          date="July 2026"
+          amount="₹18,420"
+          subtext="73% of Monthly budget"
+        />
 
+        {/* Top Categories */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Top categories</Text>
           {topCategories.map((item) => (
@@ -98,14 +75,18 @@ export default function HomeScreen() {
                 <Text style={styles.categoryLabel}>{item.label}</Text>
                 <Text style={styles.categoryAmount}>{item.amount}</Text>
               </View>
-              <View style={styles.progressTrack}>
-                <View style={progressMutedFill(item.muted)} />
-                <View style={progressFill(item.color, item.progress)} />
-              </View>
+              <AnimatedProgressBar
+                progress={item.progress}
+                fillColor={item.color}
+                backgroundColor={item.muted}
+                height={8}
+                duration={800}
+              />
             </View>
           ))}
         </View>
 
+        {/* Recent Transactions */}
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Recent transactions</Text>
@@ -121,20 +102,13 @@ export default function HomeScreen() {
                 style={[
                   styles.recentAmount,
                   tx.amount.startsWith("+") && styles.creditAmount,
+                  tx.amount.startsWith("-") && styles.debitAmount,
                 ]}
               >
                 {tx.amount}
               </Text>
             </View>
           ))}
-        </View>
-
-        <View style={[styles.card, styles.statusCard]}>
-          <View style={styles.statusDot} />
-          <View>
-            <Text style={styles.statusTitle}>Auto-detection active</Text>
-            <Text style={styles.statusSubtext}>SMS / UPI listening</Text>
-          </View>
         </View>
       </ScrollView>
     </TabScreenShell>
@@ -154,56 +128,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.borderLight,
-  },
-  heroCard: {
-    backgroundColor: colors.headerGradientStart,
-    borderColor: colors.headerGradientEnd,
-  },
-  heroKicker: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textOnPrimaryMuted,
-  },
-  heroAmount: {
-    fontFamily: typography.monoEmphasis.fontFamily,
-    color: colors.textOnPrimary,
-    fontSize: 40,
-    lineHeight: 48,
-    marginTop: spacing.xs,
-  },
-  heroSubtext: {
-    ...typography.screenSubtitle,
-    color: colors.textOnPrimaryMuted,
-  },
-  sparklineRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 6,
-    marginTop: spacing.md,
-    height: 28,
-  },
-  sparkBar: {
-    width: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textOnPrimaryMuted,
-  },
-  twoColRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  metricCard: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  metricLabel: {
-    ...typography.screenSubtitle,
-    marginBottom: spacing.xs,
-  },
-  metricValue: {
-    ...typography.monoEmphasis,
-    fontSize: 20,
-    lineHeight: 28,
   },
   sectionTitle: {
     ...typography.monoEmphasis,
@@ -228,13 +152,6 @@ const styles = StyleSheet.create({
   },
   categoryAmount: {
     ...typography.mono,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "#F2F0FF",
-    overflow: "hidden",
-    position: "relative",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -272,32 +189,13 @@ const styles = StyleSheet.create({
   },
   recentAmount: {
     ...typography.mono,
-    color: colors.textPrimary,
     fontSize: 14,
     lineHeight: 20,
   },
   creditAmount: {
     color: "#16A34A",
   },
-  statusCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "#16A34A",
-  },
-  statusTitle: {
-    ...typography.screenSubtitle,
-    color: colors.textPrimary,
-    fontFamily: typography.headerUsernameLine.fontFamily,
-  },
-  statusSubtext: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 16,
+  debitAmount: {
+    color: "#DC2626",
   },
 });
