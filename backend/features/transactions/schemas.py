@@ -88,6 +88,9 @@ class TransactionResponse(BaseModel):
     counterparty_normalized: str | None
     merchant: str
     category: str | None
+    category_id: str | None = None
+    category_emoji: str | None = None
+    category_color: str | None = None
     note: str | None
     detected_via: DetectedViaType | None
     transaction_at: datetime
@@ -132,3 +135,30 @@ class TransactionResponse(BaseModel):
             stripped = value.strip()
             return stripped if stripped in allowed else "merchant"
         return "merchant"
+
+
+class TransactionListResponse(BaseModel):
+    items: list[TransactionResponse]
+    has_more: bool
+
+
+class MonthSummaryResponse(BaseModel):
+    credit_total: str
+    debit_total: str
+    net: str
+    transaction_count: int
+
+
+class TopCategoryRow(BaseModel):
+    category_id: str | None
+    name: str
+    emoji: str | None = None
+    color: str | None = None
+    total: str
+
+
+class HomeOverviewResponse(BaseModel):
+    spent_today: str
+    spent_this_month: str
+    top_categories: list[TopCategoryRow]
+    recent_transactions: list[TransactionResponse]
