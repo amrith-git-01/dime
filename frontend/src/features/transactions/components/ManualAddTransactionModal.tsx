@@ -10,6 +10,7 @@ import {
   Alert,
   Keyboard,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -18,6 +19,11 @@ import {
   View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button/Button";
@@ -38,6 +44,13 @@ const SHEET_RADIUS = 24;
 const HANDLE_WIDTH = 36;
 const HANDLE_HEIGHT = 4;
 const BORDER_SUBTLE = "#E0DFFA";
+const DRAG_CLOSE_DISTANCE = 120;
+const DRAG_CLOSE_VELOCITY = 900;
+const SHEET_SPRING = {
+  damping: 18,
+  stiffness: 240,
+  mass: 0.9,
+} as const;
 
 export function ManualAddTransactionModal() {
   const insets = useSafeAreaInsets();
@@ -50,17 +63,45 @@ export function ManualAddTransactionModal() {
   const { showToast } = useToast();
   const form = useManualAddTransactionForm();
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
+  const sheetTranslateY = useSharedValue(0);
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
 
   const onClose = useCallback(() => {
     void triggerLightHaptic();
+    sheetTranslateY.value = 0;
     close();
     form.reset();
     submitMutation.reset();
     setIosPickerVisible(false);
-  }, [close, form, submitMutation]);
+  }, [close, form, sheetTranslateY, submitMutation]);
+
+  const dragResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_evt, gestureState) =>
+      Math.abs(gestureState.dy) > Math.abs(gestureState.dx) &&
+      gestureState.dy > 4,
+    onPanResponderMove: (_evt, gestureState) => {
+      sheetTranslateY.value = Math.max(0, gestureState.dy);
+    },
+    onPanResponderRelease: (_evt, gestureState) => {
+      if (
+        gestureState.dy > DRAG_CLOSE_DISTANCE ||
+        gestureState.vy > DRAG_CLOSE_VELOCITY / 1000
+      ) {
+        onClose();
+        return;
+      }
+      sheetTranslateY.value = withSpring(0, SHEET_SPRING);
+    },
+    onPanResponderTerminate: () => {
+      sheetTranslateY.value = withSpring(0, SHEET_SPRING);
+    },
+  });
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslateY.value }],
+  }));
 
   const openAndroidDatePicker = useCallback(() => {
     void triggerLightHaptic();
@@ -138,27 +179,30 @@ export function ManualAddTransactionModal() {
             onClose();
           }}
         />
-        <View
+        <Animated.View
           style={[
             styles.sheet,
+            sheetAnimatedStyle,
             {
               paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.md,
             },
           ]}
         >
-          <View style={styles.handlePill} />
+          <View {...dragResponder.panHandlers}>
+            <View style={styles.handlePill} />
 
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Add transaction</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={12}
-              onPress={onClose}
-              style={({ pressed }) => [pressed && styles.headerIconPressed]}
-            >
-              <X size={22} color={colors.inactive} strokeWidth={2} />
-            </Pressable>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Add transaction</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
+                onPress={onClose}
+                style={({ pressed }) => [pressed && styles.headerIconPressed]}
+              >
+                <X size={22} color={colors.inactive} strokeWidth={2} />
+              </Pressable>
+            </View>
           </View>
 
           <KeyboardAwareScrollView
@@ -314,7 +358,7 @@ export function ManualAddTransactionModal() {
             />
             <Button variant="secondary" title="Cancel" onPress={onClose} />
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
