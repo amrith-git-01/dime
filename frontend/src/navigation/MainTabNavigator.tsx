@@ -10,7 +10,7 @@ import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
-import BudgetsScreen from "@/screens/budgets/BudgetsScreen";
+import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
 
@@ -81,7 +81,7 @@ export default function MainTabNavigator() {
           />
           <Tabs.Screen
             name="Budgets"
-            component={BudgetsScreen}
+            component={BudgetScreen}
             options={{
               title: "Budgets",
             }}

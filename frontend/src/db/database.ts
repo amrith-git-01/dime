@@ -3,11 +3,14 @@ import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 
 import { Category } from "./models/Category";
 import { schema } from "./schema";
+import { isWatermelonJsiAvailable } from "./watermelonJsi";
+
+const jsi = isWatermelonJsiAvailable();
 
 const adapter = new SQLiteAdapter({
   schema,
   dbName: "dime.db",
-  jsi: true,
+  jsi,
   onSetUpError: (error) => {
     console.error("[WatermelonDB] setup failed:", error);
   },
