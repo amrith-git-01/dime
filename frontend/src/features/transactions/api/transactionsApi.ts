@@ -1,11 +1,13 @@
 import { dimeApi } from "@/lib/api/dimeApi";
 
+import type { CounterpartyType } from "../counterpartyTypes";
 import type { TransactionRow, TransactionType } from "../types";
 
 export type CreateTransactionBody = {
   amount: number;
   type: TransactionType;
-  merchant: string;
+  counterparty_name: string;
+  counterparty_type: CounterpartyType;
   category: string | null;
   category_id?: string | null;
   note: string | null;

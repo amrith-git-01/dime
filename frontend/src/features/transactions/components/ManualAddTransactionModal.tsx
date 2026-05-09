@@ -27,15 +27,17 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button/Button";
+import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
 import { colors, spacing } from "@/constants/theme";
+import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { useToast } from "@/features/toast/useToast";
+import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
-import { useToast } from "@/features/toast/useToast";
 
 import { submitManualTransaction } from "../api/submitTransactionApi";
 import { useManualAddTransactionForm } from "../hooks/useManualAddTransactionForm";
@@ -134,7 +136,7 @@ export function ManualAddTransactionModal() {
     if (!payload) {
       Alert.alert(
         "Check fields",
-        "Enter a positive amount and a merchant name.",
+        "Enter a positive amount and a counterparty name.",
       );
       return;
     }
@@ -261,11 +263,21 @@ export function ManualAddTransactionModal() {
             </View>
 
             <View style={styles.fieldBlock}>
+              <SelectDropdown
+                label="Counterparty type"
+                options={COUNTERPARTY_TYPE_OPTIONS}
+                value={form.counterpartyType}
+                onChange={form.setCounterpartyType}
+                placeholder="Select type"
+              />
+            </View>
+
+            <View style={styles.fieldBlock}>
               <TextField
-                label="Merchant"
-                placeholder="Where was this?"
-                value={form.merchant}
-                onChangeText={form.setMerchant}
+                label="Counterparty name"
+                placeholder="Who or what was this for?"
+                value={form.counterpartyName}
+                onChangeText={form.setCounterpartyName}
               />
             </View>
 
@@ -412,7 +424,10 @@ function CategoryPill({ label, emoji, selected, onPress }: CategoryPillProps) {
     >
       <Text style={styles.categoryPillEmoji}>{emoji}</Text>
       <Text
-        style={[styles.categoryPillLabel, selected && styles.categoryPillLabelOn]}
+        style={[
+          styles.categoryPillLabel,
+          selected && styles.categoryPillLabelOn,
+        ]}
       >
         {label}
       </Text>

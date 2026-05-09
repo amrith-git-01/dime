@@ -43,7 +43,7 @@ export default function TransactionsScreen() {
   const renderItem = useCallback(({ item }: { item: TransactionRow }) => {
     const when = format(new Date(item.transaction_at), "h:mm a");
     const dateLine = format(new Date(item.transaction_at), "MMM d");
-    const meta = `${dateLine} · ${item.detected_via ?? "manual"}`;
+    const meta = `${dateLine} · ${when} · ${item.detected_via ?? "manual"}`;
     const signed = formatInrAmount(item.amount, {
       signed: true,
       type: item.type,
@@ -56,7 +56,7 @@ export default function TransactionsScreen() {
         </View>
         <View style={styles.rowMain}>
           <Text style={styles.merchant} numberOfLines={1}>
-            {item.merchant}
+            {item.counterparty_name?.trim() || item.merchant}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {meta}

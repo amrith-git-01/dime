@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
 
 import type { CreateTransactionBody } from "../api/transactionsApi";
+import {
+  DEFAULT_COUNTERPARTY_TYPE,
+  type CounterpartyType,
+} from "../counterpartyTypes";
 import type { TransactionType } from "../types";
 
 function parsePositiveAmount(raw: string): number | null {
@@ -18,7 +22,10 @@ function parsePositiveAmount(raw: string): number | null {
 export function useManualAddTransactionForm() {
   const [amountText, setAmountText] = useState("");
   const [txType, setTxType] = useState<TransactionType>("debit");
-  const [merchant, setMerchant] = useState("");
+  const [counterpartyName, setCounterpartyName] = useState("");
+  const [counterpartyType, setCounterpartyType] = useState<CounterpartyType>(
+    DEFAULT_COUNTERPARTY_TYPE,
+  );
   const [category, setCategory] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -27,7 +34,8 @@ export function useManualAddTransactionForm() {
   const reset = useCallback(() => {
     setAmountText("");
     setTxType("debit");
-    setMerchant("");
+    setCounterpartyName("");
+    setCounterpartyType(DEFAULT_COUNTERPARTY_TYPE);
     setCategory("");
     setCategoryId(null);
     setNote("");
@@ -39,28 +47,40 @@ export function useManualAddTransactionForm() {
     if (amount === null) {
       return null;
     }
-    const m = merchant.trim();
-    if (m.length === 0) {
+    const name = counterpartyName.trim();
+    if (name.length === 0) {
       return null;
     }
     return {
       amount,
       type: txType,
-      merchant: m,
+      counterparty_name: name,
+      counterparty_type: counterpartyType,
       category: category.trim() || null,
       category_id: categoryId,
       note: note.trim() || null,
       transaction_at: transactionAt.toISOString(),
     };
-  }, [amountText, category, categoryId, merchant, note, transactionAt, txType]);
+  }, [
+    amountText,
+    category,
+    categoryId,
+    counterpartyName,
+    counterpartyType,
+    note,
+    transactionAt,
+    txType,
+  ]);
 
   return {
     amountText,
     setAmountText,
     txType,
     setTxType,
-    merchant,
-    setMerchant,
+    counterpartyName,
+    setCounterpartyName,
+    counterpartyType,
+    setCounterpartyType,
     category,
     setCategory,
     categoryId,
