@@ -4,7 +4,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 
 from supabase import Client
 
@@ -94,7 +93,8 @@ def _build_transaction_payload(
     return TransactionCreate(
         amount=parsed.amount,
         type=parsed.type.value,
-        merchant=parsed.counterparty_name,
+        counterparty_name=parsed.counterparty_name,
+        counterparty_type=parsed.counterparty_type,
         category=parsed.category,
         category_id=parsed.category_id,
         note=parsed.note,
@@ -205,7 +205,7 @@ async def process_voice_job(
         category_options,
     )
     logger.info(
-        "[voice-pipeline] ai-parsed model=%s amount=%s type=%s merchant=%s "
+        "[voice-pipeline] ai-parsed model=%s amount=%s type=%s counterparty_name=%s "
         "category=%s confidence=%s date=%s",
         parsed.raw_model,
         parsed.amount,

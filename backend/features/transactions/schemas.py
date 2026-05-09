@@ -7,16 +7,23 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 TransactionType = Literal["debit", "credit"]
 DetectedViaType = Literal["manual", "sms", "voice", "scan", "notification"]
+CounterpartyType = Literal["merchant", "person", "self_transfer", "unknown"]
 
 
 class TransactionCreate(BaseModel):
     amount: Decimal = Field(..., gt=0)
     type: TransactionType
-    merchant: str = Field(..., min_length=1, max_length=200)
+    counterparty_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        validation_alias=AliasChoices("counterparty_name", "merchant"),
+    )
+    counterparty_type: CounterpartyType | None = None
     category: str | None = Field(default=None, max_length=120)
     category_id: UUID | None = None
     note: str | None = Field(default=None, max_length=2000)
@@ -25,14 +32,25 @@ class TransactionCreate(BaseModel):
     receipt_url: str | None = Field(default=None, max_length=2048)
     voice_url: str | None = Field(default=None, max_length=2048)
 
+    @field_validator("counterparty_type", mode="before")
+    @classmethod
+    def normalize_create_counterparty_type(cls, value: object) -> str | None:
+        allowed: frozenset[str] = frozenset({"merchant", "person", "self_transfer", "unknown"})
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped in allowed else None
+        return None
+
     @field_validator("amount")
     @classmethod
     def quantize_amount(cls, value: Decimal) -> Decimal:
         return value.quantize(Decimal("0.01"))
 
-    @field_validator("merchant")
+    @field_validator("counterparty_name")
     @classmethod
-    def strip_merchant(cls, value: str) -> str:
+    def strip_counterparty_name(cls, value: str) -> str:
         return value.strip()
 
     @field_validator("category", "note", mode="before")
@@ -65,6 +83,9 @@ class TransactionResponse(BaseModel):
     user_id: str
     amount: str
     type: TransactionType
+    counterparty_name: str | None
+    counterparty_type: CounterpartyType
+    counterparty_normalized: str | None
     merchant: str
     category: str | None
     note: str | None
@@ -100,3 +121,14 @@ class TransactionResponse(BaseModel):
                 return "notification"
             return stripped
         return None
+
+    @field_validator("counterparty_type", mode="before")
+    @classmethod
+    def normalize_counterparty_type(cls, value: object) -> str:
+        allowed: frozenset[str] = frozenset({"merchant", "person", "self_transfer", "unknown"})
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return "merchant"
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped in allowed else "merchant"
+        return "merchant"

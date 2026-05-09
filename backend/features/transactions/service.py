@@ -13,18 +13,17 @@ from features.transactions.schemas import TransactionCreate, TransactionResponse
 
 
 def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
-    """Lift PostgREST FK embeds (``merchants``/``categories``) into flat fields."""
+    """Lift PostgREST ``categories`` embed; set legacy ``merchant`` from counterparty."""
     flat = dict(row)
-    merchant = flat.pop("merchants", None)
     category = flat.pop("categories", None)
-    if isinstance(merchant, dict) and isinstance(merchant.get("name"), str):
-        flat["merchant"] = merchant["name"]
-    else:
-        flat["merchant"] = ""
     if isinstance(category, dict) and isinstance(category.get("name"), str):
         flat["category"] = category["name"]
     else:
         flat["category"] = None
+
+    cp = flat.get("counterparty_name")
+    flat["merchant"] = cp.strip() if isinstance(cp, str) and cp.strip() else ""
+
     return flat
 
 
@@ -36,10 +35,11 @@ class TransactionService:
         rows = self._repo.list_for_user(user.id)
         return [TransactionResponse.model_validate(_flatten_embed(r)) for r in rows]
 
-    def _normalize_merchant(self, raw: str) -> str:
+    def _normalize_counterparty(self, raw: str) -> str | None:
         lowered = raw.strip().lower()
         lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
-        return re.sub(r"\s+", " ", lowered).strip()
+        normalized = re.sub(r"\s+", " ", lowered).strip()
+        return normalized or None
 
     def _category_exists(self, category_id: str) -> bool:
         res = (
@@ -71,67 +71,31 @@ class TransactionService:
                     return cat_id, name.strip()
         return None, None
 
-    def _get_or_create_merchant_id(self, name: str, *, category_id: str | None) -> str | None:
-        normalized = self._normalize_merchant(name)
-        if not normalized:
-            return None
-
-        existing = (
-            self._repo._db.table("merchants")  # type: ignore[attr-defined]
-            .select("id,category_id")
-            .eq("normalized_name", normalized)
-            .limit(1)
-            .execute()
-        )
-        rows = existing.data if isinstance(existing.data, list) else []
-        if rows and isinstance(rows[0], dict):
-            raw_id = rows[0].get("id")
-            if isinstance(raw_id, str) and raw_id:
-                merchant_id = raw_id
-                # If merchant has no category yet and we have one, attach it.
-                if category_id and rows[0].get("category_id") is None:
-                    self._repo._db.table("merchants").update(  # type: ignore[attr-defined]
-                        {"category_id": category_id}
-                    ).eq("id", merchant_id).execute()
-                return merchant_id
-
-        inserted = (
-            self._repo._db.table("merchants")  # type: ignore[attr-defined]
-            .insert(
-                {
-                    "name": name.strip(),
-                    "normalized_name": normalized,
-                    "category_id": category_id,
-                }
-            )
-            .execute()
-        )
-        data = inserted.data
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            mid = data[0].get("id")
-            if isinstance(mid, str):
-                return mid
-        return None
-
     def create_manual(self, user: CurrentUser, body: TransactionCreate) -> TransactionResponse:
         category_id = str(body.category_id) if body.category_id is not None else None
         if category_id and not self._category_exists(category_id):
             category_id = None
         if category_id is None:
             category_id, _ = self._resolve_category(body.category)
-        merchant_id = self._get_or_create_merchant_id(body.merchant, category_id=category_id)
 
-        row = {
+        name_stripped = body.counterparty_name.strip()
+        counterparty_normalized = self._normalize_counterparty(name_stripped)
+
+        row: dict[str, Any] = {
             "user_id": user.id,
             "amount": format(body.amount, "f"),
             "type": body.type,
             "note": body.note,
             "detected_via": body.detected_via or "manual",
             "transaction_at": body.transaction_at.isoformat(),
-            "merchant_id": merchant_id,
             "category_id": category_id,
             "receipt_url": body.receipt_url,
             "voice_url": body.voice_url,
+            "counterparty_name": name_stripped,
+            "counterparty_normalized": counterparty_normalized,
         }
+        if body.counterparty_type is not None:
+            row["counterparty_type"] = body.counterparty_type
+
         raw = self._repo.insert(row)
         return TransactionResponse.model_validate(_flatten_embed(raw))

@@ -6,9 +6,8 @@ from typing import Any
 
 from supabase import Client
 
-# Embed merchant + category names via PostgREST FK relationships so callers
-# can render them without storing denormalized text columns on transactions.
-_SELECT_WITH_EMBED = "*,merchants(name),categories(name)"
+# Embed category name via PostgREST FK so callers can render without a separate lookup.
+_SELECT_WITH_EMBED = "*,categories(name)"
 
 
 class TransactionRepository:

@@ -137,7 +137,7 @@ class AIOrchestratorService:
                 )
                 logger.info(
                     "[ai] parse-validated mode=%s model=%s amount=%s type=%s "
-                    "merchant=%s category=%s confidence=%s",
+                    "counterparty_name=%s category=%s confidence=%s",
                     mode.value,
                     candidate.model,
                     parsed.amount,
@@ -502,7 +502,11 @@ class AIOrchestratorService:
         if "amount" in data:
             data["amount"] = Decimal(str(data["amount"]))
         if isinstance(data.get("counterparty_type"), str):
-            data["counterparty_type"] = data["counterparty_type"].strip()
+            stripped = data["counterparty_type"].strip()
+            allowed_cp = frozenset({"merchant", "person", "self_transfer", "unknown"})
+            data["counterparty_type"] = stripped if stripped in allowed_cp else "merchant"
+        else:
+            data["counterparty_type"] = "merchant"
         raw_category = data.get("category")
         data["category"] = self._normalize_category(raw_category, allowed_categories)
         data["category_id"] = self._resolve_category_id(data["category"], category_options)

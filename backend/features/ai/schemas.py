@@ -3,8 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+CounterpartyType = Literal["merchant", "person", "self_transfer", "unknown"]
+
 
 class ParseMode(str, Enum):
     sms = "sms"
@@ -17,7 +21,7 @@ class ExpenseType(str, Enum):
 
 class ParseExpenseResult(BaseModel):
     counterparty_name: str = Field(min_length=1, max_length=120)
-    counterparty_type: str = Field(min_length=1, max_length=64)
+    counterparty_type: CounterpartyType
     amount: Decimal = Field(gt=0)
     type: ExpenseType
     date: datetime | None = None
