@@ -1,7 +1,7 @@
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { format } from "date-fns";
-import { ChevronRight, Mic, Plus, ReceiptText } from "lucide-react-native";
+import { Camera, ChevronRight, Edit3, Mic } from "lucide-react-native";
 import { useMemo } from "react";
 import {
   Pressable,
@@ -17,7 +17,9 @@ import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
+import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
+import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { TransactionList } from "@/features/transactions/components/TransactionList";
 import { TransactionListSkeleton } from "@/features/transactions/components/TransactionListSkeleton";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
@@ -78,6 +80,9 @@ export default function HomeScreen() {
     });
   }, [overview]);
 
+  const { data: budgetResp } = useBudgetQuery();
+  const hasBudget = Boolean(budgetResp?.budget);
+
   return (
     <TabScreenShell>
       <ScrollView
@@ -94,9 +99,12 @@ export default function HomeScreen() {
           title="Spent Today"
           date={dayLabel}
           amount={spentTodayDisplay}
-          subtext="₹238 left from ₹1,500"
+          subtext={hasBudget ? "₹238 left from ₹1,500" : ""}
           progress={0.82}
-          progressLabel="Daily budget used"
+          progressLabel={hasBudget ? "Daily budget used" : undefined}
+          showProgress={hasBudget}
+          actionLabel={!hasBudget ? "Add monthly budget" : undefined}
+          onAction={!hasBudget ? () => navigation.navigate("Budgets") : null}
           isAmountLoading={isPending}
           amountSpinnerTone="white"
         />
@@ -105,9 +113,12 @@ export default function HomeScreen() {
           title="Spent Monthly"
           date={monthLabel}
           amount={spentMonthDisplay}
-          subtext="₹6,580 left from ₹25,000"
+          subtext={hasBudget ? "₹6,580 left from ₹25,000" : ""}
           progress={0.73}
-          progressLabel="Monthly budget used"
+          progressLabel={hasBudget ? "Monthly budget used" : undefined}
+          showProgress={hasBudget}
+          actionLabel={!hasBudget ? "Add monthly budget" : undefined}
+          onAction={!hasBudget ? () => navigation.navigate("Budgets") : null}
           isAmountLoading={isPending}
           amountSpinnerTone="white"
         />
@@ -173,7 +184,7 @@ export default function HomeScreen() {
                   pressed && styles.miniFabPressed,
                 ]}
               >
-                <Plus size={16} color={colors.textOnPrimary} />
+                <Edit3 size={16} color={colors.textOnPrimary} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -183,7 +194,7 @@ export default function HomeScreen() {
                   pressed && styles.miniFabPressed,
                 ]}
               >
-                <ReceiptText size={16} color={colors.textOnPrimary} />
+                <Camera size={16} color={colors.textOnPrimary} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -223,15 +234,17 @@ export default function HomeScreen() {
                   </Text>
                   <Text style={styles.categoryAmount}>{item.amount}</Text>
                 </View>
-                <View style={styles.categoryProgressWrap}>
-                  <AnimatedProgressBar
-                    progress={item.progress}
-                    fillColor={item.color}
-                    backgroundColor={item.muted}
-                    height={7}
-                    duration={800}
-                  />
-                </View>
+                {hasBudget ? (
+                  <View style={styles.categoryProgressWrap}>
+                    <AnimatedProgressBar
+                      progress={item.progress}
+                      fillColor={item.color}
+                      backgroundColor={item.muted}
+                      height={7}
+                      duration={800}
+                    />
+                  </View>
+                ) : null}
               </View>
             ))}
           </ScrollView>
@@ -270,7 +283,7 @@ export default function HomeScreen() {
                         pressed && styles.miniFabPressed,
                       ]}
                     >
-                      <Plus size={16} color={colors.textOnPrimary} />
+                      <Edit3 size={16} color={colors.textOnPrimary} />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
@@ -280,7 +293,7 @@ export default function HomeScreen() {
                         pressed && styles.miniFabPressed,
                       ]}
                     >
-                      <ReceiptText size={16} color={colors.textOnPrimary} />
+                      <Camera size={16} color={colors.textOnPrimary} />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
@@ -331,9 +344,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   sectionTitle: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 16,
-    lineHeight: 22,
+    fontFamily: fontFamilies.medium,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.textPrimary,
   },
   categoryRail: {

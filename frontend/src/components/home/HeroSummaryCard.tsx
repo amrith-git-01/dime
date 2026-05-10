@@ -13,6 +13,9 @@ type HeroSummaryCardProps = {
   progressLabel?: string;
   isAmountLoading?: boolean;
   amountSpinnerTone?: "white" | "primary";
+  showProgress?: boolean;
+  actionLabel?: string;
+  onAction?: (() => void) | null;
 };
 
 export function HeroSummaryCard({
@@ -24,6 +27,9 @@ export function HeroSummaryCard({
   progressLabel,
   isAmountLoading = false,
   amountSpinnerTone = "white",
+  showProgress = true,
+  actionLabel,
+  onAction = null,
 }: HeroSummaryCardProps) {
   return (
     <View style={styles.card}>
@@ -44,27 +50,35 @@ export function HeroSummaryCard({
           ) : (
             <Text style={styles.amount}>{amount}</Text>
           )}
-          <Text style={styles.subtext}>{subtext}</Text>
+          {subtext.trim().length > 0 ? (
+            <Text style={styles.subtext}>{subtext}</Text>
+          ) : null}
         </View>
       </View>
 
-      <View style={styles.progressBlock}>
-        {progressLabel ? (
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>{progressLabel}</Text>
-            <Text style={styles.progressValue}>
-              {Math.round(progress * 100)}%
-            </Text>
+      {showProgress ? (
+        <View style={styles.progressBlock}>
+          {progressLabel ? (
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>{progressLabel}</Text>
+              <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
+            </View>
+          ) : null}
+          <AnimatedProgressBar
+            progress={progress}
+            fillColor={colors.textOnPrimary}
+            backgroundColor="rgba(255,255,255,0.24)"
+            height={7}
+            duration={850}
+          />
+        </View>
+      ) : (
+        actionLabel && onAction ? (
+          <View style={styles.actionWrap}>
+            <Text style={styles.actionText} onPress={onAction}>{actionLabel}</Text>
           </View>
-        ) : null}
-        <AnimatedProgressBar
-          progress={progress}
-          fillColor={colors.textOnPrimary}
-          backgroundColor="rgba(255,255,255,0.24)"
-          height={7}
-          duration={850}
-        />
-      </View>
+        ) : null
+      )}
     </View>
   );
 }
@@ -172,5 +186,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.textOnPrimary,
+  },
+  actionWrap: {
+    marginTop: spacing.xl,
+    alignItems: "flex-start",
+  },
+  actionText: {
+    fontFamily: typography.screenSubtitle.fontFamily,
+    fontSize: 14,
+    color: colors.textOnPrimary,
+    textDecorationLine: "underline",
   },
 });

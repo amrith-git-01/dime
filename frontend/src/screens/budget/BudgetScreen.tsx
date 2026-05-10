@@ -1,15 +1,25 @@
+import { getDaysInMonth } from "date-fns";
 import React from "react";
 import {
   FlatList,
+  Platform,
   StyleSheet,
   Text,
+  TextInput,
   View
 } from "react-native";
 
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
+import { Button } from "@/components/ui/Button/Button";
+import { TextField } from "@/components/ui/TextField/TextField";
+import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
+import {
+  useBudgetQuery,
+  useUpsertBudgetMutation,
+} from "@/features/budgets/hooks/useBudget";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 
 type CategoryMock = {
@@ -47,15 +57,49 @@ function toCategoryBudget(item: { id: string; name: string; emoji: string; color
 
 export default function BudgetScreen() {
   const { data: categories, loading } = useLocalCategories();
-  const budgetItems = React.useMemo(
-    () => categories.map((category, index) => toCategoryBudget(category, index)),
-    [categories],
-  );
+  const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  const upsertBudgetMutation = useUpsertBudgetMutation();
+  const existingBudget = budgetResp?.budget ? Number.parseFloat(budgetResp.budget.monthly_budget) : 0;
+  const [monthlyBudgetText, setMonthlyBudgetText] = React.useState("");
+
+  React.useEffect(() => {
+    if (!budgetResp?.budget) {
+      setMonthlyBudgetText("");
+      return;
+    }
+
+    const amount = Number.parseFloat(budgetResp.budget.monthly_budget);
+    if (Number.isFinite(amount)) {
+      setMonthlyBudgetText(String(Math.round(amount)));
+    }
+  }, [budgetResp?.budget]);
+
+  const budgetItems = React.useMemo(() => {
+    const items = categories.map((category, index) => toCategoryBudget(category, index));
+    return items.slice().sort((a, b) => b.budget - a.budget);
+  }, [categories]);
+
+  const handleSaveMonthlyBudget = React.useCallback(() => {
+    const parsed = Number.parseFloat(monthlyBudgetText);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+
+    upsertBudgetMutation.mutate({ amount: parsed });
+  }, [monthlyBudgetText, upsertBudgetMutation]);
 
   const totalBudget = budgetItems.reduce((sum, item) => sum + item.budget, 0);
   const spent = budgetItems.reduce((sum, item) => sum + item.spent, 0);
-  const remaining = Math.max(0, totalBudget - spent);
-  const pct = totalBudget > 0 ? Math.round((spent / totalBudget) * 100) : 0;
+  const hasMonthlyBudget = existingBudget > 0;
+  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : totalBudget;
+  const monthlyBudgetRemaining = Math.max(0, monthlyBudgetAmount - spent);
+  const monthlyBudgetPct = monthlyBudgetAmount > 0 ? Math.min(1, spent / monthlyBudgetAmount) : 0;
+  const daysInMonth = getDaysInMonth(new Date());
+  const dailyLimitFromText = monthlyBudgetText ? Number.parseFloat(monthlyBudgetText) : 0;
+  const dailyLimitAmount = Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0 
+    ? Math.round(dailyLimitFromText / daysInMonth) 
+    : 0;
+  const dailyLimitDisplay = dailyLimitAmount > 0 ? `₹${dailyLimitAmount}` : "—";
 
   const renderCategory = ({ item }: { item: CategoryMock }) => {
     const progress = item.budget > 0 ? Math.min(1, item.spent / item.budget) : 0;
@@ -86,6 +130,67 @@ export default function BudgetScreen() {
     );
   };
 
+  const listHeader = (
+    <>
+      <View style={styles.editorCard}>
+        <Text style={styles.editorLabel}>Monthly budget</Text>
+        <Text style={styles.editorDescription}>
+          Set the monthly budget that works for you.
+        </Text>
+        <View style={[styles.amountShell, styles.amountShellMin]}>
+          <View style={styles.currencyPrefixWrap}>
+            <Text style={styles.currencyPrefix}>₹</Text>
+          </View>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            placeholderTextColor={colors.inactive}
+            keyboardType="decimal-pad"
+            value={monthlyBudgetText}
+            onChangeText={setMonthlyBudgetText}
+            underlineColorAndroid="transparent"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleSaveMonthlyBudget}
+          />
+        </View>
+        <View style={styles.editorActions}>
+          <Button
+            title={hasMonthlyBudget ? "Update budget" : "Add budget"}
+            loading={upsertBudgetMutation.isPending}
+            onPress={handleSaveMonthlyBudget}
+            disabled={isBudgetLoading}
+          />
+        </View>
+        <View style={styles.dailyLimitSection}>
+          <TextField
+            label="Daily limit"
+            value={dailyLimitDisplay}
+            editable={false}
+            showClear={false}
+          />
+        </View>
+      </View>
+
+      {hasMonthlyBudget ? (
+        <HeroSummaryCard
+          title="Monthly Budget"
+          date="This month"
+          amount={`₹${monthlyBudgetAmount}`}
+          subtext={`₹${monthlyBudgetRemaining} left of ₹${monthlyBudgetAmount}`}
+          progress={monthlyBudgetPct}
+          progressLabel={`${Math.round(monthlyBudgetPct * 100)}% used`}
+          showProgress
+        />
+      ) : null}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>All categories</Text>
+      </View>
+    </>
+  );
+
   return (
     <TabScreenShell>
       <FlatList
@@ -101,26 +206,7 @@ export default function BudgetScreen() {
             </Text>
           </View>
         )}
-        ListHeaderComponent={() => (
-          <>
-            <View style={styles.headerRow}>
-              <Text style={styles.screenTitle}>Budgets</Text>
-            </View>
-
-            <HeroSummaryCard
-              title="Monthly Budget"
-              date="This month"
-              amount={`₹${spent}`}
-              subtext={`₹${remaining} left of ₹${totalBudget}`}
-              progress={Math.min(1, spent / Math.max(1, totalBudget))}
-              progressLabel={`${pct}% used`}
-            />
-
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>All categories</Text>
-            </View>
-          </>
-        )}
+        ListHeaderComponent={listHeader}
         ListFooterComponent={() => <View style={{ height: spacing.xl }} />}
       />
     </TabScreenShell>
@@ -133,21 +219,95 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl * 2,
   },
-  headerRow: {
-    marginBottom: spacing.md,
+  editorCard: {
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: 20,
+    backgroundColor: colors.barBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  screenTitle: {
+  editorLabel: {
     fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 20,
+    fontSize: 16,
     color: colors.textPrimary,
+  },
+  editorDescription: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    fontFamily: typography.screenSubtitle.fontFamily,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  editorActions: {
+    marginTop: spacing.md,
+  },
+  dailyLimitSection: {
+    marginTop: spacing.md,
+  },
+  amountShell: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.pageBackground,
+  },
+  amountShellMin: {
+    minHeight: 52,
+  },
+  currencyPrefixWrap: {
+    marginRight: spacing.xs,
+    justifyContent: "center",
+    ...Platform.select({
+      android: { height: 26 },
+    }),
+  },
+  currencyPrefix: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 24,
+    color: colors.textPrimary,
+    ...Platform.select({
+      android: {
+        includeFontPadding: false,
+        lineHeight: 26,
+      },
+      default: {
+        lineHeight: 30,
+      },
+    }),
+  },
+  amountInput: {
+    flex: 1,
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 24,
+    color: colors.textPrimary,
+    padding: 0,
+    margin: 0,
+    ...Platform.select({
+      android: {
+        height: "100%",
+        paddingVertical: 0,
+        includeFontPadding: false,
+        textAlignVertical: "center",
+        lineHeight: 26,
+      },
+      ios: {
+        lineHeight: 30,
+        paddingVertical: 2,
+      },
+    }),
   },
   sectionHeader: {
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: typography.screenSubtitle.fontFamily,
+    fontFamily: fontFamilies.medium,
     fontSize: 14,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
   listCard: {
