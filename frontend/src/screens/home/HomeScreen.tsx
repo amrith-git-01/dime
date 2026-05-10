@@ -21,8 +21,10 @@ import { colors, spacing, typography } from "@/constants/theme";
 import { TransactionList } from "@/features/transactions/components/TransactionList";
 import { TransactionListSkeleton } from "@/features/transactions/components/TransactionListSkeleton";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
+import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
+import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 /** Hero / category rails: magnitude only, no leading minus. */
 function formatInrSpendMagnitude(amount: string | number): string {
@@ -37,6 +39,8 @@ export default function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
   const openManualAdd = useManualAddTransactionUiStore((s) => s.open);
+  const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
+  const openReceiptCamera = useReceiptCameraTransaction();
 
   const spentTodayDisplay = overview
     ? formatInrSpendMagnitude(overview.spent_today)
@@ -158,8 +162,8 @@ export default function HomeScreen() {
         ) : null}
 
         {!isPending && topCategoriesUi.length === 0 ? (
-          <View style={styles.topCategoryEmptyState}>
-            <Text style={styles.emptyInline}>No Transaction yet for this month</Text>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyCardText}>No transactions yet.</Text>
             <View style={styles.miniFabRow}>
               <Pressable
                 accessibilityRole="button"
@@ -173,7 +177,7 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                onPress={openManualAdd}
+                onPress={() => void openReceiptCamera()}
                 style={({ pressed }) => [
                   styles.miniFab,
                   pressed && styles.miniFabPressed,
@@ -183,7 +187,7 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                onPress={openManualAdd}
+                onPress={openVoiceCapture}
                 style={({ pressed }) => [
                   styles.miniFab,
                   pressed && styles.miniFabPressed,
@@ -255,7 +259,41 @@ export default function HomeScreen() {
           ) : (
             <>
               {!overview?.recent_transactions?.length && !isError ? (
-                <Text style={styles.emptyInline}>No transactions yet.</Text>
+                <View style={styles.emptyCardInlineWrap}>
+                  <Text style={styles.emptyCardText}>No transactions yet.</Text>
+                  <View style={styles.miniFabRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={openManualAdd}
+                      style={({ pressed }) => [
+                        styles.miniFab,
+                        pressed && styles.miniFabPressed,
+                      ]}
+                    >
+                      <Plus size={16} color={colors.textOnPrimary} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => void openReceiptCamera()}
+                      style={({ pressed }) => [
+                        styles.miniFab,
+                        pressed && styles.miniFabPressed,
+                      ]}
+                    >
+                      <ReceiptText size={16} color={colors.textOnPrimary} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={openVoiceCapture}
+                      style={({ pressed }) => [
+                        styles.miniFab,
+                        pressed && styles.miniFabPressed,
+                      ]}
+                    >
+                      <Mic size={16} color={colors.textOnPrimary} />
+                    </Pressable>
+                  </View>
+                </View>
               ) : null}
               <TransactionList
                 items={overview?.recent_transactions ?? []}
@@ -294,8 +332,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
     color: colors.textPrimary,
   },
   categoryRail: {
@@ -380,6 +418,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
   },
   miniFab: {
@@ -411,8 +450,28 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontFamily: typography.screenTitle.fontFamily,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.primary,
+  },
+  emptyCard: {
+    padding: spacing.xl,
+    borderRadius: 20,
+    backgroundColor: colors.barBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    marginBottom: spacing.lg,
+    alignItems: "center",
+  },
+  emptyCardInlineWrap: {
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+  },
+  emptyCardText: {
+    fontFamily: typography.screenSubtitle.fontFamily,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: spacing.sm,
   },
 });

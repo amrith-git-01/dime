@@ -111,12 +111,6 @@ function groupTransactions(transactions: TransactionRow[]) {
   });
 }
 
-function transactionAnimationOrder(
-  sectionIndex: number,
-) {
-  return sectionIndex;
-}
-
 type TransactionsHeroCardProps = {
   selectedMonth: string;
   summary: {
@@ -315,28 +309,20 @@ export default function TransactionsScreen() {
   const sections = useMemo(() => groupTransactions(flatRows), [flatRows]);
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionRow | null>(null);
-  const sectionIndexByTransactionId = useMemo(() => {
+  const transactionIndexById = useMemo(() => {
     const lookup = new Map<string, number>();
-    sections.forEach((section) => {
-      section.data.forEach((transaction) => {
-        lookup.set(transaction.id, section.sectionIndex);
-      });
+    flatRows.forEach((transaction, index) => {
+      lookup.set(transaction.id, index);
     });
     return lookup;
-  }, [sections]);
-  const visibleSectionIndices = useMemo(() => {
-    const next = new Set<number>();
-    visibleTransactionIds.forEach((transactionId) => {
-      const sectionIndex = sectionIndexByTransactionId.get(transactionId);
-      if (typeof sectionIndex === "number") {
-        next.add(sectionIndex);
-      }
-    });
-    return next;
-  }, [sectionIndexByTransactionId, visibleTransactionIds]);
+  }, [flatRows]);
+  const visibleTransactionIdSet = useMemo(
+    () => new Set(visibleTransactionIds),
+    [visibleTransactionIds],
+  );
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 45,
-    minimumViewTime: 80,
+    minimumViewTime: 48,
   }).current;
   const handleViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -391,8 +377,8 @@ export default function TransactionsScreen() {
                 transaction={item}
                 variant="screen"
                 rowIndex={index}
-                animationOrder={transactionAnimationOrder(section.sectionIndex)}
-                isVisible={visibleSectionIndices.has(section.sectionIndex)}
+                animationOrder={transactionIndexById.get(item.id) ?? index}
+                isVisible={visibleTransactionIdSet.has(item.id)}
                 onPress={(tx) => {
                   setSelectedTransaction(tx);
                 }}

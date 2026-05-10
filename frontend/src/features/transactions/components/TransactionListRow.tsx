@@ -204,19 +204,19 @@ const TransactionListRowScreenAnimated = memo(
 
       hasAnimatedIn.current = true;
       opacity.setValue(0);
-      translateY.setValue(14);
+      translateY.setValue(10);
 
       Animated.parallel([
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 220,
-          delay: Math.min(animationOrder * 70, 280),
+          duration: 120,
+          delay: Math.min(animationOrder * 16, 64),
           useNativeDriver: true,
         }),
         Animated.timing(translateY, {
           toValue: 0,
-          duration: 220,
-          delay: Math.min(animationOrder * 70, 280),
+          duration: 120,
+          delay: Math.min(animationOrder * 16, 64),
           useNativeDriver: true,
         }),
       ]).start();

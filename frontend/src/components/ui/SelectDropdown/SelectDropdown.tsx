@@ -1,23 +1,19 @@
 import { Check, ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Dimensions,
-    Keyboard,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
@@ -65,10 +61,8 @@ export function SelectDropdown<T extends string>({
   showLabel = true,
   triggerText,
 }: SelectDropdownProps<T>) {
-  const insets = useSafeAreaInsets();
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
-  const [menuRect, setMenuRect] = useState<MenuRect | null>(null);
   const arrowRotation = useSharedValue(0);
 
   useEffect(() => {
@@ -87,41 +81,15 @@ export function SelectDropdown<T extends string>({
 
   const closeMenu = useCallback(() => {
     setOpen(false);
-    setMenuRect(null);
   }, []);
-
-  const openMenu = useCallback(() => {
-    if (disabled) {
-      return;
-    }
-    Keyboard.dismiss();
-    const runMeasure = () => {
-      triggerRef.current?.measureInWindow((x, y, width, height) => {
-        const winH = Dimensions.get("window").height;
-        const top = y + height + MENU_GAP;
-        const bottomMargin = Math.max(insets.bottom, spacing.lg) + spacing.sm;
-        const available = winH - top - bottomMargin;
-        const maxHeight = Math.min(
-          PANEL_MAX_FALLBACK,
-          Math.max(120, available),
-        );
-        setMenuRect({ left: x, top, width, maxHeight });
-        setOpen(true);
-      });
-    };
-    requestAnimationFrame(runMeasure);
-  }, [disabled, insets.bottom]);
 
   const onTriggerPress = useCallback(() => {
     if (disabled) {
       return;
     }
-    if (open) {
-      closeMenu();
-      return;
-    }
-    openMenu();
-  }, [closeMenu, disabled, open, openMenu]);
+    Keyboard.dismiss();
+    setOpen((current) => !current);
+  }, [disabled]);
 
   const onSelect = useCallback(
     (next: T) => {
@@ -134,7 +102,7 @@ export function SelectDropdown<T extends string>({
   const hasError = typeof errorMessage === "string" && errorMessage.length > 0;
 
   return (
-    <View>
+    <View style={[styles.root, open && styles.rootOpen]}>
       {showLabel ? (
         <Text
           style={[
@@ -184,8 +152,8 @@ export function SelectDropdown<T extends string>({
           </Text>
           <Animated.View style={[styles.chevronWrap, chevronAnimatedStyle]}>
             <ChevronDown
-              size={20}
-              color={variant === "primary" ? colors.textOnPrimary : colors.inactive}
+              size={18}
+              color={variant === "secondary" ? colors.textOnPrimary : variant === "primary" ? colors.textOnPrimary : colors.inactive}
               strokeWidth={2}
             />
           </Animated.View>
@@ -195,121 +163,103 @@ export function SelectDropdown<T extends string>({
         <Text style={formStyles.fieldError}>{errorMessage}</Text>
       ) : null}
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={closeMenu}
-      >
-        <View style={styles.modalRoot} pointerEvents="box-none">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss menu"
-            style={styles.backdrop}
-            onPress={closeMenu}
-          />
-          {menuRect ? (
-            <View
-              pointerEvents="box-none"
-              style={[
-                styles.floatingPanel,
-                {
-                  left: menuRect.left,
-                  top: menuRect.top,
-                  width: menuRect.width,
-                  maxHeight: menuRect.maxHeight,
-                },
-              ]}
-            >
-              <ScrollView
-                bounces={false}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={options.length > 5}
-                style={styles.panelScroll}
-                contentContainerStyle={styles.panelScrollContent}
-              >
-                {options.map((item, index) => {
-                  const selected = item.value === value;
-                  const isLast = index === options.length - 1;
-                  return (
-                    <Pressable
-                      key={item.value}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() => onSelect(item.value)}
-                      style={({ pressed }) => [
-                        styles.optionRow,
-                        variant === "primary" && styles.optionRowPrimary,
-                        variant === "secondary" && styles.optionRowSecondary,
-                        !isLast && styles.optionRowBorder,
-                        selected && styles.optionRowSelected,
-                        pressed && styles.optionRowPressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.optionLabel,
-                          variant === "primary" && styles.optionLabelPrimary,
-                          variant === "secondary" && styles.optionLabelSecondary,
-                          selected && styles.optionLabelSelected,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      {selected ? (
-                        <Check
-                          size={20}
-                          color={colors.headerGradientStart}
-                          strokeWidth={2}
-                        />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          ) : null}
+      {open ? (
+        <View
+          style={[
+            styles.panel,
+            variant === "primary" && styles.panelPrimary,
+            variant === "secondary" && styles.panelSecondary,
+          ]}
+        >
+          <ScrollView
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={options.length > 5}
+            style={styles.panelScroll}
+            contentContainerStyle={styles.panelScrollContent}
+          >
+            {options.map((item, index) => {
+              const selected = item.value === value;
+              const isLast = index === options.length - 1;
+              return (
+                <Pressable
+                  key={item.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => onSelect(item.value)}
+                  style={({ pressed }) => [
+                    styles.optionRow,
+                    variant === "primary" && styles.optionRowPrimary,
+                    variant === "secondary" && styles.optionRowSecondary,
+                    !isLast && styles.optionRowBorder,
+                    selected && styles.optionRowSelected,
+                    pressed && styles.optionRowPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionLabel,
+                      variant === "primary" && styles.optionLabelPrimary,
+                      variant === "secondary" && styles.optionLabelSecondary,
+                      selected && styles.optionLabelSelected,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {selected ? (
+                    <Check
+                      size={18}
+                      color={colors.headerGradientStart}
+                      strokeWidth={2}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
-      </Modal>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  modalRoot: {
-    flex: 1,
+  root: {
+    position: "relative",
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: BACKDROP_DIM,
-  },
-  floatingPanel: {
-    position: "absolute",
-    backgroundColor: colors.barBackground,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingVertical: spacing.sm,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.18,
-        shadowRadius: 24,
-      },
-      android: {
-        elevation: 16,
-      },
-      default: {},
-    }),
+  rootOpen: {
+    zIndex: 20,
   },
   labelPrimary: {
     color: colors.textOnPrimaryMuted,
   },
+  panel: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    marginTop: MENU_GAP,
+    backgroundColor: colors.barBackground,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingVertical: spacing.xs,
+    zIndex: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  panelPrimary: {
+    minWidth: 104,
+  },
+  panelSecondary: {
+    minWidth: 120,
+  },
   panelScroll: {
-    maxHeight: "100%",
+    maxHeight: 250,
   },
   panelScrollContent: {
     flexGrow: 1,
@@ -327,7 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.16)",
   },
   triggerShellSecondary: {
-    minWidth: 92,
+    minWidth: 120,
     borderColor: "rgba(255,255,255,0.24)",
     backgroundColor: "rgba(255,255,255,0.16)",
   },
@@ -360,17 +310,19 @@ const styles = StyleSheet.create({
   triggerText: {
     flex: 1,
     fontFamily: fontFamilies.regular,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     color: colors.textPrimary,
   },
   triggerTextPrimary: {
     color: colors.textOnPrimary,
+    fontSize: 14,
+    lineHeight: 18,
   },
   triggerTextSecondary: {
     color: colors.textOnPrimary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 11,
+    lineHeight: 14,
   },
   triggerPlaceholder: {
     color: colors.inactive,
@@ -386,7 +338,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   optionRow: {
-    minHeight: 48,
+    minHeight: 46,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -394,11 +346,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   optionRowPrimary: {
-    minHeight: 44,
+    minHeight: 40,
   },
   optionRowSecondary: {
-    minHeight: 40,
-    paddingHorizontal: 12,
+    minHeight: 32,
+    paddingHorizontal: 10,
   },
   optionRowBorder: {
     borderBottomWidth: 1,
@@ -413,18 +365,19 @@ const styles = StyleSheet.create({
   optionLabel: {
     flex: 1,
     fontFamily: fontFamilies.regular,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     color: colors.textPrimary,
     marginRight: spacing.sm,
   },
   optionLabelPrimary: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  optionLabelSecondary: {
     fontSize: 14,
     lineHeight: 18,
+  },
+  optionLabelSecondary: {
+    fontSize: 11,
+    lineHeight: 14,
+    marginRight: 4,
   },
   optionLabelSelected: {
     fontFamily: fontFamilies.medium,
