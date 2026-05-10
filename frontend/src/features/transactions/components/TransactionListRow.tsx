@@ -1,12 +1,12 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
+    Animated,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    type StyleProp,
+    type ViewStyle,
 } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
@@ -14,11 +14,11 @@ import { colors } from "@/constants/theme";
 import type { TransactionRow } from "@/features/transactions/types";
 
 import {
-  formatTransactionListAmount,
-  hexToRgba,
-  mapTransactionRowToUi,
-  type TransactionCategory,
-  type UiTransaction,
+    formatTransactionListAmount,
+    hexToRgba,
+    mapTransactionRowToUi,
+    type TransactionCategory,
+    type UiTransaction,
 } from "./transactionListShared";
 
 const listColors = {
@@ -80,8 +80,10 @@ export type TransactionListRowProps = {
   variant?: "screen" | "card";
   rowIndex?: number;
   animationOrder?: number;
+  isVisible?: boolean;
   /** When `variant` is `card`, omit bottom border on last row. */
   showBottomBorder?: boolean;
+  onPress?: (tx: TransactionRow) => void;
 };
 
 function RowBody({ ui }: { ui: UiTransaction }) {
@@ -140,7 +142,9 @@ export const TransactionListRow = memo(function TransactionListRow({
   variant = "screen",
   rowIndex = 0,
   animationOrder = 0,
+  isVisible = true,
   showBottomBorder = true,
+  onPress,
 }: TransactionListRowProps) {
   const ui = useMemo(() => mapTransactionRowToUi(transaction), [transaction]);
 
@@ -162,6 +166,9 @@ export const TransactionListRow = memo(function TransactionListRow({
       ui={ui}
       rowIndex={rowIndex}
       animationOrder={animationOrder}
+      transaction={transaction}
+      isVisible={isVisible}
+      onPress={onPress}
     />
   );
 });
@@ -170,6 +177,9 @@ type ScreenAnimatedProps = {
   ui: UiTransaction;
   rowIndex: number;
   animationOrder: number;
+  transaction?: TransactionRow;
+  onPress?: (tx: TransactionRow) => void;
+  isVisible?: boolean;
 };
 
 const TransactionListRowScreenAnimated = memo(
@@ -177,69 +187,105 @@ const TransactionListRowScreenAnimated = memo(
     ui,
     rowIndex,
     animationOrder,
+    transaction,
+    onPress,
+    isVisible = true,
   }: ScreenAnimatedProps) {
     const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(10)).current;
+    const translateY = useRef(new Animated.Value(14)).current;
     const scale = useRef(new Animated.Value(1)).current;
     const pressProgress = useRef(new Animated.Value(0)).current;
+    const hasAnimatedIn = useRef(false);
 
     useEffect(() => {
+      if (!isVisible || hasAnimatedIn.current) {
+        return;
+      }
+
+      hasAnimatedIn.current = true;
+      opacity.setValue(0);
+      translateY.setValue(14);
+
       Animated.parallel([
         Animated.timing(opacity, {
           toValue: 1,
           duration: 220,
-          delay: 150 + animationOrder * 40,
-          useNativeDriver: false,
+          delay: Math.min(animationOrder * 70, 280),
+          useNativeDriver: true,
         }),
         Animated.timing(translateY, {
           toValue: 0,
           duration: 220,
-          delay: 150 + animationOrder * 40,
-          useNativeDriver: false,
+          delay: Math.min(animationOrder * 70, 280),
+          useNativeDriver: true,
         }),
       ]).start();
-    }, [animationOrder, opacity, translateY]);
+    }, [animationOrder, isVisible, opacity, translateY]);
 
-    const rowBackground = pressProgress.interpolate({
+    const pressOverlayOpacity = pressProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [
-        rowIndex % 2 === 0 ? listColors.surface : listColors.surfaceTint,
-        listColors.primaryMuted,
-      ],
+      outputRange: [0, 1],
     });
 
     const animatePressed = (pressed: boolean) => {
       Animated.parallel([
         Animated.timing(pressProgress, {
           toValue: pressed ? 1 : 0,
-          duration: 100,
-          useNativeDriver: false,
+          duration: pressed ? 120 : 160,
+          useNativeDriver: true,
         }),
         Animated.spring(scale, {
           toValue: pressed ? 0.98 : 1,
-          useNativeDriver: false,
-          speed: 28,
-          bounciness: pressed ? 0 : 8,
+          useNativeDriver: true,
+          speed: pressed ? 30 : 20,
+          bounciness: pressed ? 0 : 6,
         }),
       ]).start();
+    };
+
+    const handlePressIn = () => {
+      pressProgress.stopAnimation();
+      scale.stopAnimation();
+      pressProgress.setValue(0);
+      scale.setValue(1);
+      animatePressed(true);
+    };
+
+    const handlePressOut = () => {
+      animatePressed(false);
     };
 
     return (
       <Pressable
         accessibilityRole="button"
-        onPressIn={() => animatePressed(true)}
-        onPressOut={() => animatePressed(false)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={() => {
+          if (onPress && transaction) {
+            onPress(transaction);
+          }
+        }}
       >
         <Animated.View
           style={[
             styles.screenRow,
             {
-              backgroundColor: rowBackground,
               opacity,
               transform: [{ translateY }, { scale }],
             },
           ]}
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.pressOverlay,
+              {
+                opacity: pressOverlayOpacity,
+                backgroundColor:
+                  rowIndex % 2 === 0 ? listColors.primaryMuted : listColors.surfaceTint,
+              },
+            ]}
+          />
           <RowBody ui={ui} />
         </Animated.View>
       </Pressable>
@@ -256,6 +302,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
+    overflow: "hidden",
+    backgroundColor: listColors.surface,
+  },
+  pressOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   cardRow: {
     minHeight: 72,
