@@ -12,9 +12,11 @@ import {
 } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { fontFamilies } from "@/constants/fonts";
 import { TransactionDetailModal } from "@/features/transactions/components/TransactionDetailModal";
 import { TransactionListRow } from "@/features/transactions/components/TransactionListRow";
+import { TransactionListSectionSkeleton } from "@/features/transactions/components/TransactionListSectionSkeleton";
 import {
   formatTransactionListAmount,
   signedAmount,
@@ -117,7 +119,6 @@ function transactionAnimationOrder(
 
 type TransactionsHeroCardProps = {
   selectedMonth: string;
-  monthMenuOpen: boolean;
   summary: {
     credited: number;
     debited: number;
@@ -126,131 +127,93 @@ type TransactionsHeroCardProps = {
   };
   summaryLoading: boolean;
   summaryFailed: boolean;
-  onToggleMonthMenu: () => void;
   onSelectMonth: (index: number) => void;
   monthOptions: MonthOption[];
-  selectedMonthIndex: number;
 };
 
 const TransactionsHeroCard = memo(function TransactionsHeroCard({
   selectedMonth,
-  monthMenuOpen,
   summary,
   summaryLoading,
   summaryFailed,
-  onToggleMonthMenu,
   onSelectMonth,
   monthOptions,
-  selectedMonthIndex,
 }: TransactionsHeroCardProps) {
+  const dropdownOptions = monthOptions.map((month) => ({
+    label: month.label,
+    value: month.label,
+  }));
+
   return (
     <View style={styles.heroCard}>
       <View style={styles.heroBubbleLarge} />
       <View style={styles.heroBubbleSmall} />
 
       <View style={styles.heroHeader}>
-        <View style={styles.heroTitleBlock}>
+        <View style={styles.heroHeaderTopRow}>
           <Text style={styles.heroKicker}>Total Transactions</Text>
-          <Text style={styles.heroTitle}>
-            {summaryFailed
-              ? "Couldn't load summary"
-              : summaryLoading
-                ? "…"
-                : `${summary.count} transactions`}
-          </Text>
+          <View style={styles.monthDropdownWrap}>
+            <SelectDropdown
+              options={dropdownOptions}
+              value={selectedMonth}
+              onChange={(next) => {
+                const index = monthOptions.findIndex(
+                  (month) => month.label === next,
+                );
+                if (index >= 0) {
+                  onSelectMonth(index);
+                }
+              }}
+              variant="secondary"
+              showLabel={false}
+            />
+          </View>
         </View>
 
-        <View style={styles.monthDropdownWrap}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onToggleMonthMenu}
-            style={({ pressed }) => [
-              styles.monthButton,
-              pressed && styles.monthButtonPressed,
-            ]}
-          >
-            <Text style={styles.monthButtonText}>{selectedMonth}</Text>
-            <Text style={styles.monthChevron}>
-              {monthMenuOpen ? "\u2303" : "\u2304"}
-            </Text>
-          </Pressable>
-
-          {monthMenuOpen ? (
-            <View style={styles.monthMenu}>
-              {monthOptions.map((month, index) => (
-                <Pressable
-                  key={`${month.year}-${month.monthIndex0}`}
-                  accessibilityRole="button"
-                  onPress={() => onSelectMonth(index)}
-                  style={({ pressed }) => [
-                    styles.monthMenuItem,
-                    selectedMonthIndex === index && styles.monthMenuItemActive,
-                    pressed && styles.monthMenuItemPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.monthMenuText,
-                      selectedMonthIndex === index &&
-                        styles.monthMenuTextActive,
-                    ]}
-                  >
-                    {month.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+        <View style={styles.heroTitleRow}>
+          {summaryFailed ? (
+            <Text style={styles.heroTitle}>Couldn't load summary</Text>
+          ) : summaryLoading ? (
+            <ActivityIndicator color={palette.surface} />
+          ) : (
+            <Text style={styles.heroTitle}>{summary.count}</Text>
+          )}
         </View>
       </View>
 
       <View style={styles.heroStatsGrid}>
         <View style={styles.heroStatCard}>
           <Text style={styles.heroStatLabel}>Credited</Text>
-          <Text style={[styles.heroStatValue, styles.heroCreditValue]}>
-            {summaryFailed
-              ? "—"
-              : summaryLoading
-                ? "…"
-                : formatTransactionListAmount(summary.credited)}
-          </Text>
+          {summaryLoading ? (
+            <ActivityIndicator color={palette.surface} />
+          ) : (
+            <Text style={styles.heroStatValue}>
+              {summaryFailed ? "—" : formatTransactionListAmount(summary.credited)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.heroStatCard}>
           <Text style={styles.heroStatLabel}>Debited</Text>
-          <Text
-            style={[
-              styles.heroStatValue,
-              summary.debited < 0 ? styles.heroDebitValue : null,
-            ]}
-          >
-            {summaryFailed
-              ? "—"
-              : summaryLoading
-                ? "…"
-                : formatTransactionListAmount(summary.debited)}
-          </Text>
+          {summaryLoading ? (
+            <ActivityIndicator color={palette.surface} />
+          ) : (
+            <Text style={styles.heroStatValue}>
+              {summaryFailed ? "—" : formatTransactionListAmount(summary.debited)}
+            </Text>
+          )}
         </View>
       </View>
 
       <View style={styles.heroNetCard}>
         <Text style={styles.heroStatLabel}>Net Amount</Text>
-        <Text
-          style={[
-            styles.heroNetValue,
-            summary.net > 0
-              ? styles.heroCreditValue
-              : summary.net < 0
-                ? styles.heroDebitValue
-                : null,
-          ]}
-        >
-          {summaryFailed
-            ? "—"
-            : summaryLoading
-              ? "…"
-              : formatTransactionListAmount(summary.net)}
-        </Text>
+        {summaryLoading ? (
+          <ActivityIndicator color={palette.surface} />
+        ) : (
+          <Text style={styles.heroNetValue}>
+            {summaryFailed ? "—" : formatTransactionListAmount(summary.net)}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -298,9 +261,11 @@ const DateHeader = memo(function DateHeader({
       <Text
         style={[
           styles.dailyTotal,
-          section.dailyTotal >= 0
-            ? styles.positiveAmount
-            : styles.negativeTotal,
+          section.dailyTotal > 0
+            ? styles.dailyTotalPositive
+            : section.dailyTotal < 0
+              ? styles.dailyTotalNegative
+              : null,
         ]}
         numberOfLines={1}
       >
@@ -313,7 +278,6 @@ const DateHeader = memo(function DateHeader({
 export default function TransactionsScreen() {
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
-  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const [visibleTransactionIds, setVisibleTransactionIds] = useState<string[]>([]);
 
   const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
@@ -351,10 +315,25 @@ export default function TransactionsScreen() {
   const sections = useMemo(() => groupTransactions(flatRows), [flatRows]);
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionRow | null>(null);
-  const visibleTransactionIdSet = useMemo(
-    () => new Set(visibleTransactionIds),
-    [visibleTransactionIds],
-  );
+  const sectionIndexByTransactionId = useMemo(() => {
+    const lookup = new Map<string, number>();
+    sections.forEach((section) => {
+      section.data.forEach((transaction) => {
+        lookup.set(transaction.id, section.sectionIndex);
+      });
+    });
+    return lookup;
+  }, [sections]);
+  const visibleSectionIndices = useMemo(() => {
+    const next = new Set<number>();
+    visibleTransactionIds.forEach((transactionId) => {
+      const sectionIndex = sectionIndexByTransactionId.get(transactionId);
+      if (typeof sectionIndex === "number") {
+        next.add(sectionIndex);
+      }
+    });
+    return next;
+  }, [sectionIndexByTransactionId, visibleTransactionIds]);
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 45,
     minimumViewTime: 80,
@@ -379,10 +358,9 @@ export default function TransactionsScreen() {
 
   const handleSelectMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);
-    setMonthMenuOpen(false);
   }, []);
 
-  const onEndReached = useCallback(() => {
+  const handleLoadMore = useCallback(() => {
     if (infinite.hasNextPage && !infinite.isFetchingNextPage) {
       void infinite.fetchNextPage();
     }
@@ -414,7 +392,7 @@ export default function TransactionsScreen() {
                 variant="screen"
                 rowIndex={index}
                 animationOrder={transactionAnimationOrder(section.sectionIndex)}
-                isVisible={visibleTransactionIdSet.has(item.id)}
+                isVisible={visibleSectionIndices.has(section.sectionIndex)}
                 onPress={(tx) => {
                   setSelectedTransaction(tx);
                 }}
@@ -424,18 +402,17 @@ export default function TransactionsScreen() {
           ListHeaderComponent={
             <TransactionsHeroCard
               selectedMonth={selected.label}
-              monthMenuOpen={monthMenuOpen}
               summary={summary}
               summaryLoading={summaryQuery.isPending}
               summaryFailed={summaryQuery.isError}
-              onToggleMonthMenu={() => setMonthMenuOpen((open) => !open)}
               onSelectMonth={handleSelectMonth}
               monthOptions={monthOptions}
-              selectedMonthIndex={selectedMonthIndex}
             />
           }
           ListEmptyComponent={
-            listEmpty ? (
+            infinite.isPending && flatRows.length === 0 ? (
+              <TransactionListSectionSkeleton rows={2} />
+            ) : listEmpty ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No transactions here</Text>
                 <Text style={styles.emptyText}>
@@ -445,9 +422,24 @@ export default function TransactionsScreen() {
             ) : null
           }
           ListFooterComponent={
-            infinite.isFetchingNextPage ? (
+            infinite.hasNextPage ? (
               <View style={styles.listFooter}>
-                <ActivityIndicator color={palette.primary} />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleLoadMore}
+                  disabled={infinite.isFetchingNextPage}
+                  style={({ pressed }) => [
+                    styles.loadMoreButton,
+                    pressed && !infinite.isFetchingNextPage && styles.loadMoreButtonPressed,
+                    infinite.isFetchingNextPage && styles.loadMoreButtonDisabled,
+                  ]}
+                >
+                  {infinite.isFetchingNextPage ? (
+                    <ActivityIndicator color={palette.surface} />
+                  ) : (
+                    <Text style={styles.loadMoreButtonText}>Load more</Text>
+                  )}
+                </Pressable>
               </View>
             ) : null
           }
@@ -456,14 +448,7 @@ export default function TransactionsScreen() {
           stickySectionHeadersEnabled={false}
           initialNumToRender={15}
           removeClippedSubviews
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.35}
         />
-        {infinite.isPending && flatRows.length === 0 ? (
-          <View style={styles.fullLoading}>
-            <ActivityIndicator size="large" color={palette.primary} />
-          </View>
-        ) : null}
         <TransactionDetailModal
           visible={!!selectedTransaction}
           transaction={selectedTransaction}
@@ -482,13 +467,33 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   fullLoading: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: palette.background,
     pointerEvents: "none",
   },
   listFooter: {
     paddingVertical: 20,
+    alignItems: "center",
+  },
+  loadMoreButton: {
+    minHeight: 44,
+    minWidth: 132,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    backgroundColor: palette.primary,
+  },
+  loadMoreButtonPressed: {
+    transform: [{ scale: 0.98 }],
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.82,
+  },
+  loadMoreButtonText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 14,
+    lineHeight: 18,
+    color: palette.surface,
   },
   heroCard: {
     position: "relative",
@@ -527,14 +532,13 @@ const styles = StyleSheet.create({
   },
   heroHeader: {
     zIndex: 2,
+    gap: 10,
+  },
+  heroHeaderTopRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-  },
-  heroTitleBlock: {
-    flex: 1,
-    minWidth: 0,
   },
   heroKicker: {
     fontFamily: fontFamilies.medium,
@@ -549,75 +553,14 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     color: palette.surface,
   },
+  heroTitleRow: {
+    minHeight: 36,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
   monthDropdownWrap: {
     position: "relative",
     zIndex: 5,
-  },
-  monthButton: {
-    minWidth: 104,
-    minHeight: 36,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
-  },
-  monthButtonPressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  monthButtonText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "rgba(255,255,255,0.88)",
-  },
-  monthChevron: {
-    marginTop: -1,
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 13,
-    lineHeight: 16,
-    color: palette.surface,
-  },
-  monthMenu: {
-    position: "absolute",
-    top: 42,
-    right: 0,
-    width: 116,
-    padding: 4,
-    borderRadius: 14,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.chipBorder,
-    shadowColor: palette.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  monthMenuItem: {
-    minHeight: 34,
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    borderRadius: 10,
-  },
-  monthMenuItemActive: {
-    backgroundColor: palette.primaryMuted,
-  },
-  monthMenuItemPressed: {
-    backgroundColor: palette.borderLight,
-  },
-  monthMenuText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: palette.textSecondary,
-  },
-  monthMenuTextActive: {
-    color: palette.primary,
   },
   heroStatsGrid: {
     zIndex: 1,
@@ -668,12 +611,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: palette.surface,
   },
-  heroCreditValue: {
-    color: "#BBF7D0",
-  },
-  heroDebitValue: {
-    color: "#F87171",
-  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
@@ -705,12 +642,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     textAlign: "right",
+    color: palette.textPrimary,
   },
-  negativeTotal: {
-    color: palette.danger,
-  },
-  positiveAmount: {
+  dailyTotalPositive: {
     color: palette.success,
+  },
+  dailyTotalNegative: {
+    color: palette.danger,
   },
   emptyState: {
     alignItems: "center",

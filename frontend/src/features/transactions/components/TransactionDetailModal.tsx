@@ -216,6 +216,8 @@ export function TransactionDetailModal({
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator
+              persistentScrollbar
+              indicatorStyle="default"
               bounces
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
