@@ -1,16 +1,16 @@
 import React from "react";
 import {
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  FlatList,
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
 
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { colors, spacing, typography } from "@/constants/theme";
+import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 
 type CategoryMock = {
   id: string;
@@ -21,20 +21,39 @@ type CategoryMock = {
   spent: number;
 };
 
-const MOCK_TOTAL_BUDGET = 25000;
-const MOCK_SPENT = 6420;
+function hashString(input: string) {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
 
-const MOCK_CATEGORIES: CategoryMock[] = [
-  { id: "c1", name: "Groceries", emoji: "🛒", color: "#FF8A65", budget: 6000, spent: 3240 },
-  { id: "c2", name: "Transport", emoji: "🚗", color: "#4FC3F7", budget: 3000, spent: 890 },
-  { id: "c3", name: "Dining Out", emoji: "🍽️", color: "#FFB74D", budget: 2000, spent: 540 },
-  { id: "c4", name: "Bills", emoji: "💡", color: "#9575CD", budget: 4000, spent: 920 },
-  { id: "c5", name: "Entertainment", emoji: "🎬", color: "#F06292", budget: 1500, spent: 830 },
-];
+function toCategoryBudget(item: { id: string; name: string; emoji: string; color: string }, index: number): CategoryMock {
+  const seed = hashString(item.id || item.name || String(index));
+  const budget = 1800 + (seed % 5200) + (index % 3) * 250;
+  const spendRatio = 0.18 + ((seed >> 3) % 45) / 100;
+  const spent = Math.min(budget, Math.max(0, Math.round(budget * spendRatio)));
+
+  return {
+    id: item.id,
+    name: item.name,
+    emoji: item.emoji,
+    color: item.color,
+    budget,
+    spent,
+  };
+}
 
 export default function BudgetScreen() {
-  const totalBudget = MOCK_TOTAL_BUDGET;
-  const spent = MOCK_SPENT;
+  const { data: categories, loading } = useLocalCategories();
+  const budgetItems = React.useMemo(
+    () => categories.map((category, index) => toCategoryBudget(category, index)),
+    [categories],
+  );
+
+  const totalBudget = budgetItems.reduce((sum, item) => sum + item.budget, 0);
+  const spent = budgetItems.reduce((sum, item) => sum + item.spent, 0);
   const remaining = Math.max(0, totalBudget - spent);
   const pct = totalBudget > 0 ? Math.round((spent / totalBudget) * 100) : 0;
 
@@ -69,40 +88,41 @@ export default function BudgetScreen() {
 
   return (
     <TabScreenShell>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <Text style={styles.screenTitle}>Budgets</Text>
-        </View>
+      <FlatList
+        data={budgetItems}
+        keyExtractor={(i) => i.id}
+        renderItem={renderCategory}
+        contentContainerStyle={styles.content}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              {loading ? "Loading categories…" : "No categories yet. Sync categories to see budgets."}
+            </Text>
+          </View>
+        )}
+        ListHeaderComponent={() => (
+          <>
+            <View style={styles.headerRow}>
+              <Text style={styles.screenTitle}>Budgets</Text>
+            </View>
 
-        <HeroSummaryCard
-          title="Monthly Budget"
-          date="This month"
-          amount={`₹${spent}`}
-          subtext={`₹${remaining} left of ₹${totalBudget}`}
-          progress={Math.min(1, spent / Math.max(1, totalBudget))}
-          progressLabel={`${pct}% used`}
-        />
+            <HeroSummaryCard
+              title="Monthly Budget"
+              date="This month"
+              amount={`₹${spent}`}
+              subtext={`₹${remaining} left of ₹${totalBudget}`}
+              progress={Math.min(1, spent / Math.max(1, totalBudget))}
+              progressLabel={`${pct}% used`}
+            />
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Category budgets</Text>
-        </View>
-
-        <View style={styles.listCard}>
-          <FlatList
-            data={MOCK_CATEGORIES}
-            keyExtractor={(i) => i.id}
-            renderItem={renderCategory}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyWrap}>
-                <Text style={styles.emptyText}>No category budgets yet.</Text>
-              </View>
-            )}
-          />
-        </View>
-
-        <View style={{ height: spacing.xl }} />
-      </ScrollView>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>All categories</Text>
+            </View>
+          </>
+        )}
+        ListFooterComponent={() => <View style={{ height: spacing.xl }} />}
+      />
     </TabScreenShell>
   );
 }

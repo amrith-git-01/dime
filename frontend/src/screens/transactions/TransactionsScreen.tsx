@@ -8,10 +8,12 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewToken,
 } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { fontFamilies } from "@/constants/fonts";
+import { TransactionDetailModal } from "@/features/transactions/components/TransactionDetailModal";
 import { TransactionListRow } from "@/features/transactions/components/TransactionListRow";
 import {
   formatTransactionListAmount,
@@ -108,13 +110,9 @@ function groupTransactions(transactions: TransactionRow[]) {
 }
 
 function transactionAnimationOrder(
-  sections: TransactionSection[],
   sectionIndex: number,
-  rowIndex: number,
 ) {
-  return sections
-    .slice(0, sectionIndex)
-    .reduce((total, section) => total + section.data.length, rowIndex);
+  return sectionIndex;
 }
 
 type TransactionsHeroCardProps = {
@@ -236,7 +234,7 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
       </View>
 
       <View style={styles.heroNetCard}>
-        <Text style={styles.heroStatLabel}>Net</Text>
+        <Text style={styles.heroStatLabel}>Net Amount</Text>
         <Text
           style={[
             styles.heroNetValue,
@@ -274,15 +272,15 @@ const DateHeader = memo(function DateHeader({
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 200,
+        duration: 160,
         delay: sectionIndex === 0 ? 100 : 0,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 200,
+        duration: 160,
         delay: sectionIndex === 0 ? 100 : 0,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
     ]).start();
   }, [opacity, sectionIndex, translateY]);
@@ -316,6 +314,7 @@ export default function TransactionsScreen() {
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  const [visibleTransactionIds, setVisibleTransactionIds] = useState<string[]>([]);
 
   const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
 
@@ -350,6 +349,33 @@ export default function TransactionsScreen() {
   }, [infinite.data]);
 
   const sections = useMemo(() => groupTransactions(flatRows), [flatRows]);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<TransactionRow | null>(null);
+  const visibleTransactionIdSet = useMemo(
+    () => new Set(visibleTransactionIds),
+    [visibleTransactionIds],
+  );
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 45,
+    minimumViewTime: 80,
+  }).current;
+  const handleViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const nextVisibleIds = viewableItems
+        .map((token) => token.key)
+        .filter((key): key is string => Boolean(key));
+
+      setVisibleTransactionIds((current) => {
+        if (
+          current.length === nextVisibleIds.length &&
+          current.every((id, index) => id === nextVisibleIds[index])
+        ) {
+          return current;
+        }
+        return nextVisibleIds;
+      });
+    },
+  ).current;
 
   const handleSelectMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);
@@ -371,6 +397,8 @@ export default function TransactionsScreen() {
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.id}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={handleViewableItemsChanged}
           renderSectionHeader={({ section }) => {
             return (
               <DateHeader
@@ -385,11 +413,11 @@ export default function TransactionsScreen() {
                 transaction={item}
                 variant="screen"
                 rowIndex={index}
-                animationOrder={transactionAnimationOrder(
-                  sections,
-                  section.sectionIndex,
-                  index,
-                )}
+                animationOrder={transactionAnimationOrder(section.sectionIndex)}
+                isVisible={visibleTransactionIdSet.has(item.id)}
+                onPress={(tx) => {
+                  setSelectedTransaction(tx);
+                }}
               />
             );
           }}
@@ -436,6 +464,13 @@ export default function TransactionsScreen() {
             <ActivityIndicator size="large" color={palette.primary} />
           </View>
         ) : null}
+        <TransactionDetailModal
+          visible={!!selectedTransaction}
+          transaction={selectedTransaction}
+          onClose={() => {
+            setSelectedTransaction(null);
+          }}
+        />
       </View>
     </TabScreenShell>
   );
