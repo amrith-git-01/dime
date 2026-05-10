@@ -1,23 +1,23 @@
 import { Check, ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
-  Keyboard,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Dimensions,
+    Keyboard,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
@@ -34,13 +34,16 @@ export type SelectDropdownOption<T extends string = string> = {
 };
 
 export type SelectDropdownProps<T extends string = string> = {
-  label: string;
+  label?: string;
   options: readonly SelectDropdownOption<T>[];
   value: T;
   onChange: (next: T) => void;
   placeholder?: string;
   disabled?: boolean;
   errorMessage?: string | null;
+  variant?: "default" | "primary" | "secondary";
+  showLabel?: boolean;
+  triggerText?: string;
 };
 
 type MenuRect = {
@@ -58,6 +61,9 @@ export function SelectDropdown<T extends string>({
   placeholder = "Select",
   disabled = false,
   errorMessage,
+  variant = "default",
+  showLabel = true,
+  triggerText,
 }: SelectDropdownProps<T>) {
   const insets = useSafeAreaInsets();
   const triggerRef = useRef<View>(null);
@@ -129,12 +135,23 @@ export function SelectDropdown<T extends string>({
 
   return (
     <View>
-      <Text style={formStyles.fieldLabel}>{label}</Text>
+      {showLabel ? (
+        <Text
+          style={[
+            formStyles.fieldLabel,
+            variant === "primary" && styles.labelPrimary,
+          ]}
+        >
+          {label ?? ""}
+        </Text>
+      ) : null}
       <View
         ref={triggerRef}
         collapsable={false}
         style={[
           styles.triggerShell,
+          variant === "primary" && styles.triggerShellPrimary,
+          variant === "secondary" && styles.triggerShellSecondary,
           open && styles.triggerShellOpen,
           hasError && styles.triggerShellError,
         ]}
@@ -146,18 +163,31 @@ export function SelectDropdown<T extends string>({
           onPress={onTriggerPress}
           style={({ pressed }) => [
             styles.triggerRow,
+            variant === "primary" && styles.triggerRowPrimary,
+            variant === "secondary" && styles.triggerRowSecondary,
             pressed && !disabled && styles.triggerPressed,
             disabled && styles.triggerDisabled,
           ]}
         >
           <Text
-            style={[styles.triggerText, !matched && styles.triggerPlaceholder]}
+            style={[
+              styles.triggerText,
+              variant === "primary" && styles.triggerTextPrimary,
+              variant === "secondary" && styles.triggerTextSecondary,
+              !matched && styles.triggerPlaceholder,
+              variant === "primary" && !matched && styles.triggerPlaceholderPrimary,
+              variant === "secondary" && !matched && styles.triggerPlaceholderSecondary,
+            ]}
             numberOfLines={1}
           >
-            {selectedLabel}
+            {triggerText ?? selectedLabel}
           </Text>
           <Animated.View style={[styles.chevronWrap, chevronAnimatedStyle]}>
-            <ChevronDown size={20} color={colors.inactive} strokeWidth={2} />
+            <ChevronDown
+              size={20}
+              color={variant === "primary" ? colors.textOnPrimary : colors.inactive}
+              strokeWidth={2}
+            />
           </Animated.View>
         </Pressable>
       </View>
@@ -211,6 +241,8 @@ export function SelectDropdown<T extends string>({
                       onPress={() => onSelect(item.value)}
                       style={({ pressed }) => [
                         styles.optionRow,
+                        variant === "primary" && styles.optionRowPrimary,
+                        variant === "secondary" && styles.optionRowSecondary,
                         !isLast && styles.optionRowBorder,
                         selected && styles.optionRowSelected,
                         pressed && styles.optionRowPressed,
@@ -219,6 +251,8 @@ export function SelectDropdown<T extends string>({
                       <Text
                         style={[
                           styles.optionLabel,
+                          variant === "primary" && styles.optionLabelPrimary,
+                          variant === "secondary" && styles.optionLabelSecondary,
                           selected && styles.optionLabelSelected,
                         ]}
                       >
@@ -271,6 +305,9 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
+  labelPrimary: {
+    color: colors.textOnPrimaryMuted,
+  },
   panelScroll: {
     maxHeight: "100%",
   },
@@ -284,6 +321,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.barBackground,
     overflow: "hidden",
   },
+  triggerShellPrimary: {
+    minWidth: 104,
+    borderColor: "rgba(255,255,255,0.24)",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  triggerShellSecondary: {
+    minWidth: 92,
+    borderColor: "rgba(255,255,255,0.24)",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
   triggerShellOpen: {
     borderColor: colors.primary,
   },
@@ -295,6 +342,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.md,
+  },
+  triggerRowPrimary: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  triggerRowSecondary: {
+    minHeight: 36,
+    paddingHorizontal: 10,
   },
   triggerPressed: {
     opacity: 0.92,
@@ -309,8 +364,22 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.textPrimary,
   },
+  triggerTextPrimary: {
+    color: colors.textOnPrimary,
+  },
+  triggerTextSecondary: {
+    color: colors.textOnPrimary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   triggerPlaceholder: {
     color: colors.inactive,
+  },
+  triggerPlaceholderPrimary: {
+    color: colors.textOnPrimaryMuted,
+  },
+  triggerPlaceholderSecondary: {
+    color: colors.textOnPrimaryMuted,
   },
   chevronWrap: {
     justifyContent: "center",
@@ -323,6 +392,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  optionRowPrimary: {
+    minHeight: 44,
+  },
+  optionRowSecondary: {
+    minHeight: 40,
+    paddingHorizontal: 12,
   },
   optionRowBorder: {
     borderBottomWidth: 1,
@@ -341,6 +417,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.textPrimary,
     marginRight: spacing.sm,
+  },
+  optionLabelPrimary: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  optionLabelSecondary: {
+    fontSize: 14,
+    lineHeight: 18,
   },
   optionLabelSelected: {
     fontFamily: fontFamilies.medium,

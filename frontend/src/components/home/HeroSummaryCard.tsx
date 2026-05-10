@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
+import { Spinner } from "@/components/ui/Spinner";
 import { colors, spacing, typography } from "@/constants/theme";
 
 type HeroSummaryCardProps = {
@@ -10,6 +11,8 @@ type HeroSummaryCardProps = {
   subtext: string;
   progress: number;
   progressLabel?: string;
+  isAmountLoading?: boolean;
+  amountSpinnerTone?: "white" | "primary";
 };
 
 export function HeroSummaryCard({
@@ -19,6 +22,8 @@ export function HeroSummaryCard({
   subtext,
   progress,
   progressLabel,
+  isAmountLoading = false,
+  amountSpinnerTone = "white",
 }: HeroSummaryCardProps) {
   return (
     <View style={styles.card}>
@@ -32,7 +37,13 @@ export function HeroSummaryCard({
 
       <View style={styles.contentRow}>
         <View style={styles.textCol}>
-          <Text style={styles.amount}>{amount}</Text>
+          {isAmountLoading ? (
+            <View style={styles.amountLoadingWrap}>
+              <Spinner tone={amountSpinnerTone} size="small" />
+            </View>
+          ) : (
+            <Text style={styles.amount}>{amount}</Text>
+          )}
           <Text style={styles.subtext}>{subtext}</Text>
         </View>
       </View>
@@ -128,6 +139,11 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
     fontSize: 28,
     lineHeight: 36,
+  },
+  amountLoadingWrap: {
+    minHeight: 36,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   subtext: {
     marginTop: spacing.xs,
