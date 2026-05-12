@@ -1,7 +1,7 @@
 ﻿import { useFocusEffect } from "@react-navigation/native";
 import { getDaysInMonth } from "date-fns";
 import { Edit3 } from "lucide-react-native";
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -16,6 +16,7 @@ import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { Button } from "@/components/ui/Button/Button";
+import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
@@ -24,52 +25,46 @@ import {
   useUpsertBudgetMutation,
 } from "@/features/budgets/hooks/useBudget";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { formatInrCompact } from "@/features/transactions/formatAmount";
+import {
+  useMonthDebitTotalsByCategoryQuery,
+  useMonthSummaryQuery,
+} from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import { buildMonthOptions } from "@/utils/buildMonthOptions";
 
-type CategoryMock = {
+type CategorySpendRow = {
   id: string;
   name: string;
   emoji: string;
   color: string;
-  budget: number;
-  spent: number;
+  spentMonth: number;
 };
 
-function hashString(input: string) {
-  let hash = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-}
-
-function toCategoryBudget(
-  item: { id: string; name: string; emoji: string; color: string },
-  index: number,
-): CategoryMock {
-  const seed = hashString(item.id || item.name || String(index));
-  const budget = 1800 + (seed % 5200) + (index % 3) * 250;
-  const spendRatio = 0.18 + ((seed >> 3) % 45) / 100;
-  const spent = Math.min(budget, Math.max(0, Math.round(budget * spendRatio)));
-
-  return {
-    id: item.id,
-    name: item.name,
-    emoji: item.emoji,
-    color: item.color,
-    budget,
-    spent,
-  };
-}
+const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
+const FALLBACK_CATEGORY_COLOR = "#94A3B8";
 
 export default function BudgetScreen() {
   const { data: categories, loading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
+  const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
+
+  const monthSummaryQuery = useMonthSummaryQuery(
+    selected.year,
+    selected.monthIndex0,
+  );
+  const { data: spendByCategory = {} } = useMonthDebitTotalsByCategoryQuery(
+    selected.year,
+    selected.monthIndex0,
+  );
   const upsertBudgetMutation = useUpsertBudgetMutation();
 
   const existingBudget = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
     : 0;
-  const hasMonthlyBudget = Number.isFinite(existingBudget) && existingBudget > 0;
+  const hasMonthlyBudget =
+    Number.isFinite(existingBudget) && existingBudget > 0;
 
   const [monthlyBudgetText, setMonthlyBudgetText] = React.useState("");
   const [isEditOpen, setIsEditOpen] = React.useState(false);
@@ -94,10 +89,50 @@ export default function BudgetScreen() {
     }, []),
   );
 
-  const budgetItems = React.useMemo(() => {
-    const items = categories.map((category, index) => toCategoryBudget(category, index));
-    return items.slice().sort((a, b) => b.budget - a.budget);
-  }, [categories]);
+  const budgetItems = React.useMemo((): CategorySpendRow[] => {
+    const knownIds = new Set(categories.map((c) => c.id));
+    const rows: CategorySpendRow[] = categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      emoji: category.emoji,
+      color: category.color,
+      spentMonth: spendByCategory[category.id] ?? 0,
+    }));
+
+    const uncategorizedSpent = spendByCategory[UNCATEGORIZED_SPEND_KEY] ?? 0;
+    if (uncategorizedSpent > 0) {
+      rows.push({
+        id: UNCATEGORIZED_SPEND_KEY,
+        name: "Uncategorized",
+        emoji: "📦",
+        color: FALLBACK_CATEGORY_COLOR,
+        spentMonth: uncategorizedSpent,
+      });
+    }
+
+    for (const [categoryId, amount] of Object.entries(spendByCategory)) {
+      if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) {
+        continue;
+      }
+      if (!knownIds.has(categoryId)) {
+        rows.push({
+          id: categoryId,
+          name: "Unknown category",
+          emoji: "📦",
+          color: FALLBACK_CATEGORY_COLOR,
+          spentMonth: amount,
+        });
+      }
+    }
+
+    return rows.sort(
+      (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
+    );
+  }, [categories, spendByCategory]);
+
+  const handleSelectBudgetMonth = useCallback((index: number) => {
+    setSelectedMonthIndex(index);
+  }, []);
 
   const resetEditorToExisting = React.useCallback(() => {
     if (hasMonthlyBudget) {
@@ -124,16 +159,46 @@ export default function BudgetScreen() {
     }
 
     upsertBudgetMutation.mutate({ amount: parsed });
-  }, [existingBudget, hasMonthlyBudget, monthlyBudgetText, upsertBudgetMutation]);
+  }, [
+    existingBudget,
+    hasMonthlyBudget,
+    monthlyBudgetText,
+    upsertBudgetMutation,
+  ]);
 
-  const totalBudget = budgetItems.reduce((sum, item) => sum + item.budget, 0);
-  const spent = budgetItems.reduce((sum, item) => sum + item.spent, 0);
-  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : totalBudget;
-  const monthlyBudgetRemaining = Math.max(0, monthlyBudgetAmount - spent);
-  const monthlyBudgetPct = monthlyBudgetAmount > 0 ? Math.min(1, spent / monthlyBudgetAmount) : 0;
+  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
+  const spentMonthNum = monthSummaryQuery.data
+    ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
+    : Number.NaN;
+  const hasSpentMonth = Number.isFinite(spentMonthNum);
+  const monthSummaryFailed = monthSummaryQuery.isError;
+  const monthlyBudgetRemaining =
+    hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed
+      ? Math.max(0, monthlyBudgetAmount - spentMonthNum)
+      : 0;
+  const monthlyBudgetPct =
+    hasMonthlyBudget &&
+    hasSpentMonth &&
+    !monthSummaryFailed &&
+    monthlyBudgetAmount > 0
+      ? Math.min(1, spentMonthNum / monthlyBudgetAmount)
+      : 0;
+  const monthlyHeroSubtext = monthSummaryFailed
+    ? "Could not load spending for this month."
+    : hasMonthlyBudget && hasSpentMonth
+      ? `${formatInrCompact(monthlyBudgetRemaining)} left from ${formatInrCompact(monthlyBudgetAmount)}`
+      : hasMonthlyBudget
+        ? ""
+        : "";
+  const showMonthlyHeroProgress =
+    hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed;
+  const isHeroAmountLoading =
+    hasMonthlyBudget && (isBudgetLoading || monthSummaryQuery.isPending);
 
   const daysInMonth = getDaysInMonth(new Date());
-  const dailyLimitFromText = monthlyBudgetText ? Number.parseFloat(monthlyBudgetText) : 0;
+  const dailyLimitFromText = monthlyBudgetText
+    ? Number.parseFloat(monthlyBudgetText)
+    : 0;
   const dailyLimitAmount =
     Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0
       ? Math.round(dailyLimitFromText / daysInMonth)
@@ -142,24 +207,35 @@ export default function BudgetScreen() {
 
   const shouldShowEditor = !hasMonthlyBudget || isEditOpen;
 
-  const renderCategory = ({ item }: { item: CategoryMock }) => {
-    const progress = item.budget > 0 ? Math.min(1, item.spent / item.budget) : 0;
+  const renderCategory = ({ item }: { item: CategorySpendRow }) => {
+    const shareOfMonthlyCap =
+      hasMonthlyBudget && monthlyBudgetAmount > 0
+        ? Math.min(1, item.spentMonth / monthlyBudgetAmount)
+        : 0;
     return (
       <View style={styles.categoryRow}>
         <View style={styles.catLeft}>
-          <View style={[styles.catTile, { backgroundColor: `${item.color}22` }]}>
+          <View
+            style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
+          >
             <Text style={styles.catEmoji}>{item.emoji}</Text>
           </View>
           <View style={styles.catMeta}>
             <Text style={styles.catName}>{item.name}</Text>
-            <Text style={styles.catBudgetText}>Budget - ₹{item.budget}</Text>
+            <Text style={styles.catBudgetText}>
+              {hasMonthlyBudget
+                ? "Share of monthly budget"
+                : "Spent this month"}
+            </Text>
           </View>
         </View>
         <View style={styles.catRight}>
-          <Text style={styles.catSpent}>₹{item.spent}</Text>
+          <Text style={styles.catSpent}>
+            {formatInrCompact(item.spentMonth)}
+          </Text>
           <View style={styles.catProgressWrap}>
             <AnimatedProgressBar
-              progress={progress}
+              progress={shareOfMonthlyCap}
               fillColor={item.color}
               backgroundColor={`${item.color}14`}
               height={8}
@@ -175,8 +251,12 @@ export default function BudgetScreen() {
     <>
       {shouldShowEditor ? (
         <View style={styles.editorCard}>
-          <Text style={styles.editorLabel}>{hasMonthlyBudget ? "Update budget" : "Monthly budget"}</Text>
-          <Text style={styles.editorDescription}>Set the monthly budget that works for you.</Text>
+          <Text style={styles.editorLabel}>
+            {hasMonthlyBudget ? "Update budget" : "Monthly budget"}
+          </Text>
+          <Text style={styles.editorDescription}>
+            Set the monthly budget that works for you.
+          </Text>
           <View style={[styles.amountShell, styles.amountShellMin]}>
             <View style={styles.currencyPrefixWrap}>
               <Text style={styles.currencyPrefix}>₹</Text>
@@ -228,12 +308,35 @@ export default function BudgetScreen() {
       {hasMonthlyBudget ? (
         <HeroSummaryCard
           title="Monthly Budget"
-          date="This month"
-          amount={`₹${Math.round(monthlyBudgetAmount)}`}
-          subtext={`₹${Math.round(monthlyBudgetRemaining)} left of ₹${Math.round(monthlyBudgetAmount)}`}
+          date=""
+          headerRight={
+            <View style={styles.monthDropdownWrap}>
+              <SelectDropdown
+                options={monthOptions.map((month) => ({
+                  label: month.label,
+                  value: month.label,
+                }))}
+                value={selected.label}
+                onChange={(next) => {
+                  const index = monthOptions.findIndex(
+                    (month) => month.label === next,
+                  );
+                  if (index >= 0) {
+                    handleSelectBudgetMonth(index);
+                  }
+                }}
+                variant="secondary"
+                showLabel={false}
+              />
+            </View>
+          }
+          amount={formatInrCompact(monthlyBudgetAmount)}
+          subtext={monthlyHeroSubtext}
           progress={monthlyBudgetPct}
-          progressLabel={`${Math.round(monthlyBudgetPct * 100)}% used`}
-          showProgress
+          progressLabel="Monthly budget used"
+          showProgress={showMonthlyHeroProgress}
+          isAmountLoading={isHeroAmountLoading}
+          amountSpinnerTone="white"
           amountAccessory={
             <Pressable
               accessibilityRole="button"
@@ -261,12 +364,15 @@ export default function BudgetScreen() {
         data={budgetItems}
         keyExtractor={(i) => i.id}
         renderItem={renderCategory}
+        removeClippedSubviews={false}
         contentContainerStyle={styles.content}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={() => (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>
-              {loading ? "Loading categories..." : "No categories yet. Sync categories to see budgets."}
+              {loading
+                ? "Loading categories..."
+                : "No categories yet. Sync categories to see budgets."}
             </Text>
           </View>
         )}
@@ -282,6 +388,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl * 2,
+  },
+  monthDropdownWrap: {
+    position: "relative",
+    zIndex: 5,
   },
   editorCard: {
     marginBottom: spacing.lg,
@@ -385,18 +495,45 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
-  catLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 },
-  catTile: { width: 46, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  catLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  catTile: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   catEmoji: { fontSize: 20 },
   catMeta: { marginLeft: spacing.sm, flex: 1, minWidth: 0 },
-  catName: { fontFamily: typography.headerUsernameLine.fontFamily, fontSize: 15, color: colors.textPrimary },
-  catBudgetText: { fontFamily: typography.screenSubtitle.fontFamily, fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
+  catName: {
+    fontFamily: typography.headerUsernameLine.fontFamily,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  catBudgetText: {
+    fontFamily: typography.screenSubtitle.fontFamily,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   catRight: { width: 120, alignItems: "flex-end" },
-  catSpent: { fontFamily: typography.monoEmphasis.fontFamily, fontSize: 15, color: colors.textPrimary },
+  catSpent: {
+    fontFamily: typography.monoEmphasis.fontFamily,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
   catProgressWrap: { marginTop: spacing.xs, width: "100%" },
   separator: { height: spacing.md },
   emptyWrap: { paddingVertical: spacing.md, alignItems: "center" },
-  emptyText: { fontFamily: typography.screenSubtitle.fontFamily, color: colors.textSecondary },
+  emptyText: {
+    fontFamily: typography.screenSubtitle.fontFamily,
+    color: colors.textSecondary,
+  },
   editBudgetButton: {
     width: 28,
     height: 28,

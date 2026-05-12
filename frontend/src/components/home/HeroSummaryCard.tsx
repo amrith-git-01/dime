@@ -8,6 +8,8 @@ import { colors, spacing, typography } from "@/constants/theme";
 type HeroSummaryCardProps = {
   title: string;
   date: string;
+  /** Renders in header row after optional `date` (e.g. month `SelectDropdown`). */
+  headerRight?: ReactNode;
   amount: string;
   subtext: string;
   progress: number;
@@ -23,6 +25,7 @@ type HeroSummaryCardProps = {
 export function HeroSummaryCard({
   title,
   date,
+  headerRight,
   amount,
   subtext,
   progress,
@@ -34,14 +37,25 @@ export function HeroSummaryCard({
   onAction = null,
   amountAccessory,
 }: HeroSummaryCardProps) {
+  const showHeaderTrailing = date.trim().length > 0 || headerRight != null;
+
   return (
-    <View style={styles.card}>
+    <View
+      style={[styles.card, headerRight == null ? styles.cardClipOrbs : null]}
+    >
       <View style={styles.orbTop} pointerEvents="none" />
       <View style={styles.orbBottom} pointerEvents="none" />
 
       <View style={styles.headerRow}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.date}>{date}</Text>
+        {showHeaderTrailing ? (
+          <View style={styles.headerTrailing}>
+            {date.trim().length > 0 ? (
+              <Text style={styles.date}>{date}</Text>
+            ) : null}
+            {headerRight}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.contentRow}>
@@ -54,7 +68,9 @@ export function HeroSummaryCard({
             ) : (
               <Text style={styles.amount}>{amount}</Text>
             )}
-            {amountAccessory ? <View style={styles.amountAccessory}>{amountAccessory}</View> : null}
+            {amountAccessory ? (
+              <View style={styles.amountAccessory}>{amountAccessory}</View>
+            ) : null}
           </View>
           {subtext.trim().length > 0 ? (
             <Text style={styles.subtext}>{subtext}</Text>
@@ -67,7 +83,9 @@ export function HeroSummaryCard({
           {progressLabel ? (
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>{progressLabel}</Text>
-              <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
+              <Text style={styles.progressValue}>
+                {Math.round(progress * 100)}%
+              </Text>
             </View>
           ) : null}
           <AnimatedProgressBar
@@ -78,13 +96,13 @@ export function HeroSummaryCard({
             duration={850}
           />
         </View>
-      ) : (
-        actionLabel && onAction ? (
-          <View style={styles.actionWrap}>
-            <Text style={styles.actionText} onPress={onAction}>{actionLabel}</Text>
-          </View>
-        ) : null
-      )}
+      ) : actionLabel && onAction ? (
+        <View style={styles.actionWrap}>
+          <Text style={styles.actionText} onPress={onAction}>
+            {actionLabel}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -92,7 +110,6 @@ export function HeroSummaryCard({
 const styles = StyleSheet.create({
   card: {
     minHeight: 172,
-    overflow: "hidden",
     borderRadius: 22,
     padding: spacing.xl,
     marginBottom: spacing.lg,
@@ -104,6 +121,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 24,
     elevation: 7,
+  },
+  /** Decorative orbs extend past radius — clip only when no header menu. */
+  cardClipOrbs: {
+    overflow: "hidden",
   },
   orbTop: {
     position: "absolute",
@@ -129,6 +150,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
     marginBottom: spacing.md,
+  },
+  headerTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flexShrink: 0,
+    position: "relative",
+    zIndex: 5,
   },
   title: {
     fontFamily: typography.screenTitle.fontFamily,

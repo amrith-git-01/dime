@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 from supabase import Client
 
+from features.transactions.supabase_http import execute_with_http_retry
+
+logger = logging.getLogger(__name__)
+
 # Embed category fields via PostgREST FK so callers can render without a separate lookup.
 _SELECT_WITH_EMBED = "*,categories(id,name,emoji,color)"
+
+
+def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
+    """Normalize PostgREST RPC payload for ``transactions_period_summary``."""
+    if data is None:
+        return None
+    if isinstance(data, dict) and "credit_total" in data and "debit_total" in data:
+        return data
+    if isinstance(data, dict):
+        inner = data.get("transactions_period_summary")
+        if isinstance(inner, dict) and "credit_total" in inner:
+            return inner
+    if isinstance(data, list) and data:
+        return _unwrap_rpc_period_payload(data[0])
+    return None
 
 
 class TransactionRepository:
@@ -51,7 +72,9 @@ class TransactionRepository:
         if to_iso is not None:
             q = q.lte("transaction_at", to_iso)
         end = offset + fetch_n - 1
-        res = q.order("transaction_at", desc=True).range(offset, end).execute()
+        res = execute_with_http_retry(
+            lambda: q.order("transaction_at", desc=True).range(offset, end).execute()
+        )
         data = res.data
         if not isinstance(data, list):
             return [], False
@@ -60,6 +83,40 @@ class TransactionRepository:
         if has_more:
             rows = rows[:limit]
         return rows, has_more
+
+    def fetch_transactions_period_summary(
+        self,
+        user_id: str,
+        *,
+        from_iso: str | None,
+        to_iso: str | None,
+    ) -> dict[str, Any] | None:
+        """Single RPC round-trip for credit/debit totals, count, and debit-by-category.
+
+        Returns ``None`` if the RPC is missing or fails (caller may fall back to paging).
+        """
+        if from_iso is None or to_iso is None:
+            return None
+        try:
+            res = execute_with_http_retry(
+                lambda: self._db.rpc(
+                    "transactions_period_summary",
+                    {"p_user_id": user_id, "p_from": from_iso, "p_to": to_iso},
+                ).execute()
+            )
+        except Exception as exc:
+            logger.warning(
+                "transactions_period_summary RPC failed; falling back to paging: %s",
+                exc,
+            )
+            return None
+        parsed = _unwrap_rpc_period_payload(res.data)
+        if parsed is None:
+            logger.warning(
+                "transactions_period_summary RPC returned unexpected shape: %r",
+                res.data,
+            )
+        return parsed
 
     def iter_amount_type_category(
         self,
@@ -83,7 +140,11 @@ class TransactionRepository:
                 q = q.gte("transaction_at", from_iso)
             if to_iso is not None:
                 q = q.lte("transaction_at", to_iso)
-            res = q.order("transaction_at", desc=True).range(offset, offset + page_size - 1).execute()
+            res = execute_with_http_retry(
+                lambda: q.order("transaction_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
             data = res.data
             if not isinstance(data, list):
                 break
@@ -94,6 +155,7 @@ class TransactionRepository:
             if len(chunk) < page_size:
                 break
             offset += page_size
+            time.sleep(0.02)
         return all_rows
 
     def fetch_categories_by_ids(self, ids: set[str]) -> dict[str, dict[str, Any]]:
