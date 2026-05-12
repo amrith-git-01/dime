@@ -1,11 +1,13 @@
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format } from "date-fns";
 import { Camera, ChevronRight, Edit3, Mic } from "lucide-react-native";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import type { MainTabParamList } from "@/navigation/types";
+import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
@@ -20,8 +22,12 @@ import { TransactionListSkeleton } from "@/features/transactions/components/Tran
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
-import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
+
+type HomeScreenNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Home">,
+  NativeStackNavigationProp<MainStackParamList>
+>;
 
 /** Hero / category rails: magnitude only, no leading minus. */
 function formatInrSpendMagnitude(amount: string | number): string {
@@ -33,9 +39,11 @@ function formatInrSpendMagnitude(amount: string | number): string {
 }
 
 export default function HomeScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<HomeScreenNavigation>();
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
-  const openManualAdd = useManualAddTransactionUiStore((s) => s.open);
+  const openManualAdd = useCallback(() => {
+    navigation.navigate("ManualAddTransaction");
+  }, [navigation]);
   const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
   const openReceiptCamera = useReceiptCameraTransaction();
 

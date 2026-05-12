@@ -51,7 +51,13 @@ export default function MainTabNavigator() {
       <View style={styles.navigatorSlot}>
         <Tabs.Navigator
           tabBar={(props) => (
-            <DimeTabBar {...props} onFirstLayout={() => setTabBarReady(true)} />
+            <DimeTabBar
+              {...props}
+              onFirstLayout={() => setTabBarReady(true)}
+              onManualAddPress={() => {
+                stackNavigation.navigate("ManualAddTransaction");
+              }}
+            />
           )}
           screenListeners={{
             tabPress: () => {

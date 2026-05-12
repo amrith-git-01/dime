@@ -10,6 +10,7 @@ export type MainTabParamList = {
 export type MainStackParamList = {
   MainTabs: undefined;
   Settings: undefined;
+  ManualAddTransaction: undefined;
 };
 
 export type RootStackParamList = {

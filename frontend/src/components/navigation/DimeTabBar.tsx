@@ -27,7 +27,6 @@ import { colors, spacing } from "@/constants/theme";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
-import { useManualAddTransactionUiStore } from "@/stores/manualAddTransactionUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 const TAB_ICON_SIZE = 22;
@@ -120,7 +119,11 @@ export function DimeTabBar({
   navigation,
   insets,
   onFirstLayout,
-}: BottomTabBarProps & { onFirstLayout?: () => void }) {
+  onManualAddPress,
+}: BottomTabBarProps & {
+  onFirstLayout?: () => void;
+  onManualAddPress: () => void;
+}) {
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
   const onTabBarHeightChange = useContext(BottomTabBarHeightCallbackContext);
@@ -412,7 +415,7 @@ export function DimeTabBar({
             hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
             onPress={() => {
               void triggerLightHaptic();
-              useManualAddTransactionUiStore.getState().open();
+              onManualAddPress();
               setFabOpen(false);
             }}
             style={styles.radialActionHit}

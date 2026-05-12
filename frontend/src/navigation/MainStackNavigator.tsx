@@ -1,8 +1,8 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { colors } from "@/constants/theme";
-import { ManualAddTransactionModal } from "@/features/transactions/components/ManualAddTransactionModal";
 import SettingsScreen from "@/screens/settings/SettingsScreen";
+import ManualAddTransactionScreen from "@/screens/transactions/ManualAddTransactionScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
 import type { MainStackParamList } from "./types";
@@ -30,8 +30,18 @@ export default function MainStackNavigator() {
             headerShadowVisible: false,
           }}
         />
+        <Stack.Screen
+          name="ManualAddTransaction"
+          component={ManualAddTransactionScreen}
+          options={{
+            headerShown: true,
+            title: "Add transaction",
+            headerTintColor: colors.primary,
+            headerStyle: { backgroundColor: colors.pageBackground },
+            headerShadowVisible: false,
+          }}
+        />
       </Stack.Navigator>
-      <ManualAddTransactionModal />
     </>
   );
 }
