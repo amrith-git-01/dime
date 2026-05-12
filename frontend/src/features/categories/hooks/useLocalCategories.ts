@@ -7,7 +7,7 @@ import { Category } from "@/db/models/Category";
 export type LocalCategory = {
   id: string;
   name: string;
-  emoji: string;
+  icon_name: string;
   color: string;
   is_system: boolean;
   created_at: string;
@@ -17,7 +17,7 @@ function mapCategory(row: Category): LocalCategory {
   return {
     id: row.id,
     name: row.name,
-    emoji: row.emoji,
+    icon_name: row.iconName,
     color: row.color,
     is_system: row.isSystem,
     created_at: new Date(row.createdAt).toISOString(),
