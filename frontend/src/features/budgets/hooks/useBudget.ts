@@ -11,6 +11,6 @@ export function useUpsertBudgetMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { amount: number }) => upsertBudget(input),
-    onSuccess: () => qc.invalidateQueries(budgetQueryKey),
+    onSuccess: () => qc.invalidateQueries({ queryKey: budgetQueryKey }),
   });
 }

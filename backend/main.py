@@ -45,6 +45,7 @@ def create_application() -> FastAPI:
     application.include_router(health.router, prefix=api_prefix)
     application.include_router(me.router, prefix=api_prefix)
     application.include_router(profile.router, prefix=api_prefix)
+    application.include_router(categories.router, prefix=api_prefix)
     application.include_router(transactions.router, prefix=api_prefix)
     application.include_router(budget.router, prefix=api_prefix)
 

@@ -81,7 +81,44 @@ export default function HomeScreen() {
   }, [overview]);
 
   const { data: budgetResp } = useBudgetQuery();
-  const hasBudget = Boolean(budgetResp?.budget);
+  const budget = budgetResp?.budget ?? null;
+  const hasBudget = Boolean(budget);
+  const dailyBudget = budget ? Number.parseFloat(budget.daily_budget) : NaN;
+  const monthlyBudget = budget ? Number.parseFloat(budget.monthly_budget) : NaN;
+  const spentTodayNum = overview
+    ? Math.abs(Number.parseFloat(overview.spent_today))
+    : NaN;
+  const spentMonthNum = overview
+    ? Math.abs(Number.parseFloat(overview.spent_this_month))
+    : NaN;
+  const hasDailyBudget = Number.isFinite(dailyBudget) && dailyBudget > 0;
+  const hasMonthlyBudget = Number.isFinite(monthlyBudget) && monthlyBudget > 0;
+  const hasSpentToday = Number.isFinite(spentTodayNum);
+  const hasSpentMonth = Number.isFinite(spentMonthNum);
+  const dailyLeft =
+    hasDailyBudget && hasSpentToday
+      ? Math.max(0, dailyBudget - spentTodayNum)
+      : NaN;
+  const monthlyLeft =
+    hasMonthlyBudget && hasSpentMonth
+      ? Math.max(0, monthlyBudget - spentMonthNum)
+      : NaN;
+  const dailyProgress =
+    hasDailyBudget && hasSpentToday
+      ? Math.min(1, spentTodayNum / dailyBudget)
+      : 0;
+  const monthlyProgress =
+    hasMonthlyBudget && hasSpentMonth
+      ? Math.min(1, spentMonthNum / monthlyBudget)
+      : 0;
+  const dailySubtext =
+    hasDailyBudget && hasSpentToday
+      ? `${formatInrCompact(dailyLeft)} left from ${formatInrCompact(dailyBudget)}`
+      : "";
+  const monthlySubtext =
+    hasMonthlyBudget && hasSpentMonth
+      ? `${formatInrCompact(monthlyLeft)} left from ${formatInrCompact(monthlyBudget)}`
+      : "";
 
   return (
     <TabScreenShell>
@@ -99,10 +136,10 @@ export default function HomeScreen() {
           title="Spent Today"
           date={dayLabel}
           amount={spentTodayDisplay}
-          subtext={hasBudget ? "₹238 left from ₹1,500" : ""}
-          progress={0.82}
+          subtext={dailySubtext}
+          progress={dailyProgress}
           progressLabel={hasBudget ? "Daily budget used" : undefined}
-          showProgress={hasBudget}
+          showProgress={hasDailyBudget && hasSpentToday}
           actionLabel={!hasBudget ? "Add monthly budget" : undefined}
           onAction={!hasBudget ? () => navigation.navigate("Budgets") : null}
           isAmountLoading={isPending}
@@ -113,10 +150,10 @@ export default function HomeScreen() {
           title="Spent Monthly"
           date={monthLabel}
           amount={spentMonthDisplay}
-          subtext={hasBudget ? "₹6,580 left from ₹25,000" : ""}
-          progress={0.73}
+          subtext={monthlySubtext}
+          progress={monthlyProgress}
           progressLabel={hasBudget ? "Monthly budget used" : undefined}
-          showProgress={hasBudget}
+          showProgress={hasMonthlyBudget && hasSpentMonth}
           actionLabel={!hasBudget ? "Add monthly budget" : undefined}
           onAction={!hasBudget ? () => navigation.navigate("Budgets") : null}
           isAmountLoading={isPending}

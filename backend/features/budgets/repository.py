@@ -33,18 +33,11 @@ class BudgetRepository:
             "monthly_budget": str(amount),
             "daily_budget": str(daily_budget),
         }
-        res = (
-            self._db.table("budgets")
-            .upsert(payload, on_conflict="user_id")
-            .select(_SELECT)
-            .execute()
-        )
-        data = res.data
-        if isinstance(data, list) and data:
-            row = data[0]
-            if isinstance(row, dict):
-                return row
-        if isinstance(data, dict):
-            return data
-        msg = "Unexpected Supabase response when upserting budget."
+        self._db.table("budgets").upsert(payload, on_conflict="user_id").execute()
+
+        row = self.fetch_by_user_id(user_id)
+        if isinstance(row, dict):
+            return row
+
+        msg = "Budget upsert succeeded but could not fetch row."
         raise RuntimeError(msg)

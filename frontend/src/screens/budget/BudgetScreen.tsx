@@ -1,12 +1,15 @@
+﻿import { useFocusEffect } from "@react-navigation/native";
 import { getDaysInMonth } from "date-fns";
+import { Edit3 } from "lucide-react-native";
 import React from "react";
 import {
   FlatList,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
@@ -39,7 +42,10 @@ function hashString(input: string) {
   return hash;
 }
 
-function toCategoryBudget(item: { id: string; name: string; emoji: string; color: string }, index: number): CategoryMock {
+function toCategoryBudget(
+  item: { id: string; name: string; emoji: string; color: string },
+  index: number,
+): CategoryMock {
   const seed = hashString(item.id || item.name || String(index));
   const budget = 1800 + (seed % 5200) + (index % 3) * 250;
   const spendRatio = 0.18 + ((seed >> 3) % 45) / 100;
@@ -59,25 +65,52 @@ export default function BudgetScreen() {
   const { data: categories, loading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const upsertBudgetMutation = useUpsertBudgetMutation();
-  const existingBudget = budgetResp?.budget ? Number.parseFloat(budgetResp.budget.monthly_budget) : 0;
+
+  const existingBudget = budgetResp?.budget
+    ? Number.parseFloat(budgetResp.budget.monthly_budget)
+    : 0;
+  const hasMonthlyBudget = Number.isFinite(existingBudget) && existingBudget > 0;
+
   const [monthlyBudgetText, setMonthlyBudgetText] = React.useState("");
+  const [isEditOpen, setIsEditOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (!budgetResp?.budget) {
+    if (!hasMonthlyBudget) {
       setMonthlyBudgetText("");
       return;
     }
+    setMonthlyBudgetText(String(Math.round(existingBudget)));
+  }, [existingBudget, hasMonthlyBudget]);
 
-    const amount = Number.parseFloat(budgetResp.budget.monthly_budget);
-    if (Number.isFinite(amount)) {
-      setMonthlyBudgetText(String(Math.round(amount)));
+  React.useEffect(() => {
+    if (upsertBudgetMutation.isSuccess) {
+      setIsEditOpen(false);
     }
-  }, [budgetResp?.budget]);
+  }, [upsertBudgetMutation.isSuccess]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => setIsEditOpen(false);
+    }, []),
+  );
 
   const budgetItems = React.useMemo(() => {
     const items = categories.map((category, index) => toCategoryBudget(category, index));
     return items.slice().sort((a, b) => b.budget - a.budget);
   }, [categories]);
+
+  const resetEditorToExisting = React.useCallback(() => {
+    if (hasMonthlyBudget) {
+      setMonthlyBudgetText(String(Math.round(existingBudget)));
+      return;
+    }
+    setMonthlyBudgetText("");
+  }, [existingBudget, hasMonthlyBudget]);
+
+  const handleCancelBudgetEdit = React.useCallback(() => {
+    resetEditorToExisting();
+    setIsEditOpen(false);
+  }, [resetEditorToExisting]);
 
   const handleSaveMonthlyBudget = React.useCallback(() => {
     const parsed = Number.parseFloat(monthlyBudgetText);
@@ -85,21 +118,29 @@ export default function BudgetScreen() {
       return;
     }
 
+    if (hasMonthlyBudget && Math.abs(parsed - existingBudget) < 0.0001) {
+      setIsEditOpen(false);
+      return;
+    }
+
     upsertBudgetMutation.mutate({ amount: parsed });
-  }, [monthlyBudgetText, upsertBudgetMutation]);
+  }, [existingBudget, hasMonthlyBudget, monthlyBudgetText, upsertBudgetMutation]);
 
   const totalBudget = budgetItems.reduce((sum, item) => sum + item.budget, 0);
   const spent = budgetItems.reduce((sum, item) => sum + item.spent, 0);
-  const hasMonthlyBudget = existingBudget > 0;
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : totalBudget;
   const monthlyBudgetRemaining = Math.max(0, monthlyBudgetAmount - spent);
   const monthlyBudgetPct = monthlyBudgetAmount > 0 ? Math.min(1, spent / monthlyBudgetAmount) : 0;
+
   const daysInMonth = getDaysInMonth(new Date());
   const dailyLimitFromText = monthlyBudgetText ? Number.parseFloat(monthlyBudgetText) : 0;
-  const dailyLimitAmount = Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0 
-    ? Math.round(dailyLimitFromText / daysInMonth) 
-    : 0;
-  const dailyLimitDisplay = dailyLimitAmount > 0 ? `₹${dailyLimitAmount}` : "—";
+  const dailyLimitAmount =
+    Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0
+      ? Math.round(dailyLimitFromText / daysInMonth)
+      : 0;
+  const dailyLimitDisplay = dailyLimitAmount > 0 ? `₹${dailyLimitAmount}` : "-";
+
+  const shouldShowEditor = !hasMonthlyBudget || isEditOpen;
 
   const renderCategory = ({ item }: { item: CategoryMock }) => {
     const progress = item.budget > 0 ? Math.min(1, item.spent / item.budget) : 0;
@@ -111,7 +152,7 @@ export default function BudgetScreen() {
           </View>
           <View style={styles.catMeta}>
             <Text style={styles.catName}>{item.name}</Text>
-            <Text style={styles.catBudgetText}>Budget • ₹{item.budget}</Text>
+            <Text style={styles.catBudgetText}>Budget - ₹{item.budget}</Text>
           </View>
         </View>
         <View style={styles.catRight}>
@@ -132,56 +173,79 @@ export default function BudgetScreen() {
 
   const listHeader = (
     <>
-      <View style={styles.editorCard}>
-        <Text style={styles.editorLabel}>Monthly budget</Text>
-        <Text style={styles.editorDescription}>
-          Set the monthly budget that works for you.
-        </Text>
-        <View style={[styles.amountShell, styles.amountShellMin]}>
-          <View style={styles.currencyPrefixWrap}>
-            <Text style={styles.currencyPrefix}>₹</Text>
+      {shouldShowEditor ? (
+        <View style={styles.editorCard}>
+          <Text style={styles.editorLabel}>{hasMonthlyBudget ? "Update budget" : "Monthly budget"}</Text>
+          <Text style={styles.editorDescription}>Set the monthly budget that works for you.</Text>
+          <View style={[styles.amountShell, styles.amountShellMin]}>
+            <View style={styles.currencyPrefixWrap}>
+              <Text style={styles.currencyPrefix}>₹</Text>
+            </View>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0.00"
+              placeholderTextColor={colors.inactive}
+              keyboardType="decimal-pad"
+              value={monthlyBudgetText}
+              onChangeText={setMonthlyBudgetText}
+              underlineColorAndroid="transparent"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveMonthlyBudget}
+            />
           </View>
-          <TextInput
-            style={styles.amountInput}
-            placeholder="0.00"
-            placeholderTextColor={colors.inactive}
-            keyboardType="decimal-pad"
-            value={monthlyBudgetText}
-            onChangeText={setMonthlyBudgetText}
-            underlineColorAndroid="transparent"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={handleSaveMonthlyBudget}
-          />
+          <View style={styles.editorActionsRow}>
+            <View style={styles.actionButtonWrap}>
+              <Button
+                title="Update"
+                loading={upsertBudgetMutation.isPending}
+                onPress={handleSaveMonthlyBudget}
+                disabled={isBudgetLoading}
+              />
+            </View>
+            {hasMonthlyBudget ? (
+              <View style={styles.actionButtonWrap}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={handleCancelBudgetEdit}
+                />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.dailyLimitSection}>
+            <TextField
+              label="Daily limit"
+              value={dailyLimitDisplay}
+              editable={false}
+              showClear={false}
+            />
+          </View>
         </View>
-        <View style={styles.editorActions}>
-          <Button
-            title={hasMonthlyBudget ? "Update budget" : "Add budget"}
-            loading={upsertBudgetMutation.isPending}
-            onPress={handleSaveMonthlyBudget}
-            disabled={isBudgetLoading}
-          />
-        </View>
-        <View style={styles.dailyLimitSection}>
-          <TextField
-            label="Daily limit"
-            value={dailyLimitDisplay}
-            editable={false}
-            showClear={false}
-          />
-        </View>
-      </View>
+      ) : null}
 
       {hasMonthlyBudget ? (
         <HeroSummaryCard
           title="Monthly Budget"
           date="This month"
-          amount={`₹${monthlyBudgetAmount}`}
-          subtext={`₹${monthlyBudgetRemaining} left of ₹${monthlyBudgetAmount}`}
+          amount={`₹${Math.round(monthlyBudgetAmount)}`}
+          subtext={`₹${Math.round(monthlyBudgetRemaining)} left of ₹${Math.round(monthlyBudgetAmount)}`}
           progress={monthlyBudgetPct}
           progressLabel={`${Math.round(monthlyBudgetPct * 100)}% used`}
           showProgress
+          amountAccessory={
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsEditOpen(true)}
+              style={({ pressed }) => [
+                styles.editBudgetButton,
+                pressed && styles.editBudgetButtonPressed,
+              ]}
+            >
+              <Edit3 size={14} color={colors.textOnPrimary} />
+            </Pressable>
+          }
         />
       ) : null}
 
@@ -202,7 +266,7 @@ export default function BudgetScreen() {
         ListEmptyComponent={() => (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>
-              {loading ? "Loading categories…" : "No categories yet. Sync categories to see budgets."}
+              {loading ? "Loading categories..." : "No categories yet. Sync categories to see budgets."}
             </Text>
           </View>
         )}
@@ -240,8 +304,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.textSecondary,
   },
-  editorActions: {
+  editorActionsRow: {
     marginTop: spacing.md,
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  actionButtonWrap: {
+    flex: 1,
   },
   dailyLimitSection: {
     marginTop: spacing.md,
@@ -310,14 +379,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.textSecondary,
   },
-  listCard: {
-    marginTop: spacing.sm,
-    borderRadius: 14,
-    padding: spacing.md,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
   categoryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -336,4 +397,18 @@ const styles = StyleSheet.create({
   separator: { height: spacing.md },
   emptyWrap: { paddingVertical: spacing.md, alignItems: "center" },
   emptyText: { fontFamily: typography.screenSubtitle.fontFamily, color: colors.textSecondary },
+  editBudgetButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  editBudgetButtonPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
+  },
 });

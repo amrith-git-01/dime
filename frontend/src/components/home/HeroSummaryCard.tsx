@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
@@ -16,6 +17,7 @@ type HeroSummaryCardProps = {
   showProgress?: boolean;
   actionLabel?: string;
   onAction?: (() => void) | null;
+  amountAccessory?: ReactNode;
 };
 
 export function HeroSummaryCard({
@@ -30,6 +32,7 @@ export function HeroSummaryCard({
   showProgress = true,
   actionLabel,
   onAction = null,
+  amountAccessory,
 }: HeroSummaryCardProps) {
   return (
     <View style={styles.card}>
@@ -43,13 +46,16 @@ export function HeroSummaryCard({
 
       <View style={styles.contentRow}>
         <View style={styles.textCol}>
-          {isAmountLoading ? (
-            <View style={styles.amountLoadingWrap}>
-              <Spinner tone={amountSpinnerTone} size="small" />
-            </View>
-          ) : (
-            <Text style={styles.amount}>{amount}</Text>
-          )}
+          <View style={styles.amountRow}>
+            {isAmountLoading ? (
+              <View style={styles.amountLoadingWrap}>
+                <Spinner tone={amountSpinnerTone} size="small" />
+              </View>
+            ) : (
+              <Text style={styles.amount}>{amount}</Text>
+            )}
+            {amountAccessory ? <View style={styles.amountAccessory}>{amountAccessory}</View> : null}
+          </View>
           {subtext.trim().length > 0 ? (
             <Text style={styles.subtext}>{subtext}</Text>
           ) : null}
@@ -153,6 +159,14 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
     fontSize: 28,
     lineHeight: 36,
+  },
+  amountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  amountAccessory: {
+    alignSelf: "center",
   },
   amountLoadingWrap: {
     minHeight: 36,
