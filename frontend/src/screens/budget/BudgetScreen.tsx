@@ -1,4 +1,4 @@
-import { useFocusEffect } from "@react-navigation/native";
+﻿import { useFocusEffect } from "@react-navigation/native";
 import { getDaysInMonth } from "date-fns";
 import { Edit3 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
@@ -24,6 +24,7 @@ import {
   useBudgetQuery,
   useUpsertBudgetMutation,
 } from "@/features/budgets/hooks/useBudget";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 import {
@@ -35,7 +36,7 @@ import { buildMonthOptions } from "@/utils/buildMonthOptions";
 type CategorySpendRow = {
   id: string;
   name: string;
-  emoji: string;
+  icon_name: string;
   color: string;
   spentMonth: number;
 };
@@ -94,7 +95,7 @@ export default function BudgetScreen() {
     const rows: CategorySpendRow[] = categories.map((category) => ({
       id: category.id,
       name: category.name,
-      emoji: category.emoji,
+      icon_name: category.icon_name,
       color: category.color,
       spentMonth: spendByCategory[category.id] ?? 0,
     }));
@@ -104,7 +105,7 @@ export default function BudgetScreen() {
       rows.push({
         id: UNCATEGORIZED_SPEND_KEY,
         name: "Uncategorized",
-        emoji: "📦",
+        icon_name: "Package",
         color: FALLBACK_CATEGORY_COLOR,
         spentMonth: uncategorizedSpent,
       });
@@ -118,7 +119,7 @@ export default function BudgetScreen() {
         rows.push({
           id: categoryId,
           name: "Unknown category",
-          emoji: "📦",
+          icon_name: "Package",
           color: FALLBACK_CATEGORY_COLOR,
           spentMonth: amount,
         });
@@ -218,7 +219,12 @@ export default function BudgetScreen() {
           <View
             style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
           >
-            <Text style={styles.catEmoji}>{item.emoji}</Text>
+            <CategoryLucideIcon
+              iconName={item.icon_name}
+              color={item.color}
+              size={18}
+              strokeWidth={1.5}
+            />
           </View>
           <View style={styles.catMeta}>
             <Text style={styles.catName}>{item.name}</Text>
@@ -508,7 +514,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  catEmoji: { fontSize: 20 },
   catMeta: { marginLeft: spacing.sm, flex: 1, minWidth: 0 },
   catName: {
     fontFamily: typography.headerUsernameLine.fontFamily,

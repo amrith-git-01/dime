@@ -322,7 +322,7 @@ export default function TransactionsScreen() {
           }
           ListEmptyComponent={
             infinite.isPending && flatRows.length === 0 ? (
-              <TransactionListSectionSkeleton rows={2} />
+              <TransactionListSectionSkeleton rows={5} />
             ) : listEmpty ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No transactions here</Text>

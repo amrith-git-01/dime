@@ -3,13 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { format } from "date-fns";
 import { Camera, ChevronRight, Edit3, Mic } from "lucide-react-native";
 import { useMemo } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { MainTabParamList } from "@/navigation/types";
 
@@ -20,6 +14,7 @@ import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { TransactionList } from "@/features/transactions/components/TransactionList";
 import { TransactionListSkeleton } from "@/features/transactions/components/TransactionListSkeleton";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
@@ -71,7 +66,7 @@ export default function HomeScreen() {
       return {
         id: row.category_id ?? `uncategorized-${index}`,
         label: row.name,
-        emoji: row.emoji ?? "📦",
+        icon_name: row.icon_name ?? "Package",
         amount: formatInrSpendMagnitude(row.total),
         progress,
         color,
@@ -183,7 +178,10 @@ export default function HomeScreen() {
             contentContainerStyle={styles.categoryRail}
           >
             {Array.from({ length: 5 }).map((_, index) => (
-              <View key={`category-skeleton-${index}`} style={styles.categoryCard}>
+              <View
+                key={`category-skeleton-${index}`}
+                style={styles.categoryCard}
+              >
                 <View style={styles.categoryCardBody}>
                   <View style={styles.categoryHeader}>
                     <SkeletonBlock
@@ -263,7 +261,12 @@ export default function HomeScreen() {
                         { backgroundColor: item.muted },
                       ]}
                     >
-                      <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+                      <CategoryLucideIcon
+                        iconName={item.icon_name}
+                        color={item.color}
+                        size={20}
+                        strokeWidth={1.5}
+                      />
                     </View>
                   </View>
                   <Text style={styles.categoryName} numberOfLines={2}>
@@ -415,9 +418,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-  },
-  categoryEmoji: {
-    fontSize: 19,
   },
   categoryName: {
     fontFamily: typography.headerUsernameLine.fontFamily,
