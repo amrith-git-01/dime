@@ -1,4 +1,4 @@
-﻿import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { getDaysInMonth } from "date-fns";
 import { Edit3 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
