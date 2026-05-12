@@ -15,7 +15,7 @@ export type TransactionRow = {
   merchant: string;
   category: string | null;
   category_id: string | null;
-  category_emoji: string | null;
+  category_icon_name: string | null;
   category_color: string | null;
   note: string | null;
   detected_via: string | null;
@@ -42,7 +42,7 @@ export type MonthSummary = {
 export type TopCategoryHome = {
   category_id: string | null;
   name: string;
-  emoji: string | null;
+  icon_name: string | null;
   color: string | null;
   total: string;
 };

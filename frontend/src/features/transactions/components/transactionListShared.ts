@@ -5,7 +5,7 @@ import type { TransactionRow } from "@/features/transactions/types";
 
 export type TransactionCategory = {
   name: string;
-  emoji: string;
+  icon_name: string;
   color: string;
 };
 
@@ -30,7 +30,7 @@ export function signedAmount(tx: TransactionRow): number {
 export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
   const parsed = parseISO(tx.transaction_at);
   const dateKey = format(parsed, "yyyy-MM-dd");
-  const emoji = tx.category_emoji ?? "💳";
+  const iconName = tx.category_icon_name ?? "CreditCard";
   const color = tx.category_color ?? "#94A3B8";
   const name = tx.category ?? "Uncategorized";
   const timeLabel = format(parsed, "h:mm a");
@@ -38,7 +38,7 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
     id: tx.id,
     merchant: tx.merchant || tx.counterparty_name?.trim() || "—",
     amount: signedAmount(tx),
-    category: { name, emoji, color },
+    category: { name, icon_name: iconName, color },
     timeLabel,
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,

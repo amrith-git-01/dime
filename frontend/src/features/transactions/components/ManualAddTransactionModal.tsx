@@ -32,6 +32,7 @@ import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
 import { colors, spacing } from "@/constants/theme";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
 import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
@@ -305,7 +306,8 @@ export function ManualAddTransactionModal() {
                       <CategoryPill
                         key={category.id}
                         label={category.name}
-                        emoji={category.emoji}
+                        iconName={category.icon_name}
+                        iconColor={category.color}
                         selected={selected}
                         onPress={() => {
                           void triggerLightHaptic();
@@ -412,12 +414,19 @@ function SegmentChip({ label, selected, onPress }: SegmentChipProps) {
 
 type CategoryPillProps = {
   label: string;
-  emoji: string;
+  iconName: string;
+  iconColor: string;
   selected: boolean;
   onPress: () => void;
 };
 
-function CategoryPill({ label, emoji, selected, onPress }: CategoryPillProps) {
+function CategoryPill({
+  label,
+  iconName,
+  iconColor,
+  selected,
+  onPress,
+}: CategoryPillProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -429,7 +438,12 @@ function CategoryPill({ label, emoji, selected, onPress }: CategoryPillProps) {
         pressed && styles.categoryPillPressed,
       ]}
     >
-      <Text style={styles.categoryPillEmoji}>{emoji}</Text>
+      <CategoryLucideIcon
+        iconName={iconName}
+        color={iconColor}
+        size={16}
+        strokeWidth={1.5}
+      />
       <Text
         style={[
           styles.categoryPillLabel,
@@ -543,10 +557,6 @@ const styles = StyleSheet.create({
   },
   categoryPillPressed: {
     opacity: 0.92,
-  },
-  categoryPillEmoji: {
-    fontSize: 16,
-    lineHeight: 18,
   },
   categoryPillLabel: {
     flexShrink: 0,

@@ -11,6 +11,7 @@ import {
 
 import { fontFamilies } from "@/constants/fonts";
 import { colors } from "@/constants/theme";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import type { TransactionRow } from "@/features/transactions/types";
 
 import {
@@ -46,7 +47,12 @@ const CategoryIcon = memo(function CategoryIcon({
         { backgroundColor: hexToRgba(category.color, 0.1) },
       ]}
     >
-      <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+      <CategoryLucideIcon
+        iconName={category.icon_name}
+        color={category.color}
+        size={20}
+        strokeWidth={1.5}
+      />
     </View>
   );
 });
@@ -386,10 +392,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  },
-  categoryEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
   },
   transactionBody: {
     flex: 1,
