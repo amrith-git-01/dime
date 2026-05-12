@@ -1,12 +1,12 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import {
-    Animated,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    type StyleProp,
-    type ViewStyle,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
@@ -14,11 +14,11 @@ import { colors } from "@/constants/theme";
 import type { TransactionRow } from "@/features/transactions/types";
 
 import {
-    formatTransactionListAmount,
-    hexToRgba,
-    mapTransactionRowToUi,
-    type TransactionCategory,
-    type UiTransaction,
+  formatTransactionListAmount,
+  hexToRgba,
+  mapTransactionRowToUi,
+  type TransactionCategory,
+  type UiTransaction,
 } from "./transactionListShared";
 
 const listColors = {
@@ -81,6 +81,11 @@ export type TransactionListRowProps = {
   rowIndex?: number;
   animationOrder?: number;
   isVisible?: boolean;
+  /**
+   * When `variant` is `screen`, enables staggered entrance tied to visibility (heavy while scrolling).
+   * Default `true` for home feed; set `false` on Transactions screen.
+   */
+  enableScrollAnimations?: boolean;
   /** When `variant` is `card`, omit bottom border on last row. */
   showBottomBorder?: boolean;
   onPress?: (tx: TransactionRow) => void;
@@ -143,6 +148,7 @@ export const TransactionListRow = memo(function TransactionListRow({
   rowIndex = 0,
   animationOrder = 0,
   isVisible = true,
+  enableScrollAnimations = true,
   showBottomBorder = true,
   onPress,
 }: TransactionListRowProps) {
@@ -158,6 +164,17 @@ export const TransactionListRow = memo(function TransactionListRow({
       <View style={cardRowStyle}>
         <RowBody ui={ui} />
       </View>
+    );
+  }
+
+  if (!enableScrollAnimations) {
+    return (
+      <TransactionListRowScreenStatic
+        ui={ui}
+        rowIndex={rowIndex}
+        transaction={transaction}
+        onPress={onPress}
+      />
     );
   }
 
@@ -181,6 +198,38 @@ type ScreenAnimatedProps = {
   onPress?: (tx: TransactionRow) => void;
   isVisible?: boolean;
 };
+
+type ScreenStaticProps = {
+  ui: UiTransaction;
+  rowIndex: number;
+  transaction: TransactionRow;
+  onPress?: (tx: TransactionRow) => void;
+};
+
+const TransactionListRowScreenStatic = memo(
+  function TransactionListRowScreenStatic({
+    ui,
+    rowIndex,
+    transaction,
+    onPress,
+  }: ScreenStaticProps) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          onPress?.(transaction);
+        }}
+        style={({ pressed }) => [
+          styles.screenRow,
+          rowIndex % 2 === 0 ? styles.screenRowEven : styles.screenRowOdd,
+          pressed && styles.screenRowPressed,
+        ]}
+      >
+        <RowBody ui={ui} />
+      </Pressable>
+    );
+  },
+);
 
 const TransactionListRowScreenAnimated = memo(
   function TransactionListRowScreenAnimated({
@@ -282,7 +331,9 @@ const TransactionListRowScreenAnimated = memo(
               {
                 opacity: pressOverlayOpacity,
                 backgroundColor:
-                  rowIndex % 2 === 0 ? listColors.primaryMuted : listColors.surfaceTint,
+                  rowIndex % 2 === 0
+                    ? listColors.primaryMuted
+                    : listColors.surfaceTint,
               },
             ]}
           />
@@ -304,6 +355,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     overflow: "hidden",
     backgroundColor: listColors.surface,
+  },
+  screenRowEven: {
+    backgroundColor: listColors.primaryMuted,
+  },
+  screenRowOdd: {
+    backgroundColor: listColors.surfaceTint,
+  },
+  screenRowPressed: {
+    opacity: 0.94,
   },
   pressOverlay: {
     ...StyleSheet.absoluteFillObject,
