@@ -14,7 +14,9 @@ function toEpochMs(iso: string): number {
   return Number.isFinite(t) ? t : Date.now();
 }
 
-export async function upsertCategoriesFromApi(rows: CategoryRow[]): Promise<void> {
+export async function upsertCategoriesFromApi(
+  rows: CategoryRow[],
+): Promise<void> {
   const col = collection();
   const incomingIds = new Set(rows.map((row) => row.id));
   const existing = await col.query().fetch();
@@ -26,7 +28,7 @@ export async function upsertCategoriesFromApi(rows: CategoryRow[]): Promise<void
       if (found) {
         await found.update((record) => {
           record.name = row.name;
-          record.emoji = row.emoji;
+          record.iconName = row.icon_name;
           record.color = row.color;
           record.isSystem = row.is_system;
           record.createdAt = toEpochMs(row.created_at);
@@ -37,7 +39,7 @@ export async function upsertCategoriesFromApi(rows: CategoryRow[]): Promise<void
       await col.create((record) => {
         (record as Category & { _raw: { id: string } })._raw.id = row.id;
         record.name = row.name;
-        record.emoji = row.emoji;
+        record.iconName = row.icon_name;
         record.color = row.color;
         record.isSystem = row.is_system;
         record.createdAt = toEpochMs(row.created_at);

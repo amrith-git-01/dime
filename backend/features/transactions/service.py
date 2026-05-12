@@ -46,14 +46,14 @@ def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
             flat["category_id"] = str(embed_id)
         else:
             flat["category_id"] = None
-        em = category.get("emoji")
-        flat["category_emoji"] = em if isinstance(em, str) else None
+        em = category.get("icon_name")
+        flat["category_icon_name"] = em if isinstance(em, str) else None
         col = category.get("color")
         flat["category_color"] = col if isinstance(col, str) else None
     else:
         flat["category"] = None
         flat["category_id"] = str(tx_cat_id) if tx_cat_id is not None else None
-        flat["category_emoji"] = None
+        flat["category_icon_name"] = None
         flat["category_color"] = None
 
     cp = flat.get("counterparty_name")
@@ -196,7 +196,7 @@ class TransactionService:
                     TopCategoryRow(
                         category_id=None,
                         name="Uncategorized",
-                        emoji="📦",
+                        icon_name="Package",
                         color=None,
                         total=format(total, "f"),
                     )
@@ -205,13 +205,13 @@ class TransactionService:
             meta = cat_meta.get(cat_id, {})
             nm = meta.get("name")
             name = nm.strip() if isinstance(nm, str) and nm.strip() else "Uncategorized"
-            em = meta.get("emoji")
+            em = meta.get("icon_name")
             co = meta.get("color")
             top_categories.append(
                 TopCategoryRow(
                     category_id=cat_id,
                     name=name,
-                    emoji=em if isinstance(em, str) else None,
+                    icon_name=em if isinstance(em, str) else None,
                     color=co if isinstance(co, str) else None,
                     total=format(total, "f"),
                 )
