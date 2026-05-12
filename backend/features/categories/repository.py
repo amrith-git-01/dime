@@ -14,7 +14,7 @@ class CategoryRepository:
     def list_all(self) -> list[dict[str, Any]]:
         res = (
             self._db.table("categories")
-            .select("id,name,emoji,color,is_system,created_at")
+            .select("id,name,icon_name,color,is_system,created_at")
             .order("name", desc=False)
             .execute()
         )

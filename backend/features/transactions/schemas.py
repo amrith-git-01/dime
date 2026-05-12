@@ -89,7 +89,7 @@ class TransactionResponse(BaseModel):
     merchant: str
     category: str | None
     category_id: str | None = None
-    category_emoji: str | None = None
+    category_icon_name: str | None = None
     category_color: str | None = None
     note: str | None
     detected_via: DetectedViaType | None
@@ -152,7 +152,7 @@ class MonthSummaryResponse(BaseModel):
 class TopCategoryRow(BaseModel):
     category_id: str | None
     name: str
-    emoji: str | None = None
+    icon_name: str | None = None
     color: str | None = None
     total: str
 

@@ -18,7 +18,7 @@ class CategoryService:
         for row in rows:
             category_id = row.get("id")
             name = row.get("name")
-            emoji = row.get("emoji")
+            icon_name = row.get("icon_name")
             color = row.get("color")
             is_system = row.get("is_system")
             created_at = row.get("created_at")
@@ -26,7 +26,7 @@ class CategoryService:
                 continue
             if not isinstance(name, str):
                 continue
-            if not isinstance(emoji, str):
+            if not isinstance(icon_name, str):
                 continue
             if not isinstance(color, str):
                 continue
@@ -38,7 +38,7 @@ class CategoryService:
                 CategoryResponse(
                     id=category_id,
                     name=name,
-                    emoji=emoji,
+                    icon_name=icon_name,
                     color=color,
                     is_system=is_system,
                     created_at=created_at,

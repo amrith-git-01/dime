@@ -13,7 +13,7 @@ from features.transactions.supabase_http import execute_with_http_retry
 logger = logging.getLogger(__name__)
 
 # Embed category fields via PostgREST FK so callers can render without a separate lookup.
-_SELECT_WITH_EMBED = "*,categories(id,name,emoji,color)"
+_SELECT_WITH_EMBED = "*,categories(id,name,icon_name,color)"
 
 
 def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
@@ -161,7 +161,7 @@ class TransactionRepository:
     def fetch_categories_by_ids(self, ids: set[str]) -> dict[str, dict[str, Any]]:
         if not ids:
             return {}
-        res = self._db.table("categories").select("id,name,emoji,color").in_("id", list(ids)).execute()
+        res = self._db.table("categories").select("id,name,icon_name,color").in_("id", list(ids)).execute()
         data = res.data
         if not isinstance(data, list):
             return {}
