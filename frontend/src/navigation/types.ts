@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
+import type { TransactionRow } from "@/features/transactions/types";
+
 export type MainTabParamList = {
   Home: undefined;
   Transactions: undefined;
@@ -10,7 +12,9 @@ export type MainTabParamList = {
 export type MainStackParamList = {
   MainTabs: undefined;
   Settings: undefined;
+  Notifications: undefined;
   ManualAddTransaction: undefined;
+  TransactionDetail: { transaction: TransactionRow };
 };
 
 export type RootStackParamList = {

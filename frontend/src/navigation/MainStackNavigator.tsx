@@ -1,13 +1,77 @@
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createNativeStackNavigator,
+  type NativeStackScreenProps,
+} from "@react-navigation/native-stack";
+import { Suspense, lazy } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { colors } from "@/constants/theme";
-import SettingsScreen from "@/screens/settings/SettingsScreen";
-import ManualAddTransactionScreen from "@/screens/transactions/ManualAddTransactionScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
 import type { MainStackParamList } from "./types";
 
+const SettingsScreenLazy = lazy(
+  () => import("@/screens/settings/SettingsScreen"),
+);
+const NotificationsScreenLazy = lazy(
+  () => import("@/screens/notifications/NotificationsScreen"),
+);
+const ManualAddTransactionScreenLazy = lazy(
+  () => import("@/screens/transactions/ManualAddTransactionScreen"),
+);
+const TransactionDetailScreenLazy = lazy(
+  () => import("@/screens/transactions/TransactionDetailScreen"),
+);
+
 const Stack = createNativeStackNavigator<MainStackParamList>();
+
+function LazyScreenFallback() {
+  return (
+    <View style={lazyFallbackStyles.root}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+}
+
+function SettingsLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "Settings">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <SettingsScreenLazy />
+    </Suspense>
+  );
+}
+
+function NotificationsLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "Notifications">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <NotificationsScreenLazy />
+    </Suspense>
+  );
+}
+
+function ManualAddLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "ManualAddTransaction">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <ManualAddTransactionScreenLazy />
+    </Suspense>
+  );
+}
+
+function TransactionDetailLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "TransactionDetail">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <TransactionDetailScreenLazy />
+    </Suspense>
+  );
+}
 
 export default function MainStackNavigator() {
   return (
@@ -21,7 +85,7 @@ export default function MainStackNavigator() {
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
         <Stack.Screen
           name="Settings"
-          component={SettingsScreen}
+          component={SettingsLazyHost}
           options={{
             headerShown: true,
             title: "Settings",
@@ -31,11 +95,33 @@ export default function MainStackNavigator() {
           }}
         />
         <Stack.Screen
+          name="Notifications"
+          component={NotificationsLazyHost}
+          options={{
+            headerShown: true,
+            title: "Notifications",
+            headerTintColor: colors.primary,
+            headerStyle: { backgroundColor: colors.pageBackground },
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
           name="ManualAddTransaction"
-          component={ManualAddTransactionScreen}
+          component={ManualAddLazyHost}
           options={{
             headerShown: true,
             title: "Add transaction",
+            headerTintColor: colors.primary,
+            headerStyle: { backgroundColor: colors.pageBackground },
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="TransactionDetail"
+          component={TransactionDetailLazyHost}
+          options={{
+            headerShown: true,
+            title: "Transaction",
             headerTintColor: colors.primary,
             headerStyle: { backgroundColor: colors.pageBackground },
             headerShadowVisible: false,
@@ -45,3 +131,12 @@ export default function MainStackNavigator() {
     </>
   );
 }
+
+const lazyFallbackStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.pageBackground,
+  },
+});

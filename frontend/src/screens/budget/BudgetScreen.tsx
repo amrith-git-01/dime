@@ -1,9 +1,9 @@
 ﻿import { useFocusEffect } from "@react-navigation/native";
+import { FlashList } from "@shopify/flash-list";
 import { getDaysInMonth } from "date-fns";
 import { Edit3 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  FlatList,
   Platform,
   Pressable,
   StyleSheet,
@@ -208,50 +208,55 @@ export default function BudgetScreen() {
 
   const shouldShowEditor = !hasMonthlyBudget || isEditOpen;
 
-  const renderCategory = ({ item }: { item: CategorySpendRow }) => {
-    const shareOfMonthlyCap =
-      hasMonthlyBudget && monthlyBudgetAmount > 0
-        ? Math.min(1, item.spentMonth / monthlyBudgetAmount)
-        : 0;
-    return (
-      <View style={styles.categoryRow}>
-        <View style={styles.catLeft}>
-          <View
-            style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
-          >
-            <CategoryLucideIcon
-              iconName={item.icon_name}
-              color={item.color}
-              size={18}
-              strokeWidth={1.5}
-            />
+  const renderCategory = useCallback(
+    ({ item }: { item: CategorySpendRow }) => {
+      const shareOfMonthlyCap =
+        hasMonthlyBudget && monthlyBudgetAmount > 0
+          ? Math.min(1, item.spentMonth / monthlyBudgetAmount)
+          : 0;
+      return (
+        <View style={styles.categoryRow}>
+          <View style={styles.catLeft}>
+            <View
+              style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
+            >
+              <CategoryLucideIcon
+                iconName={item.icon_name}
+                color={item.color}
+                size={18}
+                strokeWidth={1.5}
+              />
+            </View>
+            <View style={styles.catMeta}>
+              <Text style={styles.catName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.catBudgetText}>
+                {hasMonthlyBudget
+                  ? "Share of monthly budget"
+                  : "Spent this month"}
+              </Text>
+            </View>
           </View>
-          <View style={styles.catMeta}>
-            <Text style={styles.catName}>{item.name}</Text>
-            <Text style={styles.catBudgetText}>
-              {hasMonthlyBudget
-                ? "Share of monthly budget"
-                : "Spent this month"}
+          <View style={styles.catRight}>
+            <Text style={styles.catSpent}>
+              {formatInrCompact(item.spentMonth)}
             </Text>
+            <View style={styles.catProgressWrap}>
+              <AnimatedProgressBar
+                progress={shareOfMonthlyCap}
+                fillColor={item.color}
+                backgroundColor={`${item.color}14`}
+                height={8}
+                duration={700}
+              />
+            </View>
           </View>
         </View>
-        <View style={styles.catRight}>
-          <Text style={styles.catSpent}>
-            {formatInrCompact(item.spentMonth)}
-          </Text>
-          <View style={styles.catProgressWrap}>
-            <AnimatedProgressBar
-              progress={shareOfMonthlyCap}
-              fillColor={item.color}
-              backgroundColor={`${item.color}14`}
-              height={8}
-              duration={700}
-            />
-          </View>
-        </View>
-      </View>
-    );
-  };
+      );
+    },
+    [hasMonthlyBudget, monthlyBudgetAmount],
+  );
 
   const listHeader = (
     <>
@@ -366,11 +371,11 @@ export default function BudgetScreen() {
 
   return (
     <TabScreenShell>
-      <FlatList
+      <FlashList
+        style={styles.list}
         data={budgetItems}
         keyExtractor={(i) => i.id}
         renderItem={renderCategory}
-        removeClippedSubviews={false}
         contentContainerStyle={styles.content}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={() => (
@@ -394,6 +399,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl * 2,
+  },
+  list: {
+    flex: 1,
   },
   monthDropdownWrap: {
     position: "relative",
