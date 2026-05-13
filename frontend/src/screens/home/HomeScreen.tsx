@@ -5,7 +5,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format } from "date-fns";
 import { Camera, ChevronRight, Edit3, Mic } from "lucide-react-native";
 import { useCallback, useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  InteractionManager,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 
@@ -22,6 +29,7 @@ import { TransactionListSkeleton } from "@/features/transactions/components/Tran
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 type HomeScreenNavigation = CompositeNavigationProp<
@@ -43,6 +51,9 @@ export default function HomeScreen() {
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
   const openManualAdd = useCallback(() => {
     navigation.navigate("ManualAddTransaction");
+    InteractionManager.runAfterInteractions(() => {
+      useAddTransactionFabStore.getState().setFabOpen(false);
+    });
   }, [navigation]);
   const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
   const openReceiptCamera = useReceiptCameraTransaction();

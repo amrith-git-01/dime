@@ -67,10 +67,13 @@ export default function ManualAddTransactionScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      form.reset();
-      submitMutation.reset();
-      setIosPickerVisible(false);
-      setAmountFocused(false);
+      const frame = requestAnimationFrame(() => {
+        form.reset();
+        submitMutation.reset();
+        setIosPickerVisible(false);
+        setAmountFocused(false);
+      });
+      return () => cancelAnimationFrame(frame);
     }, [form.reset, submitMutation.reset]),
   );
 

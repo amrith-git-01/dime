@@ -1,29 +1,33 @@
-import { format, parseISO, subDays } from "date-fns";
-import { memo, useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  SectionList,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { CompositeNavigationProp } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { FlashList } from "@shopify/flash-list";
+import { addDays, endOfMonth, format, parseISO, subDays } from "date-fns";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { fontFamilies } from "@/constants/fonts";
-import { TransactionDetailModal } from "@/features/transactions/components/TransactionDetailModal";
+import { spacing } from "@/constants/theme";
+import { TransactionDayNavigator } from "@/features/transactions/components/TransactionDayNavigator";
 import { TransactionListRow } from "@/features/transactions/components/TransactionListRow";
 import { TransactionListSectionSkeleton } from "@/features/transactions/components/TransactionListSectionSkeleton";
-import {
-  formatTransactionListAmount,
-  signedAmount,
-} from "@/features/transactions/components/transactionListShared";
+import { formatTransactionListAmount } from "@/features/transactions/components/transactionListShared";
+import { usePrefetchTransactionsForSelectedDay } from "@/features/transactions/hooks/usePrefetchTransactionsForSelectedDay";
 import {
   useMonthSummaryQuery,
   useTransactionsMonthInfiniteQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { TransactionRow } from "@/features/transactions/types";
+import {
+  buildTransactionFlashListItemsForSingleDay,
+  transactionCalendarDayKey,
+  type TransactionFlashListItem,
+} from "@/features/transactions/utils/buildTransactionFlashListData";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { buildMonthOptions, type MonthOption } from "@/utils/buildMonthOptions";
 
 const palette = {
@@ -41,56 +45,10 @@ const palette = {
   danger: "#DC2626",
 } as const;
 
-type TransactionSection = {
-  date: string;
-  dailyTotal: number;
-  sectionIndex: number;
-  data: TransactionRow[];
-};
-
-function sectionDateHeading(dateKey: string): string {
-  const todayKey = format(new Date(), "yyyy-MM-dd");
-  const yesterdayKey = format(subDays(new Date(), 1), "yyyy-MM-dd");
-  if (dateKey === todayKey) {
-    return "TODAY";
-  }
-  if (dateKey === yesterdayKey) {
-    return "YESTERDAY";
-  }
-  const d = parseISO(`${dateKey}T12:00:00`);
-  return format(d, "EEE, d MMM").toUpperCase();
-}
-
-function groupTransactions(transactions: TransactionRow[]) {
-  const order: string[] = [];
-  const grouped = new Map<string, TransactionRow[]>();
-
-  transactions.forEach((transaction) => {
-    const parsed = parseISO(transaction.transaction_at);
-    const key = format(parsed, "yyyy-MM-dd");
-    if (!grouped.has(key)) {
-      order.push(key);
-      grouped.set(key, []);
-    }
-    grouped.get(key)?.push(transaction);
-  });
-
-  order.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-
-  return order.map((dateKey, sectionIndex) => {
-    const data = grouped.get(dateKey) ?? [];
-    const dailyTotal = data.reduce((total, transaction) => {
-      return total + signedAmount(transaction);
-    }, 0);
-
-    return {
-      date: sectionDateHeading(dateKey),
-      dailyTotal,
-      sectionIndex,
-      data,
-    };
-  });
-}
+type TransactionsScreenNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Transactions">,
+  NativeStackNavigationProp<MainStackParamList>
+>;
 
 type TransactionsHeroCardProps = {
   selectedMonth: string;
@@ -147,7 +105,7 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
 
         <View style={styles.heroTitleRow}>
           {summaryFailed ? (
-            <Text style={styles.heroTitle}>Couldn't load summary</Text>
+            <Text style={styles.heroTitle}>Could not load summary</Text>
           ) : summaryLoading ? (
             <ActivityIndicator color={palette.surface} />
           ) : (
@@ -198,41 +156,13 @@ const TransactionsHeroCard = memo(function TransactionsHeroCard({
   );
 });
 
-type DateHeaderProps = {
-  section: TransactionSection;
-  sectionIndex: number;
-};
-
-const DateHeader = memo(function DateHeader({
-  section,
-  sectionIndex,
-}: DateHeaderProps) {
-  return (
-    <View
-      style={[styles.dateHeader, sectionIndex === 0 && styles.firstDateHeader]}
-    >
-      <Text style={styles.dateLabel}>{section.date}</Text>
-      <View style={styles.dateLine} />
-      <Text
-        style={[
-          styles.dailyTotal,
-          section.dailyTotal > 0
-            ? styles.dailyTotalPositive
-            : section.dailyTotal < 0
-              ? styles.dailyTotalNegative
-              : null,
-        ]}
-        numberOfLines={1}
-      >
-        {formatTransactionListAmount(section.dailyTotal)}
-      </Text>
-    </View>
-  );
-});
-
 export default function TransactionsScreen() {
+  const navigation = useNavigation<TransactionsScreenNavigation>();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
+  const [selectedDayKey, setSelectedDayKey] = useState(() =>
+    format(new Date(), "yyyy-MM-dd"),
+  );
 
   const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
 
@@ -266,9 +196,64 @@ export default function TransactionsScreen() {
     return pages.flatMap((p) => p.items);
   }, [infinite.data]);
 
-  const sections = useMemo(() => groupTransactions(flatRows), [flatRows]);
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<TransactionRow | null>(null);
+  const monthDayBounds = useMemo(() => {
+    const anchor = new Date(selected.year, selected.monthIndex0, 1);
+    return {
+      startKey: format(anchor, "yyyy-MM-dd"),
+      endKey: format(endOfMonth(anchor), "yyyy-MM-dd"),
+    };
+  }, [selected.year, selected.monthIndex0]);
+
+  useEffect(() => {
+    const now = new Date();
+    if (
+      now.getFullYear() === selected.year &&
+      now.getMonth() === selected.monthIndex0
+    ) {
+      setSelectedDayKey(format(now, "yyyy-MM-dd"));
+      return;
+    }
+    setSelectedDayKey(monthDayBounds.endKey);
+  }, [selected.year, selected.monthIndex0, monthDayBounds.endKey]);
+
+  usePrefetchTransactionsForSelectedDay({
+    selectedDayKey,
+    flatRows,
+    hasNextPage: Boolean(infinite.hasNextPage),
+    isFetchingNextPage: infinite.isFetchingNextPage,
+    fetchNextPage: infinite.fetchNextPage,
+  });
+
+  const filteredRows = useMemo(
+    () =>
+      flatRows.filter(
+        (row) =>
+          transactionCalendarDayKey(row.transaction_at) === selectedDayKey,
+      ),
+    [flatRows, selectedDayKey],
+  );
+
+  const flashListData = useMemo(
+    () => buildTransactionFlashListItemsForSingleDay(flatRows, selectedDayKey),
+    [flatRows, selectedDayKey],
+  );
+
+  const oldestLoadedDayKey = useMemo(() => {
+    if (flatRows.length === 0) {
+      return null;
+    }
+    return transactionCalendarDayKey(
+      flatRows[flatRows.length - 1].transaction_at,
+    );
+  }, [flatRows]);
+
+  const openTransactionDetail = useCallback(
+    (transaction: TransactionRow) => {
+      void triggerLightHaptic();
+      navigation.navigate("TransactionDetail", { transaction });
+    },
+    [navigation],
+  );
 
   const handleSelectMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);
@@ -280,95 +265,131 @@ export default function TransactionsScreen() {
     }
   }, [infinite]);
 
+  const canGoPrevDay = selectedDayKey > monthDayBounds.startKey;
+  const canGoNextDay = selectedDayKey < monthDayBounds.endKey;
+
+  const goPrevDay = useCallback(() => {
+    if (!canGoPrevDay) {
+      return;
+    }
+    void triggerLightHaptic();
+    setSelectedDayKey((current) =>
+      format(subDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
+    );
+  }, [canGoPrevDay]);
+
+  const goNextDay = useCallback(() => {
+    if (!canGoNextDay) {
+      return;
+    }
+    void triggerLightHaptic();
+    setSelectedDayKey((current) =>
+      format(addDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
+    );
+  }, [canGoNextDay]);
+
+  const renderFlashRow = useCallback(
+    ({ item }: { item: TransactionFlashListItem }) => {
+      if (item.kind !== "row") {
+        return null;
+      }
+      return (
+        <TransactionListRow
+          transaction={item.transaction}
+          variant="screen"
+          rowIndex={item.sectionRowIndex}
+          enableScrollAnimations={false}
+          onPress={openTransactionDetail}
+        />
+      );
+    },
+    [openTransactionDetail],
+  );
+
+  const waitingForOlderPages =
+    filteredRows.length === 0 &&
+    Boolean(infinite.hasNextPage) &&
+    oldestLoadedDayKey !== null &&
+    selectedDayKey < oldestLoadedDayKey;
+
+  const showDayLoading = filteredRows.length === 0 && waitingForOlderPages;
+
   const listEmpty =
-    !infinite.isPending && !infinite.isFetching && flatRows.length === 0;
+    !infinite.isPending && filteredRows.length === 0 && !showDayLoading;
+
+  const monthHasNoTransactions =
+    !summaryQuery.isPending && !summaryQuery.isError && summary.count === 0;
 
   return (
     <TabScreenShell>
       <View style={styles.screen}>
-        <SectionList
-          sections={sections}
+        <FlashList
+          style={styles.list}
+          data={flashListData}
+          renderItem={renderFlashRow}
           keyExtractor={(item) => item.id}
-          renderSectionHeader={({ section }) => {
-            return (
-              <DateHeader
-                section={section}
-                sectionIndex={section.sectionIndex}
-              />
-            );
-          }}
-          renderItem={({ item, index }) => {
-            return (
-              <TransactionListRow
-                transaction={item}
-                variant="screen"
-                rowIndex={index}
-                enableScrollAnimations={false}
-                onPress={(tx) => {
-                  setSelectedTransaction(tx);
-                }}
-              />
-            );
-          }}
+          getItemType={() => "row"}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.35}
           ListHeaderComponent={
-            <TransactionsHeroCard
-              selectedMonth={selected.label}
-              summary={summary}
-              summaryLoading={summaryQuery.isPending}
-              summaryFailed={summaryQuery.isError}
-              onSelectMonth={handleSelectMonth}
-              monthOptions={monthOptions}
-            />
+            <View>
+              <TransactionsHeroCard
+                selectedMonth={selected.label}
+                summary={summary}
+                summaryLoading={summaryQuery.isPending}
+                summaryFailed={summaryQuery.isError}
+                onSelectMonth={handleSelectMonth}
+                monthOptions={monthOptions}
+              />
+              <View style={styles.dayNavigatorGap}>
+                <TransactionDayNavigator
+                  dayKey={selectedDayKey}
+                  transactionCount={filteredRows.length}
+                  canGoPrev={canGoPrevDay}
+                  canGoNext={canGoNextDay}
+                  onPrev={goPrevDay}
+                  onNext={goNextDay}
+                />
+              </View>
+            </View>
           }
           ListEmptyComponent={
             infinite.isPending && flatRows.length === 0 ? (
-              <TransactionListSectionSkeleton rows={5} />
+              <TransactionListSectionSkeleton
+                rows={3}
+                showSectionHeader={false}
+              />
+            ) : showDayLoading ? (
+              <View style={styles.emptyStateBelowNavigator}>
+                <ActivityIndicator color={palette.primary} />
+                <Text style={[styles.emptyText, styles.emptyLoadingText]}>
+                  Loading this day…
+                </Text>
+              </View>
             ) : listEmpty ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No transactions here</Text>
+                <Text style={styles.emptyTitle}>
+                  {monthHasNoTransactions
+                    ? "No transactions here"
+                    : "No transactions on this day"}
+                </Text>
                 <Text style={styles.emptyText}>
-                  No transactions are available for this period.
+                  {monthHasNoTransactions
+                    ? "No transactions are available for this period."
+                    : "Try another day or add a transaction."}
                 </Text>
               </View>
             ) : null
           }
           ListFooterComponent={
-            infinite.hasNextPage ? (
+            infinite.hasNextPage && infinite.isFetchingNextPage ? (
               <View style={styles.listFooter}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={handleLoadMore}
-                  disabled={infinite.isFetchingNextPage}
-                  style={({ pressed }) => [
-                    styles.loadMoreButton,
-                    pressed &&
-                      !infinite.isFetchingNextPage &&
-                      styles.loadMoreButtonPressed,
-                    infinite.isFetchingNextPage &&
-                      styles.loadMoreButtonDisabled,
-                  ]}
-                >
-                  {infinite.isFetchingNextPage ? (
-                    <ActivityIndicator color={palette.surface} />
-                  ) : (
-                    <Text style={styles.loadMoreButtonText}>Load more</Text>
-                  )}
-                </Pressable>
+                <ActivityIndicator color={palette.primary} />
               </View>
             ) : null
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
-          initialNumToRender={15}
-          removeClippedSubviews
-        />
-        <TransactionDetailModal
-          visible={!!selectedTransaction}
-          transaction={selectedTransaction}
-          onClose={() => {
-            setSelectedTransaction(null);
-          }}
         />
       </View>
     </TabScreenShell>
@@ -380,41 +401,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
-  fullLoading: {
-    backgroundColor: palette.background,
-    pointerEvents: "none",
+  list: {
+    flex: 1,
   },
   listFooter: {
     paddingVertical: 20,
     alignItems: "center",
   },
-  loadMoreButton: {
-    minHeight: 44,
-    minWidth: 132,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    backgroundColor: palette.primary,
-  },
-  loadMoreButtonPressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  loadMoreButtonDisabled: {
-    opacity: 0.82,
-  },
-  loadMoreButtonText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: palette.surface,
+  dayNavigatorGap: {
+    marginBottom: spacing.xl,
   },
   heroCard: {
     position: "relative",
     overflow: "visible",
     marginTop: 16,
-    marginBottom: 16,
-    padding: 24,
+    marginBottom: 12,
+    padding: 16,
     borderRadius: 22,
     backgroundColor: palette.primary,
     borderWidth: 1,
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
   },
   heroHeader: {
     zIndex: 2,
-    gap: 10,
+    gap: 6,
   },
   heroHeaderTopRow: {
     flexDirection: "row",
@@ -461,14 +463,14 @@ const styles = StyleSheet.create({
     color: palette.surface,
   },
   heroTitle: {
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: fontFamilies.semiBold,
-    fontSize: 28,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 32,
     color: palette.surface,
   },
   heroTitleRow: {
-    minHeight: 36,
+    minHeight: 32,
     justifyContent: "center",
     alignItems: "flex-start",
   },
@@ -480,14 +482,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
     flexDirection: "row",
     gap: 8,
-    marginTop: 24,
+    marginTop: 16,
   },
   heroStatCard: {
     flex: 1,
-    minHeight: 72,
+    minHeight: 58,
     justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
@@ -495,18 +497,18 @@ const styles = StyleSheet.create({
   },
   heroNetCard: {
     zIndex: 1,
-    marginTop: 8,
-    minHeight: 64,
+    marginTop: 6,
+    minHeight: 52,
     justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
   heroNetValue: {
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 16,
     lineHeight: 20,
@@ -519,7 +521,7 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.72)",
   },
   heroStatValue: {
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 14,
     lineHeight: 18,
@@ -529,46 +531,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
-  dateHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  firstDateHeader: {
-    marginTop: 12,
-  },
-  dateLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: palette.textSecondary,
-  },
-  dateLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: palette.borderLight,
-  },
-  dailyTotal: {
-    minWidth: 82,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    lineHeight: 18,
-    textAlign: "right",
-    color: palette.textPrimary,
-  },
-  dailyTotalPositive: {
-    color: palette.success,
-  },
-  dailyTotalNegative: {
-    color: palette.danger,
-  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 96,
     paddingHorizontal: 16,
+  },
+  emptyStateBelowNavigator: {
+    marginTop: spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingBottom: spacing.lg,
   },
   emptyTitle: {
     fontFamily: fontFamilies.semiBold,
@@ -583,5 +557,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: palette.textSecondary,
     textAlign: "center",
+  },
+  emptyLoadingText: {
+    marginTop: 12,
   },
 });
