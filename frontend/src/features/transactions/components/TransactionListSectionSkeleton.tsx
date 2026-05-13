@@ -8,19 +8,24 @@ import { TransactionListRowSkeleton } from "./TransactionListRowSkeleton";
 type TransactionListSectionSkeletonProps = {
   title?: string;
   rows?: number;
+  /** When false, only row placeholders (no date line / section title). */
+  showSectionHeader?: boolean;
 };
 
 export function TransactionListSectionSkeleton({
   title = "Today",
   rows = 2,
+  showSectionHeader = true,
 }: TransactionListSectionSkeletonProps) {
   return (
-    <View style={styles.root}>
-      <View style={styles.dateHeader}>
-        <Text style={styles.dateLabel}>{title.toUpperCase()}</Text>
-        <View style={styles.dateLine} />
-        <SkeletonBlock tone="surface" style={styles.totalSkeleton} />
-      </View>
+    <View style={[styles.root, !showSectionHeader && styles.rootRowsOnly]}>
+      {showSectionHeader ? (
+        <View style={styles.dateHeader}>
+          <Text style={styles.dateLabel}>{title.toUpperCase()}</Text>
+          <View style={styles.dateLine} />
+          <SkeletonBlock tone="surface" style={styles.totalSkeleton} />
+        </View>
+      ) : null}
       {Array.from({ length: rows }).map((_, index) => (
         <TransactionListRowSkeleton
           key={`transaction-list-skeleton-${index}`}
@@ -35,6 +40,10 @@ const styles = StyleSheet.create({
   root: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+  },
+  rootRowsOnly: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
   dateHeader: {
     flexDirection: "row",
