@@ -416,7 +416,6 @@ export function DimeTabBar({
             onPress={() => {
               void triggerLightHaptic();
               onManualAddPress();
-              setFabOpen(false);
             }}
             style={styles.radialActionHit}
           >
