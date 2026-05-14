@@ -6,8 +6,8 @@ import {
   type PressableProps,
 } from "react-native";
 
+import { colors, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ButtonVariant = "primary" | "secondary" | "danger";
@@ -36,8 +36,8 @@ export function Button({
       : colors.primary
     : isDanger
       ? isDisabled
-        ? "rgba(220, 38, 38, 0.06)"
-        : "rgba(220, 38, 38, 0.08)"
+        ? surfaces.dangerTint06
+        : surfaces.dangerTint08
       : colors.barBackground;
 
   const borderWidth = isPrimary ? 0 : StyleSheet.hairlineWidth;
