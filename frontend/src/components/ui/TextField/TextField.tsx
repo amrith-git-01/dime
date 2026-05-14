@@ -12,7 +12,7 @@ import {
 } from "react-native";
 
 import { formStyles } from "@/constants/formStyles";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing } from "@/constants";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;

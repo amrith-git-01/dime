@@ -25,7 +25,7 @@ import Animated, {
 
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { colors, radius, spacing, surfaces } from "@/constants/theme";
+import { colors, radius, spacing, surfaces } from "@/constants";
 
 const MENU_GAP = 6;
 const MENU_GAP_COMPACT = 4;
