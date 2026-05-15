@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { progressBar, radius } from "@/constants/theme";
+import { progressBar, radius } from "@/constants";
 
 type ProgressBarProps = {
   progress: number;

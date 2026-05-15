@@ -1,4 +1,4 @@
-import { hero, radius } from "@/constants/theme";
+import { hero, radius } from "@/constants";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
