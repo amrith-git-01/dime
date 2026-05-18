@@ -3,11 +3,11 @@ import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, typography } from "@/constants/theme";
+import { colors, radius, spacing, typography } from "@/constants";
 import {
   TransactionReceiptImage,
   TransactionVoicePlayer,
-} from "@/features/transactions/components/TransactionAttachmentMedia";
+} from "@/components/transactions/TransactionAttachmentMedia";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
 

@@ -17,15 +17,15 @@ import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
+import { AddCategoryTrigger } from "@/components/categories/AddCategoryTrigger";
 import { CategoryPill } from "@/components/categories/CategoryPill";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
 import { SegmentChip } from "@/components/ui/SegmentChip/SegmentChip";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { bento, colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { bento, colors, radius, spacing } from "@/constants/theme";
-import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
 import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
 import {
   COUNTERPARTY_TYPE_OPTIONS,

@@ -1,4 +1,4 @@
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 export const TRANSACTION_DETAIL_HERO_MIN_HEIGHT = 92;
 
