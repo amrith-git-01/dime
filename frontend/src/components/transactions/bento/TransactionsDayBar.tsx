@@ -4,7 +4,7 @@ import { memo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, radius, spacing } from "@/constants";
 
 export type TransactionsDayBarProps = {
   dayKey: string;
