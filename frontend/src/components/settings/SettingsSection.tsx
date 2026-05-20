@@ -1,9 +1,9 @@
 import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { BentoSectionCard } from "@/components/home/bento/BentoSectionCard";
-import { HOME_SECTION_HEADER_GAP } from "@/components/home/bento/homeBentoTokens";
-import { typography } from "@/constants/theme";
+import { BENTO_SECTION_HEADER_GAP } from "@/components/bento/bentoLayoutTokens";
+import { BentoSectionCard } from "@/components/shared";
+import { typography } from "@/constants";
 
 type SettingsSectionProps = {
   title: string;
@@ -24,7 +24,7 @@ export const SettingsSection = memo(function SettingsSection({
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: HOME_SECTION_HEADER_GAP,
+    gap: BENTO_SECTION_HEADER_GAP,
   },
   title: {
     ...typography.sectionTitle,
