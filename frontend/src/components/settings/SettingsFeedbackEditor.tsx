@@ -6,10 +6,10 @@ import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors } from "@/constants/theme";
 
 const MAX_MESSAGE_LENGTH = 1000;
 

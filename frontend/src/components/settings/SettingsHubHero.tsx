@@ -3,8 +3,8 @@ import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { bento, colors, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
 
 import { SETTINGS_HERO_AVATAR_SIZE } from "./settingsBentoTokens";
 
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: colors.barBackground,
     borderWidth: 2,
-    borderColor: "rgba(99, 85, 232, 0.28)",
+    borderColor: surfaces.primaryBorder28,
   },
   avatar: {
     width: SETTINGS_HERO_AVATAR_SIZE,
@@ -128,6 +128,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(99, 85, 232, 0.1)",
+    backgroundColor: surfaces.primaryTint10,
   },
 });
