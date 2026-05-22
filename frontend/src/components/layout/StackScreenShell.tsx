@@ -3,7 +3,7 @@ import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing } from "@/constants";
 
 const DEFAULT_BOTTOM_OFFSET = 24;
 

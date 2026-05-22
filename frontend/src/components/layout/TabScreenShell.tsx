@@ -1,4 +1,4 @@
-import { colors } from "@/constants/theme";
+import { colors } from "@/constants";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
