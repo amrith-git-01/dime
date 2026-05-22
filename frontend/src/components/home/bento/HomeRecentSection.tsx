@@ -1,13 +1,20 @@
+import { ArrowLeftRight } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { TransactionRow } from "@/features/transactions/types";
 
-import { BentoEmptyState } from "./BentoEmptyState";
-import { BentoSectionCard } from "./BentoSectionCard";
+import { BENTO_GAP } from "@/components/bento/bentoLayoutTokens";
+import {
+  BentoQuickAddPills,
+  BentoSectionCard,
+  BentoTransactionTile,
+  TwoToneEmptyState,
+} from "@/components/shared";
+
 import { BentoSectionHeader } from "./BentoSectionHeader";
-import { BentoTransactionTile } from "./BentoTransactionTile";
-import { HOME_BENTO_GAP, HOME_MAX_RECENT } from "./homeBentoTokens";
+
+import { HOME_MAX_RECENT } from "./homeBentoTokens";
 
 type HomeRecentSectionProps = {
   transactions: TransactionRow[];
@@ -21,7 +28,6 @@ type HomeRecentSectionProps = {
 
 /**
  * Recent transactions inside a soft pastel bento box.
- * Empty state: copy + compact quick-add pills.
  */
 export const HomeRecentSection = memo(function HomeRecentSection({
   transactions,
@@ -40,12 +46,18 @@ export const HomeRecentSection = memo(function HomeRecentSection({
 
       <BentoSectionCard>
         {isEmpty ? (
-          <BentoEmptyState
+          <TwoToneEmptyState
+            layout="inline"
+            icon={ArrowLeftRight}
             title="No recent transactions"
-            hint="Transactions will appear here as you add them."
-            onManualAdd={onManualAdd}
-            onReceipt={onReceipt}
-            onVoice={onVoice}
+            message="Transactions will appear here as you add them."
+            footer={
+              <BentoQuickAddPills
+                onManualAdd={onManualAdd}
+                onReceipt={onReceipt}
+                onVoice={onVoice}
+              />
+            }
           />
         ) : (
           <View style={styles.stack}>
@@ -65,6 +77,6 @@ export const HomeRecentSection = memo(function HomeRecentSection({
 
 const styles = StyleSheet.create({
   stack: {
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
 });

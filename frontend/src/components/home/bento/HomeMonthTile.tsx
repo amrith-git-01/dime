@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 import { BentoProgressRing } from "./BentoProgressRing";
 import { HomeSpendBentoTile } from "./HomeSpendBentoTile";

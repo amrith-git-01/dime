@@ -1,10 +1,10 @@
 import { memo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { BentoStatCell, netTone } from "@/components/shared/BentoStatCell";
+import { BentoStatCell, netTone } from "@/components/shared";
 import { Spinner } from "@/components/ui/Spinner";
+import { bento, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, radius, spacing } from "@/constants/theme";
 
 import { HOME_INCOME_TILE_MIN_HEIGHT } from "./homeBentoTokens";
 
@@ -47,11 +47,19 @@ export const HomeIncomeExpenseTile = memo(function HomeIncomeExpenseTile({
         </View>
       ) : (
         <View style={styles.statsRow}>
-          <BentoStatCell label="Credited" value={creditedDisplay} tone="credit" />
+          <BentoStatCell
+            label="Credited"
+            value={creditedDisplay}
+            tone="credit"
+          />
           <View style={styles.divider} />
           <BentoStatCell label="Debited" value={debitedDisplay} tone="debit" />
           <View style={styles.divider} />
-          <BentoStatCell label="Net" value={netDisplay} tone={netTone(netValue)} />
+          <BentoStatCell
+            label="Net"
+            value={netDisplay}
+            tone={netTone(netValue)}
+          />
         </View>
       )}
     </Pressable>
@@ -102,7 +110,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(99, 85, 232, 0.12)",
+    backgroundColor: surfaces.primaryTint12,
     marginHorizontal: spacing.xs,
   },
 });
