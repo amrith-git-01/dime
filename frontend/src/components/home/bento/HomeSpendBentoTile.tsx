@@ -9,8 +9,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { bento, colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
 
 import { BentoAmountRow } from "./BentoAmountRow";
 import { HOME_SPEND_FLEX } from "./homeBentoTokens";

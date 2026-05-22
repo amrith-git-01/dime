@@ -1,9 +1,11 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { BENTO_GAP } from "@/components/bento/bentoLayoutTokens";
 import { HomeMonthTile } from "./HomeMonthTile";
 import { HomeTodayTile } from "./HomeTodayTile";
-import { HOME_BENTO_GAP, HOME_SPEND_ROW_MIN_HEIGHT } from "./homeBentoTokens";
+
+import { HOME_SPEND_ROW_MIN_HEIGHT } from "./homeBentoTokens";
 
 export type HomeSpendRowProps = {
   spentTodayDisplay: string;
@@ -64,7 +66,7 @@ export const HomeSpendRow = memo(function HomeSpendRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
     minHeight: HOME_SPEND_ROW_MIN_HEIGHT,
   },
 });
