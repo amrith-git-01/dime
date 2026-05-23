@@ -20,7 +20,7 @@ export type ManualTransactionOptimisticMeta = {
 };
 
 export type OptimisticManualTransactionContext = {
-  snapshots: Array<{ queryKey: QueryKey; data: unknown }>;
+  snapshots: { queryKey: QueryKey; data: unknown }[];
 };
 
 export function buildOptimisticTransactionRow(
