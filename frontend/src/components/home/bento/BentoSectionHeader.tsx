@@ -2,10 +2,9 @@ import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { BENTO_SECTION_HEADER_GAP } from "@/components/bento/bentoLayoutTokens";
+import { colors, typography } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, typography } from "@/constants/theme";
-
-import { HOME_SECTION_HEADER_GAP } from "./homeBentoTokens";
 
 export type BentoSectionHeaderProps = {
   title: string;
@@ -13,10 +12,7 @@ export type BentoSectionHeaderProps = {
   onViewAll: () => void;
 };
 
-/**
- * Section title + "View all" chevron row — shared between HomeCategoriesBento
- * and HomeRecentSection (and any future home sections).
- */
+/** Section title + "View all" row for Home bento sections. */
 export const BentoSectionHeader = memo(function BentoSectionHeader({
   title,
   viewAllLabel = "View all",
@@ -28,7 +24,10 @@ export const BentoSectionHeader = memo(function BentoSectionHeader({
       <Pressable
         accessibilityRole="button"
         onPress={onViewAll}
-        style={({ pressed }) => [styles.viewAll, pressed && styles.viewAllPressed]}
+        style={({ pressed }) => [
+          styles.viewAll,
+          pressed && styles.viewAllPressed,
+        ]}
       >
         <Text style={styles.viewAllText}>{viewAllLabel}</Text>
         <ChevronRight size={14} color={colors.primary} strokeWidth={2} />
@@ -42,7 +41,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: HOME_SECTION_HEADER_GAP,
+    marginBottom: BENTO_SECTION_HEADER_GAP,
   },
   title: {
     ...typography.sectionTitle,

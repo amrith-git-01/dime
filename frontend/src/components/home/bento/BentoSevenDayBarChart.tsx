@@ -2,8 +2,8 @@ import { format } from "date-fns";
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { bento, hero } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { hero } from "@/constants/theme";
 
 export type BentoSevenDayBarChartProps = {
   /** Oldest → newest; length 7 */
@@ -13,14 +13,11 @@ export type BentoSevenDayBarChartProps = {
   height?: number;
 };
 
-/**
- * Mini 7-day debit bar chart for the Spent Today bento tile.
- * Bar heights scale to the week max; today (last bar) gets full opacity.
- */
+/** Mini 7-day debit bar chart for the Home "Spent Today" tile. */
 export const BentoSevenDayBarChart = memo(function BentoSevenDayBarChart({
   days,
   barColor = hero.sparkBar,
-  labelColor = "rgba(255,255,255,0.65)",
+  labelColor = bento.onSurface.muted,
   height = 40,
 }: BentoSevenDayBarChartProps) {
   const max = useMemo(() => Math.max(1, ...days.map((d) => d.total)), [days]);
