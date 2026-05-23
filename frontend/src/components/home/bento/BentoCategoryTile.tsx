@@ -1,41 +1,47 @@
 import { memo } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
+import { bento, radius, spacing } from "@/constants";
+import { bentoTileMinHeight } from "@/constants/dimensions";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, radius, spacing } from "@/constants/theme";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 
-import { HOME_CATEGORY_TILE_MIN_HEIGHT } from "./homeBentoTokens";
-import type { HomeCategoryBentoItem } from "./types";
+export type BentoCategoryItem = {
+  id: string;
+  label: string;
+  icon_name: string;
+  amount: string;
+  /** 0..1 — fraction of monthly total */
+  progress: number;
+  /** Full-saturation category primary hex */
+  color: string;
+};
 
 type BentoCategoryTileProps = {
-  item: HomeCategoryBentoItem;
+  item: BentoCategoryItem;
   showProgress: boolean;
 };
 
 /**
- * Saturated 2-col category bento cell.
- * Background = category primary hex (full saturation per design-system §3.4).
- * All text uses bento.onSurface.* — never textPrimary on colored tile.
+ * Saturated 2-col category bento cell (Home tab).
  */
 export const BentoCategoryTile = memo(function BentoCategoryTile({
   item,
   showProgress,
 }: BentoCategoryTileProps) {
-  // shadowColor is per-category so it stays dynamic; Platform.OS check is negligible here.
-  const shadowStyle = Platform.OS === "android"
-    ? { elevation: 3 }
-    : {
-        shadowColor: item.color,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.28,
-        shadowRadius: 8,
-      };
+  const shadowStyle =
+    Platform.OS === "android"
+      ? { elevation: 3 }
+      : {
+          shadowColor: item.color,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.28,
+          shadowRadius: 8,
+        };
 
   return (
     <View style={[styles.tile, { backgroundColor: item.color }, shadowStyle]}>
-      {/* Icon chip — white translucent bg */}
       <View style={styles.iconChip}>
         <CategoryLucideIcon
           iconName={item.icon_name}
@@ -45,17 +51,14 @@ export const BentoCategoryTile = memo(function BentoCategoryTile({
         />
       </View>
 
-      {/* Category name */}
       <Text style={styles.label} numberOfLines={2}>
         {item.label}
       </Text>
 
-      {/* Amount */}
       <Text style={styles.amount} numberOfLines={1} adjustsFontSizeToFit>
         {item.amount}
       </Text>
 
-      {/* Budget progress bar */}
       {showProgress ? (
         <View style={styles.progressWrap}>
           <AnimatedProgressBar
@@ -76,7 +79,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: radius.md,
     padding: spacing.md,
-    minHeight: HOME_CATEGORY_TILE_MIN_HEIGHT,
+    minHeight: bentoTileMinHeight.homeCategory,
     justifyContent: "space-between",
   },
   iconChip: {

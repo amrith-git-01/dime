@@ -2,24 +2,19 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
+import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento } from "@/constants/theme";
 
 type BentoProgressRingProps = {
   /** 0..1 — clamped internally */
   progress: number;
   size?: number;
   strokeWidth?: number;
-  /** Show percentage label inside ring */
   showLabel?: boolean;
-  /** light = pastel tile (brand ring + dark label); dark = saturated tile (white ring) */
   variant?: "light" | "dark";
 };
 
-/**
- * Circular SVG progress ring for bento tiles.
- * Adapts track/fill/label colors to light pastel or dark saturated surfaces.
- */
+/** Circular SVG progress ring for Home spend bento tiles. */
 export const BentoProgressRing = memo(function BentoProgressRing({
   progress,
   size = 72,
@@ -38,7 +33,7 @@ export const BentoProgressRing = memo(function BentoProgressRing({
   const isLight = variant === "light";
   const trackColor = isLight ? bento.chartOnPastel.track : bento.chart.track;
   const fillColor = isLight ? bento.chartOnPastel.fill : bento.chart.fill;
-  const labelColor = isLight ? bento.onPastel.accent : "#FFFFFF";
+  const labelColor = isLight ? bento.onPastel.accent : bento.onSurface.primary;
 
   return (
     <View style={{ width: size, height: size }}>
