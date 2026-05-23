@@ -1,14 +1,14 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { colors, typography } from "@/constants/theme";
+import { colors, typography } from "@/constants";
 
+import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
 import { HomeBentoSkeleton } from "./HomeBentoSkeleton";
 import { HomeCategoriesBento } from "./HomeCategoriesBento";
 import { HomeIncomeExpenseTile } from "./HomeIncomeExpenseTile";
 import { HomeRecentSection } from "./HomeRecentSection";
 import { HomeSpendRow } from "./HomeSpendRow";
-import { HOME_BENTO_SECTION_GAP } from "./homeBentoTokens";
 import type { HomeBentoContentProps } from "./types";
 
 /**
@@ -81,7 +81,7 @@ export const HomeBentoContent = memo(function HomeBentoContent(
 
 const styles = StyleSheet.create({
   root: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   error: {
     fontFamily: typography.screenTitle.fontFamily,
