@@ -1,91 +1,51 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { HorizontalSlidePanel } from "@/components/animations/HorizontalSlidePanel";
-import { Button } from "@/components/ui/Button/Button";
-import { TextField } from "@/components/ui/TextField/TextField";
+import { Button, TextField } from "@/components/ui";
 import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { AuthScreenLayout } from "@/components/auth/AuthScreenLayout";
-import { useEmailPasswordSignIn } from "@/features/auth/hooks/useEmailPasswordSignIn";
-import { useEmailPasswordSignUp } from "@/features/auth/hooks/useEmailPasswordSignUp";
-import { useGoogleSignIn } from "@/features/auth/hooks/useGoogleSignIn";
+
+import { useAuthScreenModel } from "./useAuthScreenModel";
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
-
-  const signIn = useEmailPasswordSignIn();
-  const signUp = useEmailPasswordSignUp();
-  const google = useGoogleSignIn();
-
-  const clearAuthErrors = useCallback(() => {
-    signIn.setError(null);
-    signUp.setError(null);
-    google.setError(null);
-  }, [signIn.setError, signUp.setError, google.setError]);
-
-  const isFirstModeMount = useRef(true);
-  useEffect(() => {
-    if (isFirstModeMount.current) {
-      isFirstModeMount.current = false;
-      return;
-    }
-    setEmail("");
-    setPassword("");
-    setPasswordConfirm("");
-    clearAuthErrors();
-  }, [mode, clearAuthErrors]);
-
-  const busy = signIn.loading || signUp.loading || google.loading;
-  const loginBanner = signIn.error ?? google.error;
-  const registerBanner = signUp.error ?? google.error;
+  const model = useAuthScreenModel();
 
   return (
-    <AuthScreenLayout mode={mode} onModeChange={setMode}>
+    <AuthScreenLayout mode={model.mode} onModeChange={model.setMode}>
       <View style={styles.slideRoot}>
-        {mode === "login" ? (
+        {model.mode === "login" ? (
           <HorizontalSlidePanel panelKey="auth-login" preset="fromStart">
             <View style={styles.formCard}>
               <TextField
                 label="Email"
-                value={email}
-                onChangeText={(v) => {
-                  setEmail(v);
-                  clearAuthErrors();
-                }}
+                value={model.email}
+                onChangeText={model.updateEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 textContentType="emailAddress"
-                editable={!busy}
+                editable={!model.busy}
               />
               <TextField
                 label="Password"
-                value={password}
-                onChangeText={(v) => {
-                  setPassword(v);
-                  clearAuthErrors();
-                }}
+                value={model.password}
+                onChangeText={model.updatePassword}
                 showPasswordToggle
                 showClear={false}
                 textContentType="password"
-                editable={!busy}
+                editable={!model.busy}
               />
-              {loginBanner ? (
-                <Text style={styles.bannerError}>{loginBanner}</Text>
+              {model.loginBanner ? (
+                <Text style={styles.bannerError}>{model.loginBanner}</Text>
               ) : null}
 
               <Button
                 title="Sign in"
-                loading={signIn.loading}
-                disabled={busy}
-                onPress={() => {
-                  void signIn.signIn(email, password);
-                }}
+                loading={model.signInLoading}
+                disabled={model.busy}
+                onPress={model.submitSignIn}
               />
 
               <View style={styles.dividerRow}>
@@ -95,9 +55,9 @@ export default function AuthScreen() {
               </View>
 
               <PressableGoogleRow
-                disabled={busy}
-                loading={google.loading}
-                onPress={() => void google.signInWithGoogle()}
+                disabled={model.busy}
+                loading={model.googleLoading}
+                onPress={model.submitGoogle}
               />
 
               <Text style={styles.legal}>
@@ -110,52 +70,41 @@ export default function AuthScreen() {
             <View style={styles.formCard}>
               <TextField
                 label="Email"
-                value={email}
-                onChangeText={(v) => {
-                  setEmail(v);
-                  clearAuthErrors();
-                }}
+                value={model.email}
+                onChangeText={model.updateEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 textContentType="emailAddress"
-                editable={!busy}
+                editable={!model.busy}
               />
               <TextField
                 label="Password"
-                value={password}
-                onChangeText={(v) => {
-                  setPassword(v);
-                  clearAuthErrors();
-                }}
+                value={model.password}
+                onChangeText={model.updatePassword}
                 showPasswordToggle
                 showClear={false}
                 textContentType="newPassword"
-                editable={!busy}
+                editable={!model.busy}
               />
               <TextField
                 label="Confirm password"
-                value={passwordConfirm}
-                onChangeText={(v) => {
-                  setPasswordConfirm(v);
-                  clearAuthErrors();
-                }}
+                value={model.passwordConfirm}
+                onChangeText={model.updatePasswordConfirm}
                 showPasswordToggle
                 showClear={false}
                 textContentType="newPassword"
-                editable={!busy}
+                editable={!model.busy}
               />
-              {registerBanner ? (
-                <Text style={styles.bannerError}>{registerBanner}</Text>
+              {model.registerBanner ? (
+                <Text style={styles.bannerError}>{model.registerBanner}</Text>
               ) : null}
 
               <Button
                 title="Create account"
-                loading={signUp.loading}
-                disabled={busy}
-                onPress={() => {
-                  void signUp.signUp(email, password, passwordConfirm);
-                }}
+                loading={model.signUpLoading}
+                disabled={model.busy}
+                onPress={model.submitSignUp}
               />
 
               <View style={styles.dividerRow}>
@@ -165,9 +114,9 @@ export default function AuthScreen() {
               </View>
 
               <PressableGoogleRow
-                disabled={busy}
-                loading={google.loading}
-                onPress={() => void google.signInWithGoogle()}
+                disabled={model.busy}
+                loading={model.googleLoading}
+                onPress={model.submitGoogle}
               />
 
               <Text style={styles.legal}>
@@ -215,7 +164,7 @@ function PressableGoogleRow({
         color={colors.oauthGoogle}
       />
       <Text style={styles.googleLabel}>
-        {loading ? "Opening Google…" : "Continue with Google"}
+        {loading ? "Opening Google..." : "Continue with Google"}
       </Text>
     </Pressable>
   );
