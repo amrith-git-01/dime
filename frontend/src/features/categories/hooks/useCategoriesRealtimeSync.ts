@@ -13,21 +13,24 @@ export function useCategoriesRealtimeSync(userId: string | null) {
       return;
     }
 
+    const invalidate = () => {
+      void queryClient.invalidateQueries({
+        queryKey: categoriesQueryKeys.all,
+        refetchType: "all",
+      });
+    };
+
     const channel = supabase
       .channel("categories:global")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "categories",
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: categoriesQueryKeys.all,
-            refetchType: "all",
-          });
-        },
+        { event: "*", schema: "public", table: "categories" },
+        invalidate,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_categories" },
+        invalidate,
       )
       .subscribe();
 

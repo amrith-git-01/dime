@@ -1,27 +1,22 @@
 import { useEffect, useState } from "react";
 
-import { listLocalCategories } from "@/db/categoriesRepo";
+import {
+  listLocalCategories,
+  type LocalCategoryRecord,
+} from "@/db/categoriesRepo";
 import { database } from "@/db/database";
 import { Category } from "@/db/models/Category";
+import { UserCategory } from "@/db/models/UserCategory";
 
-export type LocalCategory = {
-  id: string;
-  name: string;
-  icon_name: string;
-  color: string;
-  is_system: boolean;
-  created_at: string;
-};
+export type LocalCategory = LocalCategoryRecord;
 
-function mapCategory(row: Category): LocalCategory {
-  return {
-    id: row.id,
-    name: row.name,
-    icon_name: row.iconName,
-    color: row.color,
-    is_system: row.isSystem,
-    created_at: new Date(row.createdAt).toISOString(),
-  };
+function sortCategories(rows: LocalCategory[]): LocalCategory[] {
+  return [...rows].sort((a, b) => {
+    if (a.is_system !== b.is_system) {
+      return a.is_system ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function useLocalCategories() {
@@ -34,31 +29,35 @@ export function useLocalCategories() {
     const load = async () => {
       const rows = await listLocalCategories();
       if (!cancelled) {
-        setData(rows.map(mapCategory));
+        setData(rows);
         setLoading(false);
       }
     };
 
     void load();
 
-    const sub = database
+    const systemSub = database
       .get<Category>("categories")
       .query()
       .observe()
-      .subscribe((rows) => {
-        if (cancelled) {
-          return;
-        }
-        const sorted = [...rows].sort((a, b) => a.name.localeCompare(b.name));
-        setData(sorted.map(mapCategory));
-        setLoading(false);
+      .subscribe(() => {
+        void load();
+      });
+
+    const userSub = database
+      .get<UserCategory>("user_categories")
+      .query()
+      .observe()
+      .subscribe(() => {
+        void load();
       });
 
     return () => {
       cancelled = true;
-      sub.unsubscribe();
+      systemSub.unsubscribe();
+      userSub.unsubscribe();
     };
   }, []);
 
-  return { data, loading };
+  return { data: sortCategories(data), loading };
 }
