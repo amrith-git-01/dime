@@ -2,12 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  InteractionManager,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -18,8 +13,6 @@ import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
-import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
-
 import type { MainStackParamList, MainTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
@@ -47,9 +40,6 @@ export default function MainTabNavigator() {
 
   const onManualAddPress = useCallback(() => {
     stackNavigation.navigate("ManualAddTransaction");
-    InteractionManager.runAfterInteractions(() => {
-      useAddTransactionFabStore.getState().setFabOpen(false);
-    });
   }, [stackNavigation]);
 
   return (

@@ -1,11 +1,17 @@
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react-native";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,7 +33,9 @@ import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
 import { colors, spacing } from "@/constants/theme";
+import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
 import { submitManualTransaction } from "@/features/transactions/api/submitTransactionApi";
@@ -36,11 +44,16 @@ import { useManualAddTransactionForm } from "@/features/transactions/hooks/useMa
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import type { MainStackParamList } from "@/navigation/types";
 
 const BORDER_SUBTLE = "#E0DFFA";
 
+type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
+
 export default function ManualAddTransactionScreen() {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const route = useRoute<ManualAddRoute>();
   const insets = useSafeAreaInsets();
   const { userId, authReady } = useSessionUserId();
   const queryClient = useQueryClient();
@@ -58,6 +71,34 @@ export default function ManualAddTransactionScreen() {
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
+  const customCategoryCount = useMemo(
+    () => categories.filter((category) => !category.is_system).length,
+    [categories],
+  );
+
+  const visibleCategories = useMemo(() => {
+    if (form.txType === "credit") {
+      return categories.filter(
+        (category) => category.is_system && category.name === "Income",
+      ).length > 0
+        ? categories.filter(
+            (category) => category.is_system && category.name === "Income",
+          )
+        : categories;
+    }
+    return categories.filter((category) => category.name !== "Income");
+  }, [categories, form.txType]);
+
+  const openCreateCustomCategory = useCallback(() => {
+    if (customCategoryCount >= MAX_CUSTOM_CATEGORIES) {
+      showToast({
+        variant: "error",
+        message: `Maximum ${MAX_CUSTOM_CATEGORIES} custom categories`,
+      });
+      return;
+    }
+    navigation.navigate("CreateCustomCategory", { origin: "manual-add" });
+  }, [customCategoryCount, navigation, showToast]);
 
   const leave = useCallback(() => {
     void triggerLightHaptic();
@@ -67,6 +108,21 @@ export default function ManualAddTransactionScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      const createdCategoryId = route.params?.createdCategoryId;
+      const createdCategoryName = route.params?.createdCategoryName;
+
+      if (createdCategoryId) {
+        form.setCategoryId(createdCategoryId);
+        if (createdCategoryName) {
+          form.setCategory(createdCategoryName);
+        }
+        navigation.setParams({
+          createdCategoryId: undefined,
+          createdCategoryName: undefined,
+        });
+        return;
+      }
+
       const frame = requestAnimationFrame(() => {
         form.reset();
         submitMutation.reset();
@@ -74,7 +130,13 @@ export default function ManualAddTransactionScreen() {
         setAmountFocused(false);
       });
       return () => cancelAnimationFrame(frame);
-    }, [form.reset, submitMutation.reset]),
+    }, [
+      form,
+      navigation,
+      route.params?.createdCategoryId,
+      route.params?.createdCategoryName,
+      submitMutation,
+    ]),
   );
 
   const openAndroidDatePicker = useCallback(() => {
@@ -226,7 +288,7 @@ export default function ManualAddTransactionScreen() {
             </View>
           ) : (
             <View style={styles.categoryGrid}>
-              {categories.map((category) => {
+              {visibleCategories.map((category) => {
                 const selected = form.categoryId === category.id;
                 return (
                   <CategoryPill
@@ -248,6 +310,10 @@ export default function ManualAddTransactionScreen() {
                   />
                 );
               })}
+              <AddCategoryTrigger
+                disabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
+                onPress={openCreateCustomCategory}
+              />
             </View>
           )}
         </View>

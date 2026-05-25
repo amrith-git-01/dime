@@ -1,51 +1,78 @@
-﻿import { useFocusEffect } from "@react-navigation/native";
-import { FlashList } from "@shopify/flash-list";
-import { getDaysInMonth } from "date-fns";
-import { Edit3 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+﻿import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
-import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
-import { Button } from "@/components/ui/Button/Button";
-import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
-import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants/theme";
+import { colors, spacing } from "@/constants/theme";
+import { BudgetCategoriesSectionHeader } from "@/features/budgets/components/BudgetCategoriesSectionHeader";
+import {
+  BudgetCategoryRow,
+  type BudgetCategoryRowData,
+} from "@/features/budgets/components/BudgetCategoryRow";
+import { BudgetEditorPanel } from "@/features/budgets/components/BudgetEditorPanel";
+import { BudgetListHeader } from "@/features/budgets/components/BudgetListHeader";
 import {
   useBudgetQuery,
   useUpsertBudgetMutation,
 } from "@/features/budgets/hooks/useBudget";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { useToast } from "@/features/toast/useToast";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 import {
   useMonthDebitTotalsByCategoryQuery,
   useMonthSummaryQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import type { MainStackParamList } from "@/navigation/types";
 import { buildMonthOptions } from "@/utils/buildMonthOptions";
-
-type CategorySpendRow = {
-  id: string;
-  name: string;
-  icon_name: string;
-  color: string;
-  spentMonth: number;
-};
 
 const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
 const FALLBACK_CATEGORY_COLOR = "#94A3B8";
 
+const CategoryListSeparator = memo(function CategoryListSeparator() {
+  return <View style={styles.separator} />;
+});
+
+type BudgetListEmptyProps = {
+  loading: boolean;
+};
+
+const BudgetListEmpty = memo(function BudgetListEmpty({
+  loading,
+}: BudgetListEmptyProps) {
+  return (
+    <View style={styles.emptyWrap}>
+      <Text style={styles.emptyText}>
+        {loading
+          ? "Loading categories..."
+          : "No categories yet. Sync categories to see budgets."}
+      </Text>
+    </View>
+  );
+});
+
+const BudgetListFooter = memo(function BudgetListFooter() {
+  return <View style={styles.listFooter} />;
+});
+
+/** Uniform row height when monthly budget exists (icon row + progress track). */
+const BUDGET_ROW_HEIGHT_WITH_PROGRESS = 58;
+const BUDGET_ROW_HEIGHT_SPENT_ONLY = 46;
+const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
+  ios: 280,
+  android: 200,
+  default: 240,
+}) as number;
+
 export default function BudgetScreen() {
-  const { data: categories, loading } = useLocalCategories();
+  const stackNavigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const { showToast } = useToast();
+  const listRef = useRef<FlashListRef<BudgetCategoryRowData>>(null);
+  const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
@@ -67,10 +94,10 @@ export default function BudgetScreen() {
   const hasMonthlyBudget =
     Number.isFinite(existingBudget) && existingBudget > 0;
 
-  const [monthlyBudgetText, setMonthlyBudgetText] = React.useState("");
-  const [isEditOpen, setIsEditOpen] = React.useState(false);
+  const [monthlyBudgetText, setMonthlyBudgetText] = useState("");
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!hasMonthlyBudget) {
       setMonthlyBudgetText("");
       return;
@@ -78,26 +105,27 @@ export default function BudgetScreen() {
     setMonthlyBudgetText(String(Math.round(existingBudget)));
   }, [existingBudget, hasMonthlyBudget]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (upsertBudgetMutation.isSuccess) {
       setIsEditOpen(false);
     }
   }, [upsertBudgetMutation.isSuccess]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       return () => setIsEditOpen(false);
     }, []),
   );
 
-  const budgetItems = React.useMemo((): CategorySpendRow[] => {
+  const budgetItems = useMemo((): BudgetCategoryRowData[] => {
     const knownIds = new Set(categories.map((c) => c.id));
-    const rows: CategorySpendRow[] = categories.map((category) => ({
+    const rows: BudgetCategoryRowData[] = categories.map((category) => ({
       id: category.id,
       name: category.name,
       icon_name: category.icon_name,
       color: category.color,
       spentMonth: spendByCategory[category.id] ?? 0,
+      is_system: category.is_system,
     }));
 
     const uncategorizedSpent = spendByCategory[UNCATEGORIZED_SPEND_KEY] ?? 0;
@@ -108,6 +136,7 @@ export default function BudgetScreen() {
         icon_name: "Package",
         color: FALLBACK_CATEGORY_COLOR,
         spentMonth: uncategorizedSpent,
+        is_system: true,
       });
     }
 
@@ -122,6 +151,7 @@ export default function BudgetScreen() {
           icon_name: "Package",
           color: FALLBACK_CATEGORY_COLOR,
           spentMonth: amount,
+          is_system: true,
         });
       }
     }
@@ -135,7 +165,11 @@ export default function BudgetScreen() {
     setSelectedMonthIndex(index);
   }, []);
 
-  const resetEditorToExisting = React.useCallback(() => {
+  useEffect(() => {
+    listRef.current?.scrollToTop({ animated: false });
+  }, [selectedMonthIndex]);
+
+  const resetEditorToExisting = useCallback(() => {
     if (hasMonthlyBudget) {
       setMonthlyBudgetText(String(Math.round(existingBudget)));
       return;
@@ -143,12 +177,16 @@ export default function BudgetScreen() {
     setMonthlyBudgetText("");
   }, [existingBudget, hasMonthlyBudget]);
 
-  const handleCancelBudgetEdit = React.useCallback(() => {
+  const handleCancelBudgetEdit = useCallback(() => {
     resetEditorToExisting();
     setIsEditOpen(false);
   }, [resetEditorToExisting]);
 
-  const handleSaveMonthlyBudget = React.useCallback(() => {
+  const handleOpenBudgetEdit = useCallback(() => {
+    setIsEditOpen(true);
+  }, []);
+
+  const handleSaveMonthlyBudget = useCallback(() => {
     const parsed = Number.parseFloat(monthlyBudgetText);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return;
@@ -191,374 +229,171 @@ export default function BudgetScreen() {
       : hasMonthlyBudget
         ? ""
         : "";
-  const showMonthlyHeroProgress =
-    hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed;
+  /** Keep progress slot mounted while budget exists so header height does not jump. */
+  const showMonthlyHeroProgress = hasMonthlyBudget && !monthSummaryFailed;
   const isHeroAmountLoading =
     hasMonthlyBudget && (isBudgetLoading || monthSummaryQuery.isPending);
-
-  const daysInMonth = getDaysInMonth(new Date());
-  const dailyLimitFromText = monthlyBudgetText
-    ? Number.parseFloat(monthlyBudgetText)
-    : 0;
-  const dailyLimitAmount =
-    Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0
-      ? Math.round(dailyLimitFromText / daysInMonth)
-      : 0;
-  const dailyLimitDisplay = dailyLimitAmount > 0 ? `₹${dailyLimitAmount}` : "-";
 
   const shouldShowEditor = !hasMonthlyBudget || isEditOpen;
 
   const renderCategory = useCallback(
-    ({ item }: { item: CategorySpendRow }) => {
-      const shareOfMonthlyCap =
-        hasMonthlyBudget && monthlyBudgetAmount > 0
-          ? Math.min(1, item.spentMonth / monthlyBudgetAmount)
-          : 0;
-      return (
-        <View style={styles.categoryRow}>
-          <View style={styles.catLeft}>
-            <View
-              style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
-            >
-              <CategoryLucideIcon
-                iconName={item.icon_name}
-                color={item.color}
-                size={18}
-                strokeWidth={1.5}
-              />
-            </View>
-            <View style={styles.catMeta}>
-              <Text style={styles.catName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.catBudgetText}>
-                {hasMonthlyBudget
-                  ? "Share of monthly budget"
-                  : "Spent this month"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.catRight}>
-            <Text style={styles.catSpent}>
-              {formatInrCompact(item.spentMonth)}
-            </Text>
-            <View style={styles.catProgressWrap}>
-              <AnimatedProgressBar
-                progress={shareOfMonthlyCap}
-                fillColor={item.color}
-                backgroundColor={`${item.color}14`}
-                height={8}
-                duration={700}
-              />
-            </View>
-          </View>
-        </View>
-      );
-    },
+    ({ item }: { item: BudgetCategoryRowData }) => (
+      <BudgetCategoryRow
+        item={item}
+        hasMonthlyBudget={hasMonthlyBudget}
+        monthlyBudgetAmount={monthlyBudgetAmount}
+      />
+    ),
     [hasMonthlyBudget, monthlyBudgetAmount],
   );
 
-  const listHeader = (
-    <>
-      {shouldShowEditor ? (
-        <View style={styles.editorCard}>
-          <Text style={styles.editorLabel}>
-            {hasMonthlyBudget ? "Update budget" : "Monthly budget"}
-          </Text>
-          <Text style={styles.editorDescription}>
-            Set the monthly budget that works for you.
-          </Text>
-          <View style={[styles.amountShell, styles.amountShellMin]}>
-            <View style={styles.currencyPrefixWrap}>
-              <Text style={styles.currencyPrefix}>₹</Text>
-            </View>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor={colors.inactive}
-              keyboardType="decimal-pad"
-              value={monthlyBudgetText}
-              onChangeText={setMonthlyBudgetText}
-              underlineColorAndroid="transparent"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="done"
-              onSubmitEditing={handleSaveMonthlyBudget}
-            />
-          </View>
-          <View style={styles.editorActionsRow}>
-            <View style={styles.actionButtonWrap}>
-              <Button
-                title="Update"
-                loading={upsertBudgetMutation.isPending}
-                onPress={handleSaveMonthlyBudget}
-                disabled={isBudgetLoading}
-              />
-            </View>
-            {hasMonthlyBudget ? (
-              <View style={styles.actionButtonWrap}>
-                <Button
-                  title="Cancel"
-                  variant="secondary"
-                  onPress={handleCancelBudgetEdit}
-                />
-              </View>
-            ) : null}
-          </View>
-          <View style={styles.dailyLimitSection}>
-            <TextField
-              label="Daily limit"
-              value={dailyLimitDisplay}
-              editable={false}
-              showClear={false}
-            />
-          </View>
-        </View>
-      ) : null}
+  const listExtraData = useMemo(
+    () => ({
+      hasMonthlyBudget,
+      monthlyBudgetAmount,
+      monthKey: selected.label,
+    }),
+    [hasMonthlyBudget, monthlyBudgetAmount, selected.label],
+  );
 
-      {hasMonthlyBudget ? (
-        <HeroSummaryCard
-          title="Monthly Budget"
-          date=""
-          headerRight={
-            <View style={styles.monthDropdownWrap}>
-              <SelectDropdown
-                options={monthOptions.map((month) => ({
-                  label: month.label,
-                  value: month.label,
-                }))}
-                value={selected.label}
-                onChange={(next) => {
-                  const index = monthOptions.findIndex(
-                    (month) => month.label === next,
-                  );
-                  if (index >= 0) {
-                    handleSelectBudgetMonth(index);
-                  }
-                }}
-                variant="secondary"
-                showLabel={false}
-              />
-            </View>
-          }
-          amount={formatInrCompact(monthlyBudgetAmount)}
-          subtext={monthlyHeroSubtext}
-          progress={monthlyBudgetPct}
-          progressLabel="Monthly budget used"
-          showProgress={showMonthlyHeroProgress}
-          isAmountLoading={isHeroAmountLoading}
-          amountSpinnerTone="white"
-          amountAccessory={
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setIsEditOpen(true)}
-              style={({ pressed }) => [
-                styles.editBudgetButton,
-                pressed && styles.editBudgetButtonPressed,
-              ]}
-            >
-              <Edit3 size={14} color={colors.textOnPrimary} />
-            </Pressable>
-          }
-        />
-      ) : null}
+  const overrideItemLayout = useCallback(
+    (
+      layout: { span?: number; size?: number },
+      _item: BudgetCategoryRowData,
+    ) => {
+      layout.size = hasMonthlyBudget
+        ? BUDGET_ROW_HEIGHT_WITH_PROGRESS
+        : BUDGET_ROW_HEIGHT_SPENT_ONLY;
+    },
+    [hasMonthlyBudget],
+  );
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>All categories</Text>
-      </View>
-    </>
+  const categoriesStillLoading = categoriesLoading && categories.length === 0;
+
+  const listEmpty = useMemo(
+    () => <BudgetListEmpty loading={categoriesStillLoading} />,
+    [categoriesStillLoading],
+  );
+
+  const listFooter = useMemo(() => <BudgetListFooter />, []);
+
+  const customCategoryCount = useMemo(
+    () => categories.filter((category) => !category.is_system).length,
+    [categories],
+  );
+
+  const handleAddCustomCategory = useCallback(() => {
+    if (customCategoryCount >= MAX_CUSTOM_CATEGORIES) {
+      showToast({
+        variant: "error",
+        message: `Maximum ${MAX_CUSTOM_CATEGORIES} custom categories`,
+      });
+      return;
+    }
+    stackNavigation.navigate("CreateCustomCategory", { origin: "budget" });
+  }, [customCategoryCount, showToast, stackNavigation]);
+
+  const listSectionHeader = useMemo(
+    () => (
+      <BudgetCategoriesSectionHeader
+        onAddPress={handleAddCustomCategory}
+        addDisabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
+      />
+    ),
+    [customCategoryCount, handleAddCustomCategory],
   );
 
   return (
     <TabScreenShell>
-      <FlashList
-        style={styles.list}
-        data={budgetItems}
-        keyExtractor={(i) => i.id}
-        renderItem={renderCategory}
-        contentContainerStyle={styles.content}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>
-              {loading
-                ? "Loading categories..."
-                : "No categories yet. Sync categories to see budgets."}
-            </Text>
+      <View style={styles.screen}>
+        {shouldShowEditor ? (
+          <View style={styles.editorSlot}>
+            <BudgetEditorPanel
+              hasMonthlyBudget={hasMonthlyBudget}
+              monthlyBudgetText={monthlyBudgetText}
+              onChangeMonthlyBudgetText={setMonthlyBudgetText}
+              onSaveMonthlyBudget={handleSaveMonthlyBudget}
+              onCancelBudgetEdit={handleCancelBudgetEdit}
+              isBudgetSaving={upsertBudgetMutation.isPending}
+              isBudgetLoading={isBudgetLoading}
+              selectedYear={selected.year}
+              selectedMonthIndex0={selected.monthIndex0}
+            />
           </View>
-        )}
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={() => <View style={{ height: spacing.xl }} />}
-      />
+        ) : null}
+
+        {hasMonthlyBudget ? (
+          <View style={styles.heroSlot}>
+            <BudgetListHeader
+              hasMonthlyBudget
+              selectedMonthLabel={selected.label}
+              monthOptions={monthOptions}
+              onSelectBudgetMonth={handleSelectBudgetMonth}
+              monthlyBudgetAmount={monthlyBudgetAmount}
+              monthlyHeroSubtext={monthlyHeroSubtext}
+              monthlyBudgetPct={monthlyBudgetPct}
+              showMonthlyHeroProgress={showMonthlyHeroProgress}
+              isHeroAmountLoading={isHeroAmountLoading}
+              onOpenBudgetEdit={handleOpenBudgetEdit}
+              showCategoriesSection={false}
+            />
+          </View>
+        ) : null}
+
+        <FlashList
+          ref={listRef}
+          style={styles.list}
+          data={budgetItems}
+          extraData={listExtraData}
+          keyExtractor={(item) => item.id}
+          renderItem={renderCategory}
+          overrideItemLayout={overrideItemLayout}
+          drawDistance={BUDGET_LIST_DRAW_DISTANCE}
+          contentContainerStyle={styles.content}
+          ItemSeparatorComponent={CategoryListSeparator}
+          ListEmptyComponent={listEmpty}
+          ListHeaderComponent={listSectionHeader}
+          ListFooterComponent={listFooter}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
+  screen: {
+    flex: 1,
+    backgroundColor: colors.pageBackground,
+  },
+  editorSlot: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
+  },
+  heroSlot: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xl * 2,
   },
   list: {
     flex: 1,
   },
-  monthDropdownWrap: {
-    position: "relative",
-    zIndex: 5,
+  listFooter: {
+    height: spacing.xl,
   },
-  editorCard: {
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: 20,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+  separator: {
+    height: spacing.md,
   },
-  editorLabel: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  editorDescription: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
-    fontFamily: typography.screenSubtitle.fontFamily,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  editorActionsRow: {
-    marginTop: spacing.md,
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  actionButtonWrap: {
-    flex: 1,
-  },
-  dailyLimitSection: {
-    marginTop: spacing.md,
-  },
-  amountShell: {
-    flexDirection: "row",
+  emptyWrap: {
+    paddingVertical: spacing.md,
     alignItems: "center",
-    paddingHorizontal: spacing.md,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
   },
-  amountShellMin: {
-    minHeight: 52,
-  },
-  currencyPrefixWrap: {
-    marginRight: spacing.xs,
-    justifyContent: "center",
-    ...Platform.select({
-      android: { height: 26 },
-    }),
-  },
-  currencyPrefix: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    ...Platform.select({
-      android: {
-        includeFontPadding: false,
-        lineHeight: 26,
-      },
-      default: {
-        lineHeight: 30,
-      },
-    }),
-  },
-  amountInput: {
-    flex: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    padding: 0,
-    margin: 0,
-    ...Platform.select({
-      android: {
-        height: "100%",
-        paddingVertical: 0,
-        includeFontPadding: false,
-        textAlignVertical: "center",
-        lineHeight: 26,
-      },
-      ios: {
-        lineHeight: 30,
-        paddingVertical: 2,
-      },
-    }),
-  },
-  sectionHeader: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  categoryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  catLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    flex: 1,
-  },
-  catTile: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  catMeta: { marginLeft: spacing.sm, flex: 1, minWidth: 0 },
-  catName: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  catBudgetText: {
-    fontFamily: typography.screenSubtitle.fontFamily,
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  catRight: { width: 120, alignItems: "flex-end" },
-  catSpent: {
-    fontFamily: typography.monoEmphasis.fontFamily,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  catProgressWrap: { marginTop: spacing.xs, width: "100%" },
-  separator: { height: spacing.md },
-  emptyWrap: { paddingVertical: spacing.md, alignItems: "center" },
   emptyText: {
-    fontFamily: typography.screenSubtitle.fontFamily,
+    fontFamily: fontFamilies.regular,
     color: colors.textSecondary,
-  },
-  editBudgetButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-  editBudgetButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.96 }],
   },
 });

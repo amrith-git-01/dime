@@ -13,7 +13,13 @@ export type MainStackParamList = {
   MainTabs: undefined;
   Settings: undefined;
   Notifications: undefined;
-  ManualAddTransaction: undefined;
+  ManualAddTransaction:
+    | {
+        createdCategoryId?: string;
+        createdCategoryName?: string;
+      }
+    | undefined;
+  CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
   TransactionDetail: { transaction: TransactionRow };
 };
 
