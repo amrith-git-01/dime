@@ -5,4 +5,11 @@ export type CategoryRow = {
   color: string;
   is_system: boolean;
   created_at: string;
+  user_id?: string | null;
+};
+
+export type CreateCategoryPayload = {
+  name: string;
+  icon_name?: string;
+  color?: string;
 };

@@ -24,6 +24,7 @@ import {
   ShoppingBag,
   ShoppingBasket,
   Sparkles,
+  Tag,
   TrendingUp,
   UtensilsCrossed,
   Wrench,
@@ -65,7 +66,12 @@ const ICON_BY_NAME: Record<string, IconComponent> = {
   Dog,
   Receipt,
   Wrench,
+  Tag,
 };
+
+export const CATEGORY_LUCIDE_ICON_NAMES = Object.keys(
+  ICON_BY_NAME,
+) as (keyof typeof ICON_BY_NAME)[];
 
 export type CategoryLucideIconProps = {
   iconName: string;
