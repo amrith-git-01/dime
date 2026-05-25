@@ -61,18 +61,51 @@ def _extract_upload_extension_from_mime(mime: str, *, fallback: str) -> str:
     return fallback
 
 
-async def load_category_options(client: Client) -> tuple[list[str], list[dict[str, str]]]:
+async def load_category_options(
+    client: Client,
+    user_id: str,
+) -> tuple[list[str], list[dict[str, str]]]:
     def _query() -> tuple[list[str], list[dict[str, str]]]:
-        categories_res = client.table("categories").select("id,name").execute()
-        categories_rows = categories_res.data if isinstance(categories_res.data, list) else []
-        category_options = [
-            {"id": row["id"], "name": row["name"].strip()}
-            for row in categories_rows
-            if isinstance(row, dict)
-            and isinstance(row.get("id"), str)
-            and isinstance(row.get("name"), str)
-            and row["name"].strip()
-        ]
+        user_res = (
+            client.table("user_categories")
+            .select("id,name")
+            .eq("user_id", user_id)
+            .order("name", desc=False)
+            .execute()
+        )
+        system_res = (
+            client.table("categories")
+            .select("id,name")
+            .eq("is_system", True)
+            .order("name", desc=False)
+            .execute()
+        )
+        user_rows = user_res.data if isinstance(user_res.data, list) else []
+        system_rows = system_res.data if isinstance(system_res.data, list) else []
+
+        category_options: list[dict[str, str]] = []
+        seen_names: set[str] = set()
+
+        def _append_rows(rows: list[object]) -> None:
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                category_id = row.get("id")
+                name_raw = row.get("name")
+                if not isinstance(category_id, str) or not isinstance(name_raw, str):
+                    continue
+                name = name_raw.strip()
+                if not name:
+                    continue
+                key = name.casefold()
+                if key in seen_names:
+                    continue
+                seen_names.add(key)
+                category_options.append({"id": category_id, "name": name})
+
+        _append_rows(user_rows)
+        _append_rows(system_rows)
+
         allowed_categories = [item["name"] for item in category_options]
         if not allowed_categories:
             allowed_categories = ["Other"]
@@ -127,7 +160,10 @@ async def process_receipt_job(
         extension=_extract_upload_extension_from_mime(job.mime_type, fallback="jpg"),
     )
 
-    allowed_categories, category_options = await load_category_options(client)
+    allowed_categories, category_options = await load_category_options(
+        client,
+        job.user_id,
+    )
     parsed = await AIOrchestratorService().parse_receipt(
         job.file_bytes,
         job.mime_type,
@@ -186,7 +222,10 @@ async def process_voice_job(
         upload.public_url,
     )
 
-    allowed_categories, category_options = await load_category_options(client)
+    allowed_categories, category_options = await load_category_options(
+        client,
+        job.user_id,
+    )
     logger.info(
         "[voice-pipeline] categories-loaded count=%d sample=%s",
         len(allowed_categories),

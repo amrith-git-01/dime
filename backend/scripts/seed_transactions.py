@@ -77,9 +77,12 @@ _MERCHANT_BUCKETS: dict[str, list[tuple[str, tuple[Decimal, Decimal]]]] = {
         ("Udemy", (Decimal("449"), Decimal("3199"))),
         ("Coursera", (Decimal("2999"), Decimal("4999"))),
     ],
+    "income": [
+        ("Salary CRED", (Decimal("35000"), Decimal("85000"))),
+        ("Freelance payout", (Decimal("5000"), Decimal("25000"))),
+    ],
     "other": [
         ("Google Pay", (Decimal("20"), Decimal("500"))),
-        ("ATM withdrawal", (Decimal("2000"), Decimal("10000"))),
         ("Cashfree PG", (Decimal("1"), Decimal("49"))),
     ],
 }
@@ -97,8 +100,10 @@ def _normalize_counterparty(raw: str) -> str | None:
 
 def _bucket_for_category_name(name: str) -> str:
     n = name.lower()
-    if any(k in n for k in ("food", "dining", "grocery", "restaurant")):
+    if any(k in n for k in ("food", "dining", "grocery", "restaurant", "coffee")):
         return "food"
+    if "income" in n or "salary" in n:
+        return "income"
     if any(k in n for k in ("flight", "airline", "hotel", "irctc", "booking")):
         return "travel"
     if any(k in n for k in ("transport", "commute", "fuel")):
