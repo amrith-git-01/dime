@@ -1,47 +1,161 @@
-"""Categories read orchestration."""
+"""Categories read/create orchestration."""
 
 from __future__ import annotations
 
+import logging
+import re
+
+from fastapi import HTTPException, status
 from supabase import Client
 
 from features.categories.repository import CategoryRepository
-from features.categories.schemas import CategoryResponse
+from features.categories.schemas import CategoryResponse, CreateCategoryRequest
+
+MAX_CUSTOM_CATEGORIES_PER_USER = 15
+DEFAULT_CUSTOM_ICON = "Tag"
+DEFAULT_CUSTOM_COLOR = "#94A3B8"
+
+logger = logging.getLogger(__name__)
 
 
 class CategoryService:
     def __init__(self, supabase: Client) -> None:
         self._repo = CategoryRepository(supabase)
 
-    def list_categories(self) -> list[CategoryResponse]:
-        rows = self._repo.list_all()
+    def list_categories(self, user_id: str) -> list[CategoryResponse]:
+        system_rows = self._repo.list_system()
+        user_rows = self._repo.list_user(user_id)
+
         categories: list[CategoryResponse] = []
-        for row in rows:
-            category_id = row.get("id")
-            name = row.get("name")
-            icon_name = row.get("icon_name")
-            color = row.get("color")
-            is_system = row.get("is_system")
-            created_at = row.get("created_at")
-            if not isinstance(category_id, str):
-                continue
-            if not isinstance(name, str):
-                continue
-            if not isinstance(icon_name, str):
-                continue
-            if not isinstance(color, str):
-                continue
-            if not isinstance(is_system, bool):
-                is_system = False
-            if not isinstance(created_at, str):
-                continue
-            categories.append(
-                CategoryResponse(
-                    id=category_id,
-                    name=name,
-                    icon_name=icon_name,
-                    color=color,
-                    is_system=is_system,
-                    created_at=created_at,
-                ),
-            )
+        for row in system_rows:
+            parsed = self._system_row_to_response(row)
+            if parsed is not None:
+                categories.append(parsed)
+        for row in user_rows:
+            parsed = self._user_row_to_response(row)
+            if parsed is not None:
+                categories.append(parsed)
         return categories
+
+    def create_custom_category(
+        self,
+        user_id: str,
+        body: CreateCategoryRequest,
+    ) -> CategoryResponse:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Category name is required.",
+            )
+
+        if self._repo.count_user_categories(user_id) >= MAX_CUSTOM_CATEGORIES_PER_USER:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"You can add up to {MAX_CUSTOM_CATEGORIES_PER_USER} custom categories.",
+            )
+
+        name_key = name.casefold()
+        for row in self._repo.list_user(user_id):
+            existing = row.get("name")
+            if isinstance(existing, str) and existing.strip().casefold() == name_key:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="You already have a category with this name.",
+                )
+        for row in self._repo.list_system():
+            existing = row.get("name")
+            if isinstance(existing, str) and existing.strip().casefold() == name_key:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="This name matches a built-in category.",
+                )
+
+        icon_name = (body.icon_name or DEFAULT_CUSTOM_ICON).strip() or DEFAULT_CUSTOM_ICON
+        color = (body.color or DEFAULT_CUSTOM_COLOR).strip() or DEFAULT_CUSTOM_COLOR
+        if not self._is_hex_color(color):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Color must be a hex value like #94A3B8.",
+            )
+
+        try:
+            row = self._repo.insert_user_category(
+                user_id=user_id,
+                name=name,
+                icon_name=icon_name,
+                color=color,
+            )
+        except Exception as exc:
+            logger.exception("user_categories insert failed")
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                detail="Could not create category.",
+            ) from exc
+
+        parsed = self._user_row_to_response(row)
+        if parsed is None:
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                detail="Could not create category.",
+            )
+        return parsed
+
+    @staticmethod
+    def _is_hex_color(value: str) -> bool:
+        return bool(re.fullmatch(r"#[0-9A-Fa-f]{6}", value))
+
+    @staticmethod
+    def _system_row_to_response(row: dict[str, object]) -> CategoryResponse | None:
+        category_id = row.get("id")
+        name = row.get("name")
+        icon_name = row.get("icon_name")
+        color = row.get("color")
+        created_at = row.get("created_at")
+        if not isinstance(category_id, str):
+            return None
+        if not isinstance(name, str):
+            return None
+        if not isinstance(icon_name, str):
+            return None
+        if not isinstance(color, str):
+            return None
+        if not isinstance(created_at, str):
+            return None
+        return CategoryResponse(
+            id=category_id,
+            name=name,
+            icon_name=icon_name,
+            color=color,
+            is_system=True,
+            created_at=created_at,
+            user_id=None,
+        )
+
+    @staticmethod
+    def _coerce_text(value: object) -> str | None:
+        if isinstance(value, str):
+            return value
+        if value is not None:
+            return str(value)
+        return None
+
+    @staticmethod
+    def _user_row_to_response(row: dict[str, object]) -> CategoryResponse | None:
+        category_id = CategoryService._coerce_text(row.get("id"))
+        name = CategoryService._coerce_text(row.get("name"))
+        icon_name = CategoryService._coerce_text(row.get("icon_name"))
+        color = CategoryService._coerce_text(row.get("color"))
+        created_at = CategoryService._coerce_text(row.get("created_at"))
+        user_id = CategoryService._coerce_text(row.get("user_id"))
+        if not category_id or not name or not icon_name or not color or not created_at:
+            return None
+        return CategoryResponse(
+            id=category_id,
+            name=name,
+            icon_name=icon_name,
+            color=color,
+            is_system=False,
+            created_at=created_at,
+            user_id=user_id,
+        )

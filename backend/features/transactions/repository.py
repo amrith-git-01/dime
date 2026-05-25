@@ -12,8 +12,9 @@ from features.transactions.supabase_http import execute_with_http_retry
 
 logger = logging.getLogger(__name__)
 
-# Embed category fields via PostgREST FK so callers can render without a separate lookup.
-_SELECT_WITH_EMBED = "*,categories(id,name,icon_name,color)"
+# No PostgREST embed: category_id may point at system or user_categories (no single FK).
+# TransactionService enriches name/icon/color after fetch.
+_TRANSACTION_SELECT = "*"
 
 
 def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
@@ -38,7 +39,7 @@ class TransactionRepository:
     def list_for_user(self, user_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         res = (
             self._db.table("transactions")
-            .select(_SELECT_WITH_EMBED)
+            .select(_TRANSACTION_SELECT)
             .eq("user_id", user_id)
             .is_("deleted_at", "null")
             .order("transaction_at", desc=True)
@@ -63,7 +64,7 @@ class TransactionRepository:
         fetch_n = limit + 1
         q = (
             self._db.table("transactions")
-            .select(_SELECT_WITH_EMBED)
+            .select(_TRANSACTION_SELECT)
             .eq("user_id", user_id)
             .is_("deleted_at", "null")
         )
@@ -158,21 +159,15 @@ class TransactionRepository:
             time.sleep(0.02)
         return all_rows
 
-    def fetch_categories_by_ids(self, ids: set[str]) -> dict[str, dict[str, Any]]:
-        if not ids:
-            return {}
-        res = self._db.table("categories").select("id,name,icon_name,color").in_("id", list(ids)).execute()
-        data = res.data
-        if not isinstance(data, list):
-            return {}
-        out: dict[str, dict[str, Any]] = {}
-        for row in data:
-            if not isinstance(row, dict):
-                continue
-            cid = row.get("id")
-            if isinstance(cid, str):
-                out[cid] = row
-        return out
+    def fetch_categories_by_ids(
+        self,
+        ids: set[str],
+        *,
+        user_id: str | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        from features.categories.repository import CategoryRepository
+
+        return CategoryRepository.fetch_meta_by_ids(self._db, ids, user_id)
 
     def insert(self, row: dict[str, Any]) -> dict[str, Any]:
         res = self._db.table("transactions").insert(row).execute()
@@ -184,12 +179,12 @@ class TransactionRepository:
         if not isinstance(first, dict):
             msg = "Insert returned invalid row"
             raise RuntimeError(msg)
-        return self.fetch_with_embed(first["id"]) or first
+        return self.fetch_by_id(first["id"]) or first
 
-    def fetch_with_embed(self, transaction_id: str) -> dict[str, Any] | None:
+    def fetch_by_id(self, transaction_id: str) -> dict[str, Any] | None:
         res = (
             self._db.table("transactions")
-            .select(_SELECT_WITH_EMBED)
+            .select(_TRANSACTION_SELECT)
             .eq("id", transaction_id)
             .limit(1)
             .execute()

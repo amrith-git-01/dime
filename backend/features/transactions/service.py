@@ -68,7 +68,10 @@ class TransactionService:
 
     def list_mine(self, user: CurrentUser) -> list[TransactionResponse]:
         rows = self._repo.list_for_user(user.id)
-        return [TransactionResponse.model_validate(_flatten_embed(r)) for r in rows]
+        return [
+            TransactionResponse.model_validate(row)
+            for row in self._enrich_rows(user.id, rows)
+        ]
 
     def list_mine_paginated(
         self,
@@ -86,7 +89,10 @@ class TransactionService:
             limit=limit,
             offset=offset,
         )
-        items = [TransactionResponse.model_validate(_flatten_embed(r)) for r in rows]
+        items = [
+            TransactionResponse.model_validate(row)
+            for row in self._enrich_rows(user.id, rows)
+        ]
         return TransactionListResponse(items=items, has_more=has_more)
 
     def month_summary(
@@ -188,7 +194,11 @@ class TransactionService:
 
         sorted_cats = sorted(debit_by_category.items(), key=lambda x: x[1], reverse=True)[:5]
         cat_ids = {k for k, _ in sorted_cats if k is not None}
-        cat_meta = self._repo.fetch_categories_by_ids(cat_ids) if cat_ids else {}
+        cat_meta = (
+            self._repo.fetch_categories_by_ids(cat_ids, user_id=user.id)
+            if cat_ids
+            else {}
+        )
         top_categories: list[TopCategoryRow] = []
         for cat_id, total in sorted_cats:
             if cat_id is None:
@@ -225,7 +235,8 @@ class TransactionService:
             offset=0,
         )
         recent_transactions = [
-            TransactionResponse.model_validate(_flatten_embed(r)) for r in recent_raw
+            TransactionResponse.model_validate(row)
+            for row in self._enrich_rows(user.id, recent_raw)
         ]
 
         return HomeOverviewResponse(
@@ -241,42 +252,92 @@ class TransactionService:
         normalized = re.sub(r"\s+", " ", lowered).strip()
         return normalized or None
 
-    def _category_exists(self, category_id: str) -> bool:
-        res = (
-            self._repo._db.table("categories")  # type: ignore[attr-defined]
+    def _category_exists(self, user_id: str, category_id: str) -> bool:
+        db = self._repo._db  # type: ignore[attr-defined]
+        sys_res = (
+            db.table("categories")
             .select("id")
             .eq("id", category_id)
             .limit(1)
             .execute()
         )
-        rows = res.data if isinstance(res.data, list) else []
+        if isinstance(sys_res.data, list) and sys_res.data:
+            return True
+        user_res = (
+            db.table("user_categories")
+            .select("id")
+            .eq("id", category_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = user_res.data if isinstance(user_res.data, list) else []
         return bool(rows)
 
-    def _resolve_category(self, category_name: str | None) -> tuple[str | None, str | None]:
+    def _resolve_category(
+        self,
+        user_id: str,
+        category_name: str | None,
+    ) -> tuple[str | None, str | None]:
         if not category_name:
             return None, None
         wanted = category_name.strip().lower()
         if not wanted:
             return None, None
 
-        res = self._repo._db.table("categories").select("id,name").execute()  # type: ignore[attr-defined]
-        rows = res.data if isinstance(res.data, list) else []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            name = row.get("name")
-            if isinstance(name, str) and name.strip().lower() == wanted:
-                cat_id = row.get("id")
-                if isinstance(cat_id, str):
-                    return cat_id, name.strip()
+        db = self._repo._db  # type: ignore[attr-defined]
+        for table in ("categories", "user_categories"):
+            q = db.table(table).select("id,name")
+            if table == "user_categories":
+                q = q.eq("user_id", user_id)
+            res = q.execute()
+            rows = res.data if isinstance(res.data, list) else []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                name = row.get("name")
+                if isinstance(name, str) and name.strip().lower() == wanted:
+                    cat_id = row.get("id")
+                    if isinstance(cat_id, str):
+                        return cat_id, name.strip()
         return None, None
+
+    def _enrich_rows(self, user_id: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        flattened = [_flatten_embed(r) for r in rows]
+        missing_ids: set[str] = set()
+        for row in flattened:
+            if row.get("category"):
+                continue
+            cid = row.get("category_id")
+            if isinstance(cid, str) and cid.strip():
+                missing_ids.add(cid.strip())
+        if not missing_ids:
+            return flattened
+
+        meta = self._repo.fetch_categories_by_ids(missing_ids, user_id=user_id)
+        for row in flattened:
+            if row.get("category"):
+                continue
+            cid = row.get("category_id")
+            if not isinstance(cid, str):
+                continue
+            hit = meta.get(cid)
+            if not isinstance(hit, dict):
+                continue
+            nm = hit.get("name")
+            row["category"] = nm.strip() if isinstance(nm, str) and nm.strip() else None
+            em = hit.get("icon_name")
+            row["category_icon_name"] = em if isinstance(em, str) else None
+            col = hit.get("color")
+            row["category_color"] = col if isinstance(col, str) else None
+        return flattened
 
     def create_manual(self, user: CurrentUser, body: TransactionCreate) -> TransactionResponse:
         category_id = str(body.category_id) if body.category_id is not None else None
-        if category_id and not self._category_exists(category_id):
+        if category_id and not self._category_exists(user.id, category_id):
             category_id = None
         if category_id is None:
-            category_id, _ = self._resolve_category(body.category)
+            category_id, _ = self._resolve_category(user.id, body.category)
 
         name_stripped = body.counterparty_name.strip()
         counterparty_normalized = self._normalize_counterparty(name_stripped)
@@ -298,4 +359,5 @@ class TransactionService:
             row["counterparty_type"] = body.counterparty_type
 
         raw = self._repo.insert(row)
-        return TransactionResponse.model_validate(_flatten_embed(raw))
+        enriched = self._enrich_rows(user.id, [raw])
+        return TransactionResponse.model_validate(enriched[0])

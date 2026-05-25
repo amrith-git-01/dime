@@ -50,7 +50,10 @@ def _category_block(allowed_categories: list[str] | None) -> str:
     cats = ", ".join(allowed_categories) if allowed_categories else "Other"
     return (
         f"- category: must be exactly one of: {cats}.\n"
-        "- If uncertain → 'Other' if present, else closest match.\n"
+        "- Prefer the user's custom category names when they clearly fit; "
+        "otherwise use a system category from the list.\n"
+        "- If uncertain → 'Other' if present, else closest match from the list.\n"
+        "- Never invent a category name outside this list.\n"
     )
 
 
