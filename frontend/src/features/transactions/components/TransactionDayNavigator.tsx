@@ -45,7 +45,8 @@ export const TransactionDayNavigator = memo(function TransactionDayNavigator({
         onPress={onPrev}
         style={({ pressed }) => [
           styles.chevronHit,
-          (!canGoPrev || pressed) && styles.chevronDisabled,
+          !canGoPrev && styles.chevronDisabled,
+          canGoPrev && pressed && styles.chevronPressed,
         ]}
       >
         <ChevronLeft size={24} color={colors.textOnPrimary} strokeWidth={2} />
@@ -69,7 +70,8 @@ export const TransactionDayNavigator = memo(function TransactionDayNavigator({
         onPress={onNext}
         style={({ pressed }) => [
           styles.chevronHit,
-          (!canGoNext || pressed) && styles.chevronDisabled,
+          !canGoNext && styles.chevronDisabled,
+          canGoNext && pressed && styles.chevronPressed,
         ]}
       >
         <ChevronRight size={24} color={colors.textOnPrimary} strokeWidth={2} />
@@ -97,6 +99,9 @@ const styles = StyleSheet.create({
   },
   chevronDisabled: {
     opacity: 0.4,
+  },
+  chevronPressed: {
+    opacity: 0.85,
   },
   center: {
     flex: 1,

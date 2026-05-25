@@ -1,4 +1,8 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
@@ -45,6 +49,7 @@ export function useMonthSummaryQuery(year: number, monthIndex0: number) {
       }),
     enabled: authReady && Boolean(userId),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -107,6 +112,7 @@ export function useMonthDebitTotalsByCategoryQuery(
     queryFn: () => fetchMonthDebitTotalsByCategory({ year, monthIndex0 }),
     enabled: authReady && Boolean(userId),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 

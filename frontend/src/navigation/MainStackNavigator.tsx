@@ -6,6 +6,7 @@ import { Suspense, lazy } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { colors } from "@/constants/theme";
+import ManualAddTransactionScreen from "@/screens/transactions/ManualAddTransactionScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
 import type { MainStackParamList } from "./types";
@@ -16,11 +17,11 @@ const SettingsScreenLazy = lazy(
 const NotificationsScreenLazy = lazy(
   () => import("@/screens/notifications/NotificationsScreen"),
 );
-const ManualAddTransactionScreenLazy = lazy(
-  () => import("@/screens/transactions/ManualAddTransactionScreen"),
-);
 const TransactionDetailScreenLazy = lazy(
   () => import("@/screens/transactions/TransactionDetailScreen"),
+);
+const CreateCustomCategoryScreenLazy = lazy(
+  () => import("@/screens/categories/CreateCustomCategoryScreen"),
 );
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -53,14 +54,10 @@ function NotificationsLazyHost(
   );
 }
 
-function ManualAddLazyHost(
+function ManualAddHost(
   _: NativeStackScreenProps<MainStackParamList, "ManualAddTransaction">,
 ) {
-  return (
-    <Suspense fallback={<LazyScreenFallback />}>
-      <ManualAddTransactionScreenLazy />
-    </Suspense>
-  );
+  return <ManualAddTransactionScreen />;
 }
 
 function TransactionDetailLazyHost(
@@ -69,6 +66,16 @@ function TransactionDetailLazyHost(
   return (
     <Suspense fallback={<LazyScreenFallback />}>
       <TransactionDetailScreenLazy />
+    </Suspense>
+  );
+}
+
+function CreateCustomCategoryLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "CreateCustomCategory">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <CreateCustomCategoryScreenLazy />
     </Suspense>
   );
 }
@@ -107,7 +114,7 @@ export default function MainStackNavigator() {
         />
         <Stack.Screen
           name="ManualAddTransaction"
-          component={ManualAddLazyHost}
+          component={ManualAddHost}
           options={{
             headerShown: true,
             title: "Add transaction",
@@ -122,6 +129,17 @@ export default function MainStackNavigator() {
           options={{
             headerShown: true,
             title: "Transaction",
+            headerTintColor: colors.primary,
+            headerStyle: { backgroundColor: colors.pageBackground },
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="CreateCustomCategory"
+          component={CreateCustomCategoryLazyHost}
+          options={{
+            headerShown: true,
+            title: "Custom category",
             headerTintColor: colors.primary,
             headerStyle: { backgroundColor: colors.pageBackground },
             headerShadowVisible: false,
