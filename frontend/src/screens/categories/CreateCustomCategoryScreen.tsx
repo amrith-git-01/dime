@@ -119,121 +119,119 @@ export default function CreateCustomCategoryScreen() {
     >
       <Text style={styles.lead}>Pick a name, icon, and color.</Text>
 
-      <View style={styles.centeredBody}>
-        <View style={styles.column}>
-          <View style={styles.previewBlock}>
-            <View
-              style={[
-                styles.previewTile,
-                { backgroundColor: hexToRgba(color, 0.1) },
-              ]}
-            >
-              <CategoryLucideIcon
-                iconName={iconName}
-                color={color}
-                size={24}
-                strokeWidth={1.5}
-              />
-            </View>
-            <Text style={styles.previewName} numberOfLines={1}>
-              {name.trim().length > 0 ? name.trim() : "Category name"}
-            </Text>
-          </View>
-
-          <View style={styles.formBlock}>
-            <TextField
-              label="Name"
-              placeholder="e.g. Pet care"
-              value={name}
-              onChangeText={setName}
-              maxLength={40}
+      <View style={styles.body}>
+        <View style={styles.previewBlock}>
+          <View
+            style={[
+              styles.previewTile,
+              { backgroundColor: hexToRgba(color, 0.1) },
+            ]}
+          >
+            <CategoryLucideIcon
+              iconName={iconName}
+              color={color}
+              size={24}
+              strokeWidth={1.5}
             />
+          </View>
+          <Text style={styles.previewName} numberOfLines={1}>
+            {name.trim().length > 0 ? name.trim() : "Category name"}
+          </Text>
+        </View>
 
-            <Text style={styles.sectionLabel}>Icon</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.pickerScroll}
-              contentContainerStyle={styles.pickerRow}
-            >
-              {CUSTOM_CATEGORY_ICON_OPTIONS.map((option) => {
-                const selected = option === iconName;
-                return (
-                  <Pressable
-                    key={option}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => {
-                      void triggerLightHaptic();
-                      setIconName(option);
-                    }}
-                    style={[
-                      styles.iconOption,
-                      {
-                        borderColor: selected ? colors.primary : colors.border,
-                      },
-                      selected && styles.iconOptionSelected,
-                    ]}
-                  >
-                    <CategoryLucideIcon
-                      iconName={option}
-                      color={selected ? colors.primary : colors.textSecondary}
-                      size={20}
-                    />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+        <View style={styles.formBlock}>
+          <TextField
+            label="Name"
+            placeholder="e.g. Pet care"
+            value={name}
+            onChangeText={setName}
+            maxLength={40}
+          />
 
-            <Text style={styles.sectionLabel}>Color</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.pickerScroll}
-              contentContainerStyle={styles.pickerRow}
-            >
-              {CUSTOM_CATEGORY_COLOR_OPTIONS.map((option) => {
-                const selected = option === color;
-                return (
-                  <Pressable
-                    key={option}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => {
-                      void triggerLightHaptic();
-                      setColor(option);
-                    }}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: option },
-                      {
-                        borderColor: selected ? colors.primary : colors.border,
-                      },
-                    ]}
+          <Text style={styles.sectionLabel}>Icon</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.pickerScroll}
+            contentContainerStyle={styles.pickerRow}
+          >
+            {CUSTOM_CATEGORY_ICON_OPTIONS.map((option) => {
+              const selected = option === iconName;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    void triggerLightHaptic();
+                    setIconName(option);
+                  }}
+                  style={[
+                    styles.iconOption,
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                    selected && styles.iconOptionSelected,
+                  ]}
+                >
+                  <CategoryLucideIcon
+                    iconName={option}
+                    color={selected ? colors.primary : colors.textSecondary}
+                    size={20}
                   />
-                );
-              })}
-            </ScrollView>
-          </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-          {atLimit ? (
-            <Text style={styles.limitHint}>
-              You have reached the maximum of {MAX_CUSTOM_CATEGORIES} custom
-              categories.
-            </Text>
-          ) : null}
+          <Text style={styles.sectionLabel}>Color</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.pickerScroll}
+            contentContainerStyle={styles.pickerRow}
+          >
+            {CUSTOM_CATEGORY_COLOR_OPTIONS.map((option) => {
+              const selected = option === color;
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    void triggerLightHaptic();
+                    setColor(option);
+                  }}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: option },
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                />
+              );
+            })}
+          </ScrollView>
+        </View>
 
-          <View style={styles.actions}>
-            <Button
-              title="Save"
-              loading={createMutation.isPending}
-              disabled={atLimit}
-              onPress={() => {
-                void triggerLightHaptic();
-                void handleSave();
-              }}
-            />
-          </View>
+        {atLimit ? (
+          <Text style={styles.limitHint}>
+            You have reached the maximum of {MAX_CUSTOM_CATEGORIES} custom
+            categories.
+          </Text>
+        ) : null}
+
+        <View style={styles.actions}>
+          <Button
+            title="Save"
+            loading={createMutation.isPending}
+            disabled={atLimit}
+            onPress={() => {
+              void triggerLightHaptic();
+              void handleSave();
+            }}
+          />
         </View>
       </View>
     </KeyboardAwareScrollView>
@@ -257,11 +255,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     marginBottom: spacing.lg,
   },
-  centeredBody: {
+  body: {
     flexGrow: 1,
     justifyContent: "center",
-  },
-  column: {
     width: "100%",
     alignItems: "center",
   },

@@ -1,17 +1,13 @@
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
-import {
-  useFocusEffect,
-  useNavigation,
-  useRoute,
-  type RouteProp,
-} from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +22,6 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { Button } from "@/components/ui/Button/Button";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { TextField } from "@/components/ui/TextField/TextField";
@@ -40,13 +35,15 @@ import { useLocalCategories } from "@/features/categories/hooks/useLocalCategori
 import { useToast } from "@/features/toast/useToast";
 import { submitManualTransaction } from "@/features/transactions/api/submitTransactionApi";
 import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
+import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
-const BORDER_SUBTLE = "#E0DFFA";
+const SEGMENT_SELECTED_BG = "rgba(99, 85, 232, 0.10)";
 
 type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
 
@@ -71,6 +68,28 @@ export default function ManualAddTransactionScreen() {
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
+
+  const resetUiState = useCallback(() => {
+    setIosPickerVisible(false);
+    setAmountFocused(false);
+  }, []);
+
+  const { markNavigatedToCreateCategory } = useManualAddScreenLifecycle({
+    form: {
+      reset: form.reset,
+      selectCategory: form.selectCategory,
+      clearCategory: form.clearCategory,
+      categoryId: form.categoryId,
+      txType: form.txType,
+    },
+    categories,
+    navigation,
+    returnCategoryId: route.params?.createdCategoryId,
+    returnCategoryName: route.params?.createdCategoryName,
+    onResetUi: resetUiState,
+    onSubmitMutationReset: submitMutation.reset,
+  });
+
   const customCategoryCount = useMemo(
     () => categories.filter((category) => !category.is_system).length,
     [categories],
@@ -78,13 +97,8 @@ export default function ManualAddTransactionScreen() {
 
   const visibleCategories = useMemo(() => {
     if (form.txType === "credit") {
-      return categories.filter(
-        (category) => category.is_system && category.name === "Income",
-      ).length > 0
-        ? categories.filter(
-            (category) => category.is_system && category.name === "Income",
-          )
-        : categories;
+      const income = findIncomeCategory(categories);
+      return income ? [income] : categories;
     }
     return categories.filter((category) => category.name !== "Income");
   }, [categories, form.txType]);
@@ -97,47 +111,20 @@ export default function ManualAddTransactionScreen() {
       });
       return;
     }
+    markNavigatedToCreateCategory();
     navigation.navigate("CreateCustomCategory", { origin: "manual-add" });
-  }, [customCategoryCount, navigation, showToast]);
+  }, [
+    customCategoryCount,
+    markNavigatedToCreateCategory,
+    navigation,
+    showToast,
+  ]);
 
   const leave = useCallback(() => {
     void triggerLightHaptic();
     Keyboard.dismiss();
     navigation.goBack();
   }, [navigation]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const createdCategoryId = route.params?.createdCategoryId;
-      const createdCategoryName = route.params?.createdCategoryName;
-
-      if (createdCategoryId) {
-        form.setCategoryId(createdCategoryId);
-        if (createdCategoryName) {
-          form.setCategory(createdCategoryName);
-        }
-        navigation.setParams({
-          createdCategoryId: undefined,
-          createdCategoryName: undefined,
-        });
-        return;
-      }
-
-      const frame = requestAnimationFrame(() => {
-        form.reset();
-        submitMutation.reset();
-        setIosPickerVisible(false);
-        setAmountFocused(false);
-      });
-      return () => cancelAnimationFrame(frame);
-    }, [
-      form,
-      navigation,
-      route.params?.createdCategoryId,
-      route.params?.createdCategoryName,
-      submitMutation,
-    ]),
-  );
 
   const openAndroidDatePicker = useCallback(() => {
     void triggerLightHaptic();
@@ -150,7 +137,7 @@ export default function ManualAddTransactionScreen() {
         }
       },
     });
-  }, [form]);
+  }, [form.setTransactionAt, form.transactionAt]);
 
   const onDateRowPress = useCallback(() => {
     if (Platform.OS === "android") {
@@ -181,12 +168,12 @@ export default function ManualAddTransactionScreen() {
         message: "Transaction added",
       });
       navigation.goBack();
-    } catch (e) {
+    } catch (error) {
       const message =
-        e instanceof Error ? e.message : "Could not save transaction.";
+        error instanceof Error ? error.message : "Could not save transaction.";
       showToast({
         variant: "error",
-        message: "Could not save transaction",
+        message: message.length > 0 ? message : "Could not save transaction",
         action: {
           label: "Retry",
           onPress: () => {
@@ -194,184 +181,190 @@ export default function ManualAddTransactionScreen() {
           },
         },
       });
-      Alert.alert("Something went wrong", message);
     }
-  }, [authReady, form, navigation, showToast, submitMutation, userId]);
+  }, [
+    authReady,
+    form.buildPayload,
+    navigation,
+    showToast,
+    submitMutation,
+    userId,
+  ]);
 
   const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
 
+  const setExpenseType = useCallback(() => {
+    void triggerLightHaptic();
+    form.setTxType("debit");
+  }, [form.setTxType]);
+
+  const setIncomeType = useCallback(() => {
+    void triggerLightHaptic();
+    form.setTxType("credit");
+  }, [form.setTxType]);
+
   return (
-    <TabScreenShell>
-      <KeyboardAwareScrollView
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
-        bottomOffset={24}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: spacing.xl + insets.bottom },
-        ]}
-      >
-        <View style={styles.fieldBlock}>
-          <Text style={formStyles.fieldLabel}>Amount</Text>
-          <View
-            style={[
-              formStyles.fieldShell,
-              styles.amountShellMin,
-              amountFocused && formStyles.fieldShellFocused,
-            ]}
-          >
-            <View style={styles.currencyPrefixWrap}>
-              <Text style={styles.currencyPrefix}>₹</Text>
-            </View>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor={colors.inactive}
-              keyboardType="decimal-pad"
-              value={form.amountText}
-              onChangeText={form.setAmountText}
-              onFocus={() => setAmountFocused(true)}
-              onBlur={() => setAmountFocused(false)}
-              underlineColorAndroid="transparent"
-            />
-          </View>
-        </View>
-
-        <Text style={[formStyles.fieldLabel, styles.segmentLabel]}>Type</Text>
-        <View style={styles.segmentRow}>
-          <SegmentChip
-            label="Expense"
-            selected={form.txType === "debit"}
-            onPress={() => {
-              void triggerLightHaptic();
-              form.setTxType("debit");
-            }}
-          />
-          <SegmentChip
-            label="Income"
-            selected={form.txType === "credit"}
-            onPress={() => {
-              void triggerLightHaptic();
-              form.setTxType("credit");
-            }}
-          />
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <SelectDropdown
-            label="Counterparty type"
-            options={COUNTERPARTY_TYPE_OPTIONS}
-            value={form.counterpartyType}
-            onChange={form.setCounterpartyType}
-            placeholder="Select type"
-          />
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <TextField
-            label="Counterparty name"
-            placeholder="Who or what was this for?"
-            value={form.counterpartyName}
-            onChangeText={form.setCounterpartyName}
-          />
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <View style={styles.labelRow}>
-            <Text style={formStyles.fieldLabel}>Category</Text>
-            {optionalTag}
-          </View>
-          {categoriesLoading ? (
-            <View style={styles.categoriesLoading}>
-              <ActivityIndicator color={colors.headerGradientStart} />
-            </View>
-          ) : (
-            <View style={styles.categoryGrid}>
-              {visibleCategories.map((category) => {
-                const selected = form.categoryId === category.id;
-                return (
-                  <CategoryPill
-                    key={category.id}
-                    label={category.name}
-                    iconName={category.icon_name}
-                    iconColor={category.color}
-                    selected={selected}
-                    onPress={() => {
-                      void triggerLightHaptic();
-                      if (selected) {
-                        form.setCategoryId(null);
-                        form.setCategory("");
-                        return;
-                      }
-                      form.setCategoryId(category.id);
-                      form.setCategory(category.name);
-                    }}
-                  />
-                );
-              })}
-              <AddCategoryTrigger
-                disabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
-                onPress={openCreateCustomCategory}
-              />
-            </View>
-          )}
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <TextField
-            label="Note"
-            labelRight={optionalTag}
-            placeholder="Add a short note"
-            value={form.note}
-            onChangeText={form.setNote}
-          />
-        </View>
-
-        <Text style={[formStyles.fieldLabel, styles.dateLabel]}>Date</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onDateRowPress}
-          style={({ pressed }) => [
-            styles.dateRow,
-            pressed && styles.dateRowPressed,
+    <KeyboardAwareScrollView
+      style={styles.screen}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bottomOffset={24}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingBottom: spacing.xl + insets.bottom },
+      ]}
+    >
+      <View style={styles.fieldBlock}>
+        <Text style={formStyles.fieldLabel}>Amount</Text>
+        <View
+          style={[
+            formStyles.fieldShell,
+            styles.amountShellMin,
+            amountFocused && formStyles.fieldShellFocused,
           ]}
         >
-          <Text style={styles.dateValue}>
-            {format(form.transactionAt, "MMM d, yyyy")}
-          </Text>
-          <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
-        </Pressable>
+          <View style={styles.currencyPrefixWrap}>
+            <Text style={styles.currencyPrefix}>₹</Text>
+          </View>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            placeholderTextColor={colors.inactive}
+            keyboardType="decimal-pad"
+            value={form.amountText}
+            onChangeText={form.setAmountText}
+            onFocus={() => setAmountFocused(true)}
+            onBlur={() => setAmountFocused(false)}
+            underlineColorAndroid="transparent"
+          />
+        </View>
+      </View>
 
-        {iosPickerVisible ? (
-          <View style={styles.iosPickerWrap}>
-            <DateTimePicker
-              value={form.transactionAt}
-              mode="date"
-              display="compact"
-              themeVariant="light"
-              onChange={(_e, date) => {
-                setIosPickerVisible(false);
-                if (date) {
-                  form.setTransactionAt(date);
-                }
-              }}
+      <Text style={[formStyles.fieldLabel, styles.segmentLabel]}>Type</Text>
+      <View style={styles.segmentRow}>
+        <SegmentChip
+          label="Expense"
+          selected={form.txType === "debit"}
+          onPress={setExpenseType}
+        />
+        <SegmentChip
+          label="Income"
+          selected={form.txType === "credit"}
+          onPress={setIncomeType}
+        />
+      </View>
+
+      <View style={styles.fieldBlock}>
+        <SelectDropdown
+          label="Counterparty type"
+          options={COUNTERPARTY_TYPE_OPTIONS}
+          value={form.counterpartyType}
+          onChange={form.setCounterpartyType}
+          placeholder="Select type"
+        />
+      </View>
+
+      <View style={styles.fieldBlock}>
+        <TextField
+          label="Counterparty name"
+          placeholder="Who or what was this for?"
+          value={form.counterpartyName}
+          onChangeText={form.setCounterpartyName}
+        />
+      </View>
+
+      <View style={styles.fieldBlock}>
+        <View style={styles.labelRow}>
+          <Text style={formStyles.fieldLabel}>Category</Text>
+          {optionalTag}
+        </View>
+        {categoriesLoading ? (
+          <View style={styles.categoriesLoading}>
+            <ActivityIndicator color={colors.headerGradientStart} />
+          </View>
+        ) : (
+          <View style={styles.categoryGrid}>
+            {visibleCategories.map((category) => {
+              const selected = form.categoryId === category.id;
+              return (
+                <CategoryPill
+                  key={category.id}
+                  label={category.name}
+                  iconName={category.icon_name}
+                  iconColor={category.color}
+                  selected={selected}
+                  onPress={() => {
+                    void triggerLightHaptic();
+                    if (selected) {
+                      form.clearCategory();
+                      return;
+                    }
+                    form.selectCategory(category.id, category.name);
+                  }}
+                />
+              );
+            })}
+            <AddCategoryTrigger
+              disabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
+              onPress={openCreateCustomCategory}
             />
           </View>
-        ) : null}
+        )}
+      </View>
 
-        <View style={styles.footerActions}>
-          <Button
-            title="Save"
-            loading={submitMutation.isPending}
-            onPress={() => {
-              void onSave();
+      <View style={styles.fieldBlock}>
+        <TextField
+          label="Note"
+          labelRight={optionalTag}
+          placeholder="Add a short note"
+          value={form.note}
+          onChangeText={form.setNote}
+        />
+      </View>
+
+      <Text style={[formStyles.fieldLabel, styles.dateLabel]}>Date</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onDateRowPress}
+        style={({ pressed }) => [
+          styles.dateRow,
+          pressed && styles.dateRowPressed,
+        ]}
+      >
+        <Text style={styles.dateValue}>
+          {format(form.transactionAt, "MMM d, yyyy")}
+        </Text>
+        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+      </Pressable>
+
+      {iosPickerVisible ? (
+        <View style={styles.iosPickerWrap}>
+          <DateTimePicker
+            value={form.transactionAt}
+            mode="date"
+            display="compact"
+            themeVariant="light"
+            onChange={(_e, date) => {
+              setIosPickerVisible(false);
+              if (date) {
+                form.setTransactionAt(date);
+              }
             }}
           />
-          <Button variant="secondary" title="Cancel" onPress={leave} />
         </View>
-      </KeyboardAwareScrollView>
-    </TabScreenShell>
+      ) : null}
+
+      <View style={styles.footerActions}>
+        <Button
+          title="Save"
+          loading={submitMutation.isPending}
+          onPress={() => {
+            void onSave();
+          }}
+        />
+        <Button variant="secondary" title="Cancel" onPress={leave} />
+      </View>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -381,7 +374,11 @@ type SegmentChipProps = {
   onPress: () => void;
 };
 
-function SegmentChip({ label, selected, onPress }: SegmentChipProps) {
+const SegmentChip = memo(function SegmentChip({
+  label,
+  selected,
+  onPress,
+}: SegmentChipProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -400,7 +397,7 @@ function SegmentChip({ label, selected, onPress }: SegmentChipProps) {
       </Text>
     </Pressable>
   );
-}
+});
 
 type CategoryPillProps = {
   label: string;
@@ -410,7 +407,7 @@ type CategoryPillProps = {
   onPress: () => void;
 };
 
-function CategoryPill({
+const CategoryPill = memo(function CategoryPill({
   label,
   iconName,
   iconColor,
@@ -444,12 +441,17 @@ function CategoryPill({
       </Text>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.pageBackground,
+  },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
   },
   fieldBlock: {
     marginBottom: spacing.xl,
@@ -499,8 +501,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   categoryPillSelected: {
-    borderColor: colors.headerGradientStart,
-    backgroundColor: "rgba(79, 70, 229, 0.10)",
+    borderColor: colors.primary,
+    backgroundColor: SEGMENT_SELECTED_BG,
   },
   categoryPillPressed: {
     opacity: 0.92,
@@ -577,8 +579,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   segmentChipSelected: {
-    backgroundColor: "rgba(15, 23, 42, 0.06)",
-    borderColor: "#64748B",
+    backgroundColor: SEGMENT_SELECTED_BG,
+    borderColor: colors.primary,
   },
   segmentChipPressed: {
     opacity: 0.92,
@@ -598,8 +600,8 @@ const styles = StyleSheet.create({
   dateRow: {
     minHeight: 52,
     borderWidth: 1,
-    borderColor: BORDER_SUBTLE,
-    borderRadius: 8,
+    borderColor: colors.cardBorder,
+    borderRadius: 12,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",

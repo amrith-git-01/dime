@@ -1,0 +1,142 @@
+import { useFocusEffect } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useCallback, useEffect, useRef } from "react";
+
+import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
+import type { MainStackParamList } from "@/navigation/types";
+
+import type { TransactionType } from "../types";
+import {
+  findIncomeCategory,
+  isCategoryAllowedForTxType,
+} from "../utils/manualAddCategoryUtils";
+
+type FormControls = {
+  reset: () => void;
+  selectCategory: (id: string, name: string) => void;
+  clearCategory: () => void;
+  categoryId: string | null;
+  txType: TransactionType;
+};
+
+type UseManualAddScreenLifecycleParams = {
+  form: FormControls;
+  categories: LocalCategory[];
+  navigation: NativeStackNavigationProp<MainStackParamList>;
+  returnCategoryId?: string;
+  returnCategoryName?: string;
+  onResetUi: () => void;
+  onSubmitMutationReset: () => void;
+};
+
+export function useManualAddScreenLifecycle({
+  form,
+  categories,
+  navigation,
+  returnCategoryId,
+  returnCategoryName,
+  onResetUi,
+  onSubmitMutationReset,
+}: UseManualAddScreenLifecycleParams) {
+  const navigatedToCreateCategoryRef = useRef(false);
+  const pendingReturnCategoryIdRef = useRef<string | null>(null);
+  const consumedReturnCategoryRef = useRef(false);
+  const hasFocusedOnceRef = useRef(false);
+
+  const markNavigatedToCreateCategory = useCallback(() => {
+    navigatedToCreateCategoryRef.current = true;
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (navigatedToCreateCategoryRef.current) {
+        navigatedToCreateCategoryRef.current = false;
+        return () => undefined;
+      }
+
+      if (returnCategoryId && !consumedReturnCategoryRef.current) {
+        consumedReturnCategoryRef.current = true;
+        hasFocusedOnceRef.current = true;
+        pendingReturnCategoryIdRef.current = returnCategoryId;
+        form.selectCategory(returnCategoryId, returnCategoryName ?? "");
+        navigation.setParams({
+          createdCategoryId: undefined,
+          createdCategoryName: undefined,
+        });
+        return () => undefined;
+      }
+
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        const frame = requestAnimationFrame(() => {
+          pendingReturnCategoryIdRef.current = null;
+          consumedReturnCategoryRef.current = false;
+          form.reset();
+          onSubmitMutationReset();
+          onResetUi();
+        });
+        return () => {
+          cancelAnimationFrame(frame);
+          hasFocusedOnceRef.current = false;
+        };
+      }
+
+      return () => undefined;
+    }, [
+      form.reset,
+      form.selectCategory,
+      navigation,
+      onResetUi,
+      onSubmitMutationReset,
+      returnCategoryId,
+      returnCategoryName,
+    ]),
+  );
+
+  useEffect(() => {
+    const pendingId = pendingReturnCategoryIdRef.current;
+    if (!pendingId) {
+      return;
+    }
+    const match = categories.find((category) => category.id === pendingId);
+    if (match) {
+      form.selectCategory(match.id, match.name);
+      pendingReturnCategoryIdRef.current = null;
+    }
+  }, [categories, form.selectCategory]);
+
+  useEffect(() => {
+    if (categories.length === 0) {
+      return;
+    }
+
+    const current = form.categoryId
+      ? categories.find((category) => category.id === form.categoryId)
+      : undefined;
+
+    if (form.txType === "credit") {
+      if (current && isCategoryAllowedForTxType(current, "credit")) {
+        return;
+      }
+      const income = findIncomeCategory(categories);
+      if (income) {
+        form.selectCategory(income.id, income.name);
+      } else {
+        form.clearCategory();
+      }
+      return;
+    }
+
+    if (current && !isCategoryAllowedForTxType(current, "debit")) {
+      form.clearCategory();
+    }
+  }, [
+    categories,
+    form.categoryId,
+    form.clearCategory,
+    form.selectCategory,
+    form.txType,
+  ]);
+
+  return { markNavigatedToCreateCategory };
+}
