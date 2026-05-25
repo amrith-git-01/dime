@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
@@ -17,6 +17,8 @@ type HeroSummaryCardProps = {
   isAmountLoading?: boolean;
   amountSpinnerTone?: "white" | "primary";
   showProgress?: boolean;
+  /** Passed to progress bar so fill animates once per key (e.g. per month). */
+  progressAnimationKey?: string;
   actionLabel?: string;
   onAction?: (() => void) | null;
   amountAccessory?: ReactNode;
@@ -33,6 +35,7 @@ export function HeroSummaryCard({
   isAmountLoading = false,
   amountSpinnerTone = "white",
   showProgress = true,
+  progressAnimationKey,
   actionLabel,
   onAction = null,
   amountAccessory,
@@ -94,6 +97,7 @@ export function HeroSummaryCard({
             backgroundColor="rgba(255,255,255,0.24)"
             height={7}
             duration={850}
+            animateOnceKey={progressAnimationKey}
           />
         </View>
       ) : actionLabel && onAction ? (
@@ -107,6 +111,19 @@ export function HeroSummaryCard({
   );
 }
 
+const cardShadowStyle = Platform.select({
+  android: {
+    elevation: 6,
+  },
+  default: {
+    shadowColor: colors.headerGradientStart,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 7,
+  },
+});
+
 const styles = StyleSheet.create({
   card: {
     minHeight: 172,
@@ -116,11 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.headerGradientStart,
     borderWidth: 1,
     borderColor: colors.headerGradientEnd,
-    shadowColor: colors.headerGradientStart,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
-    elevation: 7,
+    ...cardShadowStyle,
   },
   /** Decorative orbs extend past radius — clip only when no header menu. */
   cardClipOrbs: {

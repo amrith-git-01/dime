@@ -16,6 +16,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -26,7 +27,13 @@ import Animated, {
 import { colors, spacing } from "@/constants/theme";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
-import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
+import {
+  clearPendingNavigationCallback,
+  invokePendingNavigationCallback,
+  registerFabAnimationDriver,
+  setPendingNavigationCallback,
+  useAddTransactionFabStore,
+} from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 const TAB_ICON_SIZE = 22;
@@ -39,6 +46,18 @@ const LIQUID_PILL_WIDTH = 56;
 const LIQUID_PILL_HEIGHT = 30;
 const NOTCH_CUTOUT_SIZE = 52;
 const TOTAL_NAV_SLOTS = 5;
+
+const FAB_OPEN_ROTATION_SPRING = {
+  damping: 16,
+  stiffness: 220,
+  mass: 0.75,
+} as const;
+
+const FAB_ACTIONS_SPRING = {
+  damping: 18,
+  stiffness: 240,
+  mass: 0.9,
+} as const;
 
 const ROUTE_ICONS = {
   Home: House,
@@ -178,15 +197,31 @@ export function DimeTabBar({
   ]);
 
   useEffect(() => {
-    plusRotationDeg.value = withSpring(fabOpen ? 45 : 0, {
-      damping: 16,
-      stiffness: 220,
-      mass: 0.75,
+    registerFabAnimationDriver({
+      requestClose: (onComplete) => {
+        setPendingNavigationCallback(onComplete);
+        setFabOpen(false);
+      },
     });
-    actionsProgress.value = withSpring(fabOpen ? 1 : 0, {
-      damping: 18,
-      stiffness: 240,
-      mass: 0.9,
+    return () => {
+      registerFabAnimationDriver(null);
+      clearPendingNavigationCallback();
+    };
+  }, [setFabOpen]);
+
+  useEffect(() => {
+    if (fabOpen) {
+      clearPendingNavigationCallback();
+      plusRotationDeg.value = withSpring(45, FAB_OPEN_ROTATION_SPRING);
+      actionsProgress.value = withSpring(1, FAB_ACTIONS_SPRING);
+      return;
+    }
+
+    plusRotationDeg.value = withSpring(0, FAB_OPEN_ROTATION_SPRING);
+    actionsProgress.value = withSpring(0, FAB_ACTIONS_SPRING, (finished) => {
+      if (finished) {
+        runOnJS(invokePendingNavigationCallback)();
+      }
     });
   }, [actionsProgress, fabOpen, plusRotationDeg]);
 
@@ -415,7 +450,9 @@ export function DimeTabBar({
             hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
             onPress={() => {
               void triggerLightHaptic();
-              onManualAddPress();
+              useAddTransactionFabStore.getState().closeForNavigation(() => {
+                onManualAddPress();
+              });
             }}
             style={styles.radialActionHit}
           >
