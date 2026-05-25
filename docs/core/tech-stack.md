@@ -33,22 +33,22 @@
 
 ## Stack Overview
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| **Project Structure** | React Native (Bare Expo Workflow) | Full native Android access + Expo tooling |
-| **Build & Deploy** | EAS (Build + Submit + Update) | Cloud builds, Play Store deploy, OTA updates |
-| **UI & Styling** | NativeWind v4 | Tailwind-style utility classes for React Native |
-| **Animations** | Reanimated 3 | Fluid spring-physics micro-animations |
-| **Gestures** | Gesture Handler | Swipe-to-categorize, swipe-to-delete |
-| **Navigation** | React Navigation v7 | Bottom tab + stack navigation |
-| **State Management** | Zustand | Lightweight global UI & session state |
-| **Server State** | TanStack React Query | API data fetching, caching, background sync |
-| **Local Settings** | MMKV | Ultra-fast key-value storage (30x AsyncStorage) |
-| **Local Database** | WatermelonDB | High-performance SQLite for offline-first data |
-| **Charts & Graphs** | Victory Native XL (Skia) | GPU-rendered, 60fps smooth charts |
-| **On-Device AI** | Gemma 4 E2B via ML Kit GenAI API | SMS parsing, OCR, categorization, insights |
-| **Backend Server** | FastAPI (Python) | REST APIs, analytics, chart data computation |
-| **Database** | Supabase (Postgres) | Cloud sync, auth, storage, real-time |
+| Layer                 | Technology                        | Purpose                                           |
+| --------------------- | --------------------------------- | ------------------------------------------------- |
+| **Project Structure** | React Native (Bare Expo Workflow) | Full native Android access + Expo tooling         |
+| **Build & Deploy**    | EAS (Build + Submit + Update)     | Cloud builds, Play Store deploy, OTA updates      |
+| **UI & Styling**      | NativeWind v4                     | Tailwind-style utility classes for React Native   |
+| **Animations**        | Reanimated 3                      | Fluid spring-physics micro-animations             |
+| **Gestures**          | Gesture Handler                   | Swipe-to-categorize, swipe-to-delete              |
+| **Navigation**        | React Navigation v7               | Bottom tab + stack navigation                     |
+| **State Management**  | Zustand                           | Lightweight global UI & session state             |
+| **Server State**      | TanStack React Query              | API data fetching, caching, background sync       |
+| **Local Settings**    | MMKV                              | Ultra-fast key-value storage (30x AsyncStorage)   |
+| **Local Database**    | WatermelonDB                      | High-performance SQLite for offline-first data    |
+| **Charts & Graphs**   | Victory Native XL (Skia)          | GPU-rendered, 60fps smooth charts                 |
+| **Cloud AI**          | Backend-routed LLM APIs           | Receipt parsing, merchant cleanup, categorization |
+| **Backend Server**    | FastAPI (Python)                  | REST APIs, analytics, chart data computation      |
+| **Database**          | Supabase (Postgres)               | Cloud sync, auth, storage, real-time              |
 
 ---
 
@@ -77,10 +77,10 @@
                 │ On-Device            │ HTTP REST API
                 │                      │
 ┌───────────────▼──────────┐  ┌────────▼─────────────────┐
-│       ON-DEVICE AI        │  │      BACKEND SERVER       │
+│        CLOUD AI API       │  │      BACKEND SERVER       │
 │                           │  │                           │
-│   Gemma 4 E2B             │  │   FastAPI (Python)        │
-│   via ML Kit GenAI API    │  │                           │
+│   Hosted multimodal LLM   │  │   FastAPI (Python)        │
+│   via backend proxy       │  │                           │
 │                           │  │   • REST APIs             │
 │   • SMS / UPI parsing     │  │   • Analytics engine      │
 │   • Receipt OCR           │  │   • Chart data compute    │
@@ -88,9 +88,9 @@
 │   • Spending insights     │  │   • Push notifications    │
 │   • Natural lang queries  │  │   • Sync orchestration    │
 │                           │  │                           │
-│   100% On-Device          │  └────────┬─────────────────┘
-│   No internet needed      │           │
-│   No cost ever            │           │
+│   Managed by backend      │  └────────┬─────────────────┘
+│   Auth + rate limits      │           │
+│   Cloud dependent         │           │
 └───────────────────────────┘  ┌────────▼─────────────────┐
                                │    DATABASE & CLOUD       │
                                │                           │
@@ -125,11 +125,11 @@ The app is built with **React Native** using the **Bare Expo Workflow** — not 
 
 EAS is Expo's cloud build and deployment infrastructure. Three services, all relevant to this project:
 
-| Service | What it does | Cost |
-|---|---|---|
-| **EAS Build** | Builds `.apk` / `.aab` in the cloud — no Android Studio needed on your machine | 30 free builds/month |
-| **EAS Submit** | Uploads the built app directly to Play Store automatically | Free |
-| **EAS Update** | Pushes over-the-air JS updates to users — no Play Store resubmission needed | Free, unlimited |
+| Service        | What it does                                                                   | Cost                 |
+| -------------- | ------------------------------------------------------------------------------ | -------------------- |
+| **EAS Build**  | Builds `.apk` / `.aab` in the cloud — no Android Studio needed on your machine | 30 free builds/month |
+| **EAS Submit** | Uploads the built app directly to Play Store automatically                     | Free                 |
+| **EAS Update** | Pushes over-the-air JS updates to users — no Play Store resubmission needed    | Free, unlimited      |
 
 **How Bare Workflow and EAS relate:**
 
@@ -143,6 +143,7 @@ is structured               DEPLOY that project
 They are independent but used together. Bare Workflow is the project structure. EAS is the build pipeline.
 
 **Why EAS Build matters for a solo dev:**
+
 - No need to set up a local Android build environment
 - Build happens in Google's cloud — your machine just needs to push code
 - 30 free builds/month is more than enough during development and early launch
@@ -192,6 +193,7 @@ Nothing more. Deliberate simplicity to avoid overwhelming the user.
 ---
 
 **What React Navigation v7 gives us over Expo Router:**
+
 - Full control over every transition and gesture animation
 - Custom edge swipe, bottom sheet transitions wire up cleanly with Reanimated 3 and Gesture Handler — made by the same team (Software Mansion)
 - Battle-tested, massive community, no Bare Expo edge cases
@@ -205,13 +207,13 @@ Lightweight global state management. No reducers, no actions, no boilerplate —
 
 **Why Zustand over alternatives:**
 
-| | Zustand | Redux Toolkit | Context API |
-|---|---|---|---|
-| **Boilerplate** | Minimal | Heavy | None but re-render heavy |
-| **Performance** | ✅ Selective re-renders | ✅ | ❌ Full tree re-renders |
-| **Solo dev speed** | ✅ Fast | ❌ Slow | ✅ Fast |
-| **DevTools** | ✅ | ✅ | ❌ |
-| **Bundle size** | ~1KB | ~30KB | 0 |
+|                    | Zustand                 | Redux Toolkit | Context API              |
+| ------------------ | ----------------------- | ------------- | ------------------------ |
+| **Boilerplate**    | Minimal                 | Heavy         | None but re-render heavy |
+| **Performance**    | ✅ Selective re-renders | ✅            | ❌ Full tree re-renders  |
+| **Solo dev speed** | ✅ Fast                 | ❌ Slow       | ✅ Fast                  |
+| **DevTools**       | ✅                      | ✅            | ❌                       |
+| **Bundle size**    | ~1KB                    | ~30KB         | 0                        |
 
 **What Zustand manages in this app:**
 
@@ -226,6 +228,7 @@ stores/
 ```
 
 **What Zustand does NOT manage:**
+
 - Persistent transaction data → WatermelonDB
 - User preferences → MMKV
 - Cloud data → Supabase via FastAPI
@@ -243,12 +246,12 @@ Without React Query, every screen that calls FastAPI needs manual `isLoading`, `
 
 **How it fits alongside Zustand:**
 
-| | Zustand | React Query |
-|---|---|---|
-| **Purpose** | UI state, session state | Server / API data |
-| **Example** | Is bottom sheet open? | This month's insights data |
-| **Cache** | In-memory session | Configurable stale time |
-| **Source of truth** | Client UI | FastAPI backend |
+|                     | Zustand                 | React Query                |
+| ------------------- | ----------------------- | -------------------------- |
+| **Purpose**         | UI state, session state | Server / API data          |
+| **Example**         | Is bottom sheet open?   | This month's insights data |
+| **Cache**           | In-memory session       | Configurable stale time    |
+| **Source of truth** | Client UI               | FastAPI backend            |
 
 They are not competitors — they handle completely different concerns and work together seamlessly.
 
@@ -268,6 +271,7 @@ useMutation hooks
 ```
 
 **Key behaviours enabled:**
+
 - Insights screen mounts → serves cached data instantly → refetches in background silently
 - User adds expense → `invalidateQueries` → budget and insights auto-refresh
 - API fails → automatic retry (3 attempts) → error state shown cleanly
@@ -292,6 +296,7 @@ Synchronous key-value storage — 30x faster than AsyncStorage. Used for:
 High-performance SQLite wrapper built specifically for React Native. The local source of truth for all expense data.
 
 **Why WatermelonDB over plain SQLite or AsyncStorage:**
+
 - Built for apps with thousands of records — expenses accumulate fast
 - Lazy loading — only loads what's visible on screen
 - Reactive — UI updates automatically when data changes
@@ -299,6 +304,7 @@ High-performance SQLite wrapper built specifically for React Native. The local s
 - Offline-first by design
 
 **Data flow (Offline-First):**
+
 ```
 User logs expense
       ↓
@@ -319,90 +325,75 @@ GPU-rendered charting library built on top of **React Native Skia**. The only ch
 
 **Why Victory Native XL over alternatives:**
 
-| Library | Rendering | Animations | Customization | Verdict |
-|---|---|---|---|---|
-| **Victory Native XL** | GPU (Skia) | 60fps buttery | Full control | ✅ Our pick |
-| Gifted Charts | JS thread | Basic | Limited | ⚠️ Okay for prototypes |
-| React Native Charts Kit | JS thread | Minimal | Very limited | ❌ Skip |
-| Echarts (WebView) | WebView | Good | Rich | ❌ Not truly native |
-| Raw Skia | GPU | 60fps | Full control | ❌ Too much solo dev work |
+| Library                 | Rendering  | Animations    | Customization | Verdict                   |
+| ----------------------- | ---------- | ------------- | ------------- | ------------------------- |
+| **Victory Native XL**   | GPU (Skia) | 60fps buttery | Full control  | ✅ Our pick               |
+| Gifted Charts           | JS thread  | Basic         | Limited       | ⚠️ Okay for prototypes    |
+| React Native Charts Kit | JS thread  | Minimal       | Very limited  | ❌ Skip                   |
+| Echarts (WebView)       | WebView    | Good          | Rich          | ❌ Not truly native       |
+| Raw Skia                | GPU        | 60fps         | Full control  | ❌ Too much solo dev work |
 
 **Renders on the GPU — not the JS thread.** This means charts never block scrolling, never stutter, never jank. Reanimated 3 and Victory Native XL share the same Skia foundation, so animations between the two are seamless.
 
 **Chart types used in this app:**
 
-| Chart | Screen | Library Component |
-|---|---|---|
-| **Spending arc / ring** | Home screen | Skia Arc (custom) |
-| **Donut chart** | Insights — category breakdown | Victory Pie |
-| **Line chart** | Insights — 30 day spending trend | Victory Line |
-| **Bar chart** | Insights — month vs month | Victory Bar |
-| **Area chart** | Insights — cumulative spending | Victory Area |
+| Chart                   | Screen                           | Library Component |
+| ----------------------- | -------------------------------- | ----------------- |
+| **Spending arc / ring** | Home screen                      | Skia Arc (custom) |
+| **Donut chart**         | Insights — category breakdown    | Victory Pie       |
+| **Line chart**          | Insights — 30 day spending trend | Victory Line      |
+| **Bar chart**           | Insights — month vs month        | Victory Bar       |
+| **Area chart**          | Insights — cumulative spending   | Victory Area      |
 
 ---
 
-### Gemma 4 E2B via ML Kit GenAI API
+### Cloud AI via Backend Gateway
 
-**Released:** April 2, 2026  
-**License:** Apache 2.0 (free for commercial use, forever)  
-**Cost:** ₹0 — runs entirely on device, no cloud, no billing
+**Runtime:** Server-side inference  
+**Access:** Backend-managed API keys  
+**Cost:** Provider-dependent cloud billing
 
-#### What is ML Kit?
+#### Why backend-routed cloud AI?
 
-ML Kit is Google's free AI/ML SDK for mobile apps. It provides pre-packaged AI tools (OCR, face detection, barcode scanning, etc.) and now includes the **GenAI APIs** which give direct access to Gemma 4 running on the device's chip.
+The app now sends receipt images and extraction prompts to backend AI endpoints.
+Backend handles provider selection, API keys, retries, and response normalization.
 
 ```
-Your App
+Mobile App
    ↓
-ML Kit GenAI API  ← call it like any SDK
+FastAPI /api/v1/ai/*
    ↓
-Gemma 4 E2B running on Snapdragon / Tensor chip
+Cloud LLM provider(s)
    ↓
-Result returned instantly, fully offline
+Structured JSON response
 ```
 
-You never manage the model directly. ML Kit handles model loading, inference, memory, and lifecycle.
+Mobile app no longer loads local models. Backend owns AI orchestration.
 
-#### Why Gemma 4 E2B specifically
+#### Why this approach
 
-| Property | Detail |
-|---|---|
-| **Parameters** | 2B effective |
-| **RAM required** | ~1.5 GB |
-| **Storage** | ~1.3 GB download (one-time on first launch) |
-| **Speed** | 12–20 tokens/second on Snapdragon 8 Gen 1+ |
-| **Languages** | 140+ including Hindi, Tamil, Telugu |
-| **Multimodal** | Text + Image + Audio |
-| **Works offline** | Yes, fully |
-| **Cost** | ₹0 forever |
-| **License** | Apache 2.0 |
-| **Future-proof** | Forward-compatible with Gemini Nano 4 |
+| Property                 | Detail                                  |
+| ------------------------ | --------------------------------------- |
+| **Device compatibility** | No local model/device constraints       |
+| **Storage impact**       | No model download on phone              |
+| **Rollout speed**        | Prompt/model updates via backend only   |
+| **Observability**        | Centralized logs and error handling     |
+| **Control**              | Quotas, auth, policy checks server-side |
 
-#### What Gemma 4 E2B handles in this app
+#### What cloud AI handles in this app
 
-| Task | How |
-|---|---|
-| **SMS / UPI parsing** | Reads bank SMS → extracts amount, merchant, debit/credit type |
-| **Receipt scanning** | Photo → OCR + line item extraction in one pass (no separate OCR library needed) |
-| **Auto-categorization** | "Swiggy ₹320" → Food & Dining, with reasoning |
-| **Merchant name cleanup** | "SWGY*SWIG9381" from bank SMS → "Swiggy" |
-| **Spending insights** | "You spent 40% more on food vs last week" |
-| **Natural language queries** | "How much did I spend on weekends this month?" — answered instantly, offline |
+| Task                         | How                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| **SMS / UPI parsing**        | Reads bank SMS → extracts amount, merchant, debit/credit type                   |
+| **Receipt scanning**         | Photo → OCR + line item extraction in one pass (no separate OCR library needed) |
+| **Auto-categorization**      | "Swiggy ₹320" → Food & Dining, with reasoning                                   |
+| **Merchant name cleanup**    | "SWGY\*SWIG9381" from bank SMS → "Swiggy"                                       |
+| **Spending insights**        | "You spent 40% more on food vs last week"                                       |
+| **Natural language queries** | "How much did I spend on weekends this month?" — answered via backend           |
 
 #### Integration Path
 
-**ML Kit GenAI Prompt API** — the flexible API for custom prompts:
-
-```
-Use Prompt API when you need customization and flexibility
-Use feature-specific APIs for standard tasks
-```
-
-The Prompt API is what we use — it lets us send any natural language instruction to Gemma 4 and get a structured response back, which we then parse and act on in the app.
-
-#### Device Availability Note
-
-Gemma 4 E2B via AICore is in **Developer Preview** as of April 2026. Supported devices include Pixel 9 series, Samsung Galaxy S25, Xiaomi 15, and other flagship/upper-mid-range Android 14+ phones. Coverage is expanding rapidly — by app launch, availability will be significantly broader.
+Mobile sends image to `POST /api/v1/ai/receipt-parse`. Backend calls cloud model and returns normalized JSON.
 
 ---
 
@@ -439,12 +430,12 @@ Gemma 4 E2B via AICore is in **Developer Preview** as of April 2026. Supported d
 
 Supabase is the backend-as-a-service layer handling everything cloud-related. It sits between FastAPI and the data.
 
-| Feature | What it does in this app |
-|---|---|
-| **Auth** | Google Sign-In + email login |
-| **Postgres** | Primary relational database for cloud sync and backup |
-| **Storage** | Receipt image backup |
-| **Real-time** | Cross-device sync — changes on one phone appear on another |
+| Feature                | What it does in this app                                               |
+| ---------------------- | ---------------------------------------------------------------------- |
+| **Auth**               | Google Sign-In + email login                                           |
+| **Postgres**           | Primary relational database for cloud sync and backup                  |
+| **Storage**            | Receipt image backup                                                   |
+| **Real-time**          | Cross-device sync — changes on one phone appear on another             |
 | **Row-Level Security** | User A can never access User B's financial data — enforced at DB level |
 
 **Why Postgres (not NoSQL):**
@@ -452,8 +443,9 @@ Supabase is the backend-as-a-service layer handling everything cloud-related. It
 Financial data is relational by nature — transactions belong to categories, categories belong to budgets, budgets belong to users. SQL is the right tool. Supabase gives Postgres out of the box with zero config.
 
 **Free tier includes:**
+
 - 500MB database storage
-- 5GB file storage  
+- 5GB file storage
 - 50,000 monthly active users
 - Unlimited API requests
 
@@ -465,22 +457,21 @@ More than enough to take this from zero to thousands of users without spending a
 
 > Honest cost breakdown for a solo dev launching this app
 
-| Item | Cost | Notes |
-|---|---|---|
-| **Gemma 4 E2B** | ₹0 forever | On-device, Apache 2.0, no billing possible |
-| **ML Kit GenAI API** | ₹0 forever | Free Google SDK |
-| **EAS Build** | ₹0 | 30 free builds/month — enough for solo dev |
-| **EAS Submit** | ₹0 | Free |
-| **EAS Update (OTA)** | ₹0 | Free, unlimited JS pushes |
-| **Zustand** | ₹0 | Open source, MIT license |
-| **TanStack React Query** | ₹0 | Open source, MIT license |
-| **Victory Native XL** | ₹0 | Open source, MIT license |
-| **NativeWind, Reanimated, all npm packages** | ₹0 | All open source |
-| **WatermelonDB** | ₹0 | Open source |
-| **FastAPI + Python** | ₹0 | Open source |
-| **Supabase** | ₹0 | Free tier covers early growth |
-| **FastAPI hosting** | ₹0–700/month | Railway/Render free tier to start |
-| **Google Play Store** | ₹1,650 one-time | Developer account registration |
+| Item                                         | Cost            | Notes                                      |
+| -------------------------------------------- | --------------- | ------------------------------------------ |
+| **Cloud LLM API**                            | Usage-based     | Billed by provider; routed via backend     |
+| **EAS Build**                                | ₹0              | 30 free builds/month — enough for solo dev |
+| **EAS Submit**                               | ₹0              | Free                                       |
+| **EAS Update (OTA)**                         | ₹0              | Free, unlimited JS pushes                  |
+| **Zustand**                                  | ₹0              | Open source, MIT license                   |
+| **TanStack React Query**                     | ₹0              | Open source, MIT license                   |
+| **Victory Native XL**                        | ₹0              | Open source, MIT license                   |
+| **NativeWind, Reanimated, all npm packages** | ₹0              | All open source                            |
+| **WatermelonDB**                             | ₹0              | Open source                                |
+| **FastAPI + Python**                         | ₹0              | Open source                                |
+| **Supabase**                                 | ₹0              | Free tier covers early growth              |
+| **FastAPI hosting**                          | ₹0–700/month    | Railway/Render free tier to start          |
+| **Google Play Store**                        | ₹1,650 one-time | Developer account registration             |
 
 **Total to launch: ₹1,650 one-time + ₹0/month until scale.**
 
@@ -490,16 +481,16 @@ More than enough to take this from zero to thousands of users without spending a
 
 Since there is no fallback — the app requires full AICore support.
 
-| Requirement | Minimum |
-|---|---|
-| **Android version** | Android 14+ |
-| **RAM** | 6 GB |
-| **Storage free** | 2 GB (for Gemma 4 E2B model download on first launch) |
-| **Chipset** | Snapdragon 8 Gen 1 / Tensor G2 / Dimensity 9000 or newer |
-| **AICore** | Required |
+| Requirement         | Minimum                                                  |
+| ------------------- | -------------------------------------------------------- |
+| **Android version** | Android 14+                                              |
+| **RAM**             | 6 GB                                                     |
+| **Storage free**    | No local model storage required                          |
+| **Chipset**         | Snapdragon 8 Gen 1 / Tensor G2 / Dimensity 9000 or newer |
+| **AICore**          | Required                                                 |
 
 This covers the vast majority of Android phones sold in India from 2022 onwards — the primary target audience for UPI/GPay expense tracking.
 
 ---
 
-> *Document maintained as part of project planning. Last brainstormed with Claude, April 2026.*
+> _Document maintained as part of project planning. Last brainstormed with Claude, April 2026._

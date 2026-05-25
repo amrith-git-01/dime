@@ -1,7 +1,8 @@
 import { Image } from "expo-image";
-import { Bell } from "lucide-react-native";
-import { useCallback, useId, useState } from "react";
+import { Bell, Settings } from "lucide-react-native";
+import { useCallback, useId, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -16,6 +17,8 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
+  onSettingsPress?: () => void;
+  onHeaderReady?: () => void;
 };
 
 const AVATAR_SIZE = 40;
@@ -29,16 +32,27 @@ function timeOfDayGreeting(): string {
   return "Good evening";
 }
 
-export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
+export function AppHeader({
+  onNotificationsPress,
+  onSettingsPress,
+  onHeaderReady,
+}: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
   const greeting = timeOfDayGreeting();
   const gradientId = `appHeaderGrad_${useId().replace(/:/g, "")}`;
   const [headerSize, setHeaderSize] = useState({ w: 0, h: 0 });
+  const [avatarImageLoading, setAvatarImageLoading] = useState(true);
+  const [avatarImageError, setAvatarImageError] = useState(false);
+  const headerReadyNotifiedRef = useRef(false);
 
   const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setHeaderSize({ w: width, h: height });
+    if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
+      headerReadyNotifiedRef.current = true;
+      onHeaderReady?.();
+    }
   }, []);
 
   return (
@@ -97,7 +111,30 @@ export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
                   source={{ uri: avatarUrl }}
                   style={styles.avatar}
                   accessibilityLabel="Profile avatar"
+                  onLoadStart={() => {
+                    setAvatarImageLoading(true);
+                    setAvatarImageError(false);
+                  }}
+                  onLoad={() => {
+                    setAvatarImageLoading(false);
+                    setAvatarImageError(false);
+                  }}
+                  onError={() => {
+                    setAvatarImageLoading(false);
+                    setAvatarImageError(true);
+                  }}
                 />
+                {avatarImageLoading ? (
+                  <View style={styles.avatarSpinnerWrap}>
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textOnPrimary}
+                    />
+                  </View>
+                ) : null}
+                {avatarImageError ? (
+                  <View style={styles.avatarErrorTint} />
+                ) : null}
               </View>
             )}
 
@@ -116,6 +153,26 @@ export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
             </View>
 
             <View style={styles.spacer} />
+
+            {onSettingsPress ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                hitSlop={8}
+                onPress={onSettingsPress}
+                style={({ pressed }) => [
+                  styles.bellCircle,
+                  pressed && styles.bellPressed,
+                  styles.headerIconGap,
+                ]}
+              >
+                <Settings
+                  size={BELL_ICON}
+                  color={colors.textOnPrimary}
+                  strokeWidth={1.5}
+                />
+              </Pressable>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"
@@ -180,6 +237,16 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  avatarSpinnerWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(99,85,232,0.2)",
+  },
+  avatarErrorTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.14)",
+  },
   avatarSkeleton: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -227,6 +294,9 @@ const styles = StyleSheet.create({
   },
   bellPressed: {
     opacity: 0.85,
+  },
+  headerIconGap: {
+    marginRight: spacing.sm,
   },
   errorHint: {
     ...typography.screenSubtitle,

@@ -1,17 +1,30 @@
 """FastAPI application entry — health + user profile + avatar routes."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import health, me, profile
+from core.job_runner import start_workers, stop_workers
+from routes import budget, categories, health, me, profile, transactions
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("features").setLevel(logging.INFO)
+logging.getLogger("core").setLevel(logging.INFO)
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    yield
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await start_workers(app)
+    try:
+        yield
+    finally:
+        await stop_workers(app)
 
 
 def create_application() -> FastAPI:
@@ -32,6 +45,9 @@ def create_application() -> FastAPI:
     application.include_router(health.router, prefix=api_prefix)
     application.include_router(me.router, prefix=api_prefix)
     application.include_router(profile.router, prefix=api_prefix)
+    application.include_router(categories.router, prefix=api_prefix)
+    application.include_router(transactions.router, prefix=api_prefix)
+    application.include_router(budget.router, prefix=api_prefix)
 
     @application.get("/")
     def read_root() -> dict[str, str]:

@@ -1,6 +1,9 @@
 # IDE & local tooling
 .cursor
 .vscode
+.codex/
+.github/
+AGENTS.md
 
 # OS
 .DS_Store

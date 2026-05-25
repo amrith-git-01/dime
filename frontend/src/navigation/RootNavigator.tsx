@@ -5,11 +5,12 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { colors } from "@/constants/theme";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
+import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import { supabase } from "@/lib/supabase/client";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
 
-import MainTabNavigator from "./MainTabNavigator";
+import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,6 +43,7 @@ export default function RootNavigator() {
   }, []);
 
   const profileUserId = session?.user.id;
+  useTransactionsRealtimeSync(profileUserId ?? null);
   const meQuery = useCurrentUserProfileQuery(profileUserId);
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function RootNavigator() {
           )}
         </Stack.Screen>
       ) : (
-        <Stack.Screen name="Main" component={MainTabNavigator} />
+        <Stack.Screen name="Main" component={MainStackNavigator} />
       )}
     </Stack.Navigator>
   );

@@ -13,6 +13,10 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { loadableAppFonts } from "@/constants/fonts";
+import { CategoriesSyncBootstrap } from "@/features/categories/components/CategoriesSyncBootstrap";
+import { ToastHost } from "@/features/toast/components/ToastHost";
+import { ReceiptScanBusyOverlay } from "@/features/transactions/components/ReceiptScanBusyOverlay";
+import { VoiceCaptureBar } from "@/features/transactions/components/VoiceCaptureBar";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
 
@@ -90,6 +94,10 @@ export default function App() {
             <NavigationContainer theme={appNavigationTheme}>
               <RootNavigator />
             </NavigationContainer>
+            <CategoriesSyncBootstrap />
+            <ReceiptScanBusyOverlay />
+            <VoiceCaptureBar />
+            <ToastHost />
           </KeyboardProvider>
           <StatusBar style="auto" />
         </SafeAreaProvider>

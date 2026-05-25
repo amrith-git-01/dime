@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
+import type { TransactionRow } from "@/features/transactions/types";
+
 export type MainTabParamList = {
   Home: undefined;
   Transactions: undefined;
@@ -7,10 +9,24 @@ export type MainTabParamList = {
   Insights: undefined;
 };
 
+export type MainStackParamList = {
+  MainTabs: undefined;
+  Settings: undefined;
+  Notifications: undefined;
+  ManualAddTransaction:
+    | {
+        createdCategoryId?: string;
+        createdCategoryName?: string;
+      }
+    | undefined;
+  CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  TransactionDetail: { transaction: TransactionRow };
+};
+
 export type RootStackParamList = {
   Auth: undefined;
   ProfileSetup: undefined;
-  Main: NavigatorScreenParams<MainTabParamList>;
+  Main: NavigatorScreenParams<MainStackParamList>;
 };
 
 declare global {

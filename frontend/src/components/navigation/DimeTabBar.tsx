@@ -12,10 +12,11 @@ import {
   Plus,
   Target,
 } from "lucide-react-native";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -24,7 +25,16 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { colors, spacing } from "@/constants/theme";
+import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import {
+  clearPendingNavigationCallback,
+  invokePendingNavigationCallback,
+  registerFabAnimationDriver,
+  setPendingNavigationCallback,
+  useAddTransactionFabStore,
+} from "@/stores/addTransactionFabStore";
+import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 const TAB_ICON_SIZE = 22;
 const ACTIVE_ICON_SIZE = 24;
@@ -36,6 +46,18 @@ const LIQUID_PILL_WIDTH = 56;
 const LIQUID_PILL_HEIGHT = 30;
 const NOTCH_CUTOUT_SIZE = 52;
 const TOTAL_NAV_SLOTS = 5;
+
+const FAB_OPEN_ROTATION_SPRING = {
+  damping: 16,
+  stiffness: 220,
+  mass: 0.75,
+} as const;
+
+const FAB_ACTIONS_SPRING = {
+  damping: 18,
+  stiffness: 240,
+  mass: 0.9,
+} as const;
 
 const ROUTE_ICONS = {
   Home: House,
@@ -115,17 +137,27 @@ export function DimeTabBar({
   descriptors,
   navigation,
   insets,
-}: BottomTabBarProps) {
+  onFirstLayout,
+  onManualAddPress,
+}: BottomTabBarProps & {
+  onFirstLayout?: () => void;
+  onManualAddPress: () => void;
+}) {
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
   const onTabBarHeightChange = useContext(BottomTabBarHeightCallbackContext);
+  const firstLayoutNotifiedRef = useRef(false);
   const barWidth = useSharedValue(0);
   const activeCenterX = useSharedValue(0);
   const travelMorph = useSharedValue(0);
   const activeLift = useSharedValue(0);
   const plusRotationDeg = useSharedValue(0);
   const actionsProgress = useSharedValue(0);
-  const [addFabOpen, setAddFabOpen] = useState(false);
+  const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
+  const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
+  const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
+  const captureReceiptAndCreate = useReceiptCameraTransaction();
+  const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
 
   const activeRouteName = state.routes[state.index]?.name;
   const ActiveIcon = useMemo(
@@ -164,6 +196,35 @@ export function DimeTabBar({
     travelMorph,
   ]);
 
+  useEffect(() => {
+    registerFabAnimationDriver({
+      requestClose: (onComplete) => {
+        setPendingNavigationCallback(onComplete);
+        setFabOpen(false);
+      },
+    });
+    return () => {
+      registerFabAnimationDriver(null);
+      clearPendingNavigationCallback();
+    };
+  }, [setFabOpen]);
+
+  useEffect(() => {
+    if (fabOpen) {
+      clearPendingNavigationCallback();
+      plusRotationDeg.value = withSpring(45, FAB_OPEN_ROTATION_SPRING);
+      actionsProgress.value = withSpring(1, FAB_ACTIONS_SPRING);
+      return;
+    }
+
+    plusRotationDeg.value = withSpring(0, FAB_OPEN_ROTATION_SPRING);
+    actionsProgress.value = withSpring(0, FAB_ACTIONS_SPRING, (finished) => {
+      if (finished) {
+        runOnJS(invokePendingNavigationCallback)();
+      }
+    });
+  }, [actionsProgress, fabOpen, plusRotationDeg]);
+
   const onBarLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
@@ -173,10 +234,15 @@ export function DimeTabBar({
       const activeSlotIndex = state.index < 2 ? state.index : state.index + 1;
       activeCenterX.value = slotWidth * activeSlotIndex + slotWidth / 2;
       onTabBarHeightChange?.(height);
+      if (!firstLayoutNotifiedRef.current && width > 0 && height > 0) {
+        firstLayoutNotifiedRef.current = true;
+        onFirstLayout?.();
+      }
     },
     [
       activeCenterX,
       barWidth,
+      onFirstLayout,
       onTabBarHeightChange,
       state.index,
       state.routes.length,
@@ -215,7 +281,7 @@ export function DimeTabBar({
     opacity: actionsProgress.value,
     transform: [
       { translateX: interpolate(actionsProgress.value, [0, 1], [0, -52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -54]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -223,7 +289,7 @@ export function DimeTabBar({
   const photoActionStyle = useAnimatedStyle(() => ({
     opacity: actionsProgress.value,
     transform: [
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -78]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -58]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -232,26 +298,15 @@ export function DimeTabBar({
     opacity: actionsProgress.value,
     transform: [
       { translateX: interpolate(actionsProgress.value, [0, 1], [0, 52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -54]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
 
   const toggleAddFab = useCallback(() => {
     void triggerLightHaptic();
-    const next = !addFabOpen;
-    setAddFabOpen(next);
-    plusRotationDeg.value = withSpring(next ? 45 : 0, {
-      damping: 16,
-      stiffness: 220,
-      mass: 0.75,
-    });
-    actionsProgress.value = withSpring(next ? 1 : 0, {
-      damping: 18,
-      stiffness: 240,
-      mass: 0.9,
-    });
-  }, [actionsProgress, addFabOpen, plusRotationDeg]);
+    toggleFab();
+  }, [toggleFab]);
 
   return (
     <View
@@ -282,74 +337,6 @@ export function DimeTabBar({
           strokeWidth={2}
         />
       </Animated.View>
-      {/* Add-transaction methods (Manual / Photo / Voice) */}
-      <View
-        pointerEvents={addFabOpen ? "box-none" : "none"}
-        style={styles.actionsRow}
-      >
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleLeft,
-            manualActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction manually"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up manual-add flow here.
-            }}
-          >
-            <Edit3
-              size={20}
-              color={colors.headerGradientStart}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleCenter,
-            photoActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction from photo"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up photo-based add flow here.
-            }}
-          >
-            <Camera
-              size={20}
-              color={colors.headerGradientStart}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.actionBubble,
-            styles.actionBubbleRight,
-            voiceActionStyle,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction with voice"
-            pointerEvents={addFabOpen ? "auto" : "none"}
-            onPress={() => {
-              // Hook up voice-based add flow here.
-            }}
-          >
-            <Mic size={20} color={colors.headerGradientStart} strokeWidth={2} />
-          </Pressable>
-        </Animated.View>
-      </View>
       <View style={styles.tabsRow}>
         {state.routes.slice(0, 2).map((route, index) => {
           const { options } = descriptors[route.key];
@@ -390,9 +377,9 @@ export function DimeTabBar({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              addFabOpen ? "Close add transaction" : "Add transaction"
+              fabOpen ? "Close add transaction" : "Add transaction"
             }
-            accessibilityState={{ expanded: addFabOpen }}
+            accessibilityState={{ expanded: fabOpen }}
             onPress={toggleAddFab}
             hitSlop={10}
             pressRetentionOffset={12}
@@ -443,6 +430,87 @@ export function DimeTabBar({
             />
           );
         })}
+      </View>
+      {/* Render after tabs so + stays in normal order; zIndex + hitSlop reach fanned bubbles outside 44×44 (Android). */}
+      <View
+        pointerEvents={fabOpen ? "box-none" : "none"}
+        style={styles.actionsRow}
+      >
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleLeft,
+            manualActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction manually"
+            disabled={!fabOpen}
+            hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              useAddTransactionFabStore.getState().closeForNavigation(() => {
+                onManualAddPress();
+              });
+            }}
+            style={styles.radialActionHit}
+          >
+            <Edit3
+              size={20}
+              color={colors.headerGradientStart}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleCenter,
+            photoActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction from photo"
+            disabled={!fabOpen}
+            hitSlop={{ top: 56, bottom: 4, left: 20, right: 20 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              setFabOpen(false);
+              void captureReceiptAndCreate();
+            }}
+            style={styles.radialActionHit}
+          >
+            <Camera
+              size={20}
+              color={colors.headerGradientStart}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.actionBubble,
+            styles.actionBubbleRight,
+            voiceActionStyle,
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction with voice"
+            disabled={!fabOpen}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 64 }}
+            onPress={() => {
+              void triggerLightHaptic();
+              setFabOpen(false);
+              openVoiceCapture();
+            }}
+            style={styles.radialActionHit}
+          >
+            <Mic size={20} color={colors.headerGradientStart} strokeWidth={2} />
+          </Pressable>
+        </Animated.View>
       </View>
     </View>
   );
@@ -528,14 +596,14 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     position: "absolute",
-    bottom: ACTION_BUBBLE_SIZE - 2,
+    bottom: ACTION_BUBBLE_SIZE - 14,
     left: "50%",
     marginLeft: -(OPTION_BUBBLE_SIZE / 2),
     width: OPTION_BUBBLE_SIZE,
     height: OPTION_BUBBLE_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 5,
+    zIndex: 20,
   },
   actionBubble: {
     position: "absolute",
@@ -556,6 +624,13 @@ const styles = StyleSheet.create({
   actionBubbleLeft: {},
   actionBubbleCenter: {},
   actionBubbleRight: {},
+  /** Minimum touch target inside the 44×44 bubble (icon alone is too small on Android). */
+  radialActionHit: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tabItem: {
     flex: 1,
     position: "relative",

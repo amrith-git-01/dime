@@ -9,9 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
+      "usesCleartextTraffic": true,
+      "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
@@ -34,7 +41,7 @@
       ]
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
@@ -64,6 +71,12 @@
         "expo-image-picker",
         {
           "photosPermission": "Dime can read photos you pick for receipts and expense attachments."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Dime uses the microphone to capture spoken expenses and add them for you."
         }
       ]
     ],

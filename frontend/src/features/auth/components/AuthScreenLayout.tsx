@@ -35,7 +35,7 @@ export function AuthScreenLayout({ mode, onModeChange, children }: Props) {
           { minHeight: minScrollContentHeight },
         ]}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode="none"
         showsVerticalScrollIndicator={false}
         bottomOffset={24}
       >

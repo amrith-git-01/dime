@@ -1,6 +1,8 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { useCallback } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -8,31 +10,56 @@ import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
-import BudgetsScreen from "@/screens/budgets/BudgetsScreen";
+import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
-
-import type { MainTabParamList } from "./types";
+import type { MainStackParamList, MainTabParamList } from "./types";
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
   const safeInsets = useSafeAreaInsets();
+  const stackNavigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const [headerReady, setHeaderReady] = useState(false);
+  const [tabBarReady, setTabBarReady] = useState(false);
   const tabBarReservedHeight =
     spacing.tabBarHeight + Math.max(safeInsets.bottom, spacing.sm);
+  const shellReady = useMemo(
+    () => headerReady && tabBarReady,
+    [headerReady, tabBarReady],
+  );
   const onNotificationsPress = useCallback(() => {
     void triggerLightHaptic();
-    Alert.alert("Notifications", "You have no notifications yet.");
-  }, []);
+    stackNavigation.navigate("Notifications");
+  }, [stackNavigation]);
+  const onSettingsPress = useCallback(() => {
+    void triggerLightHaptic();
+    stackNavigation.navigate("Settings");
+  }, [stackNavigation]);
+
+  const onManualAddPress = useCallback(() => {
+    stackNavigation.navigate("ManualAddTransaction");
+  }, [stackNavigation]);
 
   return (
     <View style={styles.root}>
       <View style={styles.headerSlot}>
-        <AppHeader onNotificationsPress={onNotificationsPress} />
+        <AppHeader
+          onNotificationsPress={onNotificationsPress}
+          onSettingsPress={onSettingsPress}
+          onHeaderReady={() => setHeaderReady(true)}
+        />
       </View>
       <View style={styles.navigatorSlot}>
         <Tabs.Navigator
-          tabBar={(props) => <DimeTabBar {...props} />}
+          tabBar={(props) => (
+            <DimeTabBar
+              {...props}
+              onFirstLayout={() => setTabBarReady(true)}
+              onManualAddPress={onManualAddPress}
+            />
+          )}
           screenListeners={{
             tabPress: () => {
               void triggerLightHaptic();
@@ -61,7 +88,7 @@ export default function MainTabNavigator() {
           />
           <Tabs.Screen
             name="Budgets"
-            component={BudgetsScreen}
+            component={BudgetScreen}
             options={{
               title: "Budgets",
             }}
@@ -74,6 +101,11 @@ export default function MainTabNavigator() {
             }}
           />
         </Tabs.Navigator>
+        {!shellReady ? (
+          <View style={styles.shellLoaderOverlay}>
+            <ActivityIndicator color={colors.headerGradientStart} />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -92,5 +124,12 @@ const styles = StyleSheet.create({
   navigatorSlot: {
     flex: 1,
     minHeight: 0,
+  },
+  shellLoaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.pageBackground,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
   },
 });

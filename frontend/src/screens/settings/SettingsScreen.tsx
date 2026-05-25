@@ -1,8 +1,9 @@
 import { useCallback } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { Button } from "@/components/ui/Button/Button";
+import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing, typography } from "@/constants/theme";
 import { useSignOut } from "@/features/auth/hooks/useSignOut";
 
@@ -34,11 +35,22 @@ export default function SettingsScreen() {
 
   return (
     <TabScreenShell>
-      <View style={styles.body}>
-        <Text style={styles.title}>Settings</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.subtitle}>
           Account, security, and preferences go here.
         </Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>AI processing</Text>
+          <Text style={styles.cardSubtitle}>
+            Receipt parsing now runs through secure cloud APIs via backend.
+            Camera upload sends only the captured receipt image for extraction.
+          </Text>
+        </View>
 
         <View style={styles.logoutWrap}>
           <Button
@@ -49,24 +61,44 @@ export default function SettingsScreen() {
             onPress={confirmLogout}
           />
         </View>
-      </View>
+      </ScrollView>
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  body: {
+  scroll: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
-  },
-  title: {
-    ...typography.screenTitle,
-    color: colors.textPrimary,
+    paddingBottom: spacing.xl * 2,
   },
   subtitle: {
     ...typography.screenSubtitle,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  card: {
+    marginTop: spacing.xl,
+    padding: spacing.lg,
+    backgroundColor: colors.barBackground,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  cardTitle: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
+  cardSubtitle: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
   },
   logoutWrap: {
     marginTop: spacing.xl,
