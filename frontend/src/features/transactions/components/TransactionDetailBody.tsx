@@ -7,6 +7,10 @@ import { colors, spacing, typography } from "@/constants/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import { formatInrAmount } from "@/features/transactions/formatAmount";
 import type { TransactionRow } from "@/features/transactions/types";
+import {
+  TransactionReceiptImage,
+  TransactionVoicePlayer,
+} from "./TransactionAttachmentMedia";
 
 export type TransactionDetailBodyProps = {
   transaction: TransactionRow;
@@ -40,9 +44,16 @@ function DetailBlock({
   );
 }
 
+function hasMediaUrl(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function TransactionDetailBody({
   transaction: tx,
 }: TransactionDetailBodyProps) {
+  const receiptUrl = hasMediaUrl(tx.receipt_url) ? tx.receipt_url.trim() : null;
+  const voiceUrl = hasMediaUrl(tx.voice_url) ? tx.voice_url.trim() : null;
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -74,6 +85,18 @@ export function TransactionDetailBody({
       <DetailBlock label="Detected via">
         <Text style={styles.bodyText}>{detectedViaLabel(tx.detected_via)}</Text>
       </DetailBlock>
+
+      {receiptUrl ? (
+        <DetailBlock label="Receipt">
+          <TransactionReceiptImage url={receiptUrl} />
+        </DetailBlock>
+      ) : null}
+
+      {voiceUrl ? (
+        <DetailBlock label="Voice">
+          <TransactionVoicePlayer url={voiceUrl} />
+        </DetailBlock>
+      ) : null}
 
       <DetailBlock label="When">
         <Text style={styles.bodyTextMono} selectable>

@@ -1,8 +1,8 @@
 # 🤖 AI Models — Expense Tracker App
 
-> **Approach:** Free cloud APIs, multi-provider, use-case specific model assignment
+> **Approach:** Two-stage pipeline — Groq preprocess (media→text), DeepSeek V4 Flash parse (text→JSON)
 > **On-Device AI:** Removed — too slow, storage heavy, limited device support
-> **Last Updated:** May 2026
+> **Last Updated:** May 2026 (DeepSeek Flash pipeline)
 
 ---
 
@@ -10,11 +10,10 @@
 
 1. [Why Cloud AI](#why-cloud-ai)
 2. [Providers Overview](#providers-overview)
-3. [Full Model Comparison Table](#full-model-comparison-table)
-4. [Use Case → Model Assignment](#use-case--model-assignment)
-5. [Fallback Chain](#fallback-chain)
-6. [File Input / Output Handling](#file-input--output-handling)
-7. [Architecture Notes](#architecture-notes)
+3. [Pipeline](#pipeline-implemented)
+4. [Model IDs](#model-ids)
+5. [File Input / Output Handling](#file-input--output-handling)
+6. [Architecture Notes](#architecture-notes)
 
 ---
 
@@ -33,178 +32,59 @@ All AI processing now happens via **FastAPI backend** which calls cloud provider
 
 ## Providers Overview
 
-| Provider | Free Tier | Auth Required |
-|---|---|---|
-| **Google AI Studio** | Yes — model dependent limits | API key, no credit card |
-| **NVIDIA NIM** | Yes — 40 RPM shared | API key, no credit card |
-| **Groq** | Yes — model dependent limits | API key, no credit card |
+| Provider     | Role in pipeline                            | Auth               |
+| ------------ | ------------------------------------------- | ------------------ |
+| **DeepSeek** | Stage 2 — structured JSON parse (all modes) | `DEEPSEEK_API_KEY` |
+| **Groq**     | Stage 1 — Whisper STT + Scout receipt OCR   | `GROQ_API_KEY`     |
+
+DeepSeek V4 Flash is **text-in / text-out only**. Images and audio never go to DeepSeek directly.
 
 ---
 
-## Full Model Comparison Table
+## Pipeline (implemented)
 
-| Model | Provider | Images | Audio | Context | RPM | RPD | TPM |
-|---|---|---|---|---|---|---|---|
-| Gemma 3 4B | Google AI Studio | ✅ | ❌ | 128K | 30 | 14.4K | 15K |
-| Gemma 3 12B | Google AI Studio | ✅ | ❌ | 128K | 30 | 14.4K | 15K |
-| Gemma 3 27B | Google AI Studio | ✅ | ❌ | 128K | 30 | 14.4K | 15K |
-| Gemma 4 26B | Google AI Studio | ✅ | ❌ | 256K | 15 | 1.5K | Unlimited |
-| Gemma 4 31B | Google AI Studio | ✅ | ❌ | 256K | 15 | 1.5K | Unlimited |
-| Gemma 3n E4B | NVIDIA NIM | ✅ | ✅ | 128K | 40* | — | — |
-| Gemma 3n E2B | NVIDIA NIM | ✅ | ✅ | 128K | 40* | — | — |
-| Llama 3.1 8B Instant | Groq | ❌ | ❌ | 128K | 30 | 14.4K | 6K |
-| Llama 3.3 70B Versatile | Groq | ❌ | ❌ | 128K | 30 | 1K | 12K |
-| GPT-OSS 20B | Groq | ❌ | ❌ | 128K | 30 | 1K | 8K |
-| GPT-OSS 120B | Groq | ❌ | ❌ | 128K | 30 | 1K | 8K |
+| Input                   | Stage 1 (Groq)                                               | Stage 2 (DeepSeek)                              |
+| ----------------------- | ------------------------------------------------------------ | ----------------------------------------------- |
+| SMS / notification text | —                                                            | `deepseek-v4-flash` → `ParseExpenseResult` JSON |
+| Receipt image           | `meta-llama/llama-4-scout-17b-16e-instruct` OCR → plain text | `deepseek-v4-flash` parse OCR text              |
+| Voice audio             | `whisper-large-v3-turbo` → `whisper-large-v3` transcript     | `deepseek-v4-flash` parse transcript            |
 
-> *NVIDIA NIM 40 RPM is a **shared pool** across both Gemma 3n models combined — not per model.
-
-**Column definitions:**
-- **RPM** — Requests per minute
-- **RPD** — Requests per day
-- **TPM** — Tokens per minute (shared across all requests in that minute)
+Code: `backend/features/ai/preprocess/` (Groq), `backend/features/ai/service.py` (DeepSeek).
 
 ---
 
-## Use Case → Model Assignment
+## Model IDs
 
-Each use case has a dedicated primary model. Categorization is **not a separate call** — it is baked into the same prompt as parsing, so every model returns structured fields + category in one round trip.
+| Step               | Model                                       | Env                             |
+| ------------------ | ------------------------------------------- | ------------------------------- |
+| Parse brain        | `deepseek-v4-flash`                         | `AI_MODEL`, `AI_PARSE_FALLBACK` |
+| Voice STT primary  | `whisper-large-v3-turbo`                    | `GROQ_WHISPER_PRIMARY`          |
+| Voice STT fallback | `whisper-large-v3`                          | `GROQ_WHISPER_FALLBACK`         |
+| Receipt OCR        | `meta-llama/llama-4-scout-17b-16e-instruct` | `GROQ_VISION_OCR_MODEL`         |
 
----
+Parse fallback chain (`AI_PARSE_FALLBACK`): comma-separated `deepseek:model_id` entries only, e.g. `deepseek:deepseek-v4-flash,deepseek:deepseek-chat`.
 
-### 1. SMS / Notification Parsing + Auto-Categorization
-
-**Job:** Bank SMS or UPI notification arrives → extract `{ merchant, amount, type, date, category }` → show in bottom sheet within 2 seconds.
-
-**Requirements:**
-- Speed critical — bottom sheet is waiting
-- Text only input
-- Small input (one SMS string), small structured JSON output
-- Highest frequency task — fires on every transaction
-
-**Primary:** `Gemma 3 4B` — Google AI Studio
-- Smallest and fastest of the Google models
-- 14.4K RPD — highest daily budget for this high-frequency task
-- 15K TPM — SMS prompts are small (~200-300 tokens), won't choke
-- Auto-categorization baked into same prompt — one call, full structured output
-
----
-
-### 2. Receipt Scanning (Image Input) + Auto-Categorization
-
-**Job:** User captures receipt photo → extract `{ merchant, amount, date, line_items, category }` → show confirm card.
-
-**Requirements:**
-- Vision / image input required
-- OCR capability for Indian receipts (Hindi, Tamil, printed + handwritten)
-- Not time critical — user is reviewing, 3-5 seconds acceptable
-- Token heavy — images consume many tokens
-
-**Primary:** `Gemma 4 26B` — Google AI Studio
-- Unlimited TPM — image token consumption never hits a wall
-- 256K context — handles large receipts with many line items
-- Best vision + OCR capability in our free stack
-- MoE architecture (only 4B active params) — fast despite large model size
-
----
-
-### 3. Voice Input + Auto-Categorization
-
-**Job:** User speaks expense → "I spent 250 on chai at the office" → extract `{ merchant, amount, type, date, category }`.
-
-**Requirements:**
-- Audio input support — only models with this capability qualify
-- Fast enough for real-time feel
-- Structured output same as SMS parsing
-
-**Primary:** `Gemma 3n E4B` — NVIDIA NIM
-- Only free models in our stack that natively accept audio input
-- E4B is more capable than E2B, better extraction accuracy
-- 40 RPM pool — voice input is lower frequency than SMS, won't strain limits
-- Edge-optimized architecture — fast inference
-
----
-
-### 4. Report Generation
-
-**Job:** Generate monthly/weekly spending report from full transaction history → structured analysis, trends, insights, recommendations.
-
-**Requirements:**
-- Long context — full month of transactions could be 5K-20K tokens of input
-- Large output — detailed report is 2K-5K tokens
-- Async — runs in background, latency irrelevant
-- Strong reasoning — pattern detection, trend analysis, anomaly detection
-
-**Primary:** `Gemma 4 31B` — Google AI Studio
-- **Unlimited TPM** — critical for long transaction history input + long report output
-- 256K context — handles a full year of transaction history if needed
-- Dense 31B model — best reasoning quality in our Google stack
-- 1.5K RPD — reports run rarely (weekly/monthly), more than enough
-
----
-
-### 5. AI Chatbot (Real-Time)
-
-**Job:** User asks natural language questions — "How much did I spend on food last week?" or "Am I on track with my budget?" → instant conversational answer.
-
-**Requirements:**
-- Real-time — user is waiting, needs fast response
-- Strong reasoning + instruction following
-- Conversational context (multi-turn chat history)
-- Lower frequency than SMS parsing
-
-**Primary:** `GPT-OSS 20B` — Groq
-- 1000+ tokens/sec on Groq LPU — fastest reasoning model in our stack
-- Matches OpenAI o3-mini on benchmarks — strong reasoning for financial queries
-- Configurable reasoning effort (low/medium/high) — use low for simple queries, high for complex analysis
-- Full chain-of-thought access — useful for debugging prompt issues
-- 1K RPD — chatbot queries are infrequent, sufficient for early user base
-
----
-
-## Fallback Chain
-
-All fallback logic lives in FastAPI. If primary returns 429 (rate limit), retry with fallback. App never sees the failure.
-
-| Use Case | Primary | Fallback 1 | Fallback 2 |
-|---|---|---|---|
-| SMS / Notification Parsing | Gemma 3 4B (Google) | Gemma 3 12B (Google) | Llama 3.1 8B (Groq) |
-| Receipt Scanning | Gemma 4 26B (Google) | Gemma 4 31B (Google) | Gemma 3n E4B (NVIDIA) |
-| Voice Input | Gemma 3n E4B (NVIDIA) | Gemma 3n E2B (NVIDIA) | — |
-| Report Generation | Gemma 4 31B (Google) | Gemma 4 26B (Google) | GPT-OSS 120B (Groq) |
-| AI Chatbot | GPT-OSS 20B (Groq) | GPT-OSS 120B (Groq) | Llama 3.3 70B (Groq) |
-
-**Remaining models in fallback pool only:**
-- Gemma 3 12B, Gemma 3 27B — SMS parsing fallbacks + general purpose
-- Gemma 4 31B — receipt scanning fallback + report generation primary
-- Gemma 3n E2B — voice fallback
-- Llama 3.1 8B, Llama 3.3 70B — Groq-side fallbacks
-- GPT-OSS 120B — chatbot fallback + report fallback
+Thinking mode is **disabled** on Flash for expense parse (`thinking.type = disabled`).
 
 ---
 
 ## File Input / Output Handling
 
-None of the models accept raw PDF files directly. File handling is managed by FastAPI before and after model calls.
+### Input (FastAPI)
 
-### Input Side (FastAPI pre-processing)
+| Input           | Stage 1                          | Stage 2                           |
+| --------------- | -------------------------------- | --------------------------------- |
+| Receipt JPG/PNG | Groq Scout — OCR plain text only | DeepSeek — JSON fields + category |
+| Voice memo      | Groq Whisper — transcript        | DeepSeek — JSON fields + category |
+| Bank SMS        | —                                | DeepSeek — JSON fields + category |
 
-| Input Type | Handling |
-|---|---|
-| **Receipt image (JPG/PNG)** | Send directly to model as base64 image |
-| **Receipt PDF** | Convert each page to image via `pdf2image` → send as image |
-| **Voice memo (audio file)** | Send directly to NVIDIA Gemma 3n as audio |
-| **Bank SMS (text)** | Send as plain text prompt |
+Audio is normalized to WAV/MP3 via ffmpeg when needed (`features/ai/voice_audio.py`).
 
-### Output Side (FastAPI post-processing)
+### Output
 
-All models output **text only**. File generation happens in FastAPI after model response:
+DeepSeek returns JSON text → validated as `ParseExpenseResult` → transaction row in Postgres.
 
-| Output Type | Handling |
-|---|---|
-| **Structured expense fields** | Parse JSON from model response → save to DB |
-| **PDF report** | Model returns markdown/text → FastAPI renders PDF via `weasyprint` or `reportlab` |
-| **Chat response** | Model returns text → stream to app via SSE |
+`raw_model` on saved transactions reflects the **DeepSeek** model used for parse, not Whisper/Scout.
 
 ---
 
@@ -214,24 +94,23 @@ All models output **text only**. File generation happens in FastAPI after model 
 
 ```
 React Native App
-      ↓ HTTPS
-FastAPI Backend
-      ├── /ai/parse-sms      → Google AI Studio (Gemma 3 4B)
-      ├── /ai/scan-receipt   → Google AI Studio (Gemma 4 26B)
-      ├── /ai/parse-voice    → NVIDIA NIM (Gemma 3n E4B)
-      ├── /ai/generate-report → Google AI Studio (Gemma 4 31B)
-      └── /ai/chat           → Groq (GPT-OSS 20B)
+      ↓ HTTPS (multipart receipt/voice, 202 async)
+FastAPI workers
+      ├── preprocess (Groq): image→text, audio→text
+      └── parse (DeepSeek): text→ParseExpenseResult JSON
+      ↓
+TransactionService.create_manual
 ```
 
-**Why backend-only:**
-- API keys never exposed to client
-- Fallback logic centralised — one place to update
-- Caching: merchant→category mappings cached in Postgres, repeat merchants never hit AI API
-- Rate limit tracking across all users — prevent one user exhausting free tier for everyone
+**Env template:** `backend/.env.example`
+
+**Probe script:** `python -m scripts.test_models` (DeepSeek + Groq Whisper + Scout)
+
+**Future (out of scope):** report generation, AI chatbot — product plans only; not wired to this pipeline yet.
 
 **Merchant caching (key optimisation):**
-Once a merchant is categorised (e.g. "Swiggy" → Food & Dining), the result is stored in `merchant_category_mappings` table. Every subsequent Swiggy transaction skips the AI call entirely and uses the cached mapping. This dramatically reduces API usage for high-frequency merchants.
+Once a merchant is categorised (e.g. "Swiggy" → Food & Dining), the result can be stored in `merchant_category_mappings`. Repeat merchants may skip AI for categorization.
 
 ---
 
-> *Document maintained as part of project planning. Last updated May 2026.*
+> _Document maintained as part of project planning. Last updated May 2026._

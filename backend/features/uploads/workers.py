@@ -10,7 +10,7 @@ from supabase import Client
 from core.security import CurrentUser
 from features.ai.schemas import ParseExpenseResult
 from features.ai.service import AIOrchestratorService
-from features.ai.voice_audio import normalize_voice_audio_for_nvidia
+from features.ai.voice_audio import normalize_audio_for_transcription
 from features.transactions.schemas import TransactionCreate
 from features.transactions.service import TransactionService
 
@@ -195,7 +195,7 @@ async def process_voice_job(
     )
 
     normalized_bytes, normalized_format = await asyncio.to_thread(
-        normalize_voice_audio_for_nvidia,
+        normalize_audio_for_transcription,
         job.file_bytes,
         job.mime_type,
     )
