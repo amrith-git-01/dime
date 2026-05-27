@@ -1,8 +1,8 @@
 import { StyleSheet, View } from "react-native";
 
-import { HOME_BENTO_SECTION_GAP } from "@/components/home/bento/homeBentoTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
-import { radius, spacing } from "@/constants/theme";
+import { radius, spacing } from "@/constants";
 
 import { BudgetCategoryRowsSkeleton } from "./BudgetCategoryRowsSkeleton";
 import { BudgetMonthBentoSkeleton } from "./BudgetMonthBentoSkeleton";
@@ -27,7 +27,7 @@ export function BudgetBentoSkeleton() {
 
 const styles = StyleSheet.create({
   root: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },

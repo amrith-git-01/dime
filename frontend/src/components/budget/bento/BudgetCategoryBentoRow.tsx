@@ -3,9 +3,9 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
-import { formatInrCompact } from "@/features/transactions/formatAmount";
+import { colors, spacing } from "@/constants";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { formatInrCompact } from "@/utils/currency";
 
 export type BudgetCategoryRowData = {
   id: string;
