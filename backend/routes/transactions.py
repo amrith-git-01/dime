@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from supabase import Client
 
+from core.async_utils import run_sync
 from core.job_runner import enqueue_manual, enqueue_receipt, enqueue_voice
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
@@ -26,13 +27,13 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
 @router.get("/home", response_model=HomeOverviewResponse)
-def transactions_home(
+async def transactions_home(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
     timezone: str = Query(..., min_length=2, max_length=80),
 ) -> HomeOverviewResponse:
     try:
-        return TransactionService(supabase).home_overview(user, timezone=timezone)
+        return await TransactionService(supabase).home_overview(user, timezone=timezone)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
@@ -44,7 +45,7 @@ def transactions_home(
 
 
 @router.get("/month-summary", response_model=MonthSummaryResponse)
-def transactions_month_summary(
+async def transactions_month_summary(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
     year: int = Query(..., ge=2000, le=2100),
@@ -52,7 +53,9 @@ def transactions_month_summary(
     timezone: str = Query(..., min_length=2, max_length=80),
 ) -> MonthSummaryResponse:
     try:
-        return TransactionService(supabase).month_summary(
+        service = TransactionService(supabase)
+        return await run_sync(
+            service.month_summary,
             user,
             year=year,
             month=month,
@@ -69,7 +72,7 @@ def transactions_month_summary(
 
 
 @router.get("", response_model=TransactionListResponse)
-def list_transactions(
+async def list_transactions(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
     from_: datetime | None = Query(None, alias="from"),
@@ -80,7 +83,9 @@ def list_transactions(
     try:
         from_iso = from_.isoformat() if from_ is not None else None
         to_iso = to.isoformat() if to is not None else None
-        return TransactionService(supabase).list_mine_paginated(
+        service = TransactionService(supabase)
+        return await run_sync(
+            service.list_mine_paginated,
             user,
             from_iso=from_iso,
             to_iso=to_iso,

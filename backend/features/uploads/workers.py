@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import httpx
+from fastapi import HTTPException
 from supabase import Client
 
 from core.security import CurrentUser
+from features.ai.preprocess.errors import OcrError, PreprocessError, TranscriptionError
 from features.ai.schemas import ParseExpenseResult
-from features.ai.service import AIOrchestratorService
-from features.ai.voice_audio import normalize_audio_for_transcription
+from features.ai.service import AIParseError, AIOrchestratorService
+from features.ai.voice_audio import VoiceAudioNormalizeError, normalize_audio_for_transcription
 from features.transactions.schemas import TransactionCreate
 from features.transactions.service import TransactionService
 
 from .storage import upload_bytes
 
 logger = logging.getLogger(__name__)
+
+MAX_JOB_ATTEMPTS = 3
 
 
 @dataclass(slots=True, frozen=True)
@@ -138,6 +144,58 @@ def _build_transaction_payload(
     )
 
 
+def _is_retryable_worker_error(exc: BaseException) -> bool:
+    if isinstance(
+        exc,
+        httpx.TimeoutException | httpx.NetworkError | httpx.ConnectError | httpx.ReadError,
+    ):
+        return True
+    if isinstance(exc, AIParseError):
+        message = str(exc).lower()
+        return "transient" in message
+    if isinstance(exc, PreprocessError):
+        message = str(exc).lower()
+        return "transient" in message
+    return False
+
+
+async def _run_with_retries(
+    *,
+    label: str,
+    user_id: str,
+    step: Callable[[], Awaitable[None]],
+) -> None:
+    last_exc: BaseException | None = None
+    for attempt in range(MAX_JOB_ATTEMPTS):
+        try:
+            await step()
+            return
+        except Exception as exc:
+            last_exc = exc
+            if not _is_retryable_worker_error(exc):
+                raise
+            if attempt >= MAX_JOB_ATTEMPTS - 1:
+                logger.error(
+                    "%s_failed_all_retries user_id=%s error=%s",
+                    label,
+                    user_id,
+                    exc,
+                )
+                raise
+            delay_s = 2**attempt
+            logger.warning(
+                "%s attempt %d/%d failed (retry in %ds): %s",
+                label,
+                attempt + 1,
+                MAX_JOB_ATTEMPTS,
+                delay_s,
+                exc,
+            )
+            await asyncio.sleep(delay_s)
+    if last_exc is not None:
+        raise last_exc
+
+
 async def process_manual_job(*, client: Client, job: ManualTransactionJob) -> None:
     service = TransactionService(client)
     user = _build_user(job.user_id)
@@ -164,20 +222,36 @@ async def process_receipt_job(
         client,
         job.user_id,
     )
-    parsed = await AIOrchestratorService().parse_receipt(
-        job.file_bytes,
-        job.mime_type,
-        allowed_categories,
-        category_options,
-    )
-    payload = _build_transaction_payload(
-        parsed,
-        detected_via="scan",
-        receipt_url=upload.public_url,
-    )
-    await process_manual_job(
-        client=client,
-        job=ManualTransactionJob(user_id=job.user_id, payload=payload),
+
+    async def _parse_and_save() -> None:
+        try:
+            parsed = await AIOrchestratorService().parse_receipt(
+                job.file_bytes,
+                job.mime_type,
+                allowed_categories,
+                category_options,
+            )
+        except (HTTPException, OcrError) as exc:
+            logger.error(
+                "receipt_parse_non_retryable user_id=%s error=%s",
+                job.user_id,
+                exc,
+            )
+            raise
+        payload = _build_transaction_payload(
+            parsed,
+            detected_via="scan",
+            receipt_url=upload.public_url,
+        )
+        await process_manual_job(
+            client=client,
+            job=ManualTransactionJob(user_id=job.user_id, payload=payload),
+        )
+
+    await _run_with_retries(
+        label="receipt_parse",
+        user_id=job.user_id,
+        step=_parse_and_save,
     )
 
 
@@ -232,46 +306,61 @@ async def process_voice_job(
         allowed_categories[:5],
     )
 
-    logger.info(
-        "[voice-pipeline] ai-call-start mode=voice mime=%s audio_bytes=%d",
-        normalized_mime,
-        len(normalized_bytes),
-    )
-    parsed = await AIOrchestratorService().parse_voice(
-        normalized_bytes,
-        normalized_mime,
-        allowed_categories,
-        category_options,
-    )
-    logger.info(
-        "[voice-pipeline] ai-parsed model=%s amount=%s type=%s counterparty_name=%s "
-        "category=%s confidence=%s date=%s",
-        parsed.raw_model,
-        parsed.amount,
-        parsed.type.value,
-        parsed.counterparty_name,
-        parsed.category,
-        parsed.confidence,
-        parsed.date.isoformat() if parsed.date else None,
-    )
+    async def _parse_and_save() -> None:
+        logger.info(
+            "[voice-pipeline] ai-call-start mode=voice mime=%s audio_bytes=%d",
+            normalized_mime,
+            len(normalized_bytes),
+        )
+        try:
+            parsed = await AIOrchestratorService().parse_voice(
+                normalized_bytes,
+                normalized_mime,
+                allowed_categories,
+                category_options,
+            )
+        except (HTTPException, TranscriptionError, VoiceAudioNormalizeError) as exc:
+            logger.error(
+                "voice_parse_non_retryable user_id=%s error=%s",
+                job.user_id,
+                exc,
+            )
+            raise
+        logger.info(
+            "[voice-pipeline] ai-parsed model=%s amount=%s type=%s counterparty_name=%s "
+            "category=%s confidence=%s date=%s",
+            parsed.raw_model,
+            parsed.amount,
+            parsed.type.value,
+            parsed.counterparty_name,
+            parsed.category,
+            parsed.confidence,
+            parsed.date.isoformat() if parsed.date else None,
+        )
 
-    payload = _build_transaction_payload(
-        parsed,
-        detected_via="voice",
-        voice_url=upload.public_url,
+        payload = _build_transaction_payload(
+            parsed,
+            detected_via="voice",
+            voice_url=upload.public_url,
+        )
+        logger.info(
+            "[voice-pipeline] db-insert-start user_id=%s amount=%s type=%s voice_url=%s",
+            job.user_id,
+            payload.amount,
+            payload.type,
+            payload.voice_url,
+        )
+        await process_manual_job(
+            client=client,
+            job=ManualTransactionJob(user_id=job.user_id, payload=payload),
+        )
+        logger.info("[voice-pipeline] db-insert-done user_id=%s", job.user_id)
+
+    await _run_with_retries(
+        label="voice_parse",
+        user_id=job.user_id,
+        step=_parse_and_save,
     )
-    logger.info(
-        "[voice-pipeline] db-insert-start user_id=%s amount=%s type=%s voice_url=%s",
-        job.user_id,
-        payload.amount,
-        payload.type,
-        payload.voice_url,
-    )
-    await process_manual_job(
-        client=client,
-        job=ManualTransactionJob(user_id=job.user_id, payload=payload),
-    )
-    logger.info("[voice-pipeline] db-insert-done user_id=%s", job.user_id)
 
 
 async def run_manual_worker(

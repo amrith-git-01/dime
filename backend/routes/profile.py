@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from supabase import Client
 
+from core.async_utils import run_sync
 from core.config import get_settings
 from deps import get_current_user_id, get_supabase_service_client
 from features.profile_avatar.service import ProfileAvatarService
@@ -34,7 +35,9 @@ async def upload_profile_avatar(
     settings = get_settings()
     data = await file.read()
     try:
-        url = ProfileAvatarService(supabase).upload_avatar(
+        service = ProfileAvatarService(supabase)
+        url = await run_sync(
+            service.upload_avatar,
             user_id=user_id,
             file_bytes=data,
             bucket=settings.storage_bucket,
@@ -47,7 +50,7 @@ async def upload_profile_avatar(
 
 
 @router.post("/avatar/from-url", response_model=ProfileAvatarUploadResponse)
-def upload_profile_avatar_from_url(
+async def upload_profile_avatar_from_url(
     body: ProfileAvatarFromUrlBody,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
@@ -61,9 +64,12 @@ def upload_profile_avatar_from_url(
         body.image_url.strip(),
         headers={"User-Agent": "DimeAvatarFetcher/1.0"},
     )
-    try:
+    def _fetch_image() -> bytes:
         with urlopen(request, timeout=12) as response:
-            data = response.read()
+            return response.read()
+
+    try:
+        data = await run_sync(_fetch_image)
     except URLError as exc:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -71,7 +77,9 @@ def upload_profile_avatar_from_url(
         ) from exc
 
     try:
-        url = ProfileAvatarService(supabase).upload_avatar(
+        service = ProfileAvatarService(supabase)
+        url = await run_sync(
+            service.upload_avatar,
             user_id=user_id,
             file_bytes=data,
             bucket=settings.storage_bucket,
