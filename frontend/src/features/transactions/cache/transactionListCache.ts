@@ -2,7 +2,7 @@ import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 
 import { monthRangeIso } from "@/features/transactions/api/transactionsApi";
-import { isOptimisticTransactionId } from "@/features/transactions/optimistic/manualTransactionCache";
+import { isOptimisticTransactionId } from "@/features/transactions/optimistic/optimisticTransactionId";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type {
   HomeOverview,

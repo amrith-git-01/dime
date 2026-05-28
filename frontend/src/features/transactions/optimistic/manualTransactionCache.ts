@@ -1,19 +1,17 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { format, isSameMonth, parseISO } from "date-fns";
-import { randomUUID } from "expo-crypto";
 
 import type { CreateTransactionBody } from "@/features/transactions/api/transactionsApi";
 import {
   applyTransactionInsertToListCaches,
   transactionInCalendarMonth,
 } from "@/features/transactions/cache/transactionListCache";
+import { createOptimisticManualTransactionId } from "@/features/transactions/optimistic/optimisticTransactionId";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type {
   HomeOverview,
   TransactionRow,
 } from "@/features/transactions/types";
-
-const OPTIMISTIC_ID_PREFIX = "optimistic-manual-";
 
 export type ManualTransactionOptimisticMeta = {
   categoryName: string | null;
@@ -25,10 +23,6 @@ export type OptimisticManualTransactionContext = {
   snapshots: Array<{ queryKey: QueryKey; data: unknown }>;
 };
 
-export function isOptimisticTransactionId(id: string): boolean {
-  return id.startsWith(OPTIMISTIC_ID_PREFIX);
-}
-
 export function buildOptimisticTransactionRow(
   userId: string,
   payload: CreateTransactionBody,
@@ -37,7 +31,7 @@ export function buildOptimisticTransactionRow(
   const nowIso = new Date().toISOString();
   const counterpartyName = payload.counterparty_name.trim();
   return {
-    id: `${OPTIMISTIC_ID_PREFIX}${randomUUID()}`,
+    id: createOptimisticManualTransactionId(),
     user_id: userId,
     amount: payload.amount.toFixed(2),
     type: payload.type,
