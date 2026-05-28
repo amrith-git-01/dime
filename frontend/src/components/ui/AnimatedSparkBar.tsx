@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { hero, radius } from "@/constants/theme";
+import React, { useEffect } from "react";
+import { View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
 interface AnimatedSparkBarProps {
   count?: number;
@@ -15,15 +16,15 @@ interface AnimatedSparkBarProps {
   color?: string;
 }
 
-const AnimatedBar = ({ 
-  delayMs, 
-  height, 
-  barWidth, 
-  color 
-}: { 
-  delayMs: number; 
-  height: number; 
-  barWidth: number; 
+const AnimatedBar = ({
+  delayMs,
+  height,
+  barWidth,
+  color,
+}: {
+  delayMs: number;
+  height: number;
+  barWidth: number;
   color: string;
 }) => {
   const animatedHeight = useSharedValue(height);
@@ -54,7 +55,7 @@ const AnimatedBar = ({
       style={[
         {
           width: barWidth,
-          borderRadius: 4,
+          borderRadius: radius.xs,
           backgroundColor: color,
         },
         animStyle,
@@ -68,13 +69,13 @@ export const AnimatedSparkBar: React.FC<AnimatedSparkBarProps> = ({
   height = 28,
   barWidth = 8,
   gap = 6,
-  color = 'rgba(255,255,255,0.8)',
+  color = hero.sparkBar,
 }) => {
   return (
     <View
       style={{
-        flexDirection: 'row',
-        alignItems: 'flex-end',
+        flexDirection: "row",
+        alignItems: "flex-end",
         gap,
         height,
       }}

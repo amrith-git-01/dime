@@ -14,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 # No PostgREST embed: category_id may point at system or user_categories (no single FK).
 # TransactionService enriches name/icon/color after fetch.
-_TRANSACTION_SELECT = "*"
+_LIST_SELECT = (
+    "id,user_id,amount,type,counterparty_name,counterparty_type,"
+    "category_id,detected_via,transaction_at,created_at,updated_at"
+)
+_DETAIL_SELECT = "*"
+_AGGREGATE_SELECT = "amount,type,category_id"
 
 
 def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
@@ -39,7 +44,7 @@ class TransactionRepository:
     def list_for_user(self, user_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         res = (
             self._db.table("transactions")
-            .select(_TRANSACTION_SELECT)
+            .select(_LIST_SELECT)
             .eq("user_id", user_id)
             .is_("deleted_at", "null")
             .order("transaction_at", desc=True)
@@ -64,7 +69,7 @@ class TransactionRepository:
         fetch_n = limit + 1
         q = (
             self._db.table("transactions")
-            .select(_TRANSACTION_SELECT)
+            .select(_LIST_SELECT)
             .eq("user_id", user_id)
             .is_("deleted_at", "null")
         )
@@ -133,7 +138,7 @@ class TransactionRepository:
         while True:
             q = (
                 self._db.table("transactions")
-                .select("amount,type,category_id")
+                .select(_AGGREGATE_SELECT)
                 .eq("user_id", user_id)
                 .is_("deleted_at", "null")
             )
@@ -184,7 +189,7 @@ class TransactionRepository:
     def fetch_by_id(self, transaction_id: str) -> dict[str, Any] | None:
         res = (
             self._db.table("transactions")
-            .select(_TRANSACTION_SELECT)
+            .select(_DETAIL_SELECT)
             .eq("id", transaction_id)
             .limit(1)
             .execute()

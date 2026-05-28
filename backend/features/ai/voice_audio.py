@@ -1,4 +1,4 @@
-"""Normalize recorded voice to formats NVIDIA Gemma 3n chat API accepts (WAV or MP3 only)."""
+"""Normalize recorded voice to WAV/MP3 for Groq Whisper."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
-NvidiaVoiceFormat = Literal["wav", "mp3"]
+TranscriptionAudioFormat = Literal["wav", "mp3"]
 
 # A valid spoken clip at 16 kHz mono should be several KB. 78 bytes is just a
 # WAV header from ffmpeg with no decoded samples.
@@ -120,11 +120,11 @@ def _transcode_with_seekable_files(
                     pass
 
 
-def normalize_voice_audio_for_nvidia(
+def normalize_audio_for_transcription(
     audio_bytes: bytes,
     mime_type: str,
-) -> tuple[bytes, NvidiaVoiceFormat]:
-    """Return audio bytes and NVIDIA ``input_audio.format`` value (``wav`` or ``mp3`` only)."""
+) -> tuple[bytes, TranscriptionAudioFormat]:
+    """Return audio bytes and format (``wav`` or ``mp3``) for Groq Whisper."""
     lowered = (mime_type or "").lower()
     raw = bytes(audio_bytes)
     if not raw:

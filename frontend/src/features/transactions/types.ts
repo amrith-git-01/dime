@@ -37,6 +37,8 @@ export type MonthSummary = {
   debit_total: string;
   net: string;
   transaction_count: number;
+  /** Debit totals keyed by category id; `__uncategorized__` when category is null. */
+  debit_by_category: Record<string, string>;
 };
 
 export type TopCategoryHome = {

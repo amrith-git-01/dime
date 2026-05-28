@@ -42,6 +42,16 @@ export function useManualAddTransactionForm() {
     setTransactionAt(new Date());
   }, []);
 
+  const selectCategory = useCallback((id: string, name: string) => {
+    setCategoryId(id);
+    setCategory(name);
+  }, []);
+
+  const clearCategory = useCallback(() => {
+    setCategoryId(null);
+    setCategory("");
+  }, []);
+
   const buildPayload = useCallback((): CreateTransactionBody | null => {
     const amount = parsePositiveAmount(amountText);
     if (amount === null) {
@@ -90,6 +100,8 @@ export function useManualAddTransactionForm() {
     transactionAt,
     setTransactionAt,
     reset,
+    selectCategory,
+    clearCategory,
     buildPayload,
   };
 }

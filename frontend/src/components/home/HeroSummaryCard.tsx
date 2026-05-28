@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
-import { colors, spacing, typography } from "@/constants/theme";
+import { colors, hero, layout, spacing, typography } from "@/constants/theme";
 
 type HeroSummaryCardProps = {
   title: string;
@@ -94,7 +94,7 @@ export function HeroSummaryCard({
           <AnimatedProgressBar
             progress={progress}
             fillColor={colors.textOnPrimary}
-            backgroundColor="rgba(255,255,255,0.24)"
+            backgroundColor={hero.progressTrack}
             height={7}
             duration={850}
             animateOnceKey={progressAnimationKey}
@@ -126,13 +126,9 @@ const cardShadowStyle = Platform.select({
 
 const styles = StyleSheet.create({
   card: {
+    ...layout.heroCard,
     minHeight: 172,
-    borderRadius: 22,
-    padding: spacing.xl,
     marginBottom: spacing.lg,
-    backgroundColor: colors.headerGradientStart,
-    borderWidth: 1,
-    borderColor: colors.headerGradientEnd,
     ...cardShadowStyle,
   },
   /** Decorative orbs extend past radius — clip only when no header menu. */
@@ -146,7 +142,7 @@ const styles = StyleSheet.create({
     width: 168,
     height: 168,
     borderRadius: 84,
-    backgroundColor: "rgba(255,255,255,0.09)",
+    backgroundColor: hero.orbLarge,
   },
   orbBottom: {
     position: "absolute",
@@ -155,7 +151,7 @@ const styles = StyleSheet.create({
     width: 138,
     height: 138,
     borderRadius: 69,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: hero.orbSmall,
   },
   headerRow: {
     flexDirection: "row",

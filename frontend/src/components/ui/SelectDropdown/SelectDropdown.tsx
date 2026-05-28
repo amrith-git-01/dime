@@ -17,11 +17,10 @@ import Animated, {
 
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { colors, spacing } from "@/constants/theme";
+import { colors, radius, spacing, surfaces } from "@/constants/theme";
 
 const MENU_GAP = 6;
 const PANEL_MAX_FALLBACK = 280;
-const BACKDROP_DIM = "rgba(15, 23, 42, 0.14)";
 const ARROW_ROTATION_MS = 220;
 
 export type SelectDropdownOption<T extends string = string> = {
@@ -143,8 +142,12 @@ export function SelectDropdown<T extends string>({
               variant === "primary" && styles.triggerTextPrimary,
               variant === "secondary" && styles.triggerTextSecondary,
               !matched && styles.triggerPlaceholder,
-              variant === "primary" && !matched && styles.triggerPlaceholderPrimary,
-              variant === "secondary" && !matched && styles.triggerPlaceholderSecondary,
+              variant === "primary" &&
+                !matched &&
+                styles.triggerPlaceholderPrimary,
+              variant === "secondary" &&
+                !matched &&
+                styles.triggerPlaceholderSecondary,
             ]}
             numberOfLines={1}
           >
@@ -153,7 +156,13 @@ export function SelectDropdown<T extends string>({
           <Animated.View style={[styles.chevronWrap, chevronAnimatedStyle]}>
             <ChevronDown
               size={18}
-              color={variant === "secondary" ? colors.textOnPrimary : variant === "primary" ? colors.textOnPrimary : colors.inactive}
+              color={
+                variant === "secondary"
+                  ? colors.textOnPrimary
+                  : variant === "primary"
+                    ? colors.textOnPrimary
+                    : colors.inactive
+              }
               strokeWidth={2}
             />
           </Animated.View>
@@ -241,12 +250,12 @@ const styles = StyleSheet.create({
     right: 0,
     marginTop: MENU_GAP,
     backgroundColor: colors.barBackground,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingVertical: spacing.xs,
     zIndex: 20,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.12,
     shadowRadius: 18,
@@ -273,19 +282,19 @@ const styles = StyleSheet.create({
   },
   triggerShellPrimary: {
     minWidth: 104,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: surfaces.selectOnPrimaryBorder,
+    backgroundColor: surfaces.selectOnPrimaryBg,
   },
   triggerShellSecondary: {
     minWidth: 120,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: surfaces.selectOnPrimaryBorder,
+    backgroundColor: surfaces.selectOnPrimaryBg,
   },
   triggerShellOpen: {
     borderColor: colors.primary,
   },
   triggerShellError: {
-    borderColor: "#BA1A1A",
+    borderColor: colors.error,
   },
   triggerRow: {
     minHeight: 48,
@@ -357,7 +366,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderLight,
   },
   optionRowSelected: {
-    backgroundColor: "rgba(99, 85, 232, 0.08)",
+    backgroundColor: surfaces.selectHighlight,
   },
   optionRowPressed: {
     opacity: 0.9,

@@ -32,19 +32,4 @@ export const transactionsQueryKeys = {
       month,
       timezone,
     ] as const,
-  /** Aggregated debit totals per `category_id` (key `"__uncategorized__"` when null). */
-  monthCategoryDebits: (
-    userId: string | undefined,
-    year: number,
-    calendarMonth: number,
-    timezone: string,
-  ) =>
-    [
-      ...transactionsQueryKeys.all,
-      "monthCategoryDebits",
-      userId ?? "none",
-      year,
-      calendarMonth,
-      timezone,
-    ] as const,
 };

@@ -15,16 +15,25 @@ import {
 import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
+  cancelAnimation,
+  Easing,
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
 
-import { colors, spacing } from "@/constants/theme";
+import {
+  fabBreathe,
+  fabIdleCloseMs,
+  springs,
+  timings,
+} from "@/constants/motion";
+import { colors, radius, spacing } from "@/constants/theme";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import {
@@ -46,18 +55,6 @@ const LIQUID_PILL_WIDTH = 56;
 const LIQUID_PILL_HEIGHT = 30;
 const NOTCH_CUTOUT_SIZE = 52;
 const TOTAL_NAV_SLOTS = 5;
-
-const FAB_OPEN_ROTATION_SPRING = {
-  damping: 16,
-  stiffness: 220,
-  mass: 0.75,
-} as const;
-
-const FAB_ACTIONS_SPRING = {
-  damping: 18,
-  stiffness: 240,
-  mass: 0.9,
-} as const;
 
 const ROUTE_ICONS = {
   Home: House,
@@ -153,6 +150,8 @@ export function DimeTabBar({
   const activeLift = useSharedValue(0);
   const plusRotationDeg = useSharedValue(0);
   const actionsProgress = useSharedValue(0);
+  const fabBreatheScale = useSharedValue<number>(fabBreathe.scaleMin);
+  const idleCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
   const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
@@ -174,18 +173,14 @@ export function DimeTabBar({
     const activeSlotIndex = state.index < 2 ? state.index : state.index + 1;
     const targetCenter = slotWidth * activeSlotIndex + slotWidth / 2;
 
-    activeCenterX.value = withSpring(targetCenter, {
-      damping: 16,
-      stiffness: 200,
-      mass: 0.8,
-    });
+    activeCenterX.value = withSpring(targetCenter, springs.tabIndicator);
     activeLift.value = withSequence(
-      withTiming(-4, { duration: 120 }),
-      withTiming(0, { duration: 180 }),
+      withTiming(-4, timings.tabTravelUp),
+      withTiming(0, timings.tabTravelDown),
     );
     travelMorph.value = withSequence(
-      withTiming(1, { duration: 120 }),
-      withTiming(0, { duration: 180 }),
+      withTiming(1, timings.tabTravelUp),
+      withTiming(0, timings.tabTravelDown),
     );
   }, [
     activeCenterX,
@@ -209,16 +204,71 @@ export function DimeTabBar({
     };
   }, [setFabOpen]);
 
+  const clearFabIdleTimer = useCallback(() => {
+    if (idleCloseTimerRef.current) {
+      clearTimeout(idleCloseTimerRef.current);
+      idleCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleFabIdleClose = useCallback(() => {
+    clearFabIdleTimer();
+    idleCloseTimerRef.current = setTimeout(() => {
+      idleCloseTimerRef.current = null;
+      if (useAddTransactionFabStore.getState().fabOpen) {
+        setFabOpen(false);
+      }
+    }, fabIdleCloseMs);
+  }, [clearFabIdleTimer, setFabOpen]);
+
+  const bumpFabIdleTimer = useCallback(() => {
+    if (useAddTransactionFabStore.getState().fabOpen) {
+      scheduleFabIdleClose();
+    }
+  }, [scheduleFabIdleClose]);
+
+  useEffect(() => {
+    if (!fabOpen) {
+      clearFabIdleTimer();
+      return;
+    }
+    scheduleFabIdleClose();
+    return clearFabIdleTimer;
+  }, [fabOpen, scheduleFabIdleClose, clearFabIdleTimer]);
+
   useEffect(() => {
     if (fabOpen) {
-      clearPendingNavigationCallback();
-      plusRotationDeg.value = withSpring(45, FAB_OPEN_ROTATION_SPRING);
-      actionsProgress.value = withSpring(1, FAB_ACTIONS_SPRING);
+      cancelAnimation(fabBreatheScale);
+      fabBreatheScale.value = withSpring(fabBreathe.scaleMin, springs.snappy);
       return;
     }
 
-    plusRotationDeg.value = withSpring(0, FAB_OPEN_ROTATION_SPRING);
-    actionsProgress.value = withSpring(0, FAB_ACTIONS_SPRING, (finished) => {
+    fabBreatheScale.value = withRepeat(
+      withSequence(
+        withTiming(fabBreathe.scaleMax, {
+          duration: fabBreathe.halfCycleMs,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        withTiming(fabBreathe.scaleMin, {
+          duration: fabBreathe.halfCycleMs,
+          easing: Easing.inOut(Easing.sin),
+        }),
+      ),
+      -1,
+      false,
+    );
+  }, [fabOpen, fabBreatheScale]);
+
+  useEffect(() => {
+    if (fabOpen) {
+      clearPendingNavigationCallback();
+      plusRotationDeg.value = withSpring(45, springs.fabOpen);
+      actionsProgress.value = withSpring(1, springs.fabActions);
+      return;
+    }
+
+    plusRotationDeg.value = withSpring(0, springs.fabOpen);
+    actionsProgress.value = withSpring(0, springs.fabActions, (finished) => {
       if (finished) {
         runOnJS(invokePendingNavigationCallback)();
       }
@@ -275,6 +325,10 @@ export function DimeTabBar({
 
   const plusIconRotationStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${plusRotationDeg.value}deg` }],
+  }));
+
+  const centerFabBreatheStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabBreatheScale.value }],
   }));
 
   const manualActionStyle = useAnimatedStyle(() => ({
@@ -374,25 +428,28 @@ export function DimeTabBar({
           );
         })}
         <View style={styles.centerPlusSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              fabOpen ? "Close add transaction" : "Add transaction"
-            }
-            accessibilityState={{ expanded: fabOpen }}
-            onPress={toggleAddFab}
-            hitSlop={10}
-            pressRetentionOffset={12}
-            style={styles.centerPlusButton}
-          >
-            <Animated.View style={plusIconRotationStyle}>
-              <Plus
-                size={ACTION_PLUS_ICON_SIZE}
-                color={colors.headerGradientStart}
-                strokeWidth={2}
-              />
-            </Animated.View>
-          </Pressable>
+          <Animated.View style={centerFabBreatheStyle}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                fabOpen ? "Close add transaction" : "Add transaction"
+              }
+              accessibilityState={{ expanded: fabOpen }}
+              onPress={toggleAddFab}
+              onPressIn={bumpFabIdleTimer}
+              hitSlop={10}
+              pressRetentionOffset={12}
+              style={styles.centerPlusButton}
+            >
+              <Animated.View style={plusIconRotationStyle}>
+                <Plus
+                  size={ACTION_PLUS_ICON_SIZE}
+                  color={colors.headerGradientStart}
+                  strokeWidth={2}
+                />
+              </Animated.View>
+            </Pressable>
+          </Animated.View>
         </View>
         {state.routes.slice(2).map((route, offset) => {
           const index = offset + 2;
@@ -448,6 +505,7 @@ export function DimeTabBar({
             accessibilityLabel="Add transaction manually"
             disabled={!fabOpen}
             hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
+            onPressIn={bumpFabIdleTimer}
             onPress={() => {
               void triggerLightHaptic();
               useAddTransactionFabStore.getState().closeForNavigation(() => {
@@ -475,6 +533,7 @@ export function DimeTabBar({
             accessibilityLabel="Add transaction from photo"
             disabled={!fabOpen}
             hitSlop={{ top: 56, bottom: 4, left: 20, right: 20 }}
+            onPressIn={bumpFabIdleTimer}
             onPress={() => {
               void triggerLightHaptic();
               setFabOpen(false);
@@ -501,6 +560,7 @@ export function DimeTabBar({
             accessibilityLabel="Add transaction with voice"
             disabled={!fabOpen}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 64 }}
+            onPressIn={bumpFabIdleTimer}
             onPress={() => {
               void triggerLightHaptic();
               setFabOpen(false);
@@ -522,8 +582,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.headerGradientStart,
     borderTopWidth: 1,
     borderTopColor: colors.onPrimaryHairline,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     overflow: "visible",
   },
   tabsRow: {

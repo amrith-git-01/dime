@@ -147,6 +147,8 @@ class MonthSummaryResponse(BaseModel):
     debit_total: str
     net: str
     transaction_count: int
+    """Debit totals keyed by category id; ``__uncategorized__`` when category is null."""
+    debit_by_category: dict[str, str] = {}
 
 
 class TopCategoryRow(BaseModel):
