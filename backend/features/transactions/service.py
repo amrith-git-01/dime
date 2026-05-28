@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from decimal import Decimal
 from typing import Any
 
 from supabase import Client
 
+from core.async_utils import run_sync
 from core.security import CurrentUser
 from features.transactions.repository import TransactionRepository
 from features.transactions.schemas import (
@@ -29,6 +31,41 @@ def _to_decimal(value: object) -> Decimal:
     if isinstance(value, Decimal):
         return value.quantize(Decimal("0.01"))
     return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+def _debit_category_map_key(category_id: object) -> str:
+    if category_id is None:
+        return "__uncategorized__"
+    s = str(category_id).strip()
+    return s if s else "__uncategorized__"
+
+
+def _debit_by_category_from_period_blob(blob: dict[str, Any]) -> dict[str, Decimal]:
+    debit_by_category: dict[str, Decimal] = {}
+    raw_cats = blob.get("debit_by_category")
+    if isinstance(raw_cats, dict):
+        for cid_key, total in raw_cats.items():
+            if not isinstance(cid_key, str):
+                continue
+            cat_id: str | None = None if cid_key == "" else cid_key
+            key = _debit_category_map_key(cat_id)
+            debit_by_category[key] = _to_decimal(total)
+    return debit_by_category
+
+
+def _debit_by_category_from_amount_rows(rows: list[dict[str, Any]]) -> dict[str, Decimal]:
+    debit_by_category: dict[str, Decimal] = {}
+    for row in rows:
+        if row.get("type") != "debit":
+            continue
+        amt = _to_decimal(row.get("amount", "0"))
+        key = _debit_category_map_key(row.get("category_id"))
+        debit_by_category[key] = debit_by_category.get(key, Decimal("0")) + amt
+    return debit_by_category
+
+
+def _format_debit_by_category(totals: dict[str, Decimal]) -> dict[str, str]:
+    return {key: format(amount, "f") for key, amount in totals.items()}
 
 
 def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
@@ -58,6 +95,14 @@ def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
 
     cp = flat.get("counterparty_name")
     flat["merchant"] = cp.strip() if isinstance(cp, str) and cp.strip() else ""
+
+    flat.setdefault("counterparty_normalized", None)
+    flat.setdefault("note", None)
+    flat.setdefault("deleted_at", None)
+    flat.setdefault("receipt_url", None)
+    flat.setdefault("voice_url", None)
+    if flat.get("updated_at") is None and flat.get("created_at") is not None:
+        flat["updated_at"] = flat["created_at"]
 
     return flat
 
@@ -118,11 +163,13 @@ class TransactionService:
                 count = int(count_raw)  # JSON may return int or str
             except (TypeError, ValueError):
                 count = 0
+            debit_by_category = _debit_by_category_from_period_blob(blob)
             return MonthSummaryResponse(
                 credit_total=format(credit, "f"),
                 debit_total=format(debit, "f"),
                 net=format(net, "f"),
                 transaction_count=count,
+                debit_by_category=_format_debit_by_category(debit_by_category),
             )
 
         rows = self._repo.iter_amount_type_category(user.id, from_iso=start, to_iso=end)
@@ -136,40 +183,87 @@ class TransactionService:
             elif t == "debit":
                 debit += amt
         net = credit - debit
+        debit_by_category = _debit_by_category_from_amount_rows(rows)
         return MonthSummaryResponse(
             credit_total=format(credit, "f"),
             debit_total=format(debit, "f"),
             net=format(net, "f"),
             transaction_count=len(rows),
+            debit_by_category=_format_debit_by_category(debit_by_category),
         )
 
-    def home_overview(self, user: CurrentUser, *, timezone: str) -> HomeOverviewResponse:
+    async def home_overview(self, user: CurrentUser, *, timezone: str) -> HomeOverviewResponse:
+        """Home dashboard aggregates — parallel Supabase round-trips (audit 4.2)."""
         t_start, t_end = today_bounds_iso(timezone)
         m_start, m_end = current_month_bounds_iso(timezone)
+        user_id = user.id
+
+        today_blob, month_blob, recent_page = await asyncio.gather(
+            run_sync(
+                self._repo.fetch_transactions_period_summary,
+                user_id,
+                from_iso=t_start,
+                to_iso=t_end,
+            ),
+            run_sync(
+                self._repo.fetch_transactions_period_summary,
+                user_id,
+                from_iso=m_start,
+                to_iso=m_end,
+            ),
+            run_sync(
+                self._repo.list_for_user_paginated,
+                user_id,
+                from_iso=None,
+                to_iso=None,
+                limit=5,
+                offset=0,
+            ),
+        )
+        recent_raw, _ = recent_page
+
+        fallback_coros: list[tuple[str, object]] = []
+        if today_blob is None:
+            fallback_coros.append(
+                (
+                    "today",
+                    run_sync(
+                        self._repo.iter_amount_type_category,
+                        user_id,
+                        from_iso=t_start,
+                        to_iso=t_end,
+                    ),
+                )
+            )
+        if month_blob is None:
+            fallback_coros.append(
+                (
+                    "month",
+                    run_sync(
+                        self._repo.iter_amount_type_category,
+                        user_id,
+                        from_iso=m_start,
+                        to_iso=m_end,
+                    ),
+                )
+            )
+
+        fallback_results: dict[str, list[dict[str, Any]]] = {}
+        if fallback_coros:
+            keys = [key for key, _ in fallback_coros]
+            rows_list = await asyncio.gather(*[coro for _, coro in fallback_coros])
+            fallback_results = dict(zip(keys, rows_list, strict=True))
 
         spent_today = Decimal("0")
-        today_blob = self._repo.fetch_transactions_period_summary(
-            user.id,
-            from_iso=t_start,
-            to_iso=t_end,
-        )
         if today_blob is not None:
             spent_today = _to_decimal(today_blob["debit_total"])
         else:
-            today_rows = self._repo.iter_amount_type_category(
-                user.id, from_iso=t_start, to_iso=t_end
-            )
-            for r in today_rows:
+            for r in fallback_results.get("today", []):
                 if r.get("type") == "debit":
                     spent_today += _to_decimal(r.get("amount", "0"))
 
         spent_month = Decimal("0")
         debit_by_category: dict[str | None, Decimal] = {}
-        month_blob = self._repo.fetch_transactions_period_summary(
-            user.id,
-            from_iso=m_start,
-            to_iso=m_end,
-        )
         if month_blob is not None:
             spent_month = _to_decimal(month_blob["debit_total"])
             raw_cats = month_blob.get("debit_by_category")
@@ -180,10 +274,7 @@ class TransactionService:
                     cat_key: str | None = None if cid_key == "" else cid_key
                     debit_by_category[cat_key] = _to_decimal(total)
         else:
-            month_rows = self._repo.iter_amount_type_category(
-                user.id, from_iso=m_start, to_iso=m_end
-            )
-            for r in month_rows:
+            for r in fallback_results.get("month", []):
                 amt = _to_decimal(r.get("amount", "0"))
                 t = r.get("type")
                 if t == "debit":
@@ -195,10 +286,11 @@ class TransactionService:
         sorted_cats = sorted(debit_by_category.items(), key=lambda x: x[1], reverse=True)[:5]
         cat_ids = {k for k, _ in sorted_cats if k is not None}
         cat_meta = (
-            self._repo.fetch_categories_by_ids(cat_ids, user_id=user.id)
+            await run_sync(self._repo.fetch_categories_by_ids, cat_ids, user_id=user_id)
             if cat_ids
             else {}
         )
+
         top_categories: list[TopCategoryRow] = []
         for cat_id, total in sorted_cats:
             if cat_id is None:
@@ -227,16 +319,9 @@ class TransactionService:
                 )
             )
 
-        recent_raw, _ = self._repo.list_for_user_paginated(
-            user.id,
-            from_iso=None,
-            to_iso=None,
-            limit=5,
-            offset=0,
-        )
+        enriched_recent = await run_sync(self._enrich_rows, user_id, recent_raw)
         recent_transactions = [
-            TransactionResponse.model_validate(row)
-            for row in self._enrich_rows(user.id, recent_raw)
+            TransactionResponse.model_validate(row) for row in enriched_recent
         ]
 
         return HomeOverviewResponse(

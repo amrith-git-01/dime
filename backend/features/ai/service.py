@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -109,21 +110,34 @@ class AIOrchestratorService:
     ) -> ParseExpenseResult:
         last_error: Exception | None = None
         candidates = self._parse_candidates()
+        total_budget_s = self.settings.ai_timeout_seconds
+        per_candidate_s = total_budget_s / len(candidates)
         logger.info(
-            "[ai] deepseek-parse-start mode=%s candidates=%s",
+            "[ai] deepseek-parse-start mode=%s candidates=%s budget_s=%.1f per_candidate_s=%.1f",
             mode.value,
             [f"{c.provider}:{c.model}" for c in candidates],
+            total_budget_s,
+            per_candidate_s,
         )
 
         for candidate in candidates:
             started = time.monotonic()
             logger.info(
-                "[ai] deepseek-call-start mode=%s model=%s",
+                "[ai] deepseek-call-start mode=%s model=%s timeout_s=%.1f",
                 mode.value,
                 candidate.model,
+                per_candidate_s,
             )
             try:
-                raw = await self._call_deepseek(candidate.model, mode, payload)
+                raw = await asyncio.wait_for(
+                    self._call_deepseek(
+                        candidate.model,
+                        mode,
+                        payload,
+                        request_timeout=per_candidate_s,
+                    ),
+                    timeout=per_candidate_s,
+                )
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 logger.info(
                     "[ai] deepseek-call-done mode=%s model=%s elapsed_ms=%d raw_chars=%d",
@@ -151,6 +165,17 @@ class AIOrchestratorService:
                     parsed.confidence,
                 )
                 return parsed
+            except TimeoutError as exc:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.warning(
+                    "[ai] deepseek-call-timeout mode=%s model=%s elapsed_ms=%d budget_s=%.1f",
+                    mode.value,
+                    candidate.model,
+                    elapsed_ms,
+                    per_candidate_s,
+                )
+                last_error = exc
+                continue
             except Exception as exc:
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 logger.warning(
@@ -179,11 +204,19 @@ class AIOrchestratorService:
         model: str,
         mode: ParseMode,
         payload: dict[str, Any],
+        *,
+        request_timeout: float | None = None,
     ) -> str:
         settings = self.settings
         api_key = settings.ai_api_key
         if not api_key:
             raise AIParseError("DEEPSEEK_API_KEY / AI_API_KEY is missing")
+
+        http_timeout = (
+            request_timeout
+            if request_timeout is not None
+            else settings.ai_timeout_seconds
+        )
 
         body: dict[str, Any] = {
             "model": model,
@@ -197,7 +230,7 @@ class AIOrchestratorService:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=http_timeout) as client:
             response = await client.post(
                 settings.ai_base_url,
                 json=body,
