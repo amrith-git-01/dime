@@ -53,12 +53,63 @@ export function getDimeApiBaseUrl(): string {
   return rewriteApiBaseUrlForAndroidEmulator(trimmed);
 }
 
-/** Same bearer token axios uses; needed for `fetch` uploads (RN FormData + axios XHR is unreliable). */
-export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
+const TOKEN_REFRESH_BUFFER_MS = 60_000;
+
+let cachedAccessToken: { value: string; expiresAt: number } | null = null;
+
+/** Drop in-memory token (sign-out or auth errors). */
+export function clearDimeAuthTokenCache(): void {
+  cachedAccessToken = null;
+}
+
+function sessionExpiresAtMs(session: { expires_at?: number | null }): number {
+  if (session.expires_at != null) {
+    return session.expires_at * 1000;
+  }
+  return Date.now() + 3_600_000;
+}
+
+function cacheSessionAccessToken(session: {
+  access_token: string;
+  expires_at?: number | null;
+}): string {
+  cachedAccessToken = {
+    value: session.access_token,
+    expiresAt: sessionExpiresAtMs(session),
+  };
+  return cachedAccessToken.value;
+}
+
+async function getAccessToken(): Promise<string | null> {
+  const now = Date.now();
+  if (
+    cachedAccessToken &&
+    cachedAccessToken.expiresAt - now > TOKEN_REFRESH_BUFFER_MS
+  ) {
+    return cachedAccessToken.value;
+  }
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  if (!session?.access_token) {
+    clearDimeAuthTokenCache();
+    return null;
+  }
+  return cacheSessionAccessToken(session);
+}
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (!session?.access_token) {
+    clearDimeAuthTokenCache();
+    return;
+  }
+  cacheSessionAccessToken(session);
+});
+
+/** Same bearer token axios uses; needed for `fetch` uploads (RN FormData + axios XHR is unreliable). */
+export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getAccessToken();
   if (!token) {
     return {};
   }
