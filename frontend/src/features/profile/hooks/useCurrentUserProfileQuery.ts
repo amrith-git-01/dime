@@ -15,6 +15,7 @@ export function useCurrentUserProfileQuery(userId: string | undefined) {
       setProfile(me);
       return me;
     },
-    staleTime: 30_000,
+    staleTime: 60_000,
+    placeholderData: () => useCurrentUserStore.getState().profile ?? undefined,
   });
 }

@@ -2,18 +2,17 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { FlashList } from "@shopify/flash-list";
 import { format } from "date-fns";
 import { Camera, ChevronRight, Edit3, Mic } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants/theme";
+import { categoryMutedBackground } from "@/constants/colorUtils";
+import { colors, layout, radius, spacing, typography } from "@/constants/theme";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { TransactionList } from "@/features/transactions/components/TransactionList";
 import { TransactionListSkeleton } from "@/features/transactions/components/TransactionListSkeleton";
@@ -21,6 +20,7 @@ import { formatInrCompact } from "@/features/transactions/formatAmount";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { TransactionRow } from "@/features/transactions/types";
+import { usePrefetchSiblingTabQueries } from "@/hooks/usePrefetchSiblingTabQueries";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
@@ -30,9 +30,6 @@ type HomeScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Home">,
   NativeStackNavigationProp<MainStackParamList>
 >;
-
-/** Single recycle-friendly row so FlashList owns vertical scroll (no nested ScrollViews). */
-const HOME_SCROLL_ANCHOR = [{ id: "home-scroll-anchor" }] as const;
 
 /** Hero / category rails: magnitude only, no leading minus. */
 function formatInrSpendMagnitude(amount: string | number): string {
@@ -249,6 +246,7 @@ const HomeListHeader = memo(function HomeListHeader({
 
 export default function HomeScreen() {
   const navigation = useNavigation<HomeScreenNavigation>();
+  usePrefetchSiblingTabQueries();
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
   const openManualAdd = useCallback(() => {
     useAddTransactionFabStore.getState().closeForNavigation(() => {
@@ -292,8 +290,8 @@ export default function HomeScreen() {
       const progress = Number.isFinite(totalNum)
         ? Math.min(1, totalNum / denom)
         : 0;
-      const color = row.color ?? "#94A3B8";
-      const muted = row.color ? `${row.color}24` : "rgba(148,163,184,0.14)";
+      const color = row.color ?? colors.categoryDefault;
+      const muted = categoryMutedBackground(row.color);
       return {
         id: row.category_id ?? `uncategorized-${index}`,
         label: row.name,
@@ -350,34 +348,32 @@ export default function HomeScreen() {
   const showRecentEmpty =
     !isPending && recentTransactions.length === 0 && !isError;
 
-  const listHeader = useMemo(
-    () => (
-      <HomeListHeader
-        isError={isError}
-        isPending={isPending}
-        spentTodayDisplay={spentTodayDisplay}
-        spentMonthDisplay={spentMonthDisplay}
-        dayLabel={dayLabel}
-        monthLabel={monthLabel}
-        dailySubtext={dailySubtext}
-        monthlySubtext={monthlySubtext}
-        dailyProgress={dailyProgress}
-        monthlyProgress={monthlyProgress}
-        hasBudget={hasBudget}
-        hasDailyBudget={hasDailyBudget}
-        hasMonthlyBudget={hasMonthlyBudget}
-        hasSpentToday={hasSpentToday}
-        hasSpentMonth={hasSpentMonth}
-        topCategoriesUi={topCategoriesUi}
-        showRecentEmpty={showRecentEmpty}
-        recentTransactions={recentTransactions}
-        onNavigateBudgets={onNavigateBudgets}
-        onNavigateTransactions={onNavigateTransactions}
-        onManualAdd={openManualAdd}
-        onReceipt={onReceipt}
-        onVoice={openVoiceCapture}
-      />
-    ),
+  const listHeaderProps = useMemo(
+    (): HomeListHeaderProps => ({
+      isError,
+      isPending,
+      spentTodayDisplay,
+      spentMonthDisplay,
+      dayLabel,
+      monthLabel,
+      dailySubtext,
+      monthlySubtext,
+      dailyProgress,
+      monthlyProgress,
+      hasBudget,
+      hasDailyBudget,
+      hasMonthlyBudget,
+      hasSpentToday,
+      hasSpentMonth,
+      topCategoriesUi,
+      showRecentEmpty,
+      recentTransactions,
+      onNavigateBudgets,
+      onNavigateTransactions,
+      onManualAdd: openManualAdd,
+      onReceipt,
+      onVoice: openVoiceCapture,
+    }),
     [
       isError,
       isPending,
@@ -405,23 +401,20 @@ export default function HomeScreen() {
     ],
   );
 
-  const renderScrollAnchor = useCallback(
-    () => <View style={styles.listAnchor} />,
-    [],
-  );
-
   return (
     <TabScreenShell>
-      <FlashList
+      {/*
+       * ScrollView instead of a 1-item FlashList anchor (audit 2.5).
+       * FlashList v2 removed estimatedItemSize; a dummy row still triggered an extra
+       * layout pass on mount. Recent transactions are a small static list in the header.
+       */}
+      <ScrollView
         style={styles.list}
-        data={HOME_SCROLL_ANCHOR}
-        keyExtractor={(item) => item.id}
-        renderItem={renderScrollAnchor}
-        ListHeaderComponent={listHeader}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews
-      />
+      >
+        <HomeListHeader {...listHeaderProps} />
+      </ScrollView>
     </TabScreenShell>
   );
 }
@@ -430,17 +423,10 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  listAnchor: {
-    height: 1,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl * 2,
-  },
+  content: layout.screenContent,
   errorText: {
     fontFamily: typography.screenTitle.fontFamily,
-    color: "#DC2626",
+    color: colors.danger,
     marginBottom: spacing.md,
   },
   sectionHeader: {
@@ -450,12 +436,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.lg,
   },
-  sectionTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.textPrimary,
-  },
+  sectionTitle: typography.sectionTitle,
   miniFabRow: {
     marginTop: spacing.sm,
     flexDirection: "row",
@@ -466,7 +447,7 @@ const styles = StyleSheet.create({
   miniFab: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.headerGradientStart,
@@ -475,13 +456,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
     opacity: 0.92,
   },
-  recentCard: {
-    padding: spacing.xl,
-    borderRadius: 20,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
+  recentCard: layout.card,
   viewAllButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -490,18 +465,9 @@ const styles = StyleSheet.create({
   viewAllButtonPressed: {
     opacity: 0.7,
   },
-  viewAllText: {
-    fontFamily: typography.screenTitle.fontFamily,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.primary,
-  },
+  viewAllText: typography.linkSmall,
   emptyCard: {
-    padding: spacing.xl,
-    borderRadius: 20,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    ...layout.card,
     marginBottom: spacing.lg,
     alignItems: "center",
   },
@@ -510,10 +476,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   emptyCardText: {
-    fontFamily: typography.screenSubtitle.fontFamily,
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.emptyBody,
     marginBottom: spacing.sm,
   },
 });

@@ -89,9 +89,9 @@ def build_receipt_parse_prompt(
     context_text: str | None = None,
     allowed_categories: list[str] | None = None,
 ) -> str:
-    context = context_text.strip() if context_text else "N/A"
+    ocr_text = context_text.strip() if context_text else "N/A"
     return (
-        "Extract transaction from receipt image. Return ONLY valid JSON, no markdown.\n"
+        "Extract transaction from receipt text (OCR below). Return ONLY valid JSON, no markdown.\n"
         f"Schema: {_SCHEMA}\n"
         "Rules:\n"
         + _TYPE_RULES
@@ -99,11 +99,13 @@ def build_receipt_parse_prompt(
         + _COUNTERPARTY_RULES
         + _category_block(allowed_categories)
         + _NOTE_RULES
-        + "- Primary source: printed/handwritten receipt content.\n"
+        + "- Primary source: OCR text block below.\n"
         + "- amount: use the TOTAL/GRAND TOTAL line, not subtotal.\n"
         + "- If receipt is a bill (electricity, water, etc.) → type=debit.\n"
         + "- Use null for unknown fields. Never invent values.\n"
-        + f"Context: {context}"
+        + "Receipt OCR text:\n---\n"
+        + ocr_text
+        + "\n---"
     )
 
 
@@ -116,9 +118,9 @@ def build_voice_parse_prompt(
     context_text: str | None = None,
     allowed_categories: list[str] | None = None,
 ) -> str:
-    context = context_text.strip() if context_text else "N/A"
+    transcript = context_text.strip() if context_text else "N/A"
     return (
-        "Extract transaction from spoken audio input. Return ONLY valid JSON, no markdown.\n"
+        "Extract transaction from voice transcript below. Return ONLY valid JSON, no markdown.\n"
         f"Schema: {_SCHEMA}\n"
         "Rules:\n"
         + _TYPE_RULES
@@ -129,5 +131,7 @@ def build_voice_parse_prompt(
         + "- Infer intent from natural speech (e.g. 'I spent 200 on lunch' → debit, food).\n"
         + "- If speaker says 'today'/'yesterday' and no date context → null.\n"
         + "- Use null for unknown fields. Never invent values.\n"
-        + f"Context: {context}"
+        + "Voice transcript:\n---\n"
+        + transcript
+        + "\n---"
     )

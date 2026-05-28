@@ -1,5 +1,7 @@
 import { format, parseISO } from "date-fns";
 
+import { hexToRgba } from "@/constants/colorUtils";
+import { colors } from "@/constants/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
 
@@ -7,6 +9,9 @@ export type TransactionCategory = {
   name: string;
   icon_name: string;
   color: string;
+  /** Pre-computed rgba strings — avoids hex parsing on every FlashList recycle. */
+  bgColor: string;
+  borderColor: string;
 };
 
 export type UiTransaction = {
@@ -31,14 +36,21 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
   const parsed = parseISO(tx.transaction_at);
   const dateKey = format(parsed, "yyyy-MM-dd");
   const iconName = tx.category_icon_name ?? "CreditCard";
-  const color = tx.category_color ?? "#94A3B8";
+  const color = tx.category_color ?? colors.categoryDefault;
   const name = tx.category ?? "Uncategorized";
   const timeLabel = format(parsed, "h:mm a");
   return {
     id: tx.id,
     merchant: tx.merchant || tx.counterparty_name?.trim() || "—",
     amount: signedAmount(tx),
-    category: { name, icon_name: iconName, color },
+    category: {
+      name,
+      icon_name: iconName,
+      color,
+      // Computed once here at data-arrival time — not on every render/recycle.
+      bgColor: hexToRgba(color, 0.1),
+      borderColor: hexToRgba(color, 0.35),
+    },
     timeLabel,
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,
@@ -62,12 +74,4 @@ export function formatTransactionListAmount(amount: number): string {
   return `\u20B9${absolute}`;
 }
 
-export function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.replace("#", "");
-  const bigint = Number.parseInt(normalized, 16);
-  const red = (bigint >> 16) & 255;
-  const green = (bigint >> 8) & 255;
-  const blue = bigint & 255;
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
+export { hexToRgba } from "@/constants/colorUtils";

@@ -1,4 +1,4 @@
-﻿import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,8 +30,6 @@ import type { MainStackParamList } from "@/navigation/types";
 import { buildMonthOptions } from "@/utils/buildMonthOptions";
 
 const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
-const FALLBACK_CATEGORY_COLOR = "#94A3B8";
-
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
 });
@@ -117,8 +115,14 @@ export default function BudgetScreen() {
     }, []),
   );
 
+  // Separated memo: knownIds only rebuilds when the category list itself changes,
+  // not on every spendByCategory update (e.g. month selector change).
+  const knownCategoryIds = useMemo(
+    () => new Set(categories.map((c) => c.id)),
+    [categories],
+  );
+
   const budgetItems = useMemo((): BudgetCategoryRowData[] => {
-    const knownIds = new Set(categories.map((c) => c.id));
     const rows: BudgetCategoryRowData[] = categories.map((category) => ({
       id: category.id,
       name: category.name,
@@ -134,7 +138,7 @@ export default function BudgetScreen() {
         id: UNCATEGORIZED_SPEND_KEY,
         name: "Uncategorized",
         icon_name: "Package",
-        color: FALLBACK_CATEGORY_COLOR,
+        color: colors.categoryDefault,
         spentMonth: uncategorizedSpent,
         is_system: true,
       });
@@ -144,12 +148,12 @@ export default function BudgetScreen() {
       if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) {
         continue;
       }
-      if (!knownIds.has(categoryId)) {
+      if (!knownCategoryIds.has(categoryId)) {
         rows.push({
           id: categoryId,
           name: "Unknown category",
           icon_name: "Package",
-          color: FALLBACK_CATEGORY_COLOR,
+          color: colors.categoryDefault,
           spentMonth: amount,
           is_system: true,
         });
@@ -159,7 +163,7 @@ export default function BudgetScreen() {
     return rows.sort(
       (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
     );
-  }, [categories, spendByCategory]);
+  }, [categories, spendByCategory, knownCategoryIds]);
 
   const handleSelectBudgetMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);

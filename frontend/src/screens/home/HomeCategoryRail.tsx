@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
-import { colors, spacing, typography } from "@/constants/theme";
+import { colors, layout, radius, spacing, typography } from "@/constants/theme";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 
 export type HomeCategoryUiItem = {
@@ -138,11 +138,8 @@ const styles = StyleSheet.create({
   categoryCard: {
     width: 152,
     minHeight: 186,
+    ...layout.card,
     padding: spacing.lg,
-    borderRadius: 20,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     justifyContent: "space-between",
   },
   categoryCardBody: {
@@ -156,7 +153,7 @@ const styles = StyleSheet.create({
   categoryIconTile: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -182,24 +179,24 @@ const styles = StyleSheet.create({
   categoryIconSkeleton: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: radius.md,
   },
   categoryTitleSkeleton: {
     marginTop: spacing.xs,
     height: 14,
     width: "86%",
-    borderRadius: 6,
+    borderRadius: radius.xs,
   },
   categoryAmountSkeleton: {
     marginTop: spacing.sm,
     height: 14,
     width: "64%",
-    borderRadius: 6,
+    borderRadius: radius.xs,
   },
   categoryProgressSkeleton: {
     marginTop: spacing.md,
     height: 7,
     width: "100%",
-    borderRadius: 999,
+    borderRadius: radius.full,
   },
 });

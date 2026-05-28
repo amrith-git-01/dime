@@ -1,13 +1,13 @@
-"""Connection test for every AI model used by the pipeline.
+"""Connection test for AI models used by the DeepSeek + Groq preprocess pipeline.
 
 Usage (from the ``backend`` directory):
 
     python -m scripts.test_models
 
-Sends a tiny "reply with OK" prompt to each provider/model defined in the
-fallback chains and reports status, latency, and a short response excerpt.
-Authentication and model availability problems show up immediately as 4xx/5xx
-errors. No image, audio, or database access is touched.
+Probes:
+- DeepSeek V4 Flash (parse brain)
+- Groq Whisper primary + fallback (voice preprocess)
+- Groq Llama 4 Scout (receipt OCR preprocess)
 """
 
 from __future__ import annotations
@@ -20,8 +20,6 @@ from typing import Any
 import httpx
 
 from core.config import Settings, get_settings
-from features.ai.service import AIOrchestratorService
-
 
 PING_PROMPT = "Reply with the single word: OK"
 PROBE_TIMEOUT_SECONDS = 30.0
@@ -29,59 +27,138 @@ PROBE_TIMEOUT_SECONDS = 30.0
 
 @dataclass(slots=True)
 class ProbeResult:
+    role: str
     provider: str
-    alias: str
     model_id: str
     ok: bool
     elapsed_ms: int
     detail: str
 
 
-async def _probe_google(
+async def _execute_probe(
+    *,
+    role: str,
+    provider: str,
+    model_id: str,
+    start: float,
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    json_body: dict[str, Any] | None = None,
+    data: dict[str, str] | None = None,
+    files: dict[str, tuple[str, bytes, str]] | None = None,
+    text_extractor,
+) -> ProbeResult:
+    try:
+        response = await client.request(
+            method,
+            url,
+            headers=headers,
+            json=json_body,
+            data=data,
+            files=files,
+        )
+    except httpx.HTTPError as exc:
+        return ProbeResult(
+            role=role,
+            provider=provider,
+            model_id=model_id,
+            ok=False,
+            elapsed_ms=int((time.monotonic() - start) * 1000),
+            detail=f"{type(exc).__name__}: {exc}",
+        )
+
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+    if response.status_code >= 400:
+        return ProbeResult(
+            role=role,
+            provider=provider,
+            model_id=model_id,
+            ok=False,
+            elapsed_ms=elapsed_ms,
+            detail=f"HTTP {response.status_code}: {response.text[:400]}",
+        )
+
+    try:
+        text = text_extractor(response.json()) if response.content else ""
+    except Exception as exc:  # noqa: BLE001
+        return ProbeResult(
+            role=role,
+            provider=provider,
+            model_id=model_id,
+            ok=False,
+            elapsed_ms=elapsed_ms,
+            detail=f"response shape error: {exc}",
+        )
+
+    snippet = text.strip().replace("\n", " ")[:60]
+    return ProbeResult(
+        role=role,
+        provider=provider,
+        model_id=model_id,
+        ok=True,
+        elapsed_ms=elapsed_ms,
+        detail=snippet or "(empty body)",
+    )
+
+
+def _extract_openai_text(data: dict[str, Any]) -> str:
+    content = data["choices"][0]["message"]["content"]
+    if isinstance(content, list):
+        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
+    return str(content)
+
+
+async def _probe_deepseek(
     settings: Settings,
-    alias: str,
     model_id: str,
     client: httpx.AsyncClient,
 ) -> ProbeResult:
     start = time.monotonic()
-    if not settings.google_ai_api_key:
-        return ProbeResult("google", alias, model_id, False, 0, "GOOGLE_AI_API_KEY missing")
+    if not settings.ai_api_key:
+        return ProbeResult(
+            "parse",
+            "deepseek",
+            model_id,
+            False,
+            0,
+            "DEEPSEEK_API_KEY / AI_API_KEY missing",
+        )
 
-    url = f"{settings.google_ai_base_url.rstrip('/')}/models/{model_id}:generateContent"
-    body: dict[str, Any] = {
-        "contents": [{"role": "user", "parts": [{"text": PING_PROMPT}]}],
-        "generationConfig": {"temperature": 0.0},
+    body = {
+        "model": model_id,
+        "messages": [{"role": "user", "content": PING_PROMPT}],
+        "temperature": 0.0,
+        "max_tokens": 8,
+        "thinking": {"type": "disabled"},
     }
-    if AIOrchestratorService._google_supports_response_mime_json(model_id):
-        body["generationConfig"]["responseMimeType"] = "text/plain"
-
     headers = {
-        "x-goog-api-key": settings.google_ai_api_key,
+        "Authorization": f"Bearer {settings.ai_api_key}",
         "Content-Type": "application/json",
     }
     return await _execute_probe(
-        provider="google",
-        alias=alias,
+        role="parse",
+        provider="deepseek",
         model_id=model_id,
         start=start,
         client=client,
         method="POST",
-        url=url,
+        url=settings.ai_base_url,
         headers=headers,
         json_body=body,
-        text_extractor=_extract_google_text,
+        text_extractor=_extract_openai_text,
     )
 
 
-async def _probe_groq(
+async def _probe_groq_chat(
     settings: Settings,
-    alias: str,
     model_id: str,
     client: httpx.AsyncClient,
 ) -> ProbeResult:
     start = time.monotonic()
     if not settings.groq_api_key:
-        return ProbeResult("groq", alias, model_id, False, 0, "GROQ_API_KEY missing")
+        return ProbeResult("ocr", "groq", model_id, False, 0, "GROQ_API_KEY missing")
 
     url = f"{settings.groq_base_url.rstrip('/')}/chat/completions"
     body = {
@@ -92,8 +169,8 @@ async def _probe_groq(
     }
     headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
     return await _execute_probe(
+        role="ocr",
         provider="groq",
-        alias=alias,
         model_id=model_id,
         start=start,
         client=client,
@@ -105,146 +182,88 @@ async def _probe_groq(
     )
 
 
-async def _probe_nvidia(
+async def _probe_groq_whisper(
     settings: Settings,
-    alias: str,
     model_id: str,
     client: httpx.AsyncClient,
 ) -> ProbeResult:
     start = time.monotonic()
-    if not settings.nvidia_api_key:
-        return ProbeResult("nvidia", alias, model_id, False, 0, "NVIDIA_API_KEY missing")
+    if not settings.groq_api_key:
+        return ProbeResult("stt", "groq", model_id, False, 0, "GROQ_API_KEY missing")
 
-    url = f"{settings.nvidia_base_url.rstrip('/')}/chat/completions"
-    body = {
-        "model": model_id,
-        "messages": [
-            {"role": "user", "content": [{"type": "text", "text": PING_PROMPT}]}
-        ],
-        "temperature": 0.0,
-        "max_tokens": 8,
-    }
-    headers = {"Authorization": f"Bearer {settings.nvidia_api_key}"}
+    # Minimal valid-ish WAV header + silence (probe connectivity, not quality).
+    silent_wav = (
+        b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
+        b"\x80>\x00\x00\x00}\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
+    )
+    url = f"{settings.groq_base_url.rstrip('/')}/audio/transcriptions"
+    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+
+    def _extract_transcript(data: dict[str, Any]) -> str:
+        return str(data.get("text", ""))
+
     return await _execute_probe(
-        provider="nvidia",
-        alias=alias,
+        role="stt",
+        provider="groq",
         model_id=model_id,
         start=start,
         client=client,
         method="POST",
         url=url,
         headers=headers,
-        json_body=body,
-        text_extractor=_extract_openai_text,
+        data={"model": model_id},
+        files={"file": ("probe.wav", silent_wav, "audio/wav")},
+        text_extractor=_extract_transcript,
     )
 
 
-async def _execute_probe(
-    *,
-    provider: str,
-    alias: str,
-    model_id: str,
-    start: float,
-    client: httpx.AsyncClient,
-    method: str,
-    url: str,
-    headers: dict[str, str],
-    json_body: dict[str, Any],
-    text_extractor,
-) -> ProbeResult:
-    try:
-        response = await client.request(method, url, headers=headers, json=json_body)
-    except httpx.HTTPError as exc:
-        return ProbeResult(
-            provider=provider,
-            alias=alias,
-            model_id=model_id,
-            ok=False,
-            elapsed_ms=int((time.monotonic() - start) * 1000),
-            detail=f"{type(exc).__name__}: {exc}",
-        )
+def _build_probe_plan(settings: Settings) -> list[tuple[str, str, str, str]]:
+    """Returns ``(role, provider, alias, model_id)``."""
+    plan: list[tuple[str, str, str, str]] = []
 
-    elapsed_ms = int((time.monotonic() - start) * 1000)
-    if response.status_code >= 400:
-        return ProbeResult(
-            provider=provider,
-            alias=alias,
-            model_id=model_id,
-            ok=False,
-            elapsed_ms=elapsed_ms,
-            detail=f"HTTP {response.status_code}: {response.text}",
-        )
+    for entry in settings.ai_parse_fallback.split(","):
+        item = entry.strip()
+        if not item or ":" not in item:
+            continue
+        provider, model = item.split(":", maxsplit=1)
+        if provider.strip().lower() == "deepseek":
+            plan.append(("parse", "deepseek", model.strip(), model.strip()))
 
-    try:
-        text = text_extractor(response.json())
-    except Exception as exc:  # noqa: BLE001 - we want to surface any decode issue
-        return ProbeResult(
-            provider=provider,
-            alias=alias,
-            model_id=model_id,
-            ok=False,
-            elapsed_ms=elapsed_ms,
-            detail=f"response shape error: {exc}",
-        )
+    if not plan:
+        plan.append(("parse", "deepseek", settings.ai_model, settings.ai_model))
 
-    snippet = text.strip().replace("\n", " ")[:60]
-    return ProbeResult(
-        provider=provider,
-        alias=alias,
-        model_id=model_id,
-        ok=True,
-        elapsed_ms=elapsed_ms,
-        detail=snippet or "(empty body)",
-    )
-
-
-def _extract_google_text(data: dict[str, Any]) -> str:
-    return data["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def _extract_openai_text(data: dict[str, Any]) -> str:
-    content = data["choices"][0]["message"]["content"]
-    if isinstance(content, list):
-        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
-    return str(content)
-
-
-def _build_probe_plan(settings: Settings) -> list[tuple[str, str, str]]:
-    """Returns ``(provider, alias, resolved_model_id)`` triples."""
-    return [
-        ("google", "gemma-4-26b", settings.google_model_gemma_4_26b),
-        ("google", "gemma-4-31b", settings.google_model_gemma_4_31b),
-        ("groq", "llama-3.1-8b", settings.groq_model_llama_3_1_8b),
-        ("nvidia", "gemma-3-4b", settings.nvidia_model_gemma_3_4b),
-        ("nvidia", "gemma-3-12b", settings.nvidia_model_gemma_3_12b),
-        ("nvidia", "gemma-3-27b", settings.nvidia_model_gemma_3_27b),
-        ("nvidia", "gemma-3n-e4b", settings.nvidia_model_gemma_3n_e4b),
-        ("nvidia", "gemma-3n-e2b", settings.nvidia_model_gemma_3n_e2b),
-    ]
+    plan.append(("stt", "groq", "whisper-primary", settings.groq_whisper_primary))
+    plan.append(("stt", "groq", "whisper-fallback", settings.groq_whisper_fallback))
+    plan.append(("ocr", "groq", "vision-ocr", settings.groq_vision_ocr_model))
+    return plan
 
 
 async def _run_probe(
     settings: Settings,
+    role: str,
     provider: str,
     alias: str,
     model_id: str,
     client: httpx.AsyncClient,
 ) -> ProbeResult:
-    if provider == "google":
-        return await _probe_google(settings, alias, model_id, client)
-    if provider == "groq":
-        return await _probe_groq(settings, alias, model_id, client)
-    if provider == "nvidia":
-        return await _probe_nvidia(settings, alias, model_id, client)
-    return ProbeResult(provider, alias, model_id, False, 0, f"unknown provider: {provider}")
+    if provider == "deepseek":
+        return await _probe_deepseek(settings, model_id, client)
+    if provider == "groq" and role == "stt":
+        return await _probe_groq_whisper(settings, model_id, client)
+    if provider == "groq" and role == "ocr":
+        return await _probe_groq_chat(settings, model_id, client)
+    return ProbeResult(role, provider, model_id, False, 0, f"unknown probe: {role}/{provider}")
 
 
 def _print_results(results: list[ProbeResult]) -> None:
+    role_w = max(len(r.role) for r in results)
     provider_w = max(len(r.provider) for r in results)
-    alias_w = max(len(r.alias) for r in results)
     model_w = max(len(r.model_id) for r in results)
 
-    header = f"{'PROVIDER':<{provider_w}}  {'ALIAS':<{alias_w}}  {'MODEL':<{model_w}}  STATUS  LATENCY"
+    header = (
+        f"{'ROLE':<{role_w}}  {'PROVIDER':<{provider_w}}  "
+        f"{'MODEL':<{model_w}}  STATUS  LATENCY"
+    )
     print(header)
     print("-" * len(header))
 
@@ -252,7 +271,8 @@ def _print_results(results: list[ProbeResult]) -> None:
         status = "OK  " if r.ok else "FAIL"
         latency = f"{r.elapsed_ms:>6d}ms"
         print(
-            f"{r.provider:<{provider_w}}  {r.alias:<{alias_w}}  {r.model_id:<{model_w}}  {status}  {latency}"
+            f"{r.role:<{role_w}}  {r.provider:<{provider_w}}  "
+            f"{r.model_id:<{model_w}}  {status}  {latency}"
         )
 
     failures = [r for r in results if not r.ok]
@@ -262,7 +282,7 @@ def _print_results(results: list[ProbeResult]) -> None:
         print("FAILURE DETAILS")
         print("=" * 80)
         for r in failures:
-            print(f"\n[{r.provider} / {r.alias} / {r.model_id}]")
+            print(f"\n[{r.role} / {r.provider} / {r.model_id}]")
             print(r.detail)
 
     total = len(results)
@@ -280,8 +300,8 @@ async def main() -> int:
     async with httpx.AsyncClient(timeout=timeout) as client:
         results = await asyncio.gather(
             *(
-                _run_probe(settings, provider, alias, model_id, client)
-                for provider, alias, model_id in plan
+                _run_probe(settings, role, provider, alias, model_id, client)
+                for role, provider, alias, model_id in plan
             )
         )
 

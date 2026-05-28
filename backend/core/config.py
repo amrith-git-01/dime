@@ -45,15 +45,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("STORAGE_BUCKET", "AVATAR_STORAGE_BUCKET"),
     )
     ai_base_url: str = Field(
-        default="https://openrouter.ai/api/v1/chat/completions",
+        default="https://api.deepseek.com/chat/completions",
         validation_alias=AliasChoices("AI_BASE_URL"),
     )
     ai_api_key: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("AI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"),
+        validation_alias=AliasChoices("DEEPSEEK_API_KEY", "AI_API_KEY"),
     )
     ai_model: str = Field(
-        default="openai/gpt-4o-mini",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("AI_MODEL"),
     )
     ai_timeout_seconds: float = Field(
@@ -64,57 +64,9 @@ class Settings(BaseSettings):
         default=0.1,
         validation_alias=AliasChoices("AI_TEMPERATURE"),
     )
-    ai_fallback_sms: str = Field(
-        default="nvidia:gemma-3-4b,nvidia:gemma-3-12b,groq:llama-3.1-8b",
-        validation_alias=AliasChoices("AI_FALLBACK_SMS"),
-    )
-    ai_fallback_receipt: str = Field(
-        default="google:gemma-4-26b,google:gemma-4-31b,nvidia:gemma-3-27b,nvidia:gemma-3n-e4b",
-        validation_alias=AliasChoices("AI_FALLBACK_RECEIPT"),
-    )
-    ai_fallback_voice: str = Field(
-        default="nvidia:gemma-3n-e4b,nvidia:gemma-3n-e2b",
-        validation_alias=AliasChoices("AI_FALLBACK_VOICE"),
-    )
-    google_model_gemma_4_26b: str = Field(
-        default="gemma-4-26b-a4b-it",
-        validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_4_26B"),
-    )
-    google_model_gemma_4_31b: str = Field(
-        default="gemma-4-31b-it",
-        validation_alias=AliasChoices("GOOGLE_MODEL_GEMMA_4_31B"),
-    )
-    groq_model_llama_3_1_8b: str = Field(
-        default="llama-3.1-8b-instant",
-        validation_alias=AliasChoices("GROQ_MODEL_LLAMA_3_1_8B"),
-    )
-    nvidia_model_gemma_3n_e4b: str = Field(
-        default="google/gemma-3n-e4b-it",
-        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3N_E4B"),
-    )
-    nvidia_model_gemma_3n_e2b: str = Field(
-        default="google/gemma-3n-e2b-it",
-        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3N_E2B"),
-    )
-    nvidia_model_gemma_3_4b: str = Field(
-        default="google/gemma-3-4b-it",
-        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_4B"),
-    )
-    nvidia_model_gemma_3_12b: str = Field(
-        default="google/gemma-3-12b-it",
-        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_12B"),
-    )
-    nvidia_model_gemma_3_27b: str = Field(
-        default="google/gemma-3-27b-it",
-        validation_alias=AliasChoices("NVIDIA_MODEL_GEMMA_3_27B"),
-    )
-    google_ai_api_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("GOOGLE_AI_API_KEY"),
-    )
-    google_ai_base_url: str = Field(
-        default="https://generativelanguage.googleapis.com/v1beta",
-        validation_alias=AliasChoices("GOOGLE_AI_BASE_URL"),
+    ai_parse_fallback: str = Field(
+        default="deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
+        validation_alias=AliasChoices("AI_PARSE_FALLBACK"),
     )
     groq_api_key: str | None = Field(
         default=None,
@@ -124,13 +76,17 @@ class Settings(BaseSettings):
         default="https://api.groq.com/openai/v1",
         validation_alias=AliasChoices("GROQ_BASE_URL"),
     )
-    nvidia_api_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("NVIDIA_API_KEY"),
+    groq_whisper_primary: str = Field(
+        default="whisper-large-v3-turbo",
+        validation_alias=AliasChoices("GROQ_WHISPER_PRIMARY"),
     )
-    nvidia_base_url: str = Field(
-        default="https://integrate.api.nvidia.com/v1",
-        validation_alias=AliasChoices("NVIDIA_BASE_URL"),
+    groq_whisper_fallback: str = Field(
+        default="whisper-large-v3",
+        validation_alias=AliasChoices("GROQ_WHISPER_FALLBACK"),
+    )
+    groq_vision_ocr_model: str = Field(
+        default="meta-llama/llama-4-scout-17b-16e-instruct",
+        validation_alias=AliasChoices("GROQ_VISION_OCR_MODEL"),
     )
     image_worker_count: int = Field(
         default=2,

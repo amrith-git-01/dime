@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import logging
 import time
@@ -18,13 +17,13 @@ from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+from .preprocess import OcrError, TranscriptionError, extract_receipt_text, transcribe_audio
 from .prompts import build_parse_prompt
 from .schemas import (
     ExpenseType,
     ParseExpenseResult,
     ParseMode,
 )
-from .voice_audio import VoiceAudioNormalizeError, normalize_voice_audio_for_nvidia
 
 
 @dataclass(frozen=True)
@@ -47,7 +46,7 @@ class AIOrchestratorService:
         allowed_categories: list[str],
         category_options: list[dict[str, str]],
     ) -> ParseExpenseResult:
-        return await self._run_with_fallback(
+        return await self._parse_with_deepseek(
             mode=ParseMode.sms,
             payload={
                 "text": text,
@@ -63,11 +62,18 @@ class AIOrchestratorService:
         allowed_categories: list[str],
         category_options: list[dict[str, str]],
     ) -> ParseExpenseResult:
-        return await self._run_with_fallback(
+        try:
+            ocr = await extract_receipt_text(image_bytes, mime_type)
+        except OcrError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+
+        return await self._parse_with_deepseek(
             mode=ParseMode.receipt,
             payload={
-                "image_bytes": image_bytes,
-                "mime_type": mime_type,
+                "text_context": ocr.text,
                 "allowed_categories": allowed_categories,
                 "category_options": category_options,
             },
@@ -81,52 +87,64 @@ class AIOrchestratorService:
         category_options: list[dict[str, str]],
     ) -> ParseExpenseResult:
         try:
-            normalized, fmt = normalize_voice_audio_for_nvidia(audio_bytes, mime_type)
-        except VoiceAudioNormalizeError as exc:
+            transcript = await transcribe_audio(audio_bytes, mime_type)
+        except TranscriptionError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
             ) from exc
-        out_mime = "audio/wav" if fmt == "wav" else "audio/mpeg"
-        return await self._run_with_fallback(
+
+        return await self._parse_with_deepseek(
             mode=ParseMode.voice,
             payload={
-                "audio_bytes": normalized,
-                "mime_type": out_mime,
+                "voice_text_hint": transcript.text,
                 "allowed_categories": allowed_categories,
                 "category_options": category_options,
             },
         )
 
-    async def _run_with_fallback(self, mode: ParseMode, payload: dict[str, Any]) -> ParseExpenseResult:
+    async def _parse_with_deepseek(
+        self,
+        mode: ParseMode,
+        payload: dict[str, Any],
+    ) -> ParseExpenseResult:
         last_error: Exception | None = None
-        candidates = self._fallbacks_for_mode(mode)
+        candidates = self._parse_candidates()
+        total_budget_s = self.settings.ai_timeout_seconds
+        per_candidate_s = total_budget_s / len(candidates)
         logger.info(
-            "[ai] run-with-fallback mode=%s candidates=%s",
+            "[ai] deepseek-parse-start mode=%s candidates=%s budget_s=%.1f per_candidate_s=%.1f",
             mode.value,
             [f"{c.provider}:{c.model}" for c in candidates],
+            total_budget_s,
+            per_candidate_s,
         )
 
         for candidate in candidates:
             started = time.monotonic()
             logger.info(
-                "[ai] provider-call-start mode=%s provider=%s model=%s",
+                "[ai] deepseek-call-start mode=%s model=%s timeout_s=%.1f",
                 mode.value,
-                candidate.provider,
                 candidate.model,
+                per_candidate_s,
             )
             try:
-                raw = await self._call_provider(candidate, mode, payload)
+                raw = await asyncio.wait_for(
+                    self._call_deepseek(
+                        candidate.model,
+                        mode,
+                        payload,
+                        request_timeout=per_candidate_s,
+                    ),
+                    timeout=per_candidate_s,
+                )
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 logger.info(
-                    "[ai] provider-call-done mode=%s provider=%s model=%s "
-                    "elapsed_ms=%d raw_chars=%d raw_excerpt=%r",
+                    "[ai] deepseek-call-done mode=%s model=%s elapsed_ms=%d raw_chars=%d",
                     mode.value,
-                    candidate.provider,
                     candidate.model,
                     elapsed_ms,
                     len(raw),
-                    raw[:300],
                 )
                 parsed = self._parse_and_validate(
                     raw,
@@ -147,27 +165,33 @@ class AIOrchestratorService:
                     parsed.confidence,
                 )
                 return parsed
-            except Exception as exc:
+            except TimeoutError as exc:
                 elapsed_ms = int((time.monotonic() - started) * 1000)
-                exc_msg = str(exc) or repr(exc)
                 logger.warning(
-                    "[ai] provider-call-failed mode=%s provider=%s model=%s "
-                    "elapsed_ms=%d error_type=%s error=%s",
+                    "[ai] deepseek-call-timeout mode=%s model=%s elapsed_ms=%d budget_s=%.1f",
                     mode.value,
-                    candidate.provider,
                     candidate.model,
                     elapsed_ms,
-                    type(exc).__name__,
-                    exc_msg,
+                    per_candidate_s,
+                )
+                last_error = exc
+                continue
+            except Exception as exc:
+                elapsed_ms = int((time.monotonic() - started) * 1000)
+                logger.warning(
+                    "[ai] deepseek-call-failed mode=%s model=%s elapsed_ms=%d error=%s",
+                    mode.value,
+                    candidate.model,
+                    elapsed_ms,
+                    exc,
                 )
                 last_error = exc
                 continue
 
         last_msg = str(last_error) or repr(last_error) if last_error else "no candidates"
         logger.error(
-            "[ai] all-providers-failed mode=%s last_error_type=%s last_error=%s",
+            "[ai] all-deepseek-failed mode=%s last_error=%s",
             mode.value,
-            type(last_error).__name__ if last_error else "None",
             last_msg,
         )
         raise HTTPException(
@@ -175,159 +199,49 @@ class AIOrchestratorService:
             detail=f"AI_PARSE_UNAVAILABLE: mode={mode.value}, error={last_msg}",
         )
 
-    async def _call_provider(
-        self,
-        candidate: ModelCandidate,
-        mode: ParseMode,
-        payload: dict[str, Any],
-    ) -> str:
-        if candidate.provider == "google":
-            return await self._call_google(candidate.model, mode, payload)
-        if candidate.provider == "groq":
-            return await self._call_groq(candidate.model, mode, payload)
-        if candidate.provider == "nvidia":
-            return await self._call_nvidia(candidate.model, mode, payload)
-        raise AIParseError(f"Unknown provider: {candidate.provider}")
-
-    async def _call_google(
+    async def _call_deepseek(
         self,
         model: str,
         mode: ParseMode,
         payload: dict[str, Any],
+        *,
+        request_timeout: float | None = None,
     ) -> str:
         settings = self.settings
-        if not settings.google_ai_api_key:
-            raise AIParseError("GOOGLE_AI_API_KEY is missing")
+        api_key = settings.ai_api_key
+        if not api_key:
+            raise AIParseError("DEEPSEEK_API_KEY / AI_API_KEY is missing")
 
-        model_id = self._google_model_id(model)
-        url = f"{settings.google_ai_base_url.rstrip('/')}/models/{model_id}:generateContent"
+        http_timeout = (
+            request_timeout
+            if request_timeout is not None
+            else settings.ai_timeout_seconds
+        )
 
-        content_parts: list[dict[str, Any]] = [{"text": build_parse_prompt(mode, payload)}]
-        if mode == ParseMode.receipt:
-            image_bytes = payload.get("image_bytes")
-            if not isinstance(image_bytes, (bytes, bytearray)):
-                raise AIParseError("Missing image bytes for receipt parse")
-            mime_type = payload.get("mime_type") or "image/jpeg"
-            content_parts.append(
-                {
-                    "inline_data": {
-                        "mime_type": mime_type,
-                        "data": base64.b64encode(image_bytes).decode("utf-8"),
-                    }
-                }
-            )
-
-        generation_config: dict[str, Any] = {"temperature": settings.ai_temperature}
-        if self._google_supports_response_mime_json(model_id):
-            generation_config["responseMimeType"] = "application/json"
-        body = {
-            "contents": [{"role": "user", "parts": content_parts}],
-            "generationConfig": generation_config,
-        }
-        headers = {
-            "x-goog-api-key": settings.google_ai_api_key,
-            "Content-Type": "application/json",
-        }
-
-        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
-            response = await client.post(url, json=body, headers=headers)
-            self._raise_for_provider_status(response, provider="google")
-            data = response.json()
-            try:
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError, TypeError) as exc:
-                raise AIParseError(f"Google response missing text: {data}") from exc
-
-    async def _call_groq(
-        self,
-        model: str,
-        mode: ParseMode,
-        payload: dict[str, Any],
-    ) -> str:
-        settings = self.settings
-        if not settings.groq_api_key:
-            raise AIParseError("GROQ_API_KEY is missing")
-        if mode != ParseMode.sms:
-            raise AIParseError(f"Groq not configured for mode={mode.value}")
-
-        model_id = self._groq_model_id(model)
-        body = {
-            "model": model_id,
+        body: dict[str, Any] = {
+            "model": model,
             "messages": [{"role": "user", "content": build_parse_prompt(mode, payload)}],
             "temperature": settings.ai_temperature,
             "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
         }
-        headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
-        url = f"{settings.groq_base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
 
-        async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
-            response = await client.post(url, json=body, headers=headers)
-            self._raise_for_provider_status(response, provider="groq")
+        async with httpx.AsyncClient(timeout=http_timeout) as client:
+            response = await client.post(
+                settings.ai_base_url,
+                json=body,
+                headers=headers,
+            )
+            self._raise_for_provider_status(response, provider="deepseek")
             data = response.json()
             try:
                 return data["choices"][0]["message"]["content"]
             except (KeyError, IndexError, TypeError) as exc:
-                raise AIParseError(f"Groq response missing content: {data}") from exc
-
-    async def _call_nvidia(
-        self,
-        model: str,
-        mode: ParseMode,
-        payload: dict[str, Any],
-    ) -> str:
-        settings = self.settings
-        if not settings.nvidia_api_key:
-            raise AIParseError("NVIDIA_API_KEY is missing")
-
-        model_id = self._nvidia_model_id(model)
-        prompt = build_parse_prompt(mode, payload)
-        content_parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-
-        if mode == ParseMode.receipt:
-            image_bytes = payload.get("image_bytes")
-            if not isinstance(image_bytes, (bytes, bytearray)):
-                raise AIParseError("Missing image bytes for receipt parse")
-            mime_type = payload.get("mime_type") or "image/jpeg"
-            image_data = base64.b64encode(image_bytes).decode("utf-8")
-            content_parts.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime_type};base64,{image_data}"},
-                }
-            )
-        elif mode == ParseMode.voice:
-            audio_bytes = payload.get("audio_bytes")
-            if not isinstance(audio_bytes, (bytes, bytearray)):
-                raise AIParseError("Missing audio bytes for voice parse")
-            mime_type = payload.get("mime_type") or "audio/wav"
-            audio_data = base64.b64encode(audio_bytes).decode("utf-8")
-            nv_audio_fmt = self._nvidia_voice_format(mime_type)
-            content_parts.append(
-                {
-                    "type": "input_audio",
-                    "input_audio": {"data": audio_data, "format": nv_audio_fmt},
-                }
-            )
-
-        body = {
-            "model": model_id,
-            "messages": [{"role": "user", "content": content_parts}],
-            "temperature": settings.ai_temperature,
-            "response_format": {"type": "json_object"},
-        }
-        headers = {"Authorization": f"Bearer {settings.nvidia_api_key}"}
-        url = f"{settings.nvidia_base_url.rstrip('/')}/chat/completions"
-        per_req = httpx.Timeout(120.0, connect=15.0)
-        deadline = time.monotonic() + float(settings.ai_timeout_seconds)
-
-        async with httpx.AsyncClient(timeout=per_req) as client:
-            return await self._nvidia_invoke_chat_completion(
-                client=client,
-                url=url,
-                headers=headers,
-                body=body,
-                deadline=deadline,
-            )
+                raise AIParseError(f"DeepSeek response missing content: {data}") from exc
 
     def _raise_for_provider_status(self, response: httpx.Response, provider: str) -> None:
         if response.status_code < 400:
@@ -336,55 +250,17 @@ class AIOrchestratorService:
             raise AIParseError(
                 f"{provider} transient error {response.status_code}: {response.text[:400]}"
             )
-        raise AIParseError(f"{provider} request failed {response.status_code}: {response.text[:400]}")
+        raise AIParseError(
+            f"{provider} request failed {response.status_code}: {response.text[:400]}"
+        )
 
-    def _google_model_id(self, model: str) -> str:
-        settings = self.settings
-        mapping = {
-            "gemma-4-26b": settings.google_model_gemma_4_26b,
-            "gemma-4-31b": settings.google_model_gemma_4_31b,
-        }
-        return mapping.get(model, model)
-
-    @staticmethod
-    def _google_supports_response_mime_json(model_id: str) -> bool:
-        """Gemma 3 and 3n on the Generative Language API reject ``responseMimeType``.
-
-        Gemma 4 and Gemini 2.x accept structured output config.
-        """
-        lowered = model_id.lower()
-        if lowered.startswith("gemma-3"):
-            return False
-        return True
-
-    def _groq_model_id(self, model: str) -> str:
-        settings = self.settings
-        mapping = {
-            "llama-3.1-8b": settings.groq_model_llama_3_1_8b,
-        }
-        return mapping.get(model, model)
-
-    def _nvidia_model_id(self, model: str) -> str:
-        settings = self.settings
-        mapping = {
-            "gemma-3n-e4b": settings.nvidia_model_gemma_3n_e4b,
-            "gemma-3n-e2b": settings.nvidia_model_gemma_3n_e2b,
-            "gemma-3-4b": settings.nvidia_model_gemma_3_4b,
-            "gemma-3-12b": settings.nvidia_model_gemma_3_12b,
-            "gemma-3-27b": settings.nvidia_model_gemma_3_27b,
-        }
-        return mapping.get(model, model)
-
-    def _fallbacks_for_mode(self, mode: ParseMode) -> list[ModelCandidate]:
-        if mode == ParseMode.sms:
-            chain = self.settings.ai_fallback_sms
-        elif mode == ParseMode.receipt:
-            chain = self.settings.ai_fallback_receipt
-        else:
-            chain = self.settings.ai_fallback_voice
+    def _parse_candidates(self) -> list[ModelCandidate]:
+        chain = self.settings.ai_parse_fallback.strip()
+        if not chain:
+            chain = f"deepseek:{self.settings.ai_model}"
         parsed = self._parse_chain(chain)
         if not parsed:
-            raise AIParseError(f"No fallback candidates configured for mode={mode.value}")
+            raise AIParseError("No DeepSeek parse candidates configured")
         return parsed
 
     def _parse_chain(self, chain: str) -> list[ModelCandidate]:
@@ -398,72 +274,15 @@ class AIOrchestratorService:
             model = model.strip()
             if separator != ":" or not provider or not model:
                 raise AIParseError(f"Invalid fallback chain entry: '{item}'")
+            if provider != "deepseek":
+                raise AIParseError(
+                    f"Unsupported parse provider '{provider}' — only deepseek is allowed"
+                )
             candidates.append(ModelCandidate(provider=provider, model=model))
         return candidates
 
-    def _nvidia_voice_format(self, mime_type: str) -> str:
-        """NVIDIA Gemma 3n infer API: audio must be ``wav`` or ``mp3`` only."""
-        lowered = mime_type.lower()
-        if "wav" in lowered:
-            return "wav"
-        if "mp3" in lowered or "mpeg" in lowered:
-            return "mp3"
-        raise AIParseError(
-            f"Unsupported audio MIME for NVIDIA after normalization: {mime_type!r}"
-        )
-
-    def _nvidia_extract_message_text(self, data: dict[str, Any]) -> str:
-        try:
-            text = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise AIParseError(f"NVIDIA response missing content: {data}") from exc
-        if not isinstance(text, str):
-            raise AIParseError(f"NVIDIA content is not text: {data}")
-        return text
-
-    def _nvidia_async_request_id(self, response: httpx.Response) -> str:
-        try:
-            payload = response.json()
-        except json.JSONDecodeError:
-            payload = {}
-        if isinstance(payload, dict):
-            for key in ("request_id", "requestId", "id"):
-                val = payload.get(key)
-                if isinstance(val, str) and val.strip():
-                    return val.strip()
-        raise AIParseError(
-            f"NVIDIA 202 missing request id in body: {response.text[:400]}"
-        )
-
-    async def _nvidia_invoke_chat_completion(
-        self,
-        client: httpx.AsyncClient,
-        url: str,
-        headers: dict[str, str],
-        body: dict[str, Any],
-        deadline: float,
-    ) -> str:
-        response = await client.post(url, json=body, headers=headers)
-
-        if response.status_code == 202:
-            request_id = self._nvidia_async_request_id(response)
-            status_url = f"{self.settings.nvidia_base_url.rstrip('/')}/status/{request_id}"
-            while time.monotonic() < deadline:
-                poll = await client.get(status_url, headers=headers)
-                if poll.status_code == 200:
-                    return self._nvidia_extract_message_text(poll.json())
-                if poll.status_code == 202:
-                    await asyncio.sleep(0.45)
-                    continue
-                self._raise_for_provider_status(poll, provider="nvidia")
-            raise AIParseError("NVIDIA status polling exceeded AI_TIMEOUT_SECONDS")
-
-        self._raise_for_provider_status(response, provider="nvidia")
-        return self._nvidia_extract_message_text(response.json())
-
     @staticmethod
     def _strip_json_fences(raw_text: str) -> str:
-        """Remove markdown ```json ... ``` fences models sometimes wrap JSON in."""
         text = raw_text.strip()
         if text.startswith("```"):
             text = text.lstrip("`")
@@ -487,7 +306,6 @@ class AIOrchestratorService:
         except json.JSONDecodeError as exc:
             raise AIParseError(f"Model returned invalid JSON: {exc}") from exc
 
-        # Defensive defaults
         if not data.get("date"):
             data["date"] = datetime.now(UTC).isoformat()
         if not data.get("raw_model"):
@@ -498,7 +316,6 @@ class AIOrchestratorService:
                 counterparty_name=data.get("counterparty_name"),
             )
 
-        # Cast amount safely
         if "amount" in data:
             data["amount"] = Decimal(str(data["amount"]))
         if isinstance(data.get("counterparty_type"), str):
@@ -588,13 +405,11 @@ class AIOrchestratorService:
         if not value:
             return None
 
-        # ISO first
         try:
             return datetime.fromisoformat(value)
         except ValueError:
             pass
 
-        # Common non-ISO formats models often return.
         for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%Y-%m-%d"):
             try:
                 return datetime.strptime(value, fmt).replace(tzinfo=UTC)

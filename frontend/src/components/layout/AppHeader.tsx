@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-import { colors, spacing, typography } from "@/constants/theme";
+import { colors, hero, overlays, spacing, typography } from "@/constants/theme";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     borderRadius: AVATAR_SIZE / 2,
     borderWidth: 2,
     borderColor: colors.headerAvatarRingBorder,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: hero.avatarRing,
     overflow: "hidden",
   },
   avatar: {
@@ -241,17 +241,17 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(99,85,232,0.2)",
+    backgroundColor: overlays.avatarFallback,
   },
   avatarErrorTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.14)",
+    backgroundColor: overlays.avatarError,
   },
   avatarSkeleton: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "rgba(255,255,255,0.28)",
+    backgroundColor: overlays.avatarSkeleton,
   },
   titles: {
     flex: 1,
@@ -273,13 +273,13 @@ const styles = StyleSheet.create({
     height: 10,
     width: "45%",
     borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.32)",
+    backgroundColor: hero.skeletonShort,
   },
   nameLineLong: {
     height: 14,
     width: "70%",
     borderRadius: 7,
-    backgroundColor: "rgba(255,255,255,0.38)",
+    backgroundColor: hero.skeletonLong,
   },
   spacer: {
     width: spacing.sm,

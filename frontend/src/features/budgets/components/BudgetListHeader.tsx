@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { HeroSummaryCard } from "@/components/home/HeroSummaryCard";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, hero, spacing } from "@/constants/theme";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: hero.chipBorder,
+    backgroundColor: hero.chipBg,
   },
   editBudgetButtonPressed: {
     opacity: 0.85,

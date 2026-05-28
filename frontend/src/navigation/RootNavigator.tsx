@@ -9,6 +9,7 @@ import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTr
 import { supabase } from "@/lib/supabase/client";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
+import { useCurrentUserStore } from "@/stores/currentUserStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -44,6 +45,7 @@ export default function RootNavigator() {
 
   const profileUserId = session?.user.id;
   useTransactionsRealtimeSync(profileUserId ?? null);
+  const cachedProfile = useCurrentUserStore((s) => s.profile);
   const meQuery = useCurrentUserProfileQuery(profileUserId);
 
   useEffect(() => {
@@ -53,25 +55,31 @@ export default function RootNavigator() {
       return;
     }
 
-    if (meQuery.isLoading) {
+    if (meQuery.isLoading && !cachedProfile) {
       setProfileGateReady(false);
       return;
     }
 
-    if (meQuery.isError) {
+    if (meQuery.isError && !cachedProfile) {
       setNeedsProfileSetup(true);
       setProfileGateReady(true);
       return;
     }
 
-    const row = meQuery.data;
+    const row = meQuery.data ?? cachedProfile;
     if (!row || row.username == null) {
       setNeedsProfileSetup(true);
     } else {
       setNeedsProfileSetup(false);
     }
     setProfileGateReady(true);
-  }, [session, meQuery.isLoading, meQuery.isError, meQuery.data]);
+  }, [
+    session,
+    meQuery.isLoading,
+    meQuery.isError,
+    meQuery.data,
+    cachedProfile,
+  ]);
 
   const booting = !sessionReady || (session !== null && !profileGateReady);
 

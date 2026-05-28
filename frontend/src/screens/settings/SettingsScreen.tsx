@@ -3,8 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { Button } from "@/components/ui/Button/Button";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants/theme";
+import { layout, spacing, typography } from "@/constants/theme";
 import { useSignOut } from "@/features/auth/hooks/useSignOut";
 
 export default function SettingsScreen() {
@@ -80,26 +79,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   card: {
+    ...layout.cardCompact,
     marginTop: spacing.xl,
-    padding: spacing.lg,
-    backgroundColor: colors.barBackground,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
     gap: spacing.md,
   },
-  cardTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 18,
-    lineHeight: 24,
-    color: colors.textPrimary,
-  },
-  cardSubtitle: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
+  cardTitle: typography.cardTitle,
+  cardSubtitle: typography.cardBody,
   logoutWrap: {
     marginTop: spacing.xl,
   },

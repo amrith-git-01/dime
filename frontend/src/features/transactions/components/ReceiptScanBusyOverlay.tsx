@@ -1,6 +1,6 @@
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
 
-import { colors, spacing } from "@/constants/theme";
+import { colors, overlays, radius, spacing } from "@/constants/theme";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 
 export function ReceiptScanBusyOverlay() {
@@ -24,14 +24,14 @@ export function ReceiptScanBusyOverlay() {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: overlays.scrim,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.lg,
   },
   card: {
     backgroundColor: colors.barBackground,
-    borderRadius: 20,
+    borderRadius: radius.lg,
     padding: spacing.xl,
     alignItems: "center",
     gap: spacing.md,

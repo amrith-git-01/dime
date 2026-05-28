@@ -18,6 +18,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fontFamilies } from "@/constants/fonts";
+import { springs } from "@/constants/motion";
 import { colors, spacing } from "@/constants/theme";
 import { useToastUiStore } from "@/stores/toastUiStore";
 
@@ -26,12 +27,6 @@ import type { ToastVariant } from "../types";
 const ENTER_OPACITY_MS = 140;
 const EXIT_OPACITY_MS = 120;
 const EXIT_Y_OFFSET = 18;
-const FAB_LIKE_SPRING = {
-  damping: 18,
-  stiffness: 240,
-  mass: 0.9,
-} as const;
-
 function variantConfig(variant: ToastVariant) {
   switch (variant) {
     case "success":
@@ -88,9 +83,13 @@ export function ToastHost() {
     cancelAnimation(opacity);
     const direction = renderedToast.position === "bottom" ? 1 : -1;
     opacity.value = withTiming(0, { duration: EXIT_OPACITY_MS });
-    translateY.value = withSpring(direction * EXIT_Y_OFFSET, FAB_LIKE_SPRING, () => {
-      runOnJS(finalizeDismiss)();
-    });
+    translateY.value = withSpring(
+      direction * EXIT_Y_OFFSET,
+      springs.fabActions,
+      () => {
+        runOnJS(finalizeDismiss)();
+      },
+    );
   }, [clearCloseTimer, finalizeDismiss, opacity, renderedToast, translateY]);
 
   useEffect(() => {
@@ -105,7 +104,7 @@ export function ToastHost() {
     translateY.value = direction * EXIT_Y_OFFSET;
     opacity.value = 0;
     opacity.value = withTiming(1, { duration: ENTER_OPACITY_MS });
-    translateY.value = withSpring(0, FAB_LIKE_SPRING);
+    translateY.value = withSpring(0, springs.fabActions);
     closeTimerRef.current = setTimeout(startExit, toast.durationMs);
   }, [clearCloseTimer, opacity, startExit, toast, translateY]);
 
@@ -138,13 +137,7 @@ export function ToastHost() {
           renderedToast.position === "top" ? { top } : { bottom },
         ]}
       >
-        <Animated.View
-          style={[
-            styles.card,
-            animatedStyle,
-            styles.cardNeutral,
-          ]}
-        >
+        <Animated.View style={[styles.card, animatedStyle, styles.cardNeutral]}>
           <View style={styles.leading}>
             <Icon size={18} color={conf.accent} strokeWidth={2.2} />
           </View>
@@ -158,7 +151,10 @@ export function ToastHost() {
                 renderedToast.action?.onPress?.();
                 startExit();
               }}
-              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+              style={({ pressed }) => [
+                styles.action,
+                pressed && styles.actionPressed,
+              ]}
             >
               <Text style={[styles.actionText, { color: conf.accent }]}>
                 {renderedToast.action.label}
@@ -170,7 +166,10 @@ export function ToastHost() {
             accessibilityLabel="Dismiss notification"
             hitSlop={12}
             onPress={startExit}
-            style={({ pressed }) => [styles.close, pressed && styles.actionPressed]}
+            style={({ pressed }) => [
+              styles.close,
+              pressed && styles.actionPressed,
+            ]}
           >
             <X size={16} color={colors.textSecondary} strokeWidth={2.2} />
           </Pressable>

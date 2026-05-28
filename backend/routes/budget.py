@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 
+from core.async_utils import run_sync
 from deps import get_current_user_id, get_supabase_service_client
 from features.budgets.schemas import BudgetGetResponse, BudgetResponse, BudgetUpsertBody
 from features.budgets.service import BudgetService
@@ -17,12 +18,13 @@ router = APIRouter(prefix="/budget", tags=["budget"])
 
 
 @router.get("", response_model=BudgetGetResponse)
-def read_budget(
+async def read_budget(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> BudgetGetResponse:
     try:
-        return BudgetService(supabase).get_budget(user_id)
+        service = BudgetService(supabase)
+        return await run_sync(service.get_budget, user_id)
     except Exception as exc:
         logger.exception("Failed to read budget for user_id=%s", user_id)
         raise HTTPException(
@@ -32,13 +34,14 @@ def read_budget(
 
 
 @router.patch("", response_model=BudgetResponse)
-def patch_budget(
+async def patch_budget(
     body: BudgetUpsertBody,
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> BudgetResponse:
     try:
-        return BudgetService(supabase).upsert_budget(user_id, body)
+        service = BudgetService(supabase)
+        return await run_sync(service.upsert_budget, user_id, body)
     except Exception as exc:
         logger.exception("Failed to upsert budget for user_id=%s", user_id)
         raise HTTPException(
