@@ -27,7 +27,7 @@ import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing, surfaces } from "@/constants/theme";
 import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
@@ -42,8 +42,6 @@ import { findIncomeCategory } from "@/features/transactions/utils/manualAddCateg
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
-
-const SEGMENT_SELECTED_BG = "rgba(99, 85, 232, 0.10)";
 
 type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
 
@@ -502,7 +500,7 @@ const styles = StyleSheet.create({
   },
   categoryPillSelected: {
     borderColor: colors.primary,
-    backgroundColor: SEGMENT_SELECTED_BG,
+    backgroundColor: surfaces.primaryTint10,
   },
   categoryPillPressed: {
     opacity: 0.92,
@@ -579,7 +577,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   segmentChipSelected: {
-    backgroundColor: SEGMENT_SELECTED_BG,
+    backgroundColor: surfaces.primaryTint10,
     borderColor: colors.primary,
   },
   segmentChipPressed: {

@@ -216,18 +216,14 @@ export default function TransactionsScreen() {
     fetchNextPage: infinite.fetchNextPage,
   });
 
-  const filteredRows = useMemo(
-    () =>
-      flatRows.filter(
-        (row) =>
-          transactionCalendarDayKey(row.transaction_at) === selectedDayKey,
-      ),
-    [flatRows, selectedDayKey],
-  );
-
   const flashListData = useMemo(
     () => buildTransactionFlashListItemsForSingleDay(flatRows, selectedDayKey),
     [flatRows, selectedDayKey],
+  );
+
+  const dayRowCount = useMemo(
+    () => flashListData.filter((item) => item.kind === "row").length,
+    [flashListData],
   );
 
   const oldestLoadedDayKey = useMemo(() => {
@@ -307,15 +303,14 @@ export default function TransactionsScreen() {
   );
 
   const waitingForOlderPages =
-    filteredRows.length === 0 &&
+    dayRowCount === 0 &&
     Boolean(infinite.hasNextPage) &&
     oldestLoadedDayKey !== null &&
     selectedDayKey < oldestLoadedDayKey;
 
-  const showDayLoading = filteredRows.length === 0 && waitingForOlderPages;
+  const showDayLoading = dayRowCount === 0 && waitingForOlderPages;
 
-  const listEmpty =
-    !infinite.isPending && filteredRows.length === 0 && !showDayLoading;
+  const listEmpty = !infinite.isPending && dayRowCount === 0 && !showDayLoading;
 
   const monthHasNoTransactions =
     !summaryQuery.isPending && !summaryQuery.isError && summary.count === 0;
@@ -345,7 +340,7 @@ export default function TransactionsScreen() {
         monthOptions={monthOptions}
         onSelectMonth={handleSelectMonth}
         selectedDayKey={selectedDayKey}
-        transactionCount={filteredRows.length}
+        transactionCount={dayRowCount}
         canGoPrevDay={canGoPrevDay}
         canGoNextDay={canGoNextDay}
         onPrevDay={goPrevDay}
@@ -360,7 +355,7 @@ export default function TransactionsScreen() {
       monthOptions,
       handleSelectMonth,
       selectedDayKey,
-      filteredRows.length,
+      dayRowCount,
       canGoPrevDay,
       canGoNextDay,
       goPrevDay,

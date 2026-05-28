@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button/Button";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing, surfaces } from "@/constants/theme";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import {
   CUSTOM_CATEGORY_COLOR_OPTIONS,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconOptionSelected: {
-    backgroundColor: "rgba(99, 85, 232, 0.08)",
+    backgroundColor: surfaces.primaryTint08,
   },
   colorOption: {
     width: 44,
