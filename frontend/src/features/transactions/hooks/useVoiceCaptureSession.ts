@@ -1,5 +1,5 @@
-import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useToast } from "@/features/toast/useToast";
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
@@ -14,8 +14,29 @@ import { Alert } from "react-native";
 
 import { submitVoice } from "../api/submitTransactionApi";
 import { guessVoiceUploadMeta } from "../voice/guessVoiceMime";
+import {
+  MIN_VOICE_RECORDING_SECONDS,
+  VOICE_RECORDING_TOO_SHORT_MESSAGE,
+} from "../voice/voiceCaptureConstants";
 
 type CapturePhase = "idle" | "preparing" | "recording";
+
+function recordingDurationSeconds(
+  recorder: ReturnType<typeof useAudioRecorder>,
+  startedAtMs: number | null,
+): number {
+  const status = recorder.getStatus();
+  if (status.durationMillis > 0) {
+    return status.durationMillis / 1000;
+  }
+  if (recorder.currentTime > 0) {
+    return recorder.currentTime;
+  }
+  if (startedAtMs != null) {
+    return (Date.now() - startedAtMs) / 1000;
+  }
+  return 0;
+}
 
 export function useVoiceCaptureSession() {
   const visible = useVoiceCaptureUiStore((s) => s.visible);
@@ -30,9 +51,11 @@ export function useVoiceCaptureSession() {
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const isRecordingRef = useRef(false);
   const sessionAbortRef = useRef(false);
+  const recordingStartedAtMsRef = useRef<number | null>(null);
 
   const cleanupRecording = useCallback(async () => {
     isRecordingRef.current = false;
+    recordingStartedAtMsRef.current = null;
     try {
       await recorder.stop();
     } catch {
@@ -144,6 +167,7 @@ export function useVoiceCaptureSession() {
           return;
         }
         isRecordingRef.current = true;
+        recordingStartedAtMsRef.current = Date.now();
         setPhase("recording");
       } catch {
         Alert.alert(
@@ -188,6 +212,21 @@ export function useVoiceCaptureSession() {
 
     if (!uri) {
       Alert.alert("Recording error", "No audio file was produced. Try again.");
+      await hardClose();
+      return;
+    }
+
+    const durationSeconds = recordingDurationSeconds(
+      recorder,
+      recordingStartedAtMsRef.current,
+    );
+    recordingStartedAtMsRef.current = null;
+
+    if (durationSeconds < MIN_VOICE_RECORDING_SECONDS) {
+      showToast({
+        variant: "warning",
+        message: VOICE_RECORDING_TOO_SHORT_MESSAGE,
+      });
       await hardClose();
       return;
     }
