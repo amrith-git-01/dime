@@ -1,5 +1,15 @@
-import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect } from "react";
+import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+
+import { skeletonPulse } from "@/constants/motion";
+import { radius, skeleton } from "@/constants/theme";
 
 type SkeletonTone = "surface" | "onPrimary";
 
@@ -10,46 +20,42 @@ type SkeletonBlockProps = {
 
 const toneStyles: Record<SkeletonTone, ViewStyle> = {
   surface: {
-    backgroundColor: "rgba(99,85,232,0.12)",
+    backgroundColor: skeleton.surface,
   },
   onPrimary: {
-    backgroundColor: "rgba(255,255,255,0.24)",
+    backgroundColor: skeleton.onPrimary,
   },
 };
 
 export function SkeletonBlock({ style, tone = "surface" }: SkeletonBlockProps) {
-  const pulse = useRef(new Animated.Value(0.55)).current;
+  const pulse = useSharedValue<number>(skeletonPulse.opacityMin);
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(skeletonPulse.opacityMax, {
+          duration: skeletonPulse.durationMs,
         }),
-        Animated.timing(pulse, {
-          toValue: 0.55,
-          duration: 700,
-          useNativeDriver: true,
+        withTiming(skeletonPulse.opacityMin, {
+          duration: skeletonPulse.durationMs,
         }),
-      ]),
+      ),
+      -1,
+      false,
     );
-    animation.start();
-    return () => {
-      animation.stop();
-    };
   }, [pulse]);
 
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+  }));
+
   return (
-    <Animated.View
-      style={[styles.base, toneStyles[tone], { opacity: pulse }, style]}
-    />
+    <Animated.View style={[styles.base, toneStyles[tone], animStyle, style]} />
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
 });

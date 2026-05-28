@@ -1,17 +1,20 @@
 import React, { useLayoutEffect, useRef } from "react";
 import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
+  withSpring,
 } from "react-native-reanimated";
+
+import { springs } from "@/constants/motion";
+import { progressBar, radius } from "@/constants/theme";
 
 interface AnimatedProgressBarProps {
   progress: number; // 0-1
   backgroundColor?: string;
   fillColor?: string;
   height?: number;
+  /** Kept for API compat; fill uses spring physics when `animated` is true. */
   duration?: number;
   /** When false, snaps to `progress` with no timing. */
   animated?: boolean;
@@ -42,16 +45,12 @@ function initialAnimatedProgress(
 
 /**
  * GPU-friendly fill: scaleX from the left (translateX anchor) instead of animating width.
- *
- * Reanimated rule: `useAnimatedStyle` runs on UI thread — only inline math or functions
- * marked with `"worklet"`. Do not call normal JS helpers inside the style callback.
  */
 export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
   progress,
-  backgroundColor = "#F2F0FF",
-  fillColor = "#FF6B6B",
+  backgroundColor = progressBar.track,
+  fillColor = progressBar.fillDefault,
   height = 8,
-  duration = 1000,
   animated = true,
   animateOnceKey,
 }) => {
@@ -94,11 +93,8 @@ export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
       completedAnimateOnceKeys.add(animateOnceKey);
     }
 
-    animatedProgress.value = withTiming(next, {
-      duration,
-      easing: Easing.inOut(Easing.ease),
-    });
-  }, [progress, animated, animateOnceKey, animatedProgress, duration]);
+    animatedProgress.value = withSpring(next, springs.progress);
+  }, [progress, animated, animateOnceKey, animatedProgress]);
 
   const onTrackLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
@@ -147,7 +143,7 @@ export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
 
 const styles = StyleSheet.create({
   track: {
-    borderRadius: 999,
+    borderRadius: radius.full,
     overflow: "hidden",
     width: "100%",
   },

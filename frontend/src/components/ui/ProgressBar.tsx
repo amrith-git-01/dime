@@ -1,5 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
+import { progressBar, radius } from "@/constants/theme";
+
 type ProgressBarProps = {
   progress: number;
   backgroundColor?: string;
@@ -17,8 +19,8 @@ function clampProgress(value: number): number {
  */
 export function ProgressBar({
   progress,
-  backgroundColor = "#F2F0FF",
-  fillColor = "#FF6B6B",
+  backgroundColor = progressBar.track,
+  fillColor = progressBar.fillDefault,
   height = 8,
 }: ProgressBarProps) {
   const clamped = clampProgress(progress);
@@ -44,7 +46,7 @@ export function ProgressBar({
 
 const styles = StyleSheet.create({
   track: {
-    borderRadius: 999,
+    borderRadius: radius.full,
     overflow: "hidden",
     width: "100%",
   },
