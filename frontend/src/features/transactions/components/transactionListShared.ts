@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
 
+import { colors } from "@/constants/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
 
@@ -31,7 +32,7 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
   const parsed = parseISO(tx.transaction_at);
   const dateKey = format(parsed, "yyyy-MM-dd");
   const iconName = tx.category_icon_name ?? "CreditCard";
-  const color = tx.category_color ?? "#94A3B8";
+  const color = tx.category_color ?? colors.categoryDefault;
   const name = tx.category ?? "Uncategorized";
   const timeLabel = format(parsed, "h:mm a");
   return {
@@ -62,12 +63,4 @@ export function formatTransactionListAmount(amount: number): string {
   return `\u20B9${absolute}`;
 }
 
-export function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.replace("#", "");
-  const bigint = Number.parseInt(normalized, 16);
-  const red = (bigint >> 16) & 255;
-  const green = (bigint >> 8) & 255;
-  const blue = bigint & 255;
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
+export { hexToRgba } from "@/constants/colorUtils";

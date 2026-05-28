@@ -9,7 +9,7 @@ import {
 
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, hero, layout, radius, spacing } from "@/constants/theme";
 import { formatTransactionListAmount } from "@/features/transactions/components/transactionListShared";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
@@ -145,15 +145,12 @@ export const TransactionsMonthHeroCard = memo(
 
 const styles = StyleSheet.create({
   heroCard: {
+    ...layout.heroCard,
     position: "relative",
     overflow: "visible",
     marginTop: spacing.lg,
     marginBottom: spacing.md,
     padding: spacing.lg,
-    borderRadius: 22,
-    backgroundColor: colors.headerGradientStart,
-    borderWidth: 1,
-    borderColor: colors.headerGradientEnd,
     zIndex: 3,
     ...heroShadowStyle,
   },
@@ -164,7 +161,7 @@ const styles = StyleSheet.create({
     width: 168,
     height: 168,
     borderRadius: 84,
-    backgroundColor: "rgba(255,255,255,0.09)",
+    backgroundColor: hero.orbLarge,
   },
   heroBubbleSmall: {
     position: "absolute",
@@ -173,7 +170,7 @@ const styles = StyleSheet.create({
     width: 138,
     height: 138,
     borderRadius: 69,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: hero.orbSmall,
   },
   heroHeader: {
     zIndex: 2,
@@ -221,10 +218,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: spacing.sm,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: radius.stat,
+    backgroundColor: hero.statBg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: hero.statBorder,
   },
   heroNetCard: {
     zIndex: 1,
@@ -233,10 +230,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 10,
     paddingVertical: spacing.sm,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: radius.stat,
+    backgroundColor: hero.statBg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: hero.statBorder,
   },
   heroNetValue: {
     marginTop: 2,

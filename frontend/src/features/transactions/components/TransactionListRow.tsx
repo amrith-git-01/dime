@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import {
-  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -8,9 +7,17 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
-import { fontFamilies } from "@/constants/fonts";
-import { colors } from "@/constants/theme";
+import { listEntrance, springs, timings } from "@/constants/motion";
+import { colors, radius, spacing, typography } from "@/constants/theme";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import type { TransactionRow } from "@/features/transactions/types";
 
@@ -21,17 +28,6 @@ import {
   type TransactionCategory,
   type UiTransaction,
 } from "./transactionListShared";
-
-const listColors = {
-  surface: "#FFFFFF",
-  surfaceTint: "#FAFAFF",
-  primaryMuted: "#EEEDFB",
-  textPrimary: "#0A0A1F",
-  textSecondary: "#6B6B80",
-  borderLight: "#EEEEFF",
-  success: "#16A34A",
-  danger: "#DC2626",
-} as const;
 
 type CategoryIconProps = {
   category: TransactionCategory;
@@ -246,11 +242,14 @@ const TransactionListRowScreenAnimated = memo(
     onPress,
     isVisible = true,
   }: ScreenAnimatedProps) {
-    const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(14)).current;
-    const scale = useRef(new Animated.Value(1)).current;
-    const pressProgress = useRef(new Animated.Value(0)).current;
+    const opacity = useSharedValue<number>(listEntrance.opacityFrom);
+    const translateY = useSharedValue<number>(listEntrance.translateYFrom);
+    const scale = useSharedValue(1);
+    const pressProgress = useSharedValue(0);
     const hasAnimatedIn = useRef(false);
+
+    const overlayBackground =
+      rowIndex % 2 === 0 ? colors.primaryMuted : colors.surfaceTint;
 
     useEffect(() => {
       if (!isVisible || hasAnimatedIn.current) {
@@ -258,56 +257,39 @@ const TransactionListRowScreenAnimated = memo(
       }
 
       hasAnimatedIn.current = true;
-      opacity.setValue(0);
-      translateY.setValue(10);
+      opacity.value = listEntrance.opacityFrom;
+      translateY.value = listEntrance.translateYFrom;
 
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 120,
-          delay: Math.min(animationOrder * 16, 64),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 120,
-          delay: Math.min(animationOrder * 16, 64),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      const delay = Math.min(
+        animationOrder * listEntrance.homeStaggerMs,
+        listEntrance.homeStaggerCapMs,
+      );
+
+      opacity.value = withDelay(delay, withTiming(1, timings.listEntrance));
+      translateY.value = withDelay(delay, withTiming(0, timings.listEntrance));
     }, [animationOrder, isVisible, opacity, translateY]);
 
-    const pressOverlayOpacity = pressProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1],
-    });
+    const rowAnimatedStyle = useAnimatedStyle(() => ({
+      opacity: opacity.value,
+      transform: [{ translateY: translateY.value }, { scale: scale.value }],
+    }));
 
-    const animatePressed = (pressed: boolean) => {
-      Animated.parallel([
-        Animated.timing(pressProgress, {
-          toValue: pressed ? 1 : 0,
-          duration: pressed ? 120 : 160,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scale, {
-          toValue: pressed ? 0.98 : 1,
-          useNativeDriver: true,
-          speed: pressed ? 30 : 20,
-          bounciness: pressed ? 0 : 6,
-        }),
-      ]).start();
-    };
+    const pressOverlayStyle = useAnimatedStyle(() => ({
+      opacity: pressProgress.value,
+    }));
 
     const handlePressIn = () => {
-      pressProgress.stopAnimation();
-      scale.stopAnimation();
-      pressProgress.setValue(0);
-      scale.setValue(1);
-      animatePressed(true);
+      cancelAnimation(pressProgress);
+      cancelAnimation(scale);
+      pressProgress.value = 0;
+      scale.value = 1;
+      pressProgress.value = withTiming(1, timings.pressIn);
+      scale.value = withSpring(listEntrance.pressScale, springs.snappy);
     };
 
     const handlePressOut = () => {
-      animatePressed(false);
+      pressProgress.value = withTiming(0, timings.pressOut);
+      scale.value = withSpring(1, springs.snappy);
     };
 
     return (
@@ -324,23 +306,16 @@ const TransactionListRowScreenAnimated = memo(
         <Animated.View
           style={[
             styles.screenRow,
-            {
-              opacity,
-              transform: [{ translateY }, { scale }],
-            },
+            rowIndex % 2 === 0 ? styles.screenRowEven : styles.screenRowOdd,
+            rowAnimatedStyle,
           ]}
         >
           <Animated.View
             pointerEvents="none"
             style={[
               styles.pressOverlay,
-              {
-                opacity: pressOverlayOpacity,
-                backgroundColor:
-                  rowIndex % 2 === 0
-                    ? listColors.primaryMuted
-                    : listColors.surfaceTint,
-              },
+              { backgroundColor: overlayBackground },
+              pressOverlayStyle,
             ]}
           />
           <RowBody ui={ui} />
@@ -355,18 +330,18 @@ const styles = StyleSheet.create({
     minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
-    borderRadius: 14,
+    marginBottom: spacing.sm,
+    borderRadius: radius.md,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     overflow: "hidden",
-    backgroundColor: listColors.surface,
+    backgroundColor: colors.barBackground,
   },
   screenRowEven: {
-    backgroundColor: listColors.primaryMuted,
+    backgroundColor: colors.primaryMuted,
   },
   screenRowOdd: {
-    backgroundColor: listColors.surfaceTint,
+    backgroundColor: colors.surfaceTint,
   },
   screenRowPressed: {
     opacity: 0.94,
@@ -380,7 +355,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.borderList,
   },
   cardRowLast: {
     borderBottomWidth: 0,
@@ -388,10 +363,10 @@ const styles = StyleSheet.create({
   categoryIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   transactionBody: {
     flex: 1,
@@ -400,12 +375,12 @@ const styles = StyleSheet.create({
   transactionRowLine1: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: spacing.sm,
   },
   transactionRowLine2: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: spacing.xs,
     gap: 6,
   },
   tagAndViaRow: {
@@ -423,62 +398,19 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: radius.xs,
     borderWidth: 1,
   },
-  categoryTagText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 10,
-    lineHeight: 13,
-    color: listColors.textPrimary,
-  },
-  tagViaSeparator: {
-    flexShrink: 0,
-    paddingHorizontal: 2,
-    fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    color: listColors.textSecondary,
-  },
-  merchantName: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: listColors.textPrimary,
-  },
-  transactionTime: {
-    flexShrink: 0,
-    maxWidth: "42%",
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: listColors.textSecondary,
-    textAlign: "right",
-  },
-  transactionVia: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    color: listColors.textSecondary,
-  },
-  transactionAmount: {
-    minWidth: 88,
-    flexShrink: 0,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: listColors.textPrimary,
-    textAlign: "right",
-  },
+  categoryTagText: typography.transactionList.categoryTag,
+  tagViaSeparator: typography.transactionList.tagSeparator,
+  merchantName: typography.transactionList.merchant,
+  transactionTime: typography.transactionList.time,
+  transactionVia: typography.transactionList.via,
+  transactionAmount: typography.transactionList.amount,
   positiveAmount: {
-    color: listColors.success,
+    color: colors.success,
   },
   debitRowAmount: {
-    color: listColors.danger,
+    color: colors.danger,
   },
 });
