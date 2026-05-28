@@ -30,8 +30,6 @@ import type { MainStackParamList } from "@/navigation/types";
 import { buildMonthOptions } from "@/utils/buildMonthOptions";
 
 const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
-const FALLBACK_CATEGORY_COLOR = "#94A3B8";
-
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
 });
@@ -134,7 +132,7 @@ export default function BudgetScreen() {
         id: UNCATEGORIZED_SPEND_KEY,
         name: "Uncategorized",
         icon_name: "Package",
-        color: FALLBACK_CATEGORY_COLOR,
+        color: colors.categoryDefault,
         spentMonth: uncategorizedSpent,
         is_system: true,
       });
@@ -149,7 +147,7 @@ export default function BudgetScreen() {
           id: categoryId,
           name: "Unknown category",
           icon_name: "Package",
-          color: FALLBACK_CATEGORY_COLOR,
+          color: colors.categoryDefault,
           spentMonth: amount,
           is_system: true,
         });

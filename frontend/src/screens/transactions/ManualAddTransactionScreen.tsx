@@ -4,7 +4,6 @@ import DateTimePicker, {
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react-native";
 import { memo, useCallback, useMemo, useState } from "react";
@@ -33,11 +32,10 @@ import { CategoryLucideIcon } from "@/features/categories/components/CategoryLuc
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
-import { submitManualTransaction } from "@/features/transactions/api/submitTransactionApi";
 import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
-import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
 import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
@@ -51,15 +49,7 @@ export default function ManualAddTransactionScreen() {
   const route = useRoute<ManualAddRoute>();
   const insets = useSafeAreaInsets();
   const { userId, authReady } = useSessionUserId();
-  const queryClient = useQueryClient();
-  const submitMutation = useMutation({
-    mutationFn: submitManualTransaction,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: transactionsQueryKeys.all,
-      });
-    },
-  });
+  const submitMutation = useSubmitManualTransactionMutation();
   const { showToast } = useToast();
   const form = useManualAddTransactionForm();
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
@@ -159,8 +149,16 @@ export default function ManualAddTransactionScreen() {
       );
       return;
     }
+    const selectedCategory = categories.find((c) => c.id === form.categoryId);
     try {
-      await submitMutation.mutateAsync(payload);
+      await submitMutation.mutateAsync({
+        body: payload,
+        categoryMeta: {
+          categoryName: selectedCategory?.name ?? payload.category,
+          categoryIconName: selectedCategory?.icon_name ?? null,
+          categoryColor: selectedCategory?.color ?? null,
+        },
+      });
       showToast({
         variant: "success",
         message: "Transaction added",
@@ -182,7 +180,9 @@ export default function ManualAddTransactionScreen() {
     }
   }, [
     authReady,
+    categories,
     form.buildPayload,
+    form.categoryId,
     navigation,
     showToast,
     submitMutation,

@@ -1,8 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants/theme";
+import { colors, radius, spacing, typography } from "@/constants/theme";
 
 export default function AnalyticsScreen() {
   return (
@@ -26,10 +25,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
   },
-  title: {
-    ...typography.screenTitle,
-    color: colors.textPrimary,
-  },
+  title: typography.screenTitle,
   subtitle: {
     ...typography.screenSubtitle,
     marginTop: spacing.sm,
@@ -37,15 +33,11 @@ const styles = StyleSheet.create({
   emptyHint: {
     marginTop: spacing.xl,
     padding: spacing.lg,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.barBackground,
     alignItems: "center",
   },
-  emptyText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    color: colors.inactive,
-  },
+  emptyText: typography.emptyHint,
 });
