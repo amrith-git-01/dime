@@ -23,7 +23,6 @@ import type { TransactionRow } from "@/features/transactions/types";
 
 import {
   formatTransactionListAmount,
-  hexToRgba,
   mapTransactionRowToUi,
   type TransactionCategory,
   type UiTransaction,
@@ -40,7 +39,7 @@ const CategoryIcon = memo(function CategoryIcon({
     <View
       style={[
         styles.categoryIcon,
-        { backgroundColor: hexToRgba(category.color, 0.1) },
+        { backgroundColor: category.bgColor },
       ]}
     >
       <CategoryLucideIcon
@@ -55,20 +54,22 @@ const CategoryIcon = memo(function CategoryIcon({
 
 type CategoryTagProps = {
   name: string;
-  color: string;
+  borderColor: string;
+  bgColor: string;
 };
 
 const CategoryTag = memo(function CategoryTag({
   name,
-  color,
+  borderColor,
+  bgColor,
 }: CategoryTagProps) {
   return (
     <View
       style={[
         styles.categoryTag,
         {
-          borderColor: hexToRgba(color, 0.35),
-          backgroundColor: hexToRgba(color, 0.12),
+          borderColor,
+          backgroundColor: bgColor,
         },
       ]}
     >
@@ -118,7 +119,7 @@ function RowBody({ ui }: { ui: UiTransaction }) {
 
         <View style={styles.transactionRowLine2}>
           <View style={styles.tagAndViaRow}>
-            <CategoryTag name={ui.category.name} color={ui.category.color} />
+            <CategoryTag name={ui.category.name} borderColor={ui.category.borderColor} bgColor={ui.category.bgColor} />
             <Text style={styles.tagViaSeparator}>|</Text>
             <Text
               style={styles.transactionVia}

@@ -1,4 +1,4 @@
-﻿import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -115,8 +115,14 @@ export default function BudgetScreen() {
     }, []),
   );
 
+  // Separated memo: knownIds only rebuilds when the category list itself changes,
+  // not on every spendByCategory update (e.g. month selector change).
+  const knownCategoryIds = useMemo(
+    () => new Set(categories.map((c) => c.id)),
+    [categories],
+  );
+
   const budgetItems = useMemo((): BudgetCategoryRowData[] => {
-    const knownIds = new Set(categories.map((c) => c.id));
     const rows: BudgetCategoryRowData[] = categories.map((category) => ({
       id: category.id,
       name: category.name,
@@ -142,7 +148,7 @@ export default function BudgetScreen() {
       if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) {
         continue;
       }
-      if (!knownIds.has(categoryId)) {
+      if (!knownCategoryIds.has(categoryId)) {
         rows.push({
           id: categoryId,
           name: "Unknown category",
@@ -157,7 +163,7 @@ export default function BudgetScreen() {
     return rows.sort(
       (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
     );
-  }, [categories, spendByCategory]);
+  }, [categories, spendByCategory, knownCategoryIds]);
 
   const handleSelectBudgetMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);

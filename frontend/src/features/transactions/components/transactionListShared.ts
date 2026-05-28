@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
 
+import { hexToRgba } from "@/constants/colorUtils";
 import { colors } from "@/constants/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
@@ -8,6 +9,9 @@ export type TransactionCategory = {
   name: string;
   icon_name: string;
   color: string;
+  /** Pre-computed rgba strings — avoids hex parsing on every FlashList recycle. */
+  bgColor: string;
+  borderColor: string;
 };
 
 export type UiTransaction = {
@@ -39,7 +43,14 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
     id: tx.id,
     merchant: tx.merchant || tx.counterparty_name?.trim() || "—",
     amount: signedAmount(tx),
-    category: { name, icon_name: iconName, color },
+    category: {
+      name,
+      icon_name: iconName,
+      color,
+      // Computed once here at data-arrival time — not on every render/recycle.
+      bgColor: hexToRgba(color, 0.1),
+      borderColor: hexToRgba(color, 0.35),
+    },
     timeLabel,
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,
