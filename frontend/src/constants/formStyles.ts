@@ -26,7 +26,7 @@ export const formStyles = StyleSheet.create({
     borderColor: colors.primary,
   },
   fieldShellError: {
-    borderColor: "#BA1A1A",
+    borderColor: colors.error,
   },
   /**
    * Android: default font padding + vertical padding makes placeholders sit high vs
@@ -57,7 +57,7 @@ export const formStyles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: "#BA1A1A",
+    color: colors.error,
     marginTop: spacing.xs,
   },
   iconButton: {
