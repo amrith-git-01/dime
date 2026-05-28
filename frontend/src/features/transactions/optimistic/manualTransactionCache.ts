@@ -1,17 +1,15 @@
-import type {
-  InfiniteData,
-  QueryClient,
-  QueryKey,
-} from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { format, isSameMonth, parseISO } from "date-fns";
 import { randomUUID } from "expo-crypto";
 
 import type { CreateTransactionBody } from "@/features/transactions/api/transactionsApi";
-import { monthRangeIso } from "@/features/transactions/api/transactionsApi";
+import {
+  applyTransactionInsertToListCaches,
+  transactionInCalendarMonth,
+} from "@/features/transactions/cache/transactionListCache";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type {
   HomeOverview,
-  TransactionListPage,
   TransactionRow,
 } from "@/features/transactions/types";
 
@@ -68,22 +66,17 @@ function addDebitToTotalString(current: string, amount: number): string {
   return (base + amount).toFixed(2);
 }
 
-function patchHomeOverview(
+function patchHomeOverviewSpentTotals(
   prev: HomeOverview,
   row: TransactionRow,
 ): HomeOverview {
-  const recent = [
-    row,
-    ...prev.recent_transactions.filter((tx) => tx.id !== row.id),
-  ].slice(0, 5);
-
   if (row.type !== "debit") {
-    return { ...prev, recent_transactions: recent };
+    return prev;
   }
 
   const amount = Math.abs(Number.parseFloat(row.amount));
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { ...prev, recent_transactions: recent };
+    return prev;
   }
 
   const txDate = parseISO(row.transaction_at);
@@ -99,43 +92,7 @@ function patchHomeOverview(
     spent_this_month = addDebitToTotalString(spent_this_month, amount);
   }
 
-  return {
-    ...prev,
-    recent_transactions: recent,
-    spent_today,
-    spent_this_month,
-  };
-}
-
-function transactionInCalendarMonth(
-  row: TransactionRow,
-  year: number,
-  calendarMonth: number,
-): boolean {
-  const { from, to } = monthRangeIso(year, calendarMonth - 1);
-  const txAt = parseISO(row.transaction_at).getTime();
-  return txAt >= parseISO(from).getTime() && txAt <= parseISO(to).getTime();
-}
-
-function patchMonthPages(
-  prev: InfiniteData<TransactionListPage>,
-  row: TransactionRow,
-): InfiniteData<TransactionListPage> {
-  if (prev.pages.length === 0) {
-    return {
-      ...prev,
-      pages: [{ items: [row], has_more: false }],
-      pageParams: prev.pageParams.length > 0 ? prev.pageParams : [0],
-    };
-  }
-
-  const pages = [...prev.pages];
-  const first = pages[0];
-  pages[0] = {
-    ...first,
-    items: [row, ...first.items.filter((item) => item.id !== row.id)],
-  };
-  return { ...prev, pages };
+  return { ...prev, spent_today, spent_this_month };
 }
 
 export function applyOptimisticManualTransaction(
@@ -152,9 +109,6 @@ export function applyOptimisticManualTransaction(
   const homeKey = transactionsQueryKeys.home(userId, timezone);
   const prevHome = queryClient.getQueryData<HomeOverview>(homeKey);
   snapshots.push({ queryKey: homeKey, data: prevHome });
-  if (prevHome) {
-    queryClient.setQueryData(homeKey, patchHomeOverview(prevHome, row));
-  }
 
   const monthQueries = queryClient.getQueryCache().findAll({
     queryKey: transactionsQueryKeys.all,
@@ -178,12 +132,21 @@ export function applyOptimisticManualTransaction(
     if (!transactionInCalendarMonth(row, year, calendarMonth)) {
       continue;
     }
-    const prevMonth = query.state.data as
-      | InfiniteData<TransactionListPage>
-      | undefined;
-    snapshots.push({ queryKey: query.queryKey, data: prevMonth });
-    if (prevMonth) {
-      queryClient.setQueryData(query.queryKey, patchMonthPages(prevMonth, row));
+    snapshots.push({
+      queryKey: query.queryKey,
+      data: query.state.data,
+    });
+  }
+
+  applyTransactionInsertToListCaches(queryClient, { userId, timezone, row });
+
+  if (prevHome) {
+    const withLists = queryClient.getQueryData<HomeOverview>(homeKey);
+    if (withLists) {
+      queryClient.setQueryData(
+        homeKey,
+        patchHomeOverviewSpentTotals(withLists, row),
+      );
     }
   }
 

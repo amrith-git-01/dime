@@ -1,12 +1,16 @@
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { applyRealtimeTransactionChange } from "@/features/transactions/cache/transactionRealtimeCache";
+import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { supabase } from "@/lib/supabase/client";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
-import { transactionsQueryKeys } from "../queryKeys";
+/** Coalesce summary refetches (spent totals, month summary) after list patches. */
+const SUMMARY_INVALIDATE_DEBOUNCE_MS = 450;
 
-/** Coalesce burst realtime events so scroll is not interrupted by refetch storms. */
-const INVALIDATE_DEBOUNCE_MS = 450;
+type TransactionDbRecord = Record<string, unknown>;
 
 export function useTransactionsRealtimeSync(userId: string | null) {
   const queryClient = useQueryClient();
@@ -17,7 +21,9 @@ export function useTransactionsRealtimeSync(userId: string | null) {
       return;
     }
 
-    const scheduleInvalidate = () => {
+    const timezone = getDeviceIanaTimezone();
+
+    const scheduleSummaryInvalidate = () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -25,9 +31,24 @@ export function useTransactionsRealtimeSync(userId: string | null) {
         debounceTimerRef.current = null;
         void queryClient.invalidateQueries({
           queryKey: transactionsQueryKeys.all,
+          predicate: (query) => {
+            const segment = query.queryKey[1];
+            return segment === "home" || segment === "monthSummary";
+          },
           refetchType: "active",
         });
-      }, INVALIDATE_DEBOUNCE_MS);
+      }, SUMMARY_INVALIDATE_DEBOUNCE_MS);
+    };
+
+    const onChange = (
+      payload: RealtimePostgresChangesPayload<TransactionDbRecord>,
+    ) => {
+      applyRealtimeTransactionChange(queryClient, {
+        userId,
+        timezone,
+        payload,
+      });
+      scheduleSummaryInvalidate();
     };
 
     const channel = supabase
@@ -40,7 +61,7 @@ export function useTransactionsRealtimeSync(userId: string | null) {
           table: "transactions",
           filter: `user_id=eq.${userId}`,
         },
-        scheduleInvalidate,
+        onChange,
       )
       .subscribe();
 

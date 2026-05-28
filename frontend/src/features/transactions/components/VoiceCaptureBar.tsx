@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, overlays, radius, spacing } from "@/constants/theme";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 import { useVoiceCaptureSession } from "../hooks/useVoiceCaptureSession";
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(21, 28, 39, 0.22)",
+    backgroundColor: overlays.scrimLight,
   },
   barWrap: {
     paddingHorizontal: spacing.lg,
@@ -103,12 +103,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.barBackground,
-    borderRadius: 20,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    shadowColor: "#2a2740",
+    shadowColor: colors.shadowBrand,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
