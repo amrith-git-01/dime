@@ -81,23 +81,27 @@ Bottom to top:
 Modular Home body (below header, above tab bar):
 
 ```
-┌──────────────────────────┬─────────────┐
-│ Gradient hero — Today    │ Bento month │  ~65% / ~35%
-└──────────────────────────┴─────────────┘
-│ Category bento — 2 columns, saturated    │
-├──────────────────────────────────────────┤
-│ Recent transactions — white card       │
-└──────────────────────────────────────────┘
+┌──────────────┬────────────────────────────────┐
+│ Today (~35%) │ Month (~65%) + budget ring     │
+└──────────────┴────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ Income vs expense — credited / debited / net │
+└──────────────────────────────────────────────┘
+│ Category bento — 2 columns, saturated        │
+├──────────────────────────────────────────────┤
+│ Recent — stacked mini-bento rows             │
+└──────────────────────────────────────────────┘
 ```
 
-| Zone             | Surface                                 | Text & charts                                      |
-| ---------------- | --------------------------------------- | -------------------------------------------------- |
-| Spent today      | Spending gradient                       | White                                              |
-| Spent month      | `bento.monthSpendSurface` (default sky) | White                                              |
-| Category cell    | Category primary hex                    | White label, white mono amount                     |
-| Progress in tile | —                                       | Track `bento.chart.track`, fill `bento.chart.fill` |
-| Recent list      | White card                              | Standard list typography                           |
-| Empty bento      | `bento.surface.lavender`                | White copy + quick actions                         |
+| Zone              | Surface                               | Text & charts                                      |
+| ----------------- | ------------------------------------- | -------------------------------------------------- |
+| Spent today       | Spending gradient (narrow ~35%)       | White; no daily ring                               |
+| Spent month       | `bento.monthSpendSurface` (wide ~65%) | White + **monthly budget ring**                    |
+| Income vs expense | `bento.incomeExpenseSurface`          | White; credited / debited / net                    |
+| Category cell     | Category primary hex                  | White label, white mono amount                     |
+| Progress in tile  | —                                     | Track `bento.chart.track`, fill `bento.chart.fill` |
+| Recent mini-bento | Category-tinted pastel row            | Standard list typography on light tint             |
+| Empty bento       | `bento.surface.lavender`              | White copy only (capture via tab FAB)              |
 
 **Bento rules**
 
@@ -106,6 +110,31 @@ Modular Home body (below header, above tab bar):
 3. Category tiles use **full saturation** hex, not muted 10% fills.
 4. Muted fills stay on **list icon containers** only.
 5. Tinted shadow on colored tiles (~8–12% of tile hue); white cards keep violet-tint shadow.
+
+### 1.5.1 Transactions bento
+
+Browse-by-day tab — same pastel vocabulary as Home, **no** cash-flow / net stats (those live on Home).
+
+```
+┌──────────────────────────────────────────────┐
+│ Month card — dropdown + count · spent        │
+└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ Day bar — prev/next, date, transaction count │
+└──────────────────────────────────────────────┘
+┌─ section card ───────────────────────────────┐
+│ BentoTransactionTile rows (green/red amounts)│
+└──────────────────────────────────────────────┘
+```
+
+| Zone        | Surface                | Notes                                      |
+| ----------- | ---------------------- | ------------------------------------------ |
+| Month card  | `bento.sectionSurface` | `N transactions · ₹X spent` (debits only)  |
+| Day bar     | White card             | Compact; not full-width purple pill        |
+| Day list    | `bento.sectionSurface` | Reuses Home `BentoTransactionTile`         |
+| Empty month | Section card + copy    | `BentoQuickAddPills` when month has no txs |
+
+Month picker: **12** rolling calendar months. FlashList pagination unchanged.
 
 ### 1.6 Layout tokens
 
