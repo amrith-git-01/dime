@@ -5,6 +5,9 @@
 .github/
 AGENTS.md
 
+# Superpowers agent specs, plans, and mockups
+docs/superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
