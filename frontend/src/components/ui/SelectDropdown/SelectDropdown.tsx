@@ -1,7 +1,9 @@
 import { Check, ChevronDown } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
+  Dimensions,
   Keyboard,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,8 +22,10 @@ import { formStyles } from "@/constants/formStyles";
 import { colors, radius, spacing, surfaces } from "@/constants/theme";
 
 const MENU_GAP = 6;
-const PANEL_MAX_FALLBACK = 280;
+const PANEL_MAX_HEIGHT = 280;
 const ARROW_ROTATION_MS = 220;
+const COMPACT_TRIGGER_HEIGHT = 40;
+const DEFAULT_TRIGGER_HEIGHT = 52;
 
 export type SelectDropdownOption<T extends string = string> = {
   value: T;
@@ -39,6 +43,18 @@ export type SelectDropdownProps<T extends string = string> = {
   variant?: "default" | "primary" | "secondary";
   showLabel?: boolean;
   triggerText?: string;
+  onOpenChange?: (open: boolean) => void;
+  /** Inline = menu anchors below trigger (fixed headers). Modal = portal overlay (forms, lists). */
+  menuPlacement?: "inline" | "modal";
+  size?: "default" | "compact";
+  /** Cap visible rows; additional options scroll inside the panel. */
+  maxVisibleOptions?: number;
+  /**
+   * Optional anchor for modal-mode Y positioning.
+   * When provided the panel appears below THIS view's bottom edge (e.g. an outer card),
+   * while X-position and width are still derived from the trigger button.
+   */
+  panelAnchorRef?: RefObject<View>;
 };
 
 type MenuRect = {
@@ -47,6 +63,70 @@ type MenuRect = {
   width: number;
   maxHeight: number;
 };
+
+function optionRowHeight(size: "default" | "compact"): number {
+  return size === "compact" ? 40 : 46;
+}
+
+function resolvePanelScrollHeight(
+  size: "default" | "compact",
+  optionCount: number,
+  maxVisibleOptions?: number,
+): number {
+  const rowHeight = optionRowHeight(size);
+  const visibleRows = maxVisibleOptions
+    ? Math.min(optionCount, maxVisibleOptions)
+    : optionCount;
+  const contentHeight = visibleRows * rowHeight + spacing.xs * 2;
+  return Math.min(contentHeight, PANEL_MAX_HEIGHT);
+}
+
+function triggerHeightFallback(size: "default" | "compact"): number {
+  return size === "compact" ? COMPACT_TRIGGER_HEIGHT : DEFAULT_TRIGGER_HEIGHT;
+}
+
+function resolveMenuRect(
+  triggerLeft: number,
+  triggerTop: number,
+  triggerWidth: number,
+  triggerHeight: number,
+  optionCount: number,
+  size: "default" | "compact",
+  maxVisibleOptions?: number,
+): MenuRect {
+  const windowHeight = Dimensions.get("window").height;
+  const preferredHeight = resolvePanelScrollHeight(
+    size,
+    optionCount,
+    maxVisibleOptions,
+  );
+  const measuredHeight = Math.max(triggerHeight, triggerHeightFallback(size));
+  const belowTop = triggerTop + measuredHeight + MENU_GAP;
+  const spaceBelow = windowHeight - belowTop - spacing.lg;
+  const spaceAbove = triggerTop - MENU_GAP - spacing.lg;
+  const minDropHeight = optionRowHeight(size) + spacing.xs * 2;
+
+  // Prefer opening below the trigger; only flip up when there is no room below.
+  if (spaceBelow >= minDropHeight) {
+    return {
+      left: triggerLeft,
+      top: belowTop,
+      width: triggerWidth,
+      maxHeight: Math.max(Math.min(preferredHeight, spaceBelow), minDropHeight),
+    };
+  }
+
+  const maxHeight = Math.max(
+    Math.min(preferredHeight, Math.max(spaceAbove, minDropHeight)),
+    minDropHeight,
+  );
+  return {
+    left: triggerLeft,
+    top: Math.max(spacing.lg, triggerTop - MENU_GAP - maxHeight),
+    width: triggerWidth,
+    maxHeight,
+  };
+}
 
 export function SelectDropdown<T extends string>({
   label,
@@ -59,9 +139,15 @@ export function SelectDropdown<T extends string>({
   variant = "default",
   showLabel = true,
   triggerText,
+  onOpenChange,
+  menuPlacement = "modal",
+  size = "default",
+  maxVisibleOptions,
+  panelAnchorRef,
 }: SelectDropdownProps<T>) {
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
+  const [menuRect, setMenuRect] = useState<MenuRect | null>(null);
   const arrowRotation = useSharedValue(0);
 
   useEffect(() => {
@@ -70,6 +156,10 @@ export function SelectDropdown<T extends string>({
       easing: Easing.out(Easing.cubic),
     });
   }, [arrowRotation, open]);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
 
   const chevronAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${arrowRotation.value}deg` }],
@@ -80,15 +170,112 @@ export function SelectDropdown<T extends string>({
 
   const closeMenu = useCallback(() => {
     setOpen(false);
+    setMenuRect(null);
   }, []);
+
+  const panelScrollHeight = resolvePanelScrollHeight(
+    size,
+    options.length,
+    maxVisibleOptions,
+  );
+
+  const showScrollIndicator = maxVisibleOptions
+    ? options.length > maxVisibleOptions
+    : options.length > 5;
+
+  const scrollViewportHeight =
+    menuPlacement === "modal" && menuRect
+      ? Math.min(menuRect.maxHeight, panelScrollHeight)
+      : panelScrollHeight;
+
+  /**
+   * Measures the trigger (and optional anchor) then calls `onMeasured` with the
+   * resolved MenuRect.  When `panelAnchorRef` is provided the panel's Y position
+   * is derived from the anchor's bottom edge; X-position + width come from the
+   * trigger regardless.
+   */
+  const measureMenuPosition = useCallback(
+    (onMeasured: (rect: MenuRect) => void) => {
+      if (panelAnchorRef?.current) {
+        // Two-phase: anchor → Y extent, trigger → X + width
+        panelAnchorRef.current.measureInWindow(
+          (anchorLeft, anchorTop, anchorW, anchorH) => {
+            if (anchorW <= 0 || anchorH <= 0) return;
+            const anchorBottom = anchorTop + anchorH;
+            triggerRef.current?.measureInWindow(
+              (left, _top, width, height) => {
+                if (width <= 0 || height <= 0) return;
+                const mh = Math.max(height, triggerHeightFallback(size));
+                // Synthesise triggerTop so resolveMenuRect produces belowTop = anchorBottom
+                const syntheticTop = anchorBottom - mh - MENU_GAP;
+                onMeasured(
+                  resolveMenuRect(
+                    left,
+                    syntheticTop,
+                    width,
+                    height,
+                    options.length,
+                    size,
+                    maxVisibleOptions,
+                  ),
+                );
+              },
+            );
+          },
+        );
+        return;
+      }
+      // Default: single measurement from trigger
+      triggerRef.current?.measureInWindow((left, top, width, height) => {
+        if (width <= 0 || height <= 0) return;
+        onMeasured(
+          resolveMenuRect(
+            left,
+            top,
+            width,
+            height,
+            options.length,
+            size,
+            maxVisibleOptions,
+          ),
+        );
+      });
+    },
+    [maxVisibleOptions, options.length, panelAnchorRef, size],
+  );
+
+  const openMenu = useCallback(() => {
+    if (menuPlacement === "inline") {
+      setOpen(true);
+      return;
+    }
+    measureMenuPosition((rect) => {
+      setMenuRect(rect);
+      setOpen(true);
+    });
+  }, [measureMenuPosition, menuPlacement]);
+
+  useEffect(() => {
+    if (!open || menuPlacement !== "modal") {
+      return;
+    }
+    const measure = () => measureMenuPosition(setMenuRect);
+    measure();
+    const frame = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(frame);
+  }, [measureMenuPosition, menuPlacement, open]);
 
   const onTriggerPress = useCallback(() => {
     if (disabled) {
       return;
     }
     Keyboard.dismiss();
-    setOpen((current) => !current);
-  }, [disabled]);
+    if (open) {
+      closeMenu();
+      return;
+    }
+    openMenu();
+  }, [closeMenu, disabled, open, openMenu]);
 
   const onSelect = useCallback(
     (next: T) => {
@@ -99,6 +286,77 @@ export function SelectDropdown<T extends string>({
   );
 
   const hasError = typeof errorMessage === "string" && errorMessage.length > 0;
+
+  const panelVariantStyle =
+    variant === "primary"
+      ? styles.panelPrimary
+      : variant === "secondary"
+        ? styles.panelSecondary
+        : null;
+
+  const renderOptions = () =>
+    options.map((item, index) => {
+      const selected = item.value === value;
+      const isLast = index === options.length - 1;
+      return (
+        <Pressable
+          key={item.value}
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          onPress={() => onSelect(item.value)}
+          style={({ pressed }) => [
+            styles.optionRow,
+            size === "compact" && styles.optionRowCompact,
+            variant === "primary" && styles.optionRowPrimary,
+            variant === "secondary" && styles.optionRowSecondary,
+            !isLast && styles.optionRowBorder,
+            selected && styles.optionRowSelected,
+            pressed && styles.optionRowPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.optionLabel,
+              size === "compact" && styles.optionLabelCompact,
+              variant === "primary" && styles.optionLabelPrimary,
+              variant === "secondary" && styles.optionLabelSecondary,
+              selected && styles.optionLabelSelected,
+            ]}
+          >
+            {item.label}
+          </Text>
+          {selected ? (
+            <Check
+              size={18}
+              color={colors.headerGradientStart}
+              strokeWidth={2}
+            />
+          ) : null}
+        </Pressable>
+      );
+    });
+
+  const optionsPanel = (
+    <ScrollView
+      bounces={false}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+      scrollEnabled
+      showsVerticalScrollIndicator={showScrollIndicator}
+      style={[
+        styles.panelScroll,
+        maxVisibleOptions
+          ? {
+              height: scrollViewportHeight,
+              maxHeight: scrollViewportHeight,
+            }
+          : { maxHeight: scrollViewportHeight },
+      ]}
+      contentContainerStyle={styles.panelScrollContent}
+    >
+      {renderOptions()}
+    </ScrollView>
+  );
 
   return (
     <View style={[styles.root, open && styles.rootOpen]}>
@@ -117,6 +375,7 @@ export function SelectDropdown<T extends string>({
         collapsable={false}
         style={[
           styles.triggerShell,
+          size === "compact" && styles.triggerShellCompact,
           variant === "primary" && styles.triggerShellPrimary,
           variant === "secondary" && styles.triggerShellSecondary,
           open && styles.triggerShellOpen,
@@ -130,6 +389,7 @@ export function SelectDropdown<T extends string>({
           onPress={onTriggerPress}
           style={({ pressed }) => [
             styles.triggerRow,
+            size === "compact" && styles.triggerRowCompact,
             variant === "primary" && styles.triggerRowPrimary,
             variant === "secondary" && styles.triggerRowSecondary,
             pressed && !disabled && styles.triggerPressed,
@@ -139,6 +399,7 @@ export function SelectDropdown<T extends string>({
           <Text
             style={[
               styles.triggerText,
+              size === "compact" && styles.triggerTextCompact,
               variant === "primary" && styles.triggerTextPrimary,
               variant === "secondary" && styles.triggerTextSecondary,
               !matched && styles.triggerPlaceholder,
@@ -172,62 +433,55 @@ export function SelectDropdown<T extends string>({
         <Text style={formStyles.fieldError}>{errorMessage}</Text>
       ) : null}
 
-      {open ? (
+      {open && menuPlacement === "inline" ? (
         <View
           style={[
             styles.panel,
-            variant === "primary" && styles.panelPrimary,
-            variant === "secondary" && styles.panelSecondary,
+            styles.panelInline,
+            panelVariantStyle,
+            size === "compact" && styles.panelCompact,
+            maxVisibleOptions
+              ? { maxHeight: panelScrollHeight + spacing.xs * 2 }
+              : null,
           ]}
         >
-          <ScrollView
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={options.length > 5}
-            style={styles.panelScroll}
-            contentContainerStyle={styles.panelScrollContent}
-          >
-            {options.map((item, index) => {
-              const selected = item.value === value;
-              const isLast = index === options.length - 1;
-              return (
-                <Pressable
-                  key={item.value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => onSelect(item.value)}
-                  style={({ pressed }) => [
-                    styles.optionRow,
-                    variant === "primary" && styles.optionRowPrimary,
-                    variant === "secondary" && styles.optionRowSecondary,
-                    !isLast && styles.optionRowBorder,
-                    selected && styles.optionRowSelected,
-                    pressed && styles.optionRowPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.optionLabel,
-                      variant === "primary" && styles.optionLabelPrimary,
-                      variant === "secondary" && styles.optionLabelSecondary,
-                      selected && styles.optionLabelSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  {selected ? (
-                    <Check
-                      size={18}
-                      color={colors.headerGradientStart}
-                      strokeWidth={2}
-                    />
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          {optionsPanel}
         </View>
+      ) : null}
+
+      {menuPlacement === "modal" ? (
+        <Modal
+          visible={open}
+          transparent
+          animationType="fade"
+          onRequestClose={closeMenu}
+          statusBarTranslucent
+        >
+          <View style={styles.modalRoot} pointerEvents="box-none">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+              style={styles.backdrop}
+              onPress={closeMenu}
+            />
+            {menuRect ? (
+              <View
+                style={[
+                  styles.panel,
+                  styles.panelOverlay,
+                  panelVariantStyle,
+                  {
+                    top: menuRect.top,
+                    left: menuRect.left,
+                    width: menuRect.width,
+                  },
+                ]}
+              >
+                {optionsPanel}
+              </View>
+            ) : null}
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -236,30 +490,51 @@ export function SelectDropdown<T extends string>({
 const styles = StyleSheet.create({
   root: {
     position: "relative",
+    alignSelf: "stretch",
   },
   rootOpen: {
-    zIndex: 20,
+    zIndex: 9999,
+    elevation: 24,
+  },
+  modalRoot: {
+    flex: 1,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
   },
   labelPrimary: {
     color: colors.textOnPrimaryMuted,
   },
   panel: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    marginTop: MENU_GAP,
     backgroundColor: colors.barBackground,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingVertical: spacing.xs,
-    zIndex: 20,
+    overflow: "hidden",
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.12,
     shadowRadius: 18,
-    elevation: 10,
+    elevation: 24,
+  },
+  panelOverlay: {
+    position: "absolute",
+    zIndex: 10000,
+    elevation: 24,
+  },
+  panelInline: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    marginTop: MENU_GAP,
+    zIndex: 10000,
+    elevation: 24,
+  },
+  panelCompact: {
+    minWidth: 128,
   },
   panelPrimary: {
     minWidth: 104,
@@ -268,10 +543,10 @@ const styles = StyleSheet.create({
     minWidth: 120,
   },
   panelScroll: {
-    maxHeight: 250,
+    maxHeight: PANEL_MAX_HEIGHT,
   },
   panelScrollContent: {
-    flexGrow: 1,
+    flexGrow: 0,
   },
   triggerShell: {
     borderWidth: 2,
@@ -279,6 +554,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.barBackground,
     overflow: "hidden",
+  },
+  triggerShellCompact: {
+    minWidth: 128,
   },
   triggerShellPrimary: {
     minWidth: 104,
@@ -310,6 +588,10 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 10,
   },
+  triggerRowCompact: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+  },
   triggerPressed: {
     opacity: 0.92,
   },
@@ -332,6 +614,12 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
     fontSize: 11,
     lineHeight: 14,
+  },
+  triggerTextCompact: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textPrimary,
   },
   triggerPlaceholder: {
     color: colors.inactive,
@@ -361,6 +649,10 @@ const styles = StyleSheet.create({
     minHeight: 32,
     paddingHorizontal: 10,
   },
+  optionRowCompact: {
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
   optionRowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
@@ -387,6 +679,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     marginRight: 4,
+  },
+  optionLabelCompact: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   optionLabelSelected: {
     fontFamily: fontFamilies.medium,
