@@ -159,8 +159,16 @@ class TopCategoryRow(BaseModel):
     total: str
 
 
+class DailySpendRow(BaseModel):
+    """Debit total for one calendar day (YYYY-MM-DD in the user's timezone)."""
+
+    date: str
+    total: str
+
+
 class HomeOverviewResponse(BaseModel):
     spent_today: str
     spent_this_month: str
     top_categories: list[TopCategoryRow]
     recent_transactions: list[TransactionResponse]
+    last_7_days_spend: list[DailySpendRow]

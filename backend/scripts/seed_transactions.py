@@ -26,7 +26,22 @@ from core.db import create_supabase_service_client
 SEED_NOTE = "__SEED__|transactions|v1"
 TARGET_USER_ID = "79b5a7e8-5cf8-40da-a46e-1e008e1addb1"
 START_DATE = date(2026, 1, 1)
-END_DATE = date(2026, 5, 9)
+END_DATE = date(2026, 5, 29)
+
+# Design-system default categories (10 system rows in ``public.categories``).
+_CATEGORY_NAME_TO_BUCKET: dict[str, str] = {
+    "Food & Dining": "food",
+    "Transport": "transport",
+    "Shopping": "shopping",
+    "Health": "health",
+    "Entertainment": "entertainment",
+    "Bills & Utilities": "utilities",
+    "Travel": "travel",
+    "Education": "education",
+    "Income": "income",
+    "Other": "other",
+}
+EXPECTED_SYSTEM_CATEGORY_COUNT = len(_CATEGORY_NAME_TO_BUCKET)
 
 _MERCHANT_BUCKETS: dict[str, list[tuple[str, tuple[Decimal, Decimal]]]] = {
     "food": [
@@ -99,6 +114,8 @@ def _normalize_counterparty(raw: str) -> str | None:
 
 
 def _bucket_for_category_name(name: str) -> str:
+    if name in _CATEGORY_NAME_TO_BUCKET:
+        return _CATEGORY_NAME_TO_BUCKET[name]
     n = name.lower()
     if any(k in n for k in ("food", "dining", "grocery", "restaurant", "coffee")):
         return "food"
@@ -124,7 +141,8 @@ def _bucket_for_category_name(name: str) -> str:
 def _load_categories(client: Any) -> list[dict[str, Any]]:
     res = (
         client.table("categories")
-        .select("id,name")
+        .select("id,name,icon_name,color,is_system")
+        .eq("is_system", True)
         .order("name", desc=False)
         .execute()
     )
@@ -135,21 +153,28 @@ def _load_categories(client: Any) -> list[dict[str, Any]]:
 
 
 def _pick_category_ids(categories: list[dict[str, Any]]) -> dict[str, str]:
-    """Map bucket key -> category id (best effort using DB category names)."""
-    out: dict[str, str] = {}
+    """Map merchant bucket key -> category id using the 10 system category names."""
+    by_name: dict[str, str] = {}
     for row in categories:
-        cid = row["id"]
-        name = row["name"]
+        cid = row.get("id")
+        name = row.get("name")
+        if isinstance(cid, str) and isinstance(name, str):
+            by_name[name] = cid
+
+    out: dict[str, str] = {}
+    for cat_name, bucket in _CATEGORY_NAME_TO_BUCKET.items():
+        cid = by_name.get(cat_name)
+        if cid:
+            out[bucket] = cid
+
+    for row in categories:
+        cid = row.get("id")
+        name = row.get("name")
         if not isinstance(cid, str) or not isinstance(name, str):
             continue
         bucket = _bucket_for_category_name(name)
-        if bucket not in out:
-            out[bucket] = cid
-    if not out and categories:
-        cid0 = categories[0]["id"]
-        if isinstance(cid0, str):
-            for b in _MERCHANT_BUCKETS:
-                out.setdefault(b, cid0)
+        out.setdefault(bucket, cid)
+
     return out
 
 
@@ -172,6 +197,10 @@ def _build_rows(
     rng: random.Random,
     bucket_to_category_id: dict[str, str],
 ) -> list[dict[str, Any]]:
+    income_cat_id = bucket_to_category_id.get("income")
+    other_cat_id = bucket_to_category_id.get("other")
+    debit_buckets = [k for k in _MERCHANT_BUCKETS if k != "income"]
+
     rows: list[dict[str, Any]] = []
     d = START_DATE
     while d <= END_DATE:
@@ -190,7 +219,7 @@ def _build_rows(
                         "counterparty_name": _SALARY_COUNTERPARTY,
                         "counterparty_type": "merchant",
                         "counterparty_normalized": _normalize_counterparty(_SALARY_COUNTERPARTY),
-                        "category_id": None,
+                        "category_id": income_cat_id,
                         "note": SEED_NOTE,
                         "detected_via": "notification",
                         "receipt_url": None,
@@ -214,7 +243,7 @@ def _build_rows(
                         "counterparty_name": "UPI cashback",
                         "counterparty_type": "merchant",
                         "counterparty_normalized": _normalize_counterparty("UPI cashback"),
-                        "category_id": None,
+                        "category_id": income_cat_id,
                         "note": SEED_NOTE,
                         "detected_via": "notification",
                         "receipt_url": None,
@@ -226,8 +255,10 @@ def _build_rows(
                 )
                 continue
 
-            bucket = rng.choice(list(_MERCHANT_BUCKETS.keys()))
-            cat_id = bucket_to_category_id.get(bucket) or next(iter(bucket_to_category_id.values()))
+            bucket = rng.choice(debit_buckets)
+            cat_id = bucket_to_category_id.get(bucket) or other_cat_id or next(
+                iter(bucket_to_category_id.values())
+            )
             merchant, (lo, hi) = rng.choice(_MERCHANT_BUCKETS[bucket])
             if merchant in used_merchants:
                 merchant = f"{merchant} {i}"
@@ -310,10 +341,20 @@ def main() -> int:
     client = create_supabase_service_client()
     categories = _load_categories(client)
     if not categories:
-        print("No categories found in database. Seed aborted.", file=sys.stderr)
+        print("No system categories found in database. Seed aborted.", file=sys.stderr)
         return 1
 
+    if len(categories) < EXPECTED_SYSTEM_CATEGORY_COUNT:
+        print(
+            f"Warning: expected {EXPECTED_SYSTEM_CATEGORY_COUNT} system categories, "
+            f"found {len(categories)}.",
+            file=sys.stderr,
+        )
+
     bucket_map = _pick_category_ids(categories)
+    missing = sorted(set(_CATEGORY_NAME_TO_BUCKET.values()) - set(bucket_map))
+    if missing:
+        print(f"Warning: no category id mapped for buckets: {', '.join(missing)}", file=sys.stderr)
     print(
         "Category bucket -> id:",
         ", ".join(f"{k}={v[:8]}..." for k, v in sorted(bucket_map.items())),
