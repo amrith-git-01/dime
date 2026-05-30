@@ -1,7 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FlashList } from "@shopify/flash-list";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -40,19 +40,11 @@ const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
 });
 
-type BudgetListEmptyProps = {
-  loading: boolean;
-};
-
-const BudgetListEmpty = memo(function BudgetListEmpty({
-  loading,
-}: BudgetListEmptyProps) {
+const BudgetListEmpty = memo(function BudgetListEmpty() {
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyText}>
-        {loading
-          ? "Loading categories..."
-          : "No categories yet. Sync categories to see budgets."}
+        No categories yet. Sync categories to see budgets.
       </Text>
     </View>
   );
@@ -72,7 +64,6 @@ export default function BudgetScreen() {
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { showToast } = useToast();
-  const listRef = useRef<FlashListRef<BudgetCategoryRowData>>(null);
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const monthOptions = useMemo(
@@ -88,8 +79,12 @@ export default function BudgetScreen() {
   );
   const {
     data: spendByCategory = {},
-    isPlaceholderData: isSpendByCategoryPlaceholder,
+    isPlaceholderData: isMonthSpendPlaceholder,
+    isPending: isMonthSpendPending,
+    isFetched: isMonthSpendFetched,
   } = useMonthDebitTotalsByCategoryQuery(selected.year, selected.monthIndex0);
+
+  const budgetListKey = `${selected.year}-${selected.monthIndex0}`;
 
   const existingBudget = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
@@ -148,15 +143,6 @@ export default function BudgetScreen() {
   const handleSelectBudgetMonth = useCallback((index: number) => {
     setSelectedMonthIndex(index);
   }, []);
-
-  // Scroll only after the selected month's category data is loaded — not while
-  // keepPreviousData still shows the prior month (avoids layout/offset jumps).
-  useEffect(() => {
-    if (isSpendByCategoryPlaceholder) {
-      return;
-    }
-    listRef.current?.scrollToTop({ animated: false });
-  }, [selected.year, selected.monthIndex0, isSpendByCategoryPlaceholder]);
 
   const navigateToBudgetEditor = useCallback(
     (mode: "create" | "edit") => {
@@ -228,6 +214,13 @@ export default function BudgetScreen() {
 
   const categoriesStillLoading = categoriesLoading && categories.length === 0;
 
+  const isListLoading =
+    categoriesStillLoading ||
+    isMonthSpendPlaceholder ||
+    (isMonthSpendPending && !isMonthSpendFetched);
+
+  const listData = isListLoading ? [] : budgetItems;
+
   const showSummarySkeleton =
     !monthSummaryFailed &&
     ((isBudgetLoading && budgetResp === undefined) ||
@@ -266,11 +259,11 @@ export default function BudgetScreen() {
   );
 
   const listEmpty = useMemo(() => {
-    if (categoriesStillLoading) {
+    if (isListLoading) {
       return <BudgetCategoryRowsSkeleton />;
     }
-    return <BudgetListEmpty loading={false} />;
-  }, [categoriesStillLoading]);
+    return <BudgetListEmpty />;
+  }, [isListLoading]);
 
   const listFooter = useMemo(() => <BudgetListFooter />, []);
 
@@ -322,9 +315,9 @@ export default function BudgetScreen() {
         </View>
 
         <FlashList
-          ref={listRef}
+          key={budgetListKey}
           style={styles.list}
-          data={budgetItems}
+          data={listData}
           extraData={listExtraData}
           keyExtractor={(item) => item.id}
           renderItem={renderCategory}
