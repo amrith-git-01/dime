@@ -1,7 +1,6 @@
 import { useCallback } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
-import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { Button } from "@/components/ui/Button/Button";
 import { layout, spacing, typography } from "@/constants/theme";
 import { useSignOut } from "@/features/auth/hooks/useSignOut";
@@ -33,47 +32,33 @@ export default function SettingsScreen() {
   }, [performLogout]);
 
   return (
-    <TabScreenShell>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.subtitle}>
-          Account, security, and preferences go here.
+    <>
+      <Text style={styles.subtitle}>
+        Account, security, and preferences go here.
+      </Text>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>AI processing</Text>
+        <Text style={styles.cardSubtitle}>
+          Receipt parsing now runs through secure cloud APIs via backend. Camera
+          upload sends only the captured receipt image for extraction.
         </Text>
+      </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>AI processing</Text>
-          <Text style={styles.cardSubtitle}>
-            Receipt parsing now runs through secure cloud APIs via backend.
-            Camera upload sends only the captured receipt image for extraction.
-          </Text>
-        </View>
-
-        <View style={styles.logoutWrap}>
-          <Button
-            title="Sign out"
-            variant="secondary"
-            loading={loading}
-            disabled={loading}
-            onPress={confirmLogout}
-          />
-        </View>
-      </ScrollView>
-    </TabScreenShell>
+      <View style={styles.logoutWrap}>
+        <Button
+          title="Sign out"
+          variant="secondary"
+          loading={loading}
+          disabled={loading}
+          onPress={confirmLogout}
+        />
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xl * 2,
-  },
   subtitle: {
     ...typography.screenSubtitle,
     marginTop: spacing.xs,
