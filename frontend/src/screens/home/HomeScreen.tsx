@@ -100,7 +100,7 @@ export default memo(function HomeScreen() {
       : 0;
   const monthlySubtext =
     hasMonthlyBudget && hasSpentMonth
-      ? `${formatInrCompact(monthlyLeft)} left from ${formatInrCompact(monthlyBudget)}`
+      ? `${formatInrCompact(monthlyLeft)} / ${formatInrCompact(monthlyBudget)}`
       : "";
 
   // Daily subtext (no ring — just context string)
@@ -116,7 +116,7 @@ export default memo(function HomeScreen() {
       : NaN;
   const dailySubtext =
     hasDailyBudget && hasSpentToday
-      ? `${formatInrCompact(dailyLeft)} left from ${formatInrCompact(dailyBudget)}`
+      ? `${formatInrCompact(dailyLeft)} / ${formatInrCompact(dailyBudget)}`
       : "";
 
   // --- Display strings ---

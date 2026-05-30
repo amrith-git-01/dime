@@ -2,9 +2,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo } from "react";
-import { Keyboard, StyleSheet } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Keyboard } from "react-native";
 
 import { BudgetLimitsEditor } from "@/components/budget/bento/BudgetLimitsEditor";
 import {
@@ -13,7 +11,6 @@ import {
   resolveBudgetAmountForSave,
 } from "@/components/budget/bento/budgetEditorPresets";
 import { useBudgetLimitStepControl } from "@/components/budget/bento/useBudgetLimitStepControl";
-import { colors, spacing } from "@/constants/theme";
 import type { UpsertBudgetInput } from "@/features/budgets/api/budgetsApi";
 import {
   useBudgetQuery,
@@ -32,7 +29,6 @@ function amountsClose(a: number, b: number): boolean {
 export default function EditMonthlyBudgetScreen() {
   const navigation = useNavigation<StackNav>();
   const route = useRoute<EditRoute>();
-  const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const upsertBudgetMutation = useUpsertBudgetMutation();
@@ -111,10 +107,6 @@ export default function EditMonthlyBudgetScreen() {
     });
   }, [navigation, savePatch, showToast, upsertBudgetMutation]);
 
-  const handleCancel = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
-
   const handleClear = useCallback(() => {
     Keyboard.dismiss();
     dailyControl.resetToUnset();
@@ -122,45 +114,24 @@ export default function EditMonthlyBudgetScreen() {
   }, [dailyControl.resetToUnset, monthlyControl.resetToUnset]);
 
   return (
-    <KeyboardAwareScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingBottom: spacing.xl + insets.bottom },
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <BudgetLimitsEditor
-        isEditMode={isEditMode}
-        dailyDisplayAmount={dailyControl.displayAmount}
-        monthlyDisplayAmount={monthlyControl.displayAmount}
-        dailyIsCustom={dailyControl.isCustom}
-        monthlyIsCustom={monthlyControl.isCustom}
-        dailyValue={dailyControl.valueText}
-        monthlyValue={monthlyControl.valueText}
-        dailyStepIndex={dailyControl.stepIndex}
-        monthlyStepIndex={monthlyControl.stepIndex}
-        onDailyChange={dailyControl.onChangeText}
-        onMonthlyChange={monthlyControl.onChangeText}
-        onDailyStepChange={dailyControl.selectStep}
-        onMonthlyStepChange={monthlyControl.selectStep}
-        onSave={handleSave}
-        onClear={handleClear}
-        onCancel={handleCancel}
-        saveDisabled={!canSave || upsertBudgetMutation.isPending}
-        saveLoading={upsertBudgetMutation.isPending}
-      />
-    </KeyboardAwareScrollView>
+    <BudgetLimitsEditor
+      isEditMode={isEditMode}
+      dailyDisplayAmount={dailyControl.displayAmount}
+      monthlyDisplayAmount={monthlyControl.displayAmount}
+      dailyIsCustom={dailyControl.isCustom}
+      monthlyIsCustom={monthlyControl.isCustom}
+      dailyValue={dailyControl.valueText}
+      monthlyValue={monthlyControl.valueText}
+      dailyStepIndex={dailyControl.stepIndex}
+      monthlyStepIndex={monthlyControl.stepIndex}
+      onDailyChange={dailyControl.onChangeText}
+      onMonthlyChange={monthlyControl.onChangeText}
+      onDailyStepChange={dailyControl.selectStep}
+      onMonthlyStepChange={monthlyControl.selectStep}
+      onSave={handleSave}
+      onClear={handleClear}
+      saveDisabled={!canSave || upsertBudgetMutation.isPending}
+      saveLoading={upsertBudgetMutation.isPending}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
-});
