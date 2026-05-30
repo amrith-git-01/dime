@@ -5,7 +5,7 @@ import { radius, spacing } from "@/constants/theme";
 
 import { BUDGET_ROW_HEIGHT_WITH_PROGRESS } from "./budgetBentoTokens";
 
-const DEFAULT_ROW_COUNT = 4;
+const DEFAULT_ROW_COUNT = 10;
 
 type BudgetCategoryRowsSkeletonProps = {
   rowCount?: number;

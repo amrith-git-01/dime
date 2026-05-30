@@ -29,7 +29,6 @@ type BudgetLimitsEditorProps = {
   onMonthlyStepChange: (index: number) => void;
   onSave: () => void;
   onClear: () => void;
-  onCancel: () => void;
   saveDisabled: boolean;
   saveLoading: boolean;
 };
@@ -50,7 +49,6 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   onMonthlyStepChange,
   onSave,
   onClear,
-  onCancel,
   saveDisabled,
   saveLoading,
 }: BudgetLimitsEditorProps) {
@@ -170,9 +168,6 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
 
       <View style={styles.actionsRow}>
         <View style={styles.actionButtonWrap}>
-          <Button title="Clear" variant="secondary" onPress={handleClear} />
-        </View>
-        <View style={styles.actionButtonWrap}>
           <Button
             title={isEditMode ? "Update" : "Save"}
             loading={saveLoading}
@@ -180,11 +175,9 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
             disabled={saveDisabled}
           />
         </View>
-        {isEditMode ? (
-          <View style={styles.actionButtonWrap}>
-            <Button title="Cancel" variant="secondary" onPress={onCancel} />
-          </View>
-        ) : null}
+        <View style={styles.actionButtonWrap}>
+          <Button title="Clear" variant="secondary" onPress={handleClear} />
+        </View>
       </View>
     </View>
   );

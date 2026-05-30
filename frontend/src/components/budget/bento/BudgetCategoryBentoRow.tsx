@@ -20,6 +20,8 @@ type BudgetCategoryBentoRowProps = {
   item: BudgetCategoryRowData;
   hasMonthlyBudget: boolean;
   monthlyBudgetAmount: number;
+  /** When true, category name wraps instead of truncating (e.g. custom-category preview). */
+  nameWraps?: boolean;
 };
 
 function budgetCategoryRowPropsAreEqual(
@@ -29,6 +31,7 @@ function budgetCategoryRowPropsAreEqual(
   const prevItem = prev.item;
   const nextItem = next.item;
   return (
+    prev.nameWraps === next.nameWraps &&
     prev.hasMonthlyBudget === next.hasMonthlyBudget &&
     prev.monthlyBudgetAmount === next.monthlyBudgetAmount &&
     prevItem.id === nextItem.id &&
@@ -44,6 +47,7 @@ export const BudgetCategoryBentoRow = memo(function BudgetCategoryBentoRow({
   item,
   hasMonthlyBudget,
   monthlyBudgetAmount,
+  nameWraps = false,
 }: BudgetCategoryBentoRowProps) {
   const shareOfMonthlyCap =
     hasMonthlyBudget && monthlyBudgetAmount > 0
@@ -63,7 +67,10 @@ export const BudgetCategoryBentoRow = memo(function BudgetCategoryBentoRow({
         </View>
         <View style={styles.catMeta}>
           <View style={styles.catNameRow}>
-            <Text style={styles.catName} numberOfLines={1}>
+            <Text
+              style={styles.catName}
+              numberOfLines={nameWraps ? undefined : 1}
+            >
               {item.name}
             </Text>
             {!item.is_system ? (

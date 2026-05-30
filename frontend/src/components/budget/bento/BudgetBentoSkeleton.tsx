@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   sectionHeaderSkel: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",
   },
   sectionTitleSkel: {
     width: 100,
