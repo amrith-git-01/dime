@@ -1,15 +1,11 @@
 import { memo, useCallback, useMemo } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
+import { BentoStatCell, netTone } from "@/components/shared/BentoStatCell";
+import { TwoToneCard } from "@/components/shared/TwoToneCard";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, spacing } from "@/constants/theme";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
 import { TRANSACTIONS_MONTH_DROPDOWN_VISIBLE } from "./transactionsBentoTokens";
@@ -33,51 +29,7 @@ export type TransactionsMonthBentoCardProps = {
 };
 
 function transactionCountLabel(count: number): string {
-  if (count === 1) {
-    return "1 transaction";
-  }
-  return `${count} transactions`;
-}
-
-function CashFlowStat({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "credit" | "debit" | "net-positive" | "net-negative";
-}) {
-  return (
-    <View style={styles.cashFlowStat}>
-      <Text style={styles.cashFlowStatLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.cashFlowStatValue,
-          tone === "credit" && styles.cashFlowStatCredit,
-          tone === "debit" && styles.cashFlowStatDebit,
-          tone === "net-positive" && styles.cashFlowStatCredit,
-          tone === "net-negative" && styles.cashFlowStatDebit,
-        ]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function netTone(
-  netValue: number,
-): "net-positive" | "net-negative" | "neutral" {
-  if (netValue > 0) {
-    return "net-positive";
-  }
-  if (netValue < 0) {
-    return "net-negative";
-  }
-  return "neutral";
+  return count === 1 ? "1 transaction" : `${count} transactions`;
 }
 
 export const TransactionsMonthBentoCard = memo(
@@ -109,9 +61,9 @@ export const TransactionsMonthBentoCard = memo(
     );
 
     return (
-      <View style={[styles.card, cardShadowStyle]}>
-        <View style={styles.headerSection}>
-          <View style={styles.headerRow}>
+      <TwoToneCard
+        header={
+          <View style={styles.headerInner}>
             <View style={styles.headerLeft}>
               {summaryFailed ? (
                 <Text style={styles.errorText}>Could not load summary</Text>
@@ -140,71 +92,53 @@ export const TransactionsMonthBentoCard = memo(
               />
             </View>
           </View>
-        </View>
-
-        <View style={styles.cashFlowSection}>
-          <Text style={styles.cashFlowKicker}>Cash flow</Text>
-          {summaryFailed ? (
-            <Text style={styles.cashFlowUnavailable}>—</Text>
-          ) : summaryLoading ? (
-            <View style={styles.cashFlowLoading}>
-              <ActivityIndicator color={colors.primary} size="small" />
-            </View>
-          ) : summary ? (
-            <View style={styles.cashFlowStats}>
-              <CashFlowStat
-                label="Credited"
-                value={summary.creditedDisplay}
-                tone="credit"
-              />
-              <View style={styles.cashFlowDivider} />
-              <CashFlowStat
-                label="Debited"
-                value={summary.debitedDisplay}
-                tone="debit"
-              />
-              <View style={styles.cashFlowDivider} />
-              <CashFlowStat
-                label="Net"
-                value={summary.netDisplay}
-                tone={netTone(summary.netValue)}
-              />
-            </View>
-          ) : null}
-        </View>
-      </View>
+        }
+        body={
+          <View style={styles.bodyInner}>
+            <Text style={styles.cashFlowKicker}>Cash flow</Text>
+            {summaryFailed ? (
+              <Text style={styles.cashFlowUnavailable}>—</Text>
+            ) : summaryLoading ? (
+              <View style={styles.cashFlowLoading}>
+                <ActivityIndicator color={colors.primary} size="small" />
+              </View>
+            ) : summary ? (
+              <View style={styles.cashFlowStats}>
+                <BentoStatCell
+                  label="Credited"
+                  value={summary.creditedDisplay}
+                  tone="credit"
+                />
+                <View style={styles.divider} />
+                <BentoStatCell
+                  label="Debited"
+                  value={summary.debitedDisplay}
+                  tone="debit"
+                />
+                <View style={styles.divider} />
+                <BentoStatCell
+                  label="Net"
+                  value={summary.netDisplay}
+                  tone={netTone(summary.netValue)}
+                />
+              </View>
+            ) : null}
+          </View>
+        }
+      />
     );
   },
 );
 
-const cardShadowStyle = Platform.select({
-  android: { elevation: 3 },
-  default: {
-    shadowColor: colors.brandPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-  },
-});
-
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.lg,
-    overflow: "visible",
-  },
-  headerSection: {
-    backgroundColor: bento.twoToneHeaderSurface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  headerRow: {
+  headerInner: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   headerLeft: {
     flex: 1,
@@ -237,12 +171,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: bento.onPastel.primary,
   },
-  cashFlowSection: {
-    backgroundColor: bento.twoToneBodySurface,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
+  bodyInner: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -271,32 +200,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  cashFlowStat: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2,
-  },
-  cashFlowStatLabel: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 10,
-    lineHeight: 14,
-    color: bento.onPastel.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  cashFlowStatValue: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: bento.onPastel.primary,
-  },
-  cashFlowStatCredit: {
-    color: colors.success,
-  },
-  cashFlowStatDebit: {
-    color: colors.danger,
-  },
-  cashFlowDivider: {
+  divider: {
     width: 1,
     height: 28,
     backgroundColor: "rgba(99, 85, 232, 0.14)",

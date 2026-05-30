@@ -46,7 +46,6 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         subtext={dailySubtext}
         last7DaysSpend={last7DaysSpend}
         hasDailyBudget={hasDailyBudget}
-        isLoading={false}
         onAddDailyBudget={onAddDailyBudget}
       />
 
@@ -56,7 +55,6 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         subtext={monthlySubtext}
         monthlyProgress={monthlyProgress}
         hasMonthlyBudget={hasMonthlyBudget}
-        isLoading={false}
         onAddMonthlyBudget={onAddMonthlyBudget}
       />
     </View>
