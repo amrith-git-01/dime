@@ -38,10 +38,11 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         dailySubtext={props.dailySubtext}
         monthlySubtext={props.monthlySubtext}
         monthlyProgress={props.monthlyProgress}
-        showMonthlyRing={props.showMonthlyRing}
-        hasBudget={props.hasBudget}
+        hasMonthlyBudget={props.hasMonthlyBudget}
+        hasDailyBudget={props.hasDailyBudget}
         last7DaysSpend={props.last7DaysSpend}
-        onNavigateBudgets={props.onNavigateBudgets}
+        onAddMonthlyBudget={props.onAddMonthlyBudget}
+        onAddDailyBudget={props.onAddDailyBudget}
       />
 
       {/* 2 — Cash flow: credited / debited / net */}

@@ -1,13 +1,6 @@
 import { Edit3 } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/ui/Button/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -17,6 +10,10 @@ import { bento, colors, progressBar, radius, spacing } from "@/constants/theme";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
 import { BUDGET_MONTH_DROPDOWN_VISIBLE } from "./budgetBentoTokens";
+import {
+  BudgetMonthBodySkeleton,
+  BudgetMonthHeaderSkeleton,
+} from "./BudgetMonthBentoSkeleton";
 
 export type BudgetMonthBentoSummary = {
   budgetDisplay: string;
@@ -120,7 +117,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
                 Could not load spending for this month.
               </Text>
             ) : summaryLoading ? (
-              <ActivityIndicator color={colors.primary} />
+              <BudgetMonthHeaderSkeleton />
             ) : (
               <>
                 <Text style={styles.activityKicker}>This month</Text>
@@ -167,9 +164,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
         {summaryFailed ? (
           <Text style={styles.unavailable}>—</Text>
         ) : summaryLoading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.primary} size="small" />
-          </View>
+          <BudgetMonthBodySkeleton />
         ) : (
           <>
             <View style={styles.statsRow}>
@@ -312,11 +307,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.45,
     marginBottom: spacing.sm,
-  },
-  loadingWrap: {
-    minHeight: 40,
-    justifyContent: "center",
-    alignItems: "center",
   },
   unavailable: {
     fontFamily: fontFamilies.monoSemiBold,
