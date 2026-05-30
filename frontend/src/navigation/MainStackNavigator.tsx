@@ -23,6 +23,9 @@ const TransactionDetailScreenLazy = lazy(
 const CreateCustomCategoryScreenLazy = lazy(
   () => import("@/screens/categories/CreateCustomCategoryScreen"),
 );
+const EditMonthlyBudgetScreenLazy = lazy(
+  () => import("@/screens/budget/EditMonthlyBudgetScreen"),
+);
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -76,6 +79,16 @@ function CreateCustomCategoryLazyHost(
   return (
     <Suspense fallback={<LazyScreenFallback />}>
       <CreateCustomCategoryScreenLazy />
+    </Suspense>
+  );
+}
+
+function EditMonthlyBudgetLazyHost(
+  _: NativeStackScreenProps<MainStackParamList, "EditMonthlyBudget">,
+) {
+  return (
+    <Suspense fallback={<LazyScreenFallback />}>
+      <EditMonthlyBudgetScreenLazy />
     </Suspense>
   );
 }
@@ -144,6 +157,18 @@ export default function MainStackNavigator() {
             headerStyle: { backgroundColor: colors.pageBackground },
             headerShadowVisible: false,
           }}
+        />
+        <Stack.Screen
+          name="EditMonthlyBudget"
+          component={EditMonthlyBudgetLazyHost}
+          options={({ route }) => ({
+            headerShown: true,
+            title:
+              route.params?.mode === "edit" ? "Update budget" : "Monthly budget",
+            headerTintColor: colors.primary,
+            headerStyle: { backgroundColor: colors.pageBackground },
+            headerShadowVisible: false,
+          })}
         />
       </Stack.Navigator>
     </>

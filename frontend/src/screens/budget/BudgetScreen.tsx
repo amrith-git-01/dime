@@ -1,23 +1,28 @@
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
+import {
+  BUDGET_MONTH_OPTIONS_COUNT,
+  BUDGET_ROW_HEIGHT_SPENT_ONLY,
+  BUDGET_ROW_HEIGHT_WITH_PROGRESS,
+} from "@/components/budget/bento/budgetBentoTokens";
+import { BudgetBentoSkeleton } from "@/components/budget/bento/BudgetBentoSkeleton";
+import {
+  BudgetCategoryBentoRow,
+  type BudgetCategoryRowData,
+} from "@/components/budget/bento/BudgetCategoryBentoRow";
+import {
+  BudgetMonthBentoCard,
+  type BudgetMonthBentoSummary,
+} from "@/components/budget/bento/BudgetMonthBentoCard";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing } from "@/constants/theme";
 import { BudgetCategoriesSectionHeader } from "@/features/budgets/components/BudgetCategoriesSectionHeader";
-import {
-  BudgetCategoryRow,
-  type BudgetCategoryRowData,
-} from "@/features/budgets/components/BudgetCategoryRow";
-import { BudgetEditorPanel } from "@/features/budgets/components/BudgetEditorPanel";
-import { BudgetListHeader } from "@/features/budgets/components/BudgetListHeader";
-import {
-  useBudgetQuery,
-  useUpsertBudgetMutation,
-} from "@/features/budgets/hooks/useBudget";
+import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
@@ -56,9 +61,6 @@ const BudgetListFooter = memo(function BudgetListFooter() {
   return <View style={styles.listFooter} />;
 });
 
-/** Uniform row height when monthly budget exists (icon row + progress track). */
-const BUDGET_ROW_HEIGHT_WITH_PROGRESS = 58;
-const BUDGET_ROW_HEIGHT_SPENT_ONLY = 46;
 const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
   ios: 280,
   android: 200,
@@ -72,7 +74,10 @@ export default function BudgetScreen() {
   const listRef = useRef<FlashListRef<BudgetCategoryRowData>>(null);
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
-  const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const monthOptions = useMemo(
+    () => buildMonthOptions(BUDGET_MONTH_OPTIONS_COUNT),
+    [],
+  );
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
 
@@ -84,7 +89,6 @@ export default function BudgetScreen() {
     selected.year,
     selected.monthIndex0,
   );
-  const upsertBudgetMutation = useUpsertBudgetMutation();
 
   const existingBudget = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
@@ -92,31 +96,6 @@ export default function BudgetScreen() {
   const hasMonthlyBudget =
     Number.isFinite(existingBudget) && existingBudget > 0;
 
-  const [monthlyBudgetText, setMonthlyBudgetText] = useState("");
-  const [isEditOpen, setIsEditOpen] = useState(false);
-
-  useEffect(() => {
-    if (!hasMonthlyBudget) {
-      setMonthlyBudgetText("");
-      return;
-    }
-    setMonthlyBudgetText(String(Math.round(existingBudget)));
-  }, [existingBudget, hasMonthlyBudget]);
-
-  useEffect(() => {
-    if (upsertBudgetMutation.isSuccess) {
-      setIsEditOpen(false);
-    }
-  }, [upsertBudgetMutation.isSuccess]);
-
-  useFocusEffect(
-    useCallback(() => {
-      return () => setIsEditOpen(false);
-    }, []),
-  );
-
-  // Separated memo: knownIds only rebuilds when the category list itself changes,
-  // not on every spendByCategory update (e.g. month selector change).
   const knownCategoryIds = useMemo(
     () => new Set(categories.map((c) => c.id)),
     [categories],
@@ -173,41 +152,24 @@ export default function BudgetScreen() {
     listRef.current?.scrollToTop({ animated: false });
   }, [selectedMonthIndex]);
 
-  const resetEditorToExisting = useCallback(() => {
-    if (hasMonthlyBudget) {
-      setMonthlyBudgetText(String(Math.round(existingBudget)));
-      return;
-    }
-    setMonthlyBudgetText("");
-  }, [existingBudget, hasMonthlyBudget]);
+  const navigateToBudgetEditor = useCallback(
+    (mode: "create" | "edit") => {
+      stackNavigation.navigate("EditMonthlyBudget", {
+        mode,
+        selectedYear: selected.year,
+        selectedMonthIndex0: selected.monthIndex0,
+      });
+    },
+    [selected.monthIndex0, selected.year, stackNavigation],
+  );
 
-  const handleCancelBudgetEdit = useCallback(() => {
-    resetEditorToExisting();
-    setIsEditOpen(false);
-  }, [resetEditorToExisting]);
+  const handleSetBudget = useCallback(() => {
+    navigateToBudgetEditor("create");
+  }, [navigateToBudgetEditor]);
 
-  const handleOpenBudgetEdit = useCallback(() => {
-    setIsEditOpen(true);
-  }, []);
-
-  const handleSaveMonthlyBudget = useCallback(() => {
-    const parsed = Number.parseFloat(monthlyBudgetText);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return;
-    }
-
-    if (hasMonthlyBudget && Math.abs(parsed - existingBudget) < 0.0001) {
-      setIsEditOpen(false);
-      return;
-    }
-
-    upsertBudgetMutation.mutate({ amount: parsed });
-  }, [
-    existingBudget,
-    hasMonthlyBudget,
-    monthlyBudgetText,
-    upsertBudgetMutation,
-  ]);
+  const handleEditBudget = useCallback(() => {
+    navigateToBudgetEditor("edit");
+  }, [navigateToBudgetEditor]);
 
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
   const spentMonthNum = monthSummaryQuery.data
@@ -215,34 +177,58 @@ export default function BudgetScreen() {
     : Number.NaN;
   const hasSpentMonth = Number.isFinite(spentMonthNum);
   const monthSummaryFailed = monthSummaryQuery.isError;
-  const monthlyBudgetRemaining =
+  const isOverBudget =
+    hasMonthlyBudget && hasSpentMonth && spentMonthNum > monthlyBudgetAmount;
+  const remainingValue =
     hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed
       ? Math.max(0, monthlyBudgetAmount - spentMonthNum)
       : 0;
-  const monthlyBudgetPct =
+  const overageValue =
+    isOverBudget && hasSpentMonth ? spentMonthNum - monthlyBudgetAmount : 0;
+  const usagePct =
     hasMonthlyBudget &&
     hasSpentMonth &&
     !monthSummaryFailed &&
     monthlyBudgetAmount > 0
       ? Math.min(1, spentMonthNum / monthlyBudgetAmount)
       : 0;
-  const monthlyHeroSubtext = monthSummaryFailed
-    ? "Could not load spending for this month."
+  const usageLabel = isOverBudget
+    ? "Over budget"
     : hasMonthlyBudget && hasSpentMonth
-      ? `${formatInrCompact(monthlyBudgetRemaining)} left from ${formatInrCompact(monthlyBudgetAmount)}`
+      ? `${Math.round(usagePct * 100)}% used`
       : hasMonthlyBudget
-        ? ""
-        : "";
-  /** Keep progress slot mounted while budget exists so header height does not jump. */
-  const showMonthlyHeroProgress = hasMonthlyBudget && !monthSummaryFailed;
-  const isHeroAmountLoading =
-    hasMonthlyBudget && (isBudgetLoading || monthSummaryQuery.isPending);
+        ? "0% used"
+        : "No budget set";
 
-  const shouldShowEditor = !hasMonthlyBudget || isEditOpen;
+  const summaryLoading =
+    monthSummaryQuery.isPending || (isBudgetLoading && budgetResp === undefined);
+
+  const monthSummary: BudgetMonthBentoSummary | null =
+    summaryLoading || monthSummaryFailed
+      ? null
+      : {
+          budgetDisplay: formatInrCompact(monthlyBudgetAmount),
+          spentDisplay: hasSpentMonth
+            ? formatInrCompact(spentMonthNum)
+            : "—",
+          remainingDisplay: formatInrCompact(remainingValue),
+          spentValue: hasSpentMonth ? spentMonthNum : 0,
+          budgetValue: monthlyBudgetAmount,
+          remainingValue,
+          isOverBudget,
+          overageDisplay: formatInrCompact(overageValue),
+          usagePct,
+          usageLabel,
+        };
+
+  const categoriesStillLoading = categoriesLoading && categories.length === 0;
+
+  const showInitialSkeleton =
+    isBudgetLoading && budgetResp === undefined && categoriesStillLoading;
 
   const renderCategory = useCallback(
     ({ item }: { item: BudgetCategoryRowData }) => (
-      <BudgetCategoryRow
+      <BudgetCategoryBentoRow
         item={item}
         hasMonthlyBudget={hasMonthlyBudget}
         monthlyBudgetAmount={monthlyBudgetAmount}
@@ -271,8 +257,6 @@ export default function BudgetScreen() {
     },
     [hasMonthlyBudget],
   );
-
-  const categoriesStillLoading = categoriesLoading && categories.length === 0;
 
   const listEmpty = useMemo(
     () => <BudgetListEmpty loading={categoriesStillLoading} />,
@@ -307,42 +291,30 @@ export default function BudgetScreen() {
     [customCategoryCount, handleAddCustomCategory],
   );
 
+  if (showInitialSkeleton) {
+    return (
+      <TabScreenShell>
+        <BudgetBentoSkeleton />
+      </TabScreenShell>
+    );
+  }
+
   return (
     <TabScreenShell>
       <View style={styles.screen}>
-        {shouldShowEditor ? (
-          <View style={styles.editorSlot}>
-            <BudgetEditorPanel
-              hasMonthlyBudget={hasMonthlyBudget}
-              monthlyBudgetText={monthlyBudgetText}
-              onChangeMonthlyBudgetText={setMonthlyBudgetText}
-              onSaveMonthlyBudget={handleSaveMonthlyBudget}
-              onCancelBudgetEdit={handleCancelBudgetEdit}
-              isBudgetSaving={upsertBudgetMutation.isPending}
-              isBudgetLoading={isBudgetLoading}
-              selectedYear={selected.year}
-              selectedMonthIndex0={selected.monthIndex0}
-            />
-          </View>
-        ) : null}
-
-        {hasMonthlyBudget ? (
-          <View style={styles.heroSlot}>
-            <BudgetListHeader
-              hasMonthlyBudget
-              selectedMonthLabel={selected.label}
-              monthOptions={monthOptions}
-              onSelectBudgetMonth={handleSelectBudgetMonth}
-              monthlyBudgetAmount={monthlyBudgetAmount}
-              monthlyHeroSubtext={monthlyHeroSubtext}
-              monthlyBudgetPct={monthlyBudgetPct}
-              showMonthlyHeroProgress={showMonthlyHeroProgress}
-              isHeroAmountLoading={isHeroAmountLoading}
-              onOpenBudgetEdit={handleOpenBudgetEdit}
-              showCategoriesSection={false}
-            />
-          </View>
-        ) : null}
+        <View style={styles.summarySlot}>
+          <BudgetMonthBentoCard
+            selectedMonth={selected.label}
+            monthOptions={monthOptions}
+            onSelectMonth={handleSelectBudgetMonth}
+            hasMonthlyBudget={hasMonthlyBudget}
+            summary={monthSummary}
+            summaryLoading={summaryLoading}
+            summaryFailed={monthSummaryFailed}
+            onEditBudget={handleEditBudget}
+            onSetBudget={handleSetBudget}
+          />
+        </View>
 
         <FlashList
           ref={listRef}
@@ -370,13 +342,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.pageBackground,
   },
-  editorSlot: {
+  summarySlot: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-  },
-  heroSlot: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   content: {
     paddingHorizontal: spacing.lg,
