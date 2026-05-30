@@ -92,6 +92,10 @@ export const bento = {
   monthSpendSurface: "#E0F2FE",
   /** Soft mint pastel — cash-flow tile background. */
   incomeExpenseSurface: "#D1FAE5",
+  /** Two-tone card header — Transactions month + Budget summary (brand violet). */
+  twoToneHeaderSurface: "#EEEDFB",
+  /** Two-tone card body — stats row beneath header (clean white). */
+  twoToneBodySurface: "#FFFFFF",
   /** Outer wrapper for section bento boxes (recent, categories). */
   sectionSurface: "#F5F3FF",
   surface: {

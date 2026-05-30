@@ -1,5 +1,11 @@
 import { Check, ChevronDown } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   Dimensions,
   Keyboard,
@@ -22,10 +28,12 @@ import { formStyles } from "@/constants/formStyles";
 import { colors, radius, spacing, surfaces } from "@/constants/theme";
 
 const MENU_GAP = 6;
+const MENU_GAP_COMPACT = 4;
 const PANEL_MAX_HEIGHT = 280;
 const ARROW_ROTATION_MS = 220;
-const COMPACT_TRIGGER_HEIGHT = 40;
+const COMPACT_TRIGGER_HEIGHT = 28;
 const DEFAULT_TRIGGER_HEIGHT = 52;
+const COMPACT_OPTION_ROW_HEIGHT = 32;
 
 export type SelectDropdownOption<T extends string = string> = {
   value: T;
@@ -65,7 +73,7 @@ type MenuRect = {
 };
 
 function optionRowHeight(size: "default" | "compact"): number {
-  return size === "compact" ? 40 : 46;
+  return size === "compact" ? COMPACT_OPTION_ROW_HEIGHT : 46;
 }
 
 function resolvePanelScrollHeight(
@@ -202,25 +210,23 @@ export function SelectDropdown<T extends string>({
           (anchorLeft, anchorTop, anchorW, anchorH) => {
             if (anchorW <= 0 || anchorH <= 0) return;
             const anchorBottom = anchorTop + anchorH;
-            triggerRef.current?.measureInWindow(
-              (left, _top, width, height) => {
-                if (width <= 0 || height <= 0) return;
-                const mh = Math.max(height, triggerHeightFallback(size));
-                // Synthesise triggerTop so resolveMenuRect produces belowTop = anchorBottom
-                const syntheticTop = anchorBottom - mh - MENU_GAP;
-                onMeasured(
-                  resolveMenuRect(
-                    left,
-                    syntheticTop,
-                    width,
-                    height,
-                    options.length,
-                    size,
-                    maxVisibleOptions,
-                  ),
-                );
-              },
-            );
+            triggerRef.current?.measureInWindow((left, _top, width, height) => {
+              if (width <= 0 || height <= 0) return;
+              const mh = Math.max(height, triggerHeightFallback(size));
+              // Synthesise triggerTop so resolveMenuRect produces belowTop = anchorBottom
+              const syntheticTop = anchorBottom - mh - MENU_GAP;
+              onMeasured(
+                resolveMenuRect(
+                  left,
+                  syntheticTop,
+                  width,
+                  height,
+                  options.length,
+                  size,
+                  maxVisibleOptions,
+                ),
+              );
+            });
           },
         );
         return;
@@ -322,12 +328,13 @@ export function SelectDropdown<T extends string>({
               variant === "secondary" && styles.optionLabelSecondary,
               selected && styles.optionLabelSelected,
             ]}
+            numberOfLines={1}
           >
             {item.label}
           </Text>
           {selected ? (
             <Check
-              size={18}
+              size={size === "compact" ? 14 : 18}
               color={colors.headerGradientStart}
               strokeWidth={2}
             />
@@ -416,7 +423,7 @@ export function SelectDropdown<T extends string>({
           </Text>
           <Animated.View style={[styles.chevronWrap, chevronAnimatedStyle]}>
             <ChevronDown
-              size={18}
+              size={size === "compact" ? 14 : 18}
               color={
                 variant === "secondary"
                   ? colors.textOnPrimary
@@ -438,6 +445,7 @@ export function SelectDropdown<T extends string>({
           style={[
             styles.panel,
             styles.panelInline,
+            size === "compact" && styles.panelInlineCompact,
             panelVariantStyle,
             size === "compact" && styles.panelCompact,
             maxVisibleOptions
@@ -470,6 +478,7 @@ export function SelectDropdown<T extends string>({
                   styles.panel,
                   styles.panelOverlay,
                   panelVariantStyle,
+                  size === "compact" && styles.panelCompact,
                   {
                     top: menuRect.top,
                     left: menuRect.left,
@@ -533,8 +542,13 @@ const styles = StyleSheet.create({
     zIndex: 10000,
     elevation: 24,
   },
+  panelInlineCompact: {
+    marginTop: MENU_GAP_COMPACT,
+  },
   panelCompact: {
-    minWidth: 128,
+    minWidth: 120,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
   },
   panelPrimary: {
     minWidth: 104,
@@ -556,7 +570,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   triggerShellCompact: {
-    minWidth: 128,
+    minWidth: 120,
+    borderWidth: 1,
+    borderRadius: radius.xs,
   },
   triggerShellPrimary: {
     minWidth: 104,
@@ -589,8 +605,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   triggerRowCompact: {
-    minHeight: 36,
-    paddingHorizontal: 10,
+    minHeight: COMPACT_TRIGGER_HEIGHT,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   triggerPressed: {
     opacity: 0.92,
@@ -617,8 +634,8 @@ const styles = StyleSheet.create({
   },
   triggerTextCompact: {
     fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.textPrimary,
   },
   triggerPlaceholder: {
@@ -633,6 +650,7 @@ const styles = StyleSheet.create({
   chevronWrap: {
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 2,
   },
   optionRow: {
     minHeight: 46,
@@ -650,8 +668,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   optionRowCompact: {
-    minHeight: 40,
-    paddingHorizontal: 10,
+    minHeight: COMPACT_OPTION_ROW_HEIGHT,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   optionRowBorder: {
     borderBottomWidth: 1,
@@ -681,8 +700,9 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   optionLabelCompact: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
+    marginRight: spacing.xs,
   },
   optionLabelSelected: {
     fontFamily: fontFamilies.medium,

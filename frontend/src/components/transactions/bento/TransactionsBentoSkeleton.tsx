@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.md,
-    backgroundColor: bento.monthSpendSurface,
+    backgroundColor: bento.twoToneHeaderSurface,
     padding: HOME_SECTION_CARD_PADDING,
     paddingBottom: spacing.md,
   },
@@ -105,14 +105,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   monthDropdownSkel: {
-    width: 118,
-    height: 48,
+    width: 120,
+    height: 28,
     borderRadius: radius.sm,
   },
   monthCashFlowSkel: {
     padding: HOME_SECTION_CARD_PADDING,
     paddingTop: spacing.md,
-    backgroundColor: bento.incomeExpenseSurface,
+    backgroundColor: bento.twoToneBodySurface,
     gap: spacing.sm,
   },
   monthCashFlowKickerSkel: {

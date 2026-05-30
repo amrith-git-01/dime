@@ -180,9 +180,9 @@ export const TransactionsMonthBentoCard = memo(
 const cardShadowStyle = Platform.select({
   android: { elevation: 3 },
   default: {
-    shadowColor: bento.surface.sky,
+    shadowColor: colors.brandPrimary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
   },
 });
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   headerSection: {
-    backgroundColor: bento.monthSpendSurface,
+    backgroundColor: bento.twoToneHeaderSurface,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   dropdownWrap: {
     flexShrink: 0,
-    width: 132,
+    width: 120,
   },
   activityKicker: {
     fontFamily: fontFamilies.medium,
@@ -238,7 +238,9 @@ const styles = StyleSheet.create({
     color: bento.onPastel.primary,
   },
   cashFlowSection: {
-    backgroundColor: bento.incomeExpenseSurface,
+    backgroundColor: bento.twoToneBodySurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
     borderBottomLeftRadius: radius.lg,
     borderBottomRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
