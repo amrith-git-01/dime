@@ -192,7 +192,7 @@ export function SelectDropdown<T extends string>({
     : options.length > 5;
 
   const scrollViewportHeight =
-    menuPlacement === "modal" && menuRect
+    menuRect != null
       ? Math.min(menuRect.maxHeight, panelScrollHeight)
       : panelScrollHeight;
 
@@ -251,25 +251,21 @@ export function SelectDropdown<T extends string>({
   );
 
   const openMenu = useCallback(() => {
-    if (menuPlacement === "inline") {
-      setOpen(true);
-      return;
-    }
     measureMenuPosition((rect) => {
       setMenuRect(rect);
       setOpen(true);
     });
-  }, [measureMenuPosition, menuPlacement]);
+  }, [measureMenuPosition]);
 
   useEffect(() => {
-    if (!open || menuPlacement !== "modal") {
+    if (!open) {
       return;
     }
     const measure = () => measureMenuPosition(setMenuRect);
     measure();
     const frame = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(frame);
-  }, [measureMenuPosition, menuPlacement, open]);
+  }, [measureMenuPosition, open]);
 
   const onTriggerPress = useCallback(() => {
     if (disabled) {
@@ -440,58 +436,40 @@ export function SelectDropdown<T extends string>({
         <Text style={formStyles.fieldError}>{errorMessage}</Text>
       ) : null}
 
-      {open && menuPlacement === "inline" ? (
-        <View
-          style={[
-            styles.panel,
-            styles.panelInline,
-            size === "compact" && styles.panelInlineCompact,
-            panelVariantStyle,
-            size === "compact" && styles.panelCompact,
-            maxVisibleOptions
-              ? { maxHeight: panelScrollHeight + spacing.xs * 2 }
-              : null,
-          ]}
-        >
-          {optionsPanel}
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={closeMenu}
+        statusBarTranslucent
+      >
+        <View style={styles.modalRoot} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
+            style={styles.backdrop}
+            onPress={closeMenu}
+          />
+          {menuRect ? (
+            <View
+              style={[
+                styles.panel,
+                styles.panelOverlay,
+                panelVariantStyle,
+                size === "compact" && styles.panelCompact,
+                {
+                  top: menuRect.top,
+                  left: menuRect.left,
+                  width: menuRect.width,
+                  maxHeight: menuRect.maxHeight,
+                },
+              ]}
+            >
+              {optionsPanel}
+            </View>
+          ) : null}
         </View>
-      ) : null}
-
-      {menuPlacement === "modal" ? (
-        <Modal
-          visible={open}
-          transparent
-          animationType="fade"
-          onRequestClose={closeMenu}
-          statusBarTranslucent
-        >
-          <View style={styles.modalRoot} pointerEvents="box-none">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close menu"
-              style={styles.backdrop}
-              onPress={closeMenu}
-            />
-            {menuRect ? (
-              <View
-                style={[
-                  styles.panel,
-                  styles.panelOverlay,
-                  panelVariantStyle,
-                  size === "compact" && styles.panelCompact,
-                  {
-                    top: menuRect.top,
-                    left: menuRect.left,
-                    width: menuRect.width,
-                  },
-                ]}
-              >
-                {optionsPanel}
-              </View>
-            ) : null}
-          </View>
-        </Modal>
-      ) : null}
+      </Modal>
     </View>
   );
 }

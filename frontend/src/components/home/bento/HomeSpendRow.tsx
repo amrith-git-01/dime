@@ -13,14 +13,15 @@ export type HomeSpendRowProps = {
   dailySubtext: string;
   monthlySubtext: string;
   monthlyProgress: number;
-  showMonthlyRing: boolean;
-  hasBudget: boolean;
+  hasMonthlyBudget: boolean;
+  hasDailyBudget: boolean;
   last7DaysSpend: { date: string; total: number }[];
-  onNavigateBudgets: () => void;
+  onAddMonthlyBudget: () => void;
+  onAddDailyBudget: () => void;
 };
 
 /**
- * Side-by-side spend row (40 / 60).
+ * Side-by-side spend row (45 / 55).
  * Both tiles: amount only + footer subtext; month adds centered ring.
  */
 export const HomeSpendRow = memo(function HomeSpendRow({
@@ -31,10 +32,11 @@ export const HomeSpendRow = memo(function HomeSpendRow({
   dailySubtext,
   monthlySubtext,
   monthlyProgress,
-  showMonthlyRing,
-  hasBudget,
+  hasMonthlyBudget,
+  hasDailyBudget,
   last7DaysSpend,
-  onNavigateBudgets,
+  onAddMonthlyBudget,
+  onAddDailyBudget,
 }: HomeSpendRowProps) {
   return (
     <View style={styles.row}>
@@ -43,7 +45,9 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         spentAmount={spentTodayDisplay}
         subtext={dailySubtext}
         last7DaysSpend={last7DaysSpend}
+        hasDailyBudget={hasDailyBudget}
         isLoading={false}
+        onAddDailyBudget={onAddDailyBudget}
       />
 
       <HomeMonthTile
@@ -51,10 +55,9 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         spentAmount={spentMonthDisplay}
         subtext={monthlySubtext}
         monthlyProgress={monthlyProgress}
-        showRing={showMonthlyRing}
-        hasBudget={hasBudget}
+        hasMonthlyBudget={hasMonthlyBudget}
         isLoading={false}
-        onNavigateBudgets={onNavigateBudgets}
+        onAddMonthlyBudget={onAddMonthlyBudget}
       />
     </View>
   );

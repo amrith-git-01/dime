@@ -21,8 +21,8 @@ export type HomeBentoContentProps = {
   dailySubtext: string;
   monthlySubtext: string;
   monthlyProgress: number;
-  showMonthlyRing: boolean;
-  hasBudget: boolean;
+  hasMonthlyBudget: boolean;
+  hasDailyBudget: boolean;
   last7DaysSpend: { date: string; total: number }[];
   creditedDisplay: string;
   debitedDisplay: string;
@@ -34,6 +34,8 @@ export type HomeBentoContentProps = {
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
   onNavigateBudgets: () => void;
+  onAddMonthlyBudget: () => void;
+  onAddDailyBudget: () => void;
   onNavigateTransactions: () => void;
   onTransactionPress: (tx: TransactionRow) => void;
   /** Quick-add actions for section action bars */

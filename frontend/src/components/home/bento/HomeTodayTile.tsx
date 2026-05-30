@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
 import { bento, colors, radius, spacing } from "@/constants/theme";
@@ -13,7 +13,9 @@ type HomeTodayTileProps = {
   spentAmount: string;
   subtext: string;
   last7DaysSpend: { date: string; total: number }[];
+  hasDailyBudget: boolean;
   isLoading: boolean;
+  onAddDailyBudget: () => void;
 };
 
 /**
@@ -24,7 +26,9 @@ export const HomeTodayTile = memo(function HomeTodayTile({
   spentAmount,
   subtext,
   last7DaysSpend,
+  hasDailyBudget,
   isLoading,
+  onAddDailyBudget,
 }: HomeTodayTileProps) {
   return (
     <View
@@ -61,6 +65,16 @@ export const HomeTodayTile = memo(function HomeTodayTile({
           <Text style={styles.subtext} numberOfLines={2}>
             {subtext}
           </Text>
+        ) : !isLoading && !hasDailyBudget ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add daily budget"
+            onPress={onAddDailyBudget}
+            style={styles.ctaWrap}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.ctaText}>Add daily budget</Text>
+          </Pressable>
         ) : (
           <View style={styles.footerSpacer} />
         )}
@@ -122,5 +136,15 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     color: bento.onSurface.secondary,
+  },
+  ctaWrap: {
+    alignSelf: "flex-start",
+  },
+  ctaText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: bento.onSurface.primary,
+    textDecorationLine: "underline",
   },
 });
