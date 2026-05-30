@@ -127,14 +127,39 @@ Browse-by-day tab — same pastel vocabulary as Home, **no** cash-flow / net sta
 └──────────────────────────────────────────────┘
 ```
 
-| Zone        | Surface                | Notes                                      |
-| ----------- | ---------------------- | ------------------------------------------ |
-| Month card  | `bento.sectionSurface` | `N transactions · ₹X spent` (debits only)  |
-| Day bar     | White card             | Compact; not full-width purple pill        |
-| Day list    | `bento.sectionSurface` | Reuses Home `BentoTransactionTile`         |
-| Empty month | Section card + copy    | `BentoQuickAddPills` when month has no txs |
+| Zone        | Surface                                             | Notes                                      |
+| ----------- | --------------------------------------------------- | ------------------------------------------ |
+| Month card  | `bento.twoToneHeaderSurface` + `twoToneBodySurface` | Two-tone violet header + white stats body  |
+| Day bar     | White card                                          | Compact; not full-width purple pill        |
+| Day list    | `bento.sectionSurface`                              | Reuses Home `BentoTransactionTile`         |
+| Empty month | Section card + copy                                 | `BentoQuickAddPills` when month has no txs |
 
 Month picker: **12** rolling calendar months. FlashList pagination unchanged.
+
+### 1.5.2 Budget bento
+
+Budget tab — browse-only; create/update monthly cap on stack screen `EditMonthlyBudget`.
+
+```
+┌──────────────────────────────────────────────┐
+│ Summary card — violet header + white stats   │
+│ THIS MONTH · status    [edit] [MMM yyyy ▼]    │
+│ Budget · Spent · Remaining + progress bar     │
+└──────────────────────────────────────────────┘
+┌ All categories                      + Add ───┐
+│ BudgetCategoryBentoRow × N (FlashList)      │
+└─────────────────────────────────────────────┘
+```
+
+| Zone           | Surface                      | Notes                                                      |
+| -------------- | ---------------------------- | ---------------------------------------------------------- |
+| Summary header | `bento.twoToneHeaderSurface` | Status, month dropdown (`colors.primaryMuted` violet tint) |
+| Summary body   | `bento.twoToneBodySurface`   | Budget · Spent · Remaining; white stats strip              |
+| No budget      | Same card shape              | Placeholder stats + **Set budget** CTA → stack             |
+| Category row   | Page background              | Muted icon chip, share-of-budget progress bar              |
+| Edit budget    | Stack screen                 | Amount input, daily limit preview, Save                    |
+
+**Rules:** No gradient hero on Budget tab. Month picker: **12** rolling months (inline dropdown). Violet scarce — edit is icon chip on pastel header, not full-width hero.
 
 ### 1.6 Layout tokens
 
@@ -262,16 +287,21 @@ Do not use success/danger for non-semantic decoration.
 
 ### 2.7 Bento surfaces (`bento.*`)
 
-| Token                    | Hex       | Notes                                    |
-| ------------------------ | --------- | ---------------------------------------- |
-| `bento.surface.lavender` | `#8B7FF5` | Empty states                             |
-| `bento.surface.mint`     | `#4ADE80` |                                          |
-| `bento.surface.sky`      | `#38BDF8` | Default month tile (`monthSpendSurface`) |
-| `bento.surface.coral`    | `#FF6B6B` |                                          |
-| `bento.surface.peach`    | `#FB923C` |                                          |
-| `bento.surface.teal`     | `#4ECDC4` |                                          |
-| `bento.surface.indigo`   | `#818CF8` |                                          |
-| `bento.surface.rose`     | `#F472B6` |                                          |
+| Token                        | Hex       | Notes                                       |
+| ---------------------------- | --------- | ------------------------------------------- |
+| `bento.twoToneHeaderSurface` | `#EEEDFB` | Two-tone card header (Transactions, Budget) |
+| `bento.twoToneBodySurface`   | `#FFFFFF` | Two-tone card stats body                    |
+| `bento.monthSpendSurface`    | `#E0F2FE` | Home month tile only                        |
+| `bento.incomeExpenseSurface` | `#D1FAE5` | Home cash-flow tile only                    |
+| `bento.sectionSurface`       | `#F5F3FF` | Section wrappers, day list                  |
+| `bento.surface.lavender`     | `#8B7FF5` | Empty states                                |
+| `bento.surface.mint`         | `#4ADE80` |                                             |
+| `bento.surface.sky`          | `#38BDF8` | Default month tile (`monthSpendSurface`)    |
+| `bento.surface.coral`        | `#FF6B6B` |                                             |
+| `bento.surface.peach`        | `#FB923C` |                                             |
+| `bento.surface.teal`         | `#4ECDC4` |                                             |
+| `bento.surface.indigo`       | `#818CF8` |                                             |
+| `bento.surface.rose`         | `#F472B6` |                                             |
 
 **On bento / hero (white UI)**
 
