@@ -13,12 +13,24 @@ export type BudgetGetResponse = {
   budget: BudgetResponse | null;
 };
 
+export type UpsertBudgetInput = {
+  monthlyAmount?: number;
+  dailyAmount?: number;
+};
+
 export async function fetchBudget(): Promise<BudgetGetResponse> {
   const { data } = await dimeApi.get<BudgetGetResponse>("/api/v1/budget");
   return data;
 }
 
-export async function upsertBudget(input: { amount: number }) {
-  const { data } = await dimeApi.patch<BudgetResponse>("/api/v1/budget", { amount: input.amount });
+export async function upsertBudget(input: UpsertBudgetInput) {
+  const body: Record<string, number> = {};
+  if (input.monthlyAmount !== undefined) {
+    body.monthly_amount = input.monthlyAmount;
+  }
+  if (input.dailyAmount !== undefined) {
+    body.daily_amount = input.dailyAmount;
+  }
+  const { data } = await dimeApi.patch<BudgetResponse>("/api/v1/budget", body);
   return data;
 }

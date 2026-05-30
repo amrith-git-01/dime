@@ -9,15 +9,16 @@ import {
   BUDGET_ROW_HEIGHT_SPENT_ONLY,
   BUDGET_ROW_HEIGHT_WITH_PROGRESS,
 } from "@/components/budget/bento/budgetBentoTokens";
-import { BudgetBentoSkeleton } from "@/components/budget/bento/BudgetBentoSkeleton";
 import {
   BudgetCategoryBentoRow,
   type BudgetCategoryRowData,
 } from "@/components/budget/bento/BudgetCategoryBentoRow";
+import { BudgetCategoryRowsSkeleton } from "@/components/budget/bento/BudgetCategoryRowsSkeleton";
 import {
   BudgetMonthBentoCard,
   type BudgetMonthBentoSummary,
 } from "@/components/budget/bento/BudgetMonthBentoCard";
+import { BudgetMonthBentoSkeleton } from "@/components/budget/bento/BudgetMonthBentoSkeleton";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing } from "@/constants/theme";
@@ -85,10 +86,10 @@ export default function BudgetScreen() {
     selected.year,
     selected.monthIndex0,
   );
-  const { data: spendByCategory = {} } = useMonthDebitTotalsByCategoryQuery(
-    selected.year,
-    selected.monthIndex0,
-  );
+  const {
+    data: spendByCategory = {},
+    isPlaceholderData: isSpendByCategoryPlaceholder,
+  } = useMonthDebitTotalsByCategoryQuery(selected.year, selected.monthIndex0);
 
   const existingBudget = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
@@ -148,9 +149,14 @@ export default function BudgetScreen() {
     setSelectedMonthIndex(index);
   }, []);
 
+  // Scroll only after the selected month's category data is loaded — not while
+  // keepPreviousData still shows the prior month (avoids layout/offset jumps).
   useEffect(() => {
+    if (isSpendByCategoryPlaceholder) {
+      return;
+    }
     listRef.current?.scrollToTop({ animated: false });
-  }, [selectedMonthIndex]);
+  }, [selected.year, selected.monthIndex0, isSpendByCategoryPlaceholder]);
 
   const navigateToBudgetEditor = useCallback(
     (mode: "create" | "edit") => {
@@ -201,16 +207,15 @@ export default function BudgetScreen() {
         : "No budget set";
 
   const summaryLoading =
-    monthSummaryQuery.isPending || (isBudgetLoading && budgetResp === undefined);
+    monthSummaryQuery.isPending ||
+    (isBudgetLoading && budgetResp === undefined);
 
   const monthSummary: BudgetMonthBentoSummary | null =
     summaryLoading || monthSummaryFailed
       ? null
       : {
           budgetDisplay: formatInrCompact(monthlyBudgetAmount),
-          spentDisplay: hasSpentMonth
-            ? formatInrCompact(spentMonthNum)
-            : "—",
+          spentDisplay: hasSpentMonth ? formatInrCompact(spentMonthNum) : "—",
           remainingDisplay: formatInrCompact(remainingValue),
           spentValue: hasSpentMonth ? spentMonthNum : 0,
           budgetValue: monthlyBudgetAmount,
@@ -223,8 +228,10 @@ export default function BudgetScreen() {
 
   const categoriesStillLoading = categoriesLoading && categories.length === 0;
 
-  const showInitialSkeleton =
-    isBudgetLoading && budgetResp === undefined && categoriesStillLoading;
+  const showSummarySkeleton =
+    !monthSummaryFailed &&
+    ((isBudgetLoading && budgetResp === undefined) ||
+      (monthSummaryQuery.isPending && monthSummaryQuery.data === undefined));
 
   const renderCategory = useCallback(
     ({ item }: { item: BudgetCategoryRowData }) => (
@@ -258,10 +265,12 @@ export default function BudgetScreen() {
     [hasMonthlyBudget],
   );
 
-  const listEmpty = useMemo(
-    () => <BudgetListEmpty loading={categoriesStillLoading} />,
-    [categoriesStillLoading],
-  );
+  const listEmpty = useMemo(() => {
+    if (categoriesStillLoading) {
+      return <BudgetCategoryRowsSkeleton />;
+    }
+    return <BudgetListEmpty loading={false} />;
+  }, [categoriesStillLoading]);
 
   const listFooter = useMemo(() => <BudgetListFooter />, []);
 
@@ -291,29 +300,25 @@ export default function BudgetScreen() {
     [customCategoryCount, handleAddCustomCategory],
   );
 
-  if (showInitialSkeleton) {
-    return (
-      <TabScreenShell>
-        <BudgetBentoSkeleton />
-      </TabScreenShell>
-    );
-  }
-
   return (
     <TabScreenShell>
       <View style={styles.screen}>
         <View style={styles.summarySlot}>
-          <BudgetMonthBentoCard
-            selectedMonth={selected.label}
-            monthOptions={monthOptions}
-            onSelectMonth={handleSelectBudgetMonth}
-            hasMonthlyBudget={hasMonthlyBudget}
-            summary={monthSummary}
-            summaryLoading={summaryLoading}
-            summaryFailed={monthSummaryFailed}
-            onEditBudget={handleEditBudget}
-            onSetBudget={handleSetBudget}
-          />
+          {showSummarySkeleton ? (
+            <BudgetMonthBentoSkeleton />
+          ) : (
+            <BudgetMonthBentoCard
+              selectedMonth={selected.label}
+              monthOptions={monthOptions}
+              onSelectMonth={handleSelectBudgetMonth}
+              hasMonthlyBudget={hasMonthlyBudget}
+              summary={monthSummary}
+              summaryLoading={summaryLoading}
+              summaryFailed={monthSummaryFailed}
+              onEditBudget={handleEditBudget}
+              onSetBudget={handleSetBudget}
+            />
+          )}
         </View>
 
         <FlashList

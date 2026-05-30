@@ -1,16 +1,20 @@
-import { getDaysInMonth } from "date-fns";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useMemo } from "react";
+import { Keyboard, StyleSheet } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Button } from "@/components/ui/Button/Button";
-import { TextField } from "@/components/ui/TextField/TextField";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants/theme";
+import { BudgetLimitsEditor } from "@/components/budget/bento/BudgetLimitsEditor";
+import {
+  DAILY_BUDGET_PRESETS,
+  MONTHLY_BUDGET_PRESETS,
+  resolveBudgetAmountForSave,
+} from "@/components/budget/bento/budgetEditorPresets";
+import { useBudgetLimitStepControl } from "@/components/budget/bento/useBudgetLimitStepControl";
+import { colors, spacing } from "@/constants/theme";
+import type { UpsertBudgetInput } from "@/features/budgets/api/budgetsApi";
 import {
   useBudgetQuery,
   useUpsertBudgetMutation,
@@ -21,6 +25,10 @@ import type { MainStackParamList } from "@/navigation/types";
 type EditRoute = RouteProp<MainStackParamList, "EditMonthlyBudget">;
 type StackNav = NativeStackNavigationProp<MainStackParamList>;
 
+function amountsClose(a: number, b: number): boolean {
+  return Math.abs(a - b) < 0.0001;
+}
+
 export default function EditMonthlyBudgetScreen() {
   const navigation = useNavigation<StackNav>();
   const route = useRoute<EditRoute>();
@@ -29,72 +37,89 @@ export default function EditMonthlyBudgetScreen() {
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const upsertBudgetMutation = useUpsertBudgetMutation();
 
-  const existingBudget = budgetResp?.budget
+  const existingMonthly = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
     : 0;
-  const hasMonthlyBudget =
-    Number.isFinite(existingBudget) && existingBudget > 0;
-  const isEditMode = route.params?.mode === "edit" || hasMonthlyBudget;
-
-  const now = new Date();
-  const selectedYear = route.params?.selectedYear ?? now.getFullYear();
-  const selectedMonthIndex0 =
-    route.params?.selectedMonthIndex0 ?? now.getMonth();
-
-  const [monthlyBudgetText, setMonthlyBudgetText] = useState("");
-
-  useEffect(() => {
-    if (hasMonthlyBudget) {
-      setMonthlyBudgetText(String(Math.round(existingBudget)));
-      return;
-    }
-    setMonthlyBudgetText("");
-  }, [existingBudget, hasMonthlyBudget]);
-
-  const daysInMonth = getDaysInMonth(
-    new Date(selectedYear, selectedMonthIndex0, 1),
-  );
-  const dailyLimitFromText = monthlyBudgetText
-    ? Number.parseFloat(monthlyBudgetText)
+  const existingDaily = budgetResp?.budget
+    ? Number.parseFloat(budgetResp.budget.daily_budget)
     : 0;
-  const dailyLimitAmount =
-    Number.isFinite(dailyLimitFromText) && dailyLimitFromText > 0
-      ? Math.round(dailyLimitFromText / daysInMonth)
-      : 0;
-  const dailyLimitDisplay = dailyLimitAmount > 0 ? `₹${dailyLimitAmount}` : "—";
+  const hasMonthlyBudget =
+    Number.isFinite(existingMonthly) && existingMonthly > 0;
+  const hasDailyBudget = Number.isFinite(existingDaily) && existingDaily > 0;
+  const hasAnyBudget = hasMonthlyBudget || hasDailyBudget;
+  const isEditMode = route.params?.mode === "edit" || hasAnyBudget;
+
+  const dailyControl = useBudgetLimitStepControl(
+    DAILY_BUDGET_PRESETS,
+    existingDaily,
+    hasDailyBudget,
+  );
+  const monthlyControl = useBudgetLimitStepControl(
+    MONTHLY_BUDGET_PRESETS,
+    existingMonthly,
+    hasMonthlyBudget,
+  );
+
+  const savePatch = useMemo((): UpsertBudgetInput => {
+    const patch: UpsertBudgetInput = {};
+    const parsedMonthly = resolveBudgetAmountForSave(
+      monthlyControl.stepIndex,
+      monthlyControl.valueText,
+    );
+    const parsedDaily = resolveBudgetAmountForSave(
+      dailyControl.stepIndex,
+      dailyControl.valueText,
+    );
+
+    if (
+      parsedMonthly !== null &&
+      (!hasMonthlyBudget || !amountsClose(parsedMonthly, existingMonthly))
+    ) {
+      patch.monthlyAmount = parsedMonthly;
+    }
+    if (
+      parsedDaily !== null &&
+      (!hasDailyBudget || !amountsClose(parsedDaily, existingDaily))
+    ) {
+      patch.dailyAmount = parsedDaily;
+    }
+    return patch;
+  }, [
+    dailyControl.stepIndex,
+    dailyControl.valueText,
+    existingDaily,
+    existingMonthly,
+    hasDailyBudget,
+    hasMonthlyBudget,
+    monthlyControl.stepIndex,
+    monthlyControl.valueText,
+  ]);
+
+  const canSave = !isBudgetLoading && Object.keys(savePatch).length > 0;
 
   const handleSave = useCallback(() => {
-    const parsed = Number.parseFloat(monthlyBudgetText);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return;
-    }
-
-    if (hasMonthlyBudget && Math.abs(parsed - existingBudget) < 0.0001) {
+    if (Object.keys(savePatch).length === 0) {
       navigation.goBack();
       return;
     }
 
-    upsertBudgetMutation.mutate(
-      { amount: parsed },
-      {
-        onSuccess: () => {
-          showToast({ variant: "success", message: "Budget saved" });
-          navigation.goBack();
-        },
+    upsertBudgetMutation.mutate(savePatch, {
+      onSuccess: () => {
+        showToast({ variant: "success", message: "Budget saved" });
+        navigation.goBack();
       },
-    );
-  }, [
-    existingBudget,
-    hasMonthlyBudget,
-    monthlyBudgetText,
-    navigation,
-    showToast,
-    upsertBudgetMutation,
-  ]);
+    });
+  }, [navigation, savePatch, showToast, upsertBudgetMutation]);
 
   const handleCancel = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
+
+  const handleClear = useCallback(() => {
+    Keyboard.dismiss();
+    dailyControl.resetToUnset();
+    monthlyControl.resetToUnset();
+  }, [dailyControl.resetToUnset, monthlyControl.resetToUnset]);
 
   return (
     <KeyboardAwareScrollView
@@ -105,59 +130,26 @@ export default function EditMonthlyBudgetScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.editorCard}>
-        <Text style={styles.editorLabel}>
-          {isEditMode ? "Update budget" : "Monthly budget"}
-        </Text>
-        <Text style={styles.editorDescription}>
-          Set the monthly budget that works for you.
-        </Text>
-        <View style={[styles.amountShell, styles.amountShellMin]}>
-          <View style={styles.currencyPrefixWrap}>
-            <Text style={styles.currencyPrefix}>₹</Text>
-          </View>
-          <TextInput
-            style={styles.amountInput}
-            placeholder="0.00"
-            placeholderTextColor={colors.inactive}
-            keyboardType="decimal-pad"
-            value={monthlyBudgetText}
-            onChangeText={setMonthlyBudgetText}
-            underlineColorAndroid="transparent"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-          />
-        </View>
-        <View style={styles.editorActionsRow}>
-          <View style={styles.actionButtonWrap}>
-            <Button
-              title={isEditMode ? "Update" : "Save"}
-              loading={upsertBudgetMutation.isPending}
-              onPress={handleSave}
-              disabled={isBudgetLoading}
-            />
-          </View>
-          {isEditMode ? (
-            <View style={styles.actionButtonWrap}>
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={handleCancel}
-              />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.dailyLimitSection}>
-          <TextField
-            label="Daily limit"
-            value={dailyLimitDisplay}
-            editable={false}
-            showClear={false}
-          />
-        </View>
-      </View>
+      <BudgetLimitsEditor
+        isEditMode={isEditMode}
+        dailyDisplayAmount={dailyControl.displayAmount}
+        monthlyDisplayAmount={monthlyControl.displayAmount}
+        dailyIsCustom={dailyControl.isCustom}
+        monthlyIsCustom={monthlyControl.isCustom}
+        dailyValue={dailyControl.valueText}
+        monthlyValue={monthlyControl.valueText}
+        dailyStepIndex={dailyControl.stepIndex}
+        monthlyStepIndex={monthlyControl.stepIndex}
+        onDailyChange={dailyControl.onChangeText}
+        onMonthlyChange={monthlyControl.onChangeText}
+        onDailyStepChange={dailyControl.selectStep}
+        onMonthlyStepChange={monthlyControl.selectStep}
+        onSave={handleSave}
+        onClear={handleClear}
+        onCancel={handleCancel}
+        saveDisabled={!canSave || upsertBudgetMutation.isPending}
+        saveLoading={upsertBudgetMutation.isPending}
+      />
     </KeyboardAwareScrollView>
   );
 }
@@ -170,90 +162,5 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-  },
-  editorCard: {
-    padding: spacing.lg,
-    borderRadius: 20,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  editorLabel: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  editorDescription: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
-    fontFamily: typography.screenSubtitle.fontFamily,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  editorActionsRow: {
-    marginTop: spacing.md,
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  actionButtonWrap: {
-    flex: 1,
-  },
-  dailyLimitSection: {
-    marginTop: spacing.md,
-  },
-  amountShell: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
-  },
-  amountShellMin: {
-    minHeight: 52,
-  },
-  currencyPrefixWrap: {
-    marginRight: spacing.xs,
-    justifyContent: "center",
-    ...Platform.select({
-      android: { height: 26 },
-    }),
-  },
-  currencyPrefix: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    ...Platform.select({
-      android: {
-        includeFontPadding: false,
-        lineHeight: 26,
-      },
-      default: {
-        lineHeight: 30,
-      },
-    }),
-  },
-  amountInput: {
-    flex: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    padding: 0,
-    margin: 0,
-    ...Platform.select({
-      android: {
-        height: "100%",
-        paddingVertical: 0,
-        includeFontPadding: false,
-        textAlignVertical: "center",
-        lineHeight: 26,
-      },
-      ios: {
-        lineHeight: 30,
-        paddingVertical: 2,
-      },
-    }),
   },
 });

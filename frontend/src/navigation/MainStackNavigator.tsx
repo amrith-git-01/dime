@@ -164,7 +164,9 @@ export default function MainStackNavigator() {
           options={({ route }) => ({
             headerShown: true,
             title:
-              route.params?.mode === "edit" ? "Update budget" : "Monthly budget",
+              route.params?.mode === "edit"
+                ? "Update budget limits"
+                : "Budget limits",
             headerTintColor: colors.primary,
             headerStyle: { backgroundColor: colors.pageBackground },
             headerShadowVisible: false,

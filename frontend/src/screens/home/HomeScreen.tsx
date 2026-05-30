@@ -191,6 +191,14 @@ export default memo(function HomeScreen() {
     navigation.navigate("Budgets");
   }, [navigation]);
 
+  const onAddMonthlyBudget = useCallback(() => {
+    navigation.navigate("EditMonthlyBudget", { mode: "create" });
+  }, [navigation]);
+
+  const onAddDailyBudget = useCallback(() => {
+    navigation.navigate("EditMonthlyBudget", { mode: "create" });
+  }, [navigation]);
+
   const onNavigateTransactions = useCallback(() => {
     navigation.navigate("Transactions");
   }, [navigation]);
@@ -231,8 +239,8 @@ export default memo(function HomeScreen() {
           dailySubtext={dailySubtext}
           monthlySubtext={monthlySubtext}
           monthlyProgress={monthlyProgress}
-          showMonthlyRing={hasMonthlyBudget && hasSpentMonth}
-          hasBudget={hasBudget}
+          hasMonthlyBudget={hasMonthlyBudget}
+          hasDailyBudget={hasDailyBudget}
           last7DaysSpend={last7DaysSpend}
           creditedDisplay={creditedDisplay}
           debitedDisplay={debitedDisplay}
@@ -244,6 +252,8 @@ export default memo(function HomeScreen() {
           recentTransactions={recentTransactions}
           showRecentEmpty={showRecentEmpty}
           onNavigateBudgets={onNavigateBudgets}
+          onAddMonthlyBudget={onAddMonthlyBudget}
+          onAddDailyBudget={onAddDailyBudget}
           onNavigateTransactions={onNavigateTransactions}
           onTransactionPress={onTransactionPress}
           onManualAdd={onManualAdd}
