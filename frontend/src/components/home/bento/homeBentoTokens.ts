@@ -1,9 +1,9 @@
 import { spacing } from "@/constants/theme";
 
-/** Spend row: today ~40%, month ~60%. */
+/** Spend row: today ~45%, month ~55%. */
 export const HOME_SPEND_FLEX = {
-  today: 40,
-  month: 60,
+  today: 45,
+  month: 55,
 } as const;
 
 /** Gap between sibling bento tiles (spend row, category grid, recent stack). */

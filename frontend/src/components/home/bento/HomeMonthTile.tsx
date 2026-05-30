@@ -16,10 +16,9 @@ type HomeMonthTileProps = {
   spentAmount: string;
   subtext: string;
   monthlyProgress: number;
-  showRing: boolean;
-  hasBudget: boolean;
+  hasMonthlyBudget: boolean;
   isLoading: boolean;
-  onNavigateBudgets: () => void;
+  onAddMonthlyBudget: () => void;
 };
 
 /**
@@ -30,10 +29,9 @@ export const HomeMonthTile = memo(function HomeMonthTile({
   spentAmount,
   subtext,
   monthlyProgress,
-  showRing,
-  hasBudget,
+  hasMonthlyBudget,
   isLoading,
-  onNavigateBudgets,
+  onAddMonthlyBudget,
 }: HomeMonthTileProps) {
   return (
     <View
@@ -61,7 +59,7 @@ export const HomeMonthTile = memo(function HomeMonthTile({
         variant="onPastel"
       />
 
-      {showRing ? (
+      {!isLoading ? (
         <View style={styles.ringWrap} pointerEvents="none">
           <BentoProgressRing
             progress={monthlyProgress}
@@ -80,10 +78,11 @@ export const HomeMonthTile = memo(function HomeMonthTile({
           <Text style={styles.subtext} numberOfLines={2}>
             {subtext}
           </Text>
-        ) : !isLoading && !hasBudget ? (
+        ) : !isLoading && !hasMonthlyBudget ? (
           <Pressable
             accessibilityRole="button"
-            onPress={onNavigateBudgets}
+            accessibilityLabel="Add monthly budget"
+            onPress={onAddMonthlyBudget}
             style={styles.ctaWrap}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >

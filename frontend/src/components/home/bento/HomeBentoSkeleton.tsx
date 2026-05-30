@@ -16,7 +16,7 @@ import {
 
 /**
  * Shape-matched loading skeleton for the bento Home layout.
- * Mirrors exact geometry: spend row 37/63 split, income bar, 2×2 category grid, 3 recent tiles.
+ * Mirrors exact geometry: spend row 45/55 split, income bar, 2×2 category grid, 3 recent tiles.
  * Colored tiles use onPrimary tone (white shimmer on hued bg).
  * White card tiles use surface tone.
  */
