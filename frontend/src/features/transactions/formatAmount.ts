@@ -54,3 +54,28 @@ export function formatInrDebitCompact(amount: string | number): string {
   }).format(Math.abs(n));
   return `-${formatInrWithSymbol(formatted)}`;
 }
+
+/**
+ * Hero / tile amount: magnitude only (no leading minus), compact whole rupees.
+ * Used on Home and Transactions screens for spend display values.
+ */
+export function formatSpendMagnitude(amount: string | number): string {
+  const n = typeof amount === "string" ? Number.parseFloat(amount) : amount;
+  if (!Number.isFinite(n)) {
+    return formatInrCompact(0);
+  }
+  return formatInrCompact(Math.abs(n));
+}
+
+/**
+ * Net cash-flow display: signed compact ("+₹ 1,200" or "-₹ 800").
+ * Positive values get "+", negatives get "-".
+ */
+export function formatNetDisplay(net: string | number): string {
+  const n = typeof net === "string" ? Number.parseFloat(net) : net;
+  if (!Number.isFinite(n)) {
+    return formatInrCompact(0);
+  }
+  const sign = n >= 0 ? "+" : "-";
+  return `${sign}${formatInrCompact(Math.abs(n))}`;
+}

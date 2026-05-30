@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/Button/Button";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
+import { SegmentChip } from "@/components/ui/SegmentChip/SegmentChip";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { CategoryPill } from "@/components/categories/CategoryPill";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
 import { colors, spacing, surfaces } from "@/constants/theme";
 import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
@@ -25,7 +26,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react-native";
-import { memo, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -353,80 +354,6 @@ export default function ManualAddTransactionScreen() {
   );
 }
 
-type SegmentChipProps = {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-const SegmentChip = memo(function SegmentChip({
-  label,
-  selected,
-  onPress,
-}: SegmentChipProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.segmentChip,
-        selected && styles.segmentChipSelected,
-        pressed && styles.segmentChipPressed,
-      ]}
-    >
-      <Text
-        style={[styles.segmentChipText, selected && styles.segmentChipTextOn]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-});
-
-type CategoryPillProps = {
-  label: string;
-  iconName: string;
-  iconColor: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-const CategoryPill = memo(function CategoryPill({
-  label,
-  iconName,
-  iconColor,
-  selected,
-  onPress,
-}: CategoryPillProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.categoryPill,
-        selected && styles.categoryPillSelected,
-        pressed && styles.categoryPillPressed,
-      ]}
-    >
-      <CategoryLucideIcon
-        iconName={iconName}
-        color={iconColor}
-        size={16}
-        strokeWidth={1.5}
-      />
-      <Text
-        style={[
-          styles.categoryPillLabel,
-          selected && styles.categoryPillLabelOn,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-});
 
 const styles = StyleSheet.create({
   fieldBlock: {
@@ -461,37 +388,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
-  },
-  categoryPill: {
-    maxWidth: "100%",
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  categoryPillSelected: {
-    borderColor: colors.primary,
-    backgroundColor: surfaces.primaryTint10,
-  },
-  categoryPillPressed: {
-    opacity: 0.92,
-  },
-  categoryPillLabel: {
-    flexShrink: 0,
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  categoryPillLabelOn: {
-    color: colors.textPrimary,
   },
   amountShellMin: {
     minHeight: 52,
@@ -542,33 +438,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginBottom: spacing.xl,
-  },
-  segmentChip: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-  },
-  segmentChipSelected: {
-    backgroundColor: surfaces.primaryTint10,
-    borderColor: colors.primary,
-  },
-  segmentChipPressed: {
-    opacity: 0.92,
-  },
-  segmentChipText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  segmentChipTextOn: {
-    color: colors.textPrimary,
   },
   dateLabel: {
     marginBottom: spacing.sm,
