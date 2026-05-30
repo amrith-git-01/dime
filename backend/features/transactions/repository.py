@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 # No PostgREST embed: category_id may point at system or user_categories (no single FK).
 # TransactionService enriches name/icon/color after fetch.
 _LIST_SELECT = (
-    "id,user_id,amount,type,counterparty_name,counterparty_type,"
-    "category_id,detected_via,transaction_at,created_at,updated_at"
+    "id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,"
+    "category_id,note,detected_via,receipt_url,voice_url,"
+    "transaction_at,created_at,updated_at"
 )
 _DETAIL_SELECT = "*"
 _AGGREGATE_SELECT = "amount,type,category_id"
