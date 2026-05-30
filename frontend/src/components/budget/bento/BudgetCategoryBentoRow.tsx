@@ -2,7 +2,8 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { colors, spacing, typography } from "@/constants/theme";
+import { fontFamilies } from "@/constants/fonts";
+import { colors, spacing } from "@/constants/theme";
 import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
 import { formatInrCompact } from "@/features/transactions/formatAmount";
 
@@ -15,19 +16,22 @@ export type BudgetCategoryRowData = {
   is_system: boolean;
 };
 
-type BudgetCategoryRowProps = {
+type BudgetCategoryBentoRowProps = {
   item: BudgetCategoryRowData;
   hasMonthlyBudget: boolean;
   monthlyBudgetAmount: number;
+  /** When true, category name wraps instead of truncating (e.g. custom-category preview). */
+  nameWraps?: boolean;
 };
 
 function budgetCategoryRowPropsAreEqual(
-  prev: BudgetCategoryRowProps,
-  next: BudgetCategoryRowProps,
+  prev: BudgetCategoryBentoRowProps,
+  next: BudgetCategoryBentoRowProps,
 ): boolean {
   const prevItem = prev.item;
   const nextItem = next.item;
   return (
+    prev.nameWraps === next.nameWraps &&
     prev.hasMonthlyBudget === next.hasMonthlyBudget &&
     prev.monthlyBudgetAmount === next.monthlyBudgetAmount &&
     prevItem.id === nextItem.id &&
@@ -39,11 +43,12 @@ function budgetCategoryRowPropsAreEqual(
   );
 }
 
-export const BudgetCategoryRow = memo(function BudgetCategoryRow({
+export const BudgetCategoryBentoRow = memo(function BudgetCategoryBentoRow({
   item,
   hasMonthlyBudget,
   monthlyBudgetAmount,
-}: BudgetCategoryRowProps) {
+  nameWraps = false,
+}: BudgetCategoryBentoRowProps) {
   const shareOfMonthlyCap =
     hasMonthlyBudget && monthlyBudgetAmount > 0
       ? Math.min(1, item.spentMonth / monthlyBudgetAmount)
@@ -62,7 +67,10 @@ export const BudgetCategoryRow = memo(function BudgetCategoryRow({
         </View>
         <View style={styles.catMeta}>
           <View style={styles.catNameRow}>
-            <Text style={styles.catName} numberOfLines={1}>
+            <Text
+              style={styles.catName}
+              numberOfLines={nameWraps ? undefined : 1}
+            >
               {item.name}
             </Text>
             {!item.is_system ? (
@@ -124,8 +132,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   catName: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
+    fontFamily: fontFamilies.medium,
     fontSize: 15,
+    lineHeight: 20,
     color: colors.textPrimary,
     flexShrink: 1,
   },
@@ -137,14 +146,15 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   customPillText: {
-    fontFamily: typography.screenSubtitle.fontFamily,
+    fontFamily: fontFamilies.regular,
     fontSize: 10,
     lineHeight: 12,
     color: colors.textSecondary,
   },
   catBudgetText: {
-    fontFamily: typography.screenSubtitle.fontFamily,
+    fontFamily: fontFamilies.regular,
     fontSize: 12,
+    lineHeight: 16,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
@@ -153,8 +163,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   catSpent: {
-    fontFamily: typography.monoEmphasis.fontFamily,
+    fontFamily: fontFamilies.monoSemiBold,
     fontSize: 15,
+    lineHeight: 21,
     color: colors.textPrimary,
   },
   catProgressWrap: {

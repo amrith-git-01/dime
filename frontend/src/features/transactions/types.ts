@@ -49,9 +49,16 @@ export type TopCategoryHome = {
   total: string;
 };
 
+export type DailySpendDay = {
+  date: string;
+  total: string;
+};
+
 export type HomeOverview = {
   spent_today: string;
   spent_this_month: string;
   top_categories: TopCategoryHome[];
   recent_transactions: TransactionRow[];
+  /** Present once home API includes daily spend series. */
+  last_7_days_spend?: DailySpendDay[];
 };

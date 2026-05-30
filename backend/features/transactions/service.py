@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -13,6 +14,7 @@ from core.async_utils import run_sync
 from core.security import CurrentUser
 from features.transactions.repository import TransactionRepository
 from features.transactions.schemas import (
+    DailySpendRow,
     HomeOverviewResponse,
     MonthSummaryResponse,
     TopCategoryRow,
@@ -22,7 +24,9 @@ from features.transactions.schemas import (
 )
 from features.transactions.time_bounds import (
     current_month_bounds_iso,
+    last_n_days_bounds_iso,
     month_bounds_iso,
+    parse_tz,
     today_bounds_iso,
 )
 
@@ -66,6 +70,43 @@ def _debit_by_category_from_amount_rows(rows: list[dict[str, Any]]) -> dict[str,
 
 def _format_debit_by_category(totals: dict[str, Decimal]) -> dict[str, str]:
     return {key: format(amount, "f") for key, amount in totals.items()}
+
+
+def _bucket_daily_debits(
+    rows: list[dict[str, Any]],
+    *,
+    tz_name: str,
+    days: int,
+) -> list[DailySpendRow]:
+    """Aggregate debit rows into ``days`` calendar buckets ending today (oldest first)."""
+    tz = parse_tz(tz_name)
+    today = datetime.now(tz).date()
+    totals: dict[str, Decimal] = {}
+
+    for row in rows:
+        if row.get("type") != "debit":
+            continue
+        raw_at = row.get("transaction_at")
+        if not isinstance(raw_at, str) or not raw_at.strip():
+            continue
+        try:
+            tx_dt = datetime.fromisoformat(raw_at.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if tx_dt.tzinfo is None:
+            tx_dt = tx_dt.replace(tzinfo=tz)
+        day_key = tx_dt.astimezone(tz).date().isoformat()
+        amt = _to_decimal(row.get("amount", "0"))
+        totals[day_key] = totals.get(day_key, Decimal("0")) + amt
+
+    result: list[DailySpendRow] = []
+    for offset in range(days - 1, -1, -1):
+        day = today - timedelta(days=offset)
+        key = day.isoformat()
+        result.append(
+            DailySpendRow(date=key, total=format(totals.get(key, Decimal("0")), "f"))
+        )
+    return result
 
 
 def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
@@ -196,9 +237,10 @@ class TransactionService:
         """Home dashboard aggregates — parallel Supabase round-trips (audit 4.2)."""
         t_start, t_end = today_bounds_iso(timezone)
         m_start, m_end = current_month_bounds_iso(timezone)
+        w_start, w_end = last_n_days_bounds_iso(7, timezone)
         user_id = user.id
 
-        today_blob, month_blob, recent_page = await asyncio.gather(
+        today_blob, month_blob, recent_page, week_rows = await asyncio.gather(
             run_sync(
                 self._repo.fetch_transactions_period_summary,
                 user_id,
@@ -218,6 +260,12 @@ class TransactionService:
                 to_iso=None,
                 limit=5,
                 offset=0,
+            ),
+            run_sync(
+                self._repo.iter_amount_type_at,
+                user_id,
+                from_iso=w_start,
+                to_iso=w_end,
             ),
         )
         recent_raw, _ = recent_page
@@ -323,12 +371,14 @@ class TransactionService:
         recent_transactions = [
             TransactionResponse.model_validate(row) for row in enriched_recent
         ]
+        last_7_days_spend = _bucket_daily_debits(week_rows, tz_name=timezone, days=7)
 
         return HomeOverviewResponse(
             spent_today=format(spent_today, "f"),
             spent_this_month=format(spent_month, "f"),
             top_categories=top_categories,
             recent_transactions=recent_transactions,
+            last_7_days_spend=last_7_days_spend,
         )
 
     def _normalize_counterparty(self, raw: str) -> str | None:

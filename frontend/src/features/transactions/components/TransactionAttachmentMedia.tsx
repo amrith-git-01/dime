@@ -1,29 +1,75 @@
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Image } from "expo-image";
-import { Pause, Play } from "lucide-react-native";
-import { useCallback } from "react";
+import { ChevronRight, Images, Pause, Play } from "lucide-react-native";
+import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, radius, spacing } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
+import { ReceiptImageViewer } from "./ReceiptImageViewer";
+
 const CARD_RADIUS = 14;
+const THUMB_SIZE = 56;
 
 type TransactionReceiptImageProps = {
   url: string;
 };
 
 export function TransactionReceiptImage({ url }: TransactionReceiptImageProps) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  const openViewer = useCallback(() => {
+    void triggerLightHaptic();
+    setViewerOpen(true);
+  }, []);
+
+  const closeViewer = useCallback(() => {
+    void triggerLightHaptic();
+    setViewerOpen(false);
+  }, []);
+
   return (
-    <View style={styles.mediaCard}>
-      <Image
-        source={{ uri: url }}
-        style={styles.receiptImage}
-        contentFit="contain"
-        accessibilityLabel="Receipt image"
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="View receipt photo"
+        onPress={openViewer}
+        style={({ pressed }) => [
+          styles.mediaCard,
+          styles.receiptRow,
+          pressed && styles.receiptRowPressed,
+        ]}
+      >
+        <View style={styles.thumbShell}>
+          <Image
+            source={{ uri: url }}
+            style={styles.thumbImage}
+            contentFit="cover"
+            accessibilityIgnoresInvertColors
+          />
+          <View style={styles.thumbIconBadge}>
+            <Images
+              size={16}
+              color={colors.headerGradientStart}
+              strokeWidth={1.75}
+            />
+          </View>
+        </View>
+        <View style={styles.receiptMeta}>
+          <Text style={styles.receiptTitle}>Receipt photo</Text>
+          <Text style={styles.receiptHint}>Tap to view</Text>
+        </View>
+        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+      </Pressable>
+
+      <ReceiptImageViewer
+        url={url}
+        visible={viewerOpen}
+        onClose={closeViewer}
       />
-    </View>
+    </>
   );
 }
 
@@ -112,10 +158,56 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
   },
-  receiptImage: {
-    width: "100%",
-    height: 220,
+  receiptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  receiptRowPressed: {
+    opacity: 0.92,
+  },
+  thumbShell: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: radius.md,
+    overflow: "hidden",
     backgroundColor: colors.pageBackground,
+    flexShrink: 0,
+  },
+  thumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbIconBadge: {
+    position: "absolute",
+    right: 4,
+    bottom: 4,
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  receiptMeta: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  receiptTitle: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.textPrimary,
+  },
+  receiptHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
   },
   voiceRow: {
     flexDirection: "row",

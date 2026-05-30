@@ -1,0 +1,143 @@
+import { memo, useCallback } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { fontFamilies } from "@/constants/fonts";
+import { colors, radius, spacing } from "@/constants/theme";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import {
+  formatTransactionListAmount,
+  mapTransactionRowToUi,
+} from "@/features/transactions/components/transactionListShared";
+import type { TransactionRow } from "@/features/transactions/types";
+
+import { HOME_RECENT_TILE_MIN_HEIGHT } from "./homeBentoTokens";
+
+type BentoTransactionTileProps = {
+  transaction: TransactionRow;
+  onPress: (tx: TransactionRow) => void;
+};
+
+/**
+ * Mini-bento tile for recent transactions.
+ * Pastel background from category tint (10% alpha hex) — list order, bento styling.
+ * Design-system §3.5.
+ */
+export const BentoTransactionTile = memo(function BentoTransactionTile({
+  transaction,
+  onPress,
+}: BentoTransactionTileProps) {
+  const ui = mapTransactionRowToUi(transaction);
+  const isCredit = ui.amount > 0;
+  const handlePress = useCallback(
+    () => onPress(transaction),
+    [onPress, transaction],
+  );
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.tile,
+        txShadowStyle,
+        pressed && styles.pressed,
+      ]}
+    >
+      {/* Category icon */}
+      <View style={[styles.iconWrap, { borderColor: ui.category.borderColor }]}>
+        <CategoryLucideIcon
+          iconName={ui.category.icon_name}
+          color={ui.category.color}
+          size={18}
+          strokeWidth={1.5}
+        />
+      </View>
+
+      {/* Merchant + time */}
+      <View style={styles.textCol}>
+        <Text style={styles.merchant} numberOfLines={1}>
+          {ui.merchant}
+        </Text>
+        <Text style={styles.time} numberOfLines={1}>
+          {ui.category.name} · {ui.timeLabel}
+        </Text>
+      </View>
+
+      {/* Signed amount — green credit, red debit */}
+      <Text
+        style={[
+          styles.amount,
+          isCredit ? styles.amountCredit : styles.amountDebit,
+        ]}
+        numberOfLines={1}
+      >
+        {formatTransactionListAmount(ui.amount)}
+      </Text>
+    </Pressable>
+  );
+});
+
+const txShadowStyle = Platform.select({
+  android: { elevation: 1 },
+  default: {
+    shadowColor: colors.shadowBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+  },
+});
+
+const styles = StyleSheet.create({
+  tile: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: HOME_RECENT_TILE_MIN_HEIGHT,
+    gap: spacing.sm,
+    backgroundColor: "#FFFFFF",
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.99 }],
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.55)",
+    flexShrink: 0,
+  },
+  textCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  merchant: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textListPrimary,
+  },
+  time: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textListSecondary,
+  },
+  amount: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 0,
+  },
+  amountCredit: {
+    color: colors.success,
+  },
+  amountDebit: {
+    color: colors.danger,
+  },
+});

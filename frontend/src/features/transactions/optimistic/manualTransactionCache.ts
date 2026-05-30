@@ -86,7 +86,21 @@ function patchHomeOverviewSpentTotals(
     spent_this_month = addDebitToTotalString(spent_this_month, amount);
   }
 
-  return { ...prev, spent_today, spent_this_month };
+  const last_7_days_spend =
+    prev.last_7_days_spend?.length === 7
+      ? prev.last_7_days_spend.map((day) =>
+          day.date === txDayKey
+            ? { ...day, total: addDebitToTotalString(day.total, amount) }
+            : day,
+        )
+      : prev.last_7_days_spend;
+
+  return {
+    ...prev,
+    spent_today,
+    spent_this_month,
+    ...(last_7_days_spend ? { last_7_days_spend } : {}),
+  };
 }
 
 export function applyOptimisticManualTransaction(

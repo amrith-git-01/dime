@@ -1,3 +1,22 @@
+import { Button } from "@/components/ui/Button/Button";
+import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
+import { TextField } from "@/components/ui/TextField/TextField";
+import { fontFamilies } from "@/constants/fonts";
+import { formStyles } from "@/constants/formStyles";
+import { colors, spacing, surfaces } from "@/constants/theme";
+import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
+import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
+import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { useToast } from "@/features/toast/useToast";
+import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
+import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
+import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
+import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
+import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
+import { useSessionUserId } from "@/hooks/useSessionUserId";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import type { MainStackParamList } from "@/navigation/types";
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
@@ -18,28 +37,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { Button } from "@/components/ui/Button/Button";
-import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
-import { TextField } from "@/components/ui/TextField/TextField";
-import { fontFamilies } from "@/constants/fonts";
-import { formStyles } from "@/constants/formStyles";
-import { colors, spacing, surfaces } from "@/constants/theme";
-import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
-import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
-import { useToast } from "@/features/toast/useToast";
-import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
-import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
-import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
-import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
-import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
-import { useSessionUserId } from "@/hooks/useSessionUserId";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
-import type { MainStackParamList } from "@/navigation/types";
 
 type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
 
@@ -47,7 +44,6 @@ export default function ManualAddTransactionScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const route = useRoute<ManualAddRoute>();
-  const insets = useSafeAreaInsets();
   const { userId, authReady } = useSessionUserId();
   const submitMutation = useSubmitManualTransactionMutation();
   const { showToast } = useToast();
@@ -202,16 +198,7 @@ export default function ManualAddTransactionScreen() {
   }, [form.setTxType]);
 
   return (
-    <KeyboardAwareScrollView
-      style={styles.screen}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      bottomOffset={24}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingBottom: spacing.xl + insets.bottom },
-      ]}
-    >
+    <View>
       <View style={styles.fieldBlock}>
         <Text style={formStyles.fieldLabel}>Amount</Text>
         <View
@@ -362,7 +349,7 @@ export default function ManualAddTransactionScreen() {
         />
         <Button variant="secondary" title="Cancel" onPress={leave} />
       </View>
-    </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -442,15 +429,6 @@ const CategoryPill = memo(function CategoryPill({
 });
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
   fieldBlock: {
     marginBottom: spacing.xl,
   },

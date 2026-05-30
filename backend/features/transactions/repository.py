@@ -15,11 +15,13 @@ logger = logging.getLogger(__name__)
 # No PostgREST embed: category_id may point at system or user_categories (no single FK).
 # TransactionService enriches name/icon/color after fetch.
 _LIST_SELECT = (
-    "id,user_id,amount,type,counterparty_name,counterparty_type,"
-    "category_id,detected_via,transaction_at,created_at,updated_at"
+    "id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,"
+    "category_id,note,detected_via,receipt_url,voice_url,"
+    "transaction_at,created_at,updated_at"
 )
 _DETAIL_SELECT = "*"
 _AGGREGATE_SELECT = "amount,type,category_id"
+_AGGREGATE_WITH_DATE_SELECT = "amount,type,transaction_at"
 
 
 def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
@@ -139,6 +141,46 @@ class TransactionRepository:
             q = (
                 self._db.table("transactions")
                 .select(_AGGREGATE_SELECT)
+                .eq("user_id", user_id)
+                .is_("deleted_at", "null")
+            )
+            if from_iso is not None:
+                q = q.gte("transaction_at", from_iso)
+            if to_iso is not None:
+                q = q.lte("transaction_at", to_iso)
+            res = execute_with_http_retry(
+                lambda: q.order("transaction_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            data = res.data
+            if not isinstance(data, list):
+                break
+            chunk = [r for r in data if isinstance(r, dict)]
+            if not chunk:
+                break
+            all_rows.extend(chunk)
+            if len(chunk) < page_size:
+                break
+            offset += page_size
+            time.sleep(0.02)
+        return all_rows
+
+    def iter_amount_type_at(
+        self,
+        user_id: str,
+        *,
+        from_iso: str | None = None,
+        to_iso: str | None = None,
+        page_size: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Load amount, type, transaction_at for daily aggregation (paged)."""
+        all_rows: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            q = (
+                self._db.table("transactions")
+                .select(_AGGREGATE_WITH_DATE_SELECT)
                 .eq("user_id", user_id)
                 .is_("deleted_at", "null")
             )
