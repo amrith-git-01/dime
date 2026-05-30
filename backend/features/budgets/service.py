@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from calendar import monthrange
-from datetime import date
+from decimal import Decimal
 
 from supabase import Client
 
@@ -12,6 +11,11 @@ from features.budgets.repository import BudgetRepository
 from features.budgets.schemas import BudgetGetResponse, BudgetResponse, BudgetUpsertBody
 
 logger = logging.getLogger(__name__)
+
+
+def _decimal_from_row(row: dict[str, object], key: str) -> Decimal:
+    raw = row.get(key, 0)
+    return Decimal(str(raw))
 
 
 class BudgetService:
@@ -25,8 +29,18 @@ class BudgetService:
         return BudgetGetResponse(budget=BudgetResponse.model_validate(row))
 
     def upsert_budget(self, user_id: str, body: BudgetUpsertBody) -> BudgetResponse:
-        today = date.today()
-        _, days_in_month = monthrange(today.year, today.month)
-        daily_budget = body.amount / days_in_month
-        row = self._repo.upsert_monthly(user_id=user_id, amount=body.amount, daily_budget=daily_budget)
+        existing = self._repo.fetch_by_user_id(user_id)
+        monthly = _decimal_from_row(existing, "monthly_budget") if existing else Decimal(0)
+        daily = _decimal_from_row(existing, "daily_budget") if existing else Decimal(0)
+
+        if body.monthly_amount is not None:
+            monthly = body.monthly_amount
+        if body.daily_amount is not None:
+            daily = body.daily_amount
+
+        row = self._repo.upsert_budget(
+            user_id=user_id,
+            monthly_budget=monthly,
+            daily_budget=daily,
+        )
         return BudgetResponse.model_validate(row)

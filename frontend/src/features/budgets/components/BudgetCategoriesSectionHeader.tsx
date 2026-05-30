@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing, typography } from "@/constants/theme";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 type BudgetCategoriesSectionHeaderProps = {
@@ -50,19 +50,19 @@ export const BudgetCategoriesSectionHeader = memo(
 const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.lg,
   },
   sectionTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.textSecondary,
+    ...typography.sectionTitle,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   addButton: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
   },
   addButtonDisabled: {
     opacity: 0.45,

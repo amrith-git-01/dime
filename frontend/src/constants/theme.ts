@@ -86,6 +86,62 @@ export const skeleton = {
   onPrimary: "rgba(255, 255, 255, 0.24)",
 } as const;
 
+/** Home bento grid surfaces — design system §2.7 */
+export const bento = {
+  /** Soft sky pastel — month spend tile background. */
+  monthSpendSurface: "#E0F2FE",
+  /** Soft mint pastel — cash-flow tile background. */
+  incomeExpenseSurface: "#D1FAE5",
+  /** Two-tone card header — Transactions month + Budget summary (brand violet). */
+  twoToneHeaderSurface: "#EEEDFB",
+  /** Two-tone card body — stats row beneath header (clean white). */
+  twoToneBodySurface: "#FFFFFF",
+  /** Outer wrapper for section bento boxes (recent, categories). */
+  sectionSurface: "#F5F3FF",
+  surface: {
+    lavender: "#8B7FF5",
+    mint: "#4ADE80",
+    sky: "#38BDF8",
+    coral: "#FF6B6B",
+    peach: "#FB923C",
+    teal: "#4ECDC4",
+    indigo: "#818CF8",
+    rose: "#F472B6",
+  },
+  /** White type on saturated / gradient tiles (today, category cells). */
+  onSurface: {
+    primary: "#FFFFFF",
+    secondary: "rgba(255,255,255,0.85)",
+    muted: "rgba(255,255,255,0.65)",
+  },
+  /** Dark type on soft pastel tile backgrounds. */
+  onPastel: {
+    primary: colors.textPrimary,
+    secondary: colors.textSecondary,
+    muted: colors.textListSecondary,
+    accent: colors.primary,
+  },
+  chart: {
+    track: "rgba(255,255,255,0.28)",
+    fill: "#FFFFFF",
+  },
+  /** Progress ring on light pastel surfaces. */
+  chartOnPastel: {
+    track: "rgba(99, 85, 232, 0.16)",
+    fill: colors.brandPrimary,
+  },
+  icon: {
+    bg: "rgba(255,255,255,0.18)",
+    fg: "#FFFFFF",
+  },
+  /** Pastel circles for quick-add icon buttons. */
+  actionIcon: {
+    manual: "#8B7FF5",
+    receipt: "#38BDF8",
+    voice: "#4ADE80",
+  },
+} as const;
+
 /** Border radius scale — design system § Border Radius. */
 export const radius = {
   xs: 6,
@@ -238,6 +294,36 @@ export const typography = {
     fontSize: 16,
     lineHeight: 22,
     color: colors.textPrimary,
+  },
+  bentoAmountHero: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 28,
+    lineHeight: 34,
+    color: bento.onSurface.primary,
+  },
+  bentoAmount: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 22,
+    lineHeight: 28,
+    color: bento.onSurface.primary,
+  },
+  bentoAmountCompact: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 18,
+    lineHeight: 24,
+    color: bento.onSurface.primary,
+  },
+  bentoLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: bento.onSurface.secondary,
+  },
+  bentoSubtext: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: bento.onSurface.muted,
   },
   transactionList: {
     merchant: {

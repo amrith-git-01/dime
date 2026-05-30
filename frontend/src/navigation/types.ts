@@ -20,6 +20,13 @@ export type MainStackParamList = {
       }
     | undefined;
   CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  EditMonthlyBudget:
+    | {
+        mode?: "create" | "edit";
+        selectedYear?: number;
+        selectedMonthIndex0?: number;
+      }
+    | undefined;
   TransactionDetail: { transaction: TransactionRow };
 };
 

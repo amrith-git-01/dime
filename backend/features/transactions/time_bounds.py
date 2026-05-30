@@ -46,3 +46,17 @@ def current_month_bounds_iso(tz_name: str) -> tuple[str, str]:
     tz = parse_tz(tz_name)
     now = datetime.now(tz)
     return month_bounds_iso(now.year, now.month, tz_name)
+
+
+def last_n_days_bounds_iso(n: int, tz_name: str) -> tuple[str, str]:
+    """Inclusive calendar-day window ending today in ``tz_name`` (``n`` >= 1)."""
+    if n < 1:
+        msg = "Day count must be at least 1"
+        raise ValueError(msg)
+    tz = parse_tz(tz_name)
+    now = datetime.now(tz)
+    end_day = now.date()
+    start_day = end_day - timedelta(days=n - 1)
+    start = datetime.combine(start_day, time.min, tzinfo=tz)
+    end = datetime.combine(end_day, time.max, tzinfo=tz)
+    return start.isoformat(), end.isoformat()

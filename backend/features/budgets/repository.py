@@ -27,10 +27,16 @@ class BudgetRepository:
         data = res.data
         return data if isinstance(data, dict) else None
 
-    def upsert_monthly(self, *, user_id: str, amount: Decimal, daily_budget: Decimal) -> dict[str, Any]:
+    def upsert_budget(
+        self,
+        *,
+        user_id: str,
+        monthly_budget: Decimal,
+        daily_budget: Decimal,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "user_id": user_id,
-            "monthly_budget": str(amount),
+            "monthly_budget": str(monthly_budget),
             "daily_budget": str(daily_budget),
         }
         self._db.table("budgets").upsert(payload, on_conflict="user_id").execute()

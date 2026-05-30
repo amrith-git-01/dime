@@ -19,6 +19,7 @@ export {
   timings,
 } from "./motion";
 export {
+  bento,
   colors,
   hero,
   layout,
