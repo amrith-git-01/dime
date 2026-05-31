@@ -1,16 +1,10 @@
-import { Button } from "@/components/ui/Button/Button";
-import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
-import { SegmentChip } from "@/components/ui/SegmentChip/SegmentChip";
-import { TextField } from "@/components/ui/TextField/TextField";
-import { CategoryPill } from "@/components/categories/CategoryPill";
-import { fontFamilies } from "@/constants/fonts";
-import { formStyles } from "@/constants/formStyles";
-import { colors, spacing, surfaces } from "@/constants/theme";
-import { AddCategoryTrigger } from "@/features/categories/components/AddCategoryTrigger";
+import { ManualAddTransactionEditor } from "@/components/transactions/bento/ManualAddTransactionEditor";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import {
+  useLocalCategories,
+  type LocalCategory,
+} from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
-import { COUNTERPARTY_TYPE_OPTIONS } from "@/features/transactions/counterpartyTypes";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
@@ -18,26 +12,12 @@ import { findIncomeCategory } from "@/features/transactions/utils/manualAddCateg
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
-import DateTimePicker, {
-  DateTimePickerAndroid,
-} from "@react-native-community/datetimepicker";
+import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { format } from "date-fns";
-import { ChevronRight } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Keyboard, Platform } from "react-native";
 
 type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
 
@@ -105,11 +85,13 @@ export default function ManualAddTransactionScreen() {
     showToast,
   ]);
 
-  const leave = useCallback(() => {
+  const handleClear = useCallback(() => {
     void triggerLightHaptic();
     Keyboard.dismiss();
-    navigation.goBack();
-  }, [navigation]);
+    form.reset();
+    resetUiState();
+    submitMutation.reset();
+  }, [form.reset, resetUiState, submitMutation]);
 
   const openAndroidDatePicker = useCallback(() => {
     void triggerLightHaptic();
@@ -186,8 +168,6 @@ export default function ManualAddTransactionScreen() {
     userId,
   ]);
 
-  const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
-
   const setExpenseType = useCallback(() => {
     void triggerLightHaptic();
     form.setTxType("debit");
@@ -198,277 +178,59 @@ export default function ManualAddTransactionScreen() {
     form.setTxType("credit");
   }, [form.setTxType]);
 
+  const handleCategoryPress = useCallback(
+    (category: LocalCategory, selected: boolean) => {
+      void triggerLightHaptic();
+      if (selected) {
+        form.clearCategory();
+        return;
+      }
+      form.selectCategory(category.id, category.name);
+    },
+    [form.clearCategory, form.selectCategory],
+  );
+
+  const handleIosDateChange = useCallback(
+    (date: Date | undefined) => {
+      setIosPickerVisible(false);
+      if (date) {
+        form.setTransactionAt(date);
+      }
+    },
+    [form.setTransactionAt],
+  );
+
   return (
-    <View>
-      <View style={styles.fieldBlock}>
-        <Text style={formStyles.fieldLabel}>Amount</Text>
-        <View
-          style={[
-            formStyles.fieldShell,
-            styles.amountShellMin,
-            amountFocused && formStyles.fieldShellFocused,
-          ]}
-        >
-          <View style={styles.currencyPrefixWrap}>
-            <Text style={styles.currencyPrefix}>₹</Text>
-          </View>
-          <TextInput
-            style={styles.amountInput}
-            placeholder="0.00"
-            placeholderTextColor={colors.inactive}
-            keyboardType="decimal-pad"
-            value={form.amountText}
-            onChangeText={form.setAmountText}
-            onFocus={() => setAmountFocused(true)}
-            onBlur={() => setAmountFocused(false)}
-            underlineColorAndroid="transparent"
-          />
-        </View>
-      </View>
-
-      <Text style={[formStyles.fieldLabel, styles.segmentLabel]}>Type</Text>
-      <View style={styles.segmentRow}>
-        <SegmentChip
-          label="Expense"
-          selected={form.txType === "debit"}
-          onPress={setExpenseType}
-        />
-        <SegmentChip
-          label="Income"
-          selected={form.txType === "credit"}
-          onPress={setIncomeType}
-        />
-      </View>
-
-      <View style={styles.fieldBlock}>
-        <SelectDropdown
-          label="Counterparty type"
-          options={COUNTERPARTY_TYPE_OPTIONS}
-          value={form.counterpartyType}
-          onChange={form.setCounterpartyType}
-          placeholder="Select type"
-        />
-      </View>
-
-      <View style={styles.fieldBlock}>
-        <TextField
-          label="Counterparty name"
-          placeholder="Who or what was this for?"
-          value={form.counterpartyName}
-          onChangeText={form.setCounterpartyName}
-        />
-      </View>
-
-      <View style={styles.fieldBlock}>
-        <View style={styles.labelRow}>
-          <Text style={formStyles.fieldLabel}>Category</Text>
-          {optionalTag}
-        </View>
-        {categoriesLoading ? (
-          <View style={styles.categoriesLoading}>
-            <ActivityIndicator color={colors.headerGradientStart} />
-          </View>
-        ) : (
-          <View style={styles.categoryGrid}>
-            {visibleCategories.map((category) => {
-              const selected = form.categoryId === category.id;
-              return (
-                <CategoryPill
-                  key={category.id}
-                  label={category.name}
-                  iconName={category.icon_name}
-                  iconColor={category.color}
-                  selected={selected}
-                  onPress={() => {
-                    void triggerLightHaptic();
-                    if (selected) {
-                      form.clearCategory();
-                      return;
-                    }
-                    form.selectCategory(category.id, category.name);
-                  }}
-                />
-              );
-            })}
-            <AddCategoryTrigger
-              disabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
-              onPress={openCreateCustomCategory}
-            />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.fieldBlock}>
-        <TextField
-          label="Note"
-          labelRight={optionalTag}
-          placeholder="Add a short note"
-          value={form.note}
-          onChangeText={form.setNote}
-        />
-      </View>
-
-      <Text style={[formStyles.fieldLabel, styles.dateLabel]}>Date</Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onDateRowPress}
-        style={({ pressed }) => [
-          styles.dateRow,
-          pressed && styles.dateRowPressed,
-        ]}
-      >
-        <Text style={styles.dateValue}>
-          {format(form.transactionAt, "MMM d, yyyy")}
-        </Text>
-        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
-      </Pressable>
-
-      {iosPickerVisible ? (
-        <View style={styles.iosPickerWrap}>
-          <DateTimePicker
-            value={form.transactionAt}
-            mode="date"
-            display="compact"
-            themeVariant="light"
-            onChange={(_e, date) => {
-              setIosPickerVisible(false);
-              if (date) {
-                form.setTransactionAt(date);
-              }
-            }}
-          />
-        </View>
-      ) : null}
-
-      <View style={styles.footerActions}>
-        <Button
-          title="Save"
-          loading={submitMutation.isPending}
-          onPress={() => {
-            void onSave();
-          }}
-        />
-        <Button variant="secondary" title="Cancel" onPress={leave} />
-      </View>
-    </View>
+    <ManualAddTransactionEditor
+      amountText={form.amountText}
+      amountFocused={amountFocused}
+      onAmountChange={form.setAmountText}
+      onAmountFocus={() => setAmountFocused(true)}
+      onAmountBlur={() => setAmountFocused(false)}
+      txType={form.txType}
+      onSetExpense={setExpenseType}
+      onSetIncome={setIncomeType}
+      counterpartyType={form.counterpartyType}
+      onCounterpartyTypeChange={form.setCounterpartyType}
+      counterpartyName={form.counterpartyName}
+      onCounterpartyNameChange={form.setCounterpartyName}
+      categoriesLoading={categoriesLoading}
+      visibleCategories={visibleCategories}
+      categoryId={form.categoryId}
+      onCategoryPress={handleCategoryPress}
+      onAddCategory={openCreateCustomCategory}
+      addCategoryDisabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
+      note={form.note}
+      onNoteChange={form.setNote}
+      transactionAt={form.transactionAt}
+      onDatePress={onDateRowPress}
+      iosPickerVisible={iosPickerVisible}
+      onIosDateChange={handleIosDateChange}
+      saveLoading={submitMutation.isPending}
+      onSave={() => {
+        void onSave();
+      }}
+      onClear={handleClear}
+    />
   );
 }
-
-
-const styles = StyleSheet.create({
-  fieldBlock: {
-    marginBottom: spacing.xl,
-  },
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  segmentLabel: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  optionalHint: {
-    fontFamily: fontFamilies.regular,
-    color: colors.inactive,
-    fontSize: 12,
-  },
-  categoriesLoading: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.pageBackground,
-  },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  amountShellMin: {
-    minHeight: 52,
-  },
-  currencyPrefixWrap: {
-    marginRight: spacing.xs,
-    justifyContent: "center",
-    ...Platform.select({
-      android: { height: 26 },
-    }),
-  },
-  currencyPrefix: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    ...Platform.select({
-      android: {
-        includeFontPadding: false,
-        lineHeight: 26,
-      },
-      default: {
-        lineHeight: 30,
-      },
-    }),
-  },
-  amountInput: {
-    flex: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: colors.textPrimary,
-    padding: 0,
-    margin: 0,
-    ...Platform.select({
-      android: {
-        height: "100%",
-        paddingVertical: 0,
-        includeFontPadding: false,
-        textAlignVertical: "center",
-        lineHeight: 26,
-      },
-      ios: {
-        lineHeight: 30,
-        paddingVertical: 2,
-      },
-    }),
-  },
-  segmentRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  dateLabel: {
-    marginBottom: spacing.sm,
-  },
-  dateRow: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
-    backgroundColor: colors.barBackground,
-  },
-  dateRowPressed: {
-    backgroundColor: colors.pageBackground,
-  },
-  dateValue: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  footerActions: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  iosPickerWrap: {
-    marginBottom: spacing.md,
-    alignItems: "flex-start",
-  },
-});
