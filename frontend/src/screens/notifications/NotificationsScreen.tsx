@@ -4,10 +4,10 @@ import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento";
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
-import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SettingsSection } from "@/features/settings/components";
 import { TwoToneEmptyState } from "@/components/shared";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";

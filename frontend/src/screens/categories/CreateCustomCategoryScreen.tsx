@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useState } from "react";
 import { Alert, Keyboard } from "react-native";
 
-import { CustomCategoryEditor } from "@/components/categories/bento/CustomCategoryEditor";
+import { CustomCategoryEditor } from "@/features/categories/components";
 import {
   DEFAULT_CUSTOM_CATEGORY_COLOR,
   DEFAULT_CUSTOM_CATEGORY_ICON,
