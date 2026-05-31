@@ -96,7 +96,7 @@ export default function RootNavigator() {
       {!session ? (
         <Stack.Screen name="Auth" component={AuthScreen} />
       ) : needsProfileSetup ? (
-        <Stack.Screen name="ProfileSetup">
+        <Stack.Screen name="ProfileSetup" options={{ gestureEnabled: false }}>
           {() => (
             <ProfileSetupScreen onProfileComplete={handleProfileComplete} />
           )}

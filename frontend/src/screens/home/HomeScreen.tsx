@@ -12,7 +12,7 @@ import type { HomeCategoryBentoItem } from "@/components/home/bento/types";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { colors, layout } from "@/constants/theme";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
-import { formatInrCompact } from "@/features/transactions/formatAmount";
+import { formatInrCompact, formatNetDisplay, formatSpendMagnitude } from "@/features/transactions/formatAmount";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import {
   useMonthSummaryQuery,
@@ -31,14 +31,6 @@ type HomeScreenNavigation = CompositeNavigationProp<
   NativeStackNavigationProp<MainStackParamList>
 >;
 
-/** Hero amounts: magnitude only (no leading minus). */
-function formatSpendMagnitude(amount: string | number): string {
-  const n = typeof amount === "string" ? Number.parseFloat(amount) : amount;
-  if (!Number.isFinite(n)) {
-    return "₹0";
-  }
-  return formatInrCompact(Math.abs(n));
-}
 
 function buildLast7DaysSpend(
   rows: HomeOverview["last_7_days_spend"] | undefined,
@@ -137,11 +129,7 @@ export default memo(function HomeScreen() {
     ? formatSpendMagnitude(monthSummaryQuery.data.debit_total)
     : "—";
   const netDisplay = monthSummaryQuery.data
-    ? (() => {
-        const net = Number.parseFloat(monthSummaryQuery.data.net);
-        const sign = net >= 0 ? "+" : "-";
-        return `${sign}${formatInrCompact(Math.abs(net))}`;
-      })()
+    ? formatNetDisplay(monthSummaryQuery.data.net)
     : "—";
   const netValue = monthSummaryQuery.data
     ? (() => {

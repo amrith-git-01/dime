@@ -2,7 +2,7 @@ import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, Keyboard } from "react-native";
 
 import { CustomCategoryEditor } from "@/components/categories/bento/CustomCategoryEditor";
 import {
@@ -95,6 +95,14 @@ export default function CreateCustomCategoryScreen() {
     void handleSave();
   }, [handleSave]);
 
+  const handleClear = useCallback(() => {
+    void triggerLightHaptic();
+    Keyboard.dismiss();
+    setName("");
+    setIconName(DEFAULT_CUSTOM_CATEGORY_ICON);
+    setColor(DEFAULT_CUSTOM_CATEGORY_COLOR);
+  }, []);
+
   const limitHint = atLimit
     ? `You have reached the maximum of ${MAX_CUSTOM_CATEGORIES} custom categories.`
     : undefined;
@@ -111,6 +119,7 @@ export default function CreateCustomCategoryScreen() {
       onNameChange={setName}
       onIconChange={setIconName}
       onColorChange={setColor}
+      onClear={handleClear}
       onSave={onSavePress}
     />
   );

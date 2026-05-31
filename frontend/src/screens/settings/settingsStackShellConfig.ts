@@ -5,7 +5,7 @@ import { spacing } from "@/constants/theme";
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
   },
 });
 
