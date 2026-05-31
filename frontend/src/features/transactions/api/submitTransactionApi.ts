@@ -5,6 +5,7 @@ import {
   getDimeApiBaseUrl,
   getDimeAuthHeaders,
 } from "@/lib/api/dimeApi";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
 import type { CreateTransactionBody } from "./transactionsApi";
 
@@ -62,7 +63,7 @@ async function submitFileWithFetch(input: {
     throw new Error("EXPO_PUBLIC_API_BASE_URL is not set");
   }
 
-  const url = `${base}${input.path}`;
+  const url = `${base}${input.path}?${timezoneQuerySuffix()}`;
   const headers = await getDimeAuthHeaders();
 
   const form = new FormData();
@@ -93,6 +94,10 @@ async function submitFileWithFetch(input: {
   }
 }
 
+function timezoneQuerySuffix(): string {
+  return `timezone=${encodeURIComponent(getDeviceIanaTimezone())}`;
+}
+
 async function submitFile(input: {
   path: "/api/v1/transactions/receipt" | "/api/v1/transactions/voice";
   fileUri: string;
@@ -113,6 +118,7 @@ async function submitFile(input: {
   try {
     await dimeApi.post<AcceptedResponse>(input.path, form, {
       timeout: 300_000,
+      params: { timezone: getDeviceIanaTimezone() },
     });
   } catch (e) {
     if (isAxiosError(e) && e.code === "ERR_NETWORK") {
@@ -127,7 +133,9 @@ export async function submitManualTransaction(
   body: CreateTransactionBody,
 ): Promise<void> {
   try {
-    await dimeApi.post<AcceptedResponse>("/api/v1/transactions", body);
+    await dimeApi.post<AcceptedResponse>("/api/v1/transactions", body, {
+      params: { timezone: getDeviceIanaTimezone() },
+    });
   } catch (e) {
     throw parseSubmitError(e);
   }
