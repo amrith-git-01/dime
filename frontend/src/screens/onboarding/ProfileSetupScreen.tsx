@@ -1,7 +1,10 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useMemo, useState } from "react";
+import { BackHandler } from "react-native";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
 import { ProfileSetupEditor } from "@/components/profile/bento/ProfileSetupEditor";
+import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileMutation";
 import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
@@ -22,6 +25,20 @@ export default function ProfileSetupScreen({
   );
 
   const saveProfileMutation = useSaveProfileMutation();
+  const { confirmSignOut, signOutLoading } = useConfirmSignOut();
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          confirmSignOut();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [confirmSignOut]),
+  );
 
   const handleUsernameChange = useCallback(
     (text: string) => {
@@ -61,7 +78,8 @@ export default function ProfileSetupScreen({
     return null;
   }, [avatarUploadError, saveProfileMutation.error]);
 
-  const busy = saveProfileMutation.isPending || uploadingAvatar;
+  const busy =
+    saveProfileMutation.isPending || uploadingAvatar || signOutLoading;
 
   return (
     <StackScreenShell contentContainerStyle={shellContentStyle}>
@@ -71,11 +89,14 @@ export default function ProfileSetupScreen({
         validation={validation}
         fieldError={fieldError}
         disabled={busy}
-        continueLoading={busy}
+        continueLoading={saveProfileMutation.isPending || uploadingAvatar}
         continueDisabled={busy || !validation.isValid}
+        signOutLoading={signOutLoading}
+        signOutDisabled={saveProfileMutation.isPending || uploadingAvatar}
         onUsernameChange={handleUsernameChange}
         onRefreshRandom={refreshAvatarSeed}
         onContinue={() => void handleContinue()}
+        onSignOut={confirmSignOut}
       />
     </StackScreenShell>
   );

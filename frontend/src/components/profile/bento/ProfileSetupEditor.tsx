@@ -10,7 +10,7 @@ import { TwoToneCard } from "@/components/shared/TwoToneCard";
 import { Button } from "@/components/ui/Button/Button";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors } from "@/constants/theme";
+import { bento, colors, spacing } from "@/constants/theme";
 import type { UsernameValidation } from "@/hooks/useProfileSetup";
 
 import {
@@ -27,9 +27,12 @@ export type ProfileSetupEditorProps = {
   disabled?: boolean;
   continueLoading?: boolean;
   continueDisabled?: boolean;
+  signOutLoading?: boolean;
+  signOutDisabled?: boolean;
   onUsernameChange: (text: string) => void;
   onRefreshRandom: () => void;
   onContinue: () => void;
+  onSignOut: () => void;
 };
 
 export const ProfileSetupEditor = memo(function ProfileSetupEditor({
@@ -40,9 +43,12 @@ export const ProfileSetupEditor = memo(function ProfileSetupEditor({
   disabled = false,
   continueLoading = false,
   continueDisabled = false,
+  signOutLoading = false,
+  signOutDisabled = false,
   onUsernameChange,
   onRefreshRandom,
   onContinue,
+  onSignOut,
 }: ProfileSetupEditorProps) {
   const usernameCountLabel = useMemo(
     () => <Text style={styles.charCount}>{username.trim().length}/20</Text>,
@@ -83,12 +89,25 @@ export const ProfileSetupEditor = memo(function ProfileSetupEditor({
             />
             {!fieldError ? <ValidationHint validation={validation} /> : null}
           </View>
-          <Button
-            title="Continue"
-            loading={continueLoading}
-            disabled={continueDisabled || disabled}
-            onPress={onContinue}
-          />
+          <View style={styles.actionsRow}>
+            <View style={styles.actionButtonWrap}>
+              <Button
+                title="Sign out"
+                variant="secondary"
+                loading={signOutLoading}
+                disabled={signOutDisabled || disabled}
+                onPress={onSignOut}
+              />
+            </View>
+            <View style={styles.actionButtonWrap}>
+              <Button
+                title="Continue"
+                loading={continueLoading}
+                disabled={continueDisabled || disabled}
+                onPress={onContinue}
+              />
+            </View>
+          </View>
         </View>
       }
     />
@@ -139,6 +158,14 @@ const styles = StyleSheet.create({
   },
   usernameBlock: {
     gap: 4,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  actionButtonWrap: {
+    flex: 1,
   },
   charCount: {
     fontFamily: fontFamilies.medium,
