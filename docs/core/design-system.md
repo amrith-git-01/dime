@@ -5,7 +5,7 @@
 > **Fonts:** Inter (UI) · JetBrains Mono (money)  
 > **Icons:** Lucide (`lucide-react-native`, stroke `1.5` at 20dp+)  
 > **Motion:** Reanimated 3 — springs for interaction, timed loops only for skeleton/FAB breathe  
-> **Code:** `frontend/src/constants/theme.ts` · `motion.ts` · `fonts.ts`
+> **Code:** `frontend/src/constants/index.ts` (`@/constants`) · `motion.ts` · `fonts.ts`
 
 ---
 
@@ -208,7 +208,7 @@ Budget tab — browse-only; create/update monthly cap on stack screen `EditMonth
 
 ## 2. Colors
 
-Token names match `theme.ts` unless noted. Prefer importing tokens over hard-coded hex in components.
+Token names match `@/constants` unless noted. Prefer importing tokens over hard-coded hex in components.
 
 ### 2.1 Brand & primary
 

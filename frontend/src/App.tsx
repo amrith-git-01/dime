@@ -12,11 +12,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { ToastHost } from "@/components/toast/ToastHost";
+import { ReceiptScanBusyOverlay } from "@/components/transactions/ReceiptScanBusyOverlay";
+import { VoiceCaptureBar } from "@/components/transactions/VoiceCaptureBar";
+import { colors } from "@/constants";
 import { loadableAppFonts } from "@/constants/fonts";
-import { CategoriesSyncBootstrap } from "@/features/categories/components/CategoriesSyncBootstrap";
-import { ToastHost } from "@/features/toast/components/ToastHost";
-import { ReceiptScanBusyOverlay } from "@/features/transactions/components/ReceiptScanBusyOverlay";
-import { VoiceCaptureBar } from "@/features/transactions/components/VoiceCaptureBar";
+import { useCategoriesSyncBootstrap } from "@/hooks/useCategoriesSyncBootstrap";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
 
@@ -25,6 +26,21 @@ GoogleSignin.configure({
 });
 WebBrowser.maybeCompleteAuthSession();
 void SplashScreen.preventAutoHideAsync();
+
+function AppShell() {
+  useCategoriesSyncBootstrap();
+
+  return (
+    <>
+      <NavigationContainer theme={appNavigationTheme}>
+        <RootNavigator />
+      </NavigationContainer>
+      <ReceiptScanBusyOverlay />
+      <VoiceCaptureBar />
+      <ToastHost />
+    </>
+  );
+}
 
 export default function App() {
   const [queryClient] = useState(
@@ -91,13 +107,7 @@ export default function App() {
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
           <KeyboardProvider>
-            <NavigationContainer theme={appNavigationTheme}>
-              <RootNavigator />
-            </NavigationContainer>
-            <CategoriesSyncBootstrap />
-            <ReceiptScanBusyOverlay />
-            <VoiceCaptureBar />
-            <ToastHost />
+            <AppShell />
           </KeyboardProvider>
           <StatusBar style="auto" />
         </SafeAreaProvider>
@@ -109,5 +119,6 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: colors.pageBackground,
   },
 });

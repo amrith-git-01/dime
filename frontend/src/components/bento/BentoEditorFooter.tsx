@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button/Button";
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 export type BentoEditorFooterProps = {
   onClear: () => void;

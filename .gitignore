@@ -1,4 +1,5 @@
 # IDE & local tooling
+.agents
 .cursor
 .vscode
 .codex/
