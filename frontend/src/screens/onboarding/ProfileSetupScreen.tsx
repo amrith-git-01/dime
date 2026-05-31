@@ -1,17 +1,9 @@
-import { Image } from "expo-image";
-import { RefreshCw } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
 
 import { ScreenContainer } from "@/components/layout/ScreenContainer";
+import { ProfileAvatarEditor } from "@/components/profile/ProfileAvatarEditor";
 import { Button } from "@/components/ui/Button/Button";
 import { TextField } from "@/components/ui/TextField/TextField";
 import { fontFamilies } from "@/constants/fonts";
@@ -20,14 +12,12 @@ import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileM
 import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { uploadProfileAvatarFromUrl } from "@/lib/api/uploadProfileAvatar";
-import { triggerMediumHaptic } from "@/lib/haptics/nativeHaptics";
 
 export type ProfileSetupScreenProps = {
   onProfileComplete: () => void;
 };
 
-const AVATAR_SIZE = 120;
-const STAGE_PAD = 20;
+const PROFILE_SETUP_AVATAR_SIZE = 120;
 
 export default function ProfileSetupScreen({
   onProfileComplete,
@@ -40,36 +30,6 @@ export default function ProfileSetupScreen({
   );
 
   const saveProfileMutation = useSaveProfileMutation();
-
-  const avatarRotation = useSharedValue(0);
-  const avatarScale = useSharedValue(1);
-
-  const avatarAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: `${avatarRotation.value}deg` },
-      { scale: avatarScale.value },
-    ],
-  }));
-
-  const runRefreshFeedback = useCallback(() => {
-    avatarScale.value = withSequence(
-      withSpring(0.94, { damping: 18, stiffness: 320 }),
-      withSpring(1.04, { damping: 14, stiffness: 240 }),
-      withSpring(1, { damping: 16, stiffness: 220 }),
-    );
-    avatarRotation.value = 0;
-    avatarRotation.value = withTiming(360, { duration: 420 }, (finished) => {
-      if (finished) {
-        avatarRotation.value = 0;
-      }
-    });
-  }, [avatarRotation, avatarScale]);
-
-  const handleRefreshAvatar = useCallback(() => {
-    void triggerMediumHaptic();
-    refreshAvatarSeed();
-    runRefreshFeedback();
-  }, [refreshAvatarSeed, runRefreshFeedback]);
 
   const handleUsernameChange = useCallback(
     (text: string) => {
@@ -133,37 +93,13 @@ export default function ProfileSetupScreen({
             </Text>
           </View>
 
-          <View style={styles.avatarStage}>
-            <Animated.View style={[styles.avatarRing, avatarAnimatedStyle]}>
-              <Image
-                source={{ uri: avatarUrl }}
-                style={styles.avatarImage}
-                contentFit="cover"
-                accessibilityLabel="Avatar preview"
-              />
-            </Animated.View>
-
-            <View style={styles.refreshFabWrap} pointerEvents="box-none">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="New random avatar"
-                hitSlop={10}
-                disabled={saveProfileMutation.isPending || uploadingAvatar}
-                onPress={handleRefreshAvatar}
-                style={({ pressed }) => [
-                  styles.refreshFab,
-                  pressed && !saveProfileMutation.isPending && !uploadingAvatar
-                    ? styles.refreshFabPressed
-                    : null,
-                  saveProfileMutation.isPending || uploadingAvatar
-                    ? styles.refreshFabDisabled
-                    : null,
-                ]}
-              >
-                <RefreshCw size={18} color={colors.primary} strokeWidth={2} />
-              </Pressable>
-            </View>
-          </View>
+          <ProfileAvatarEditor
+            avatarUrl={avatarUrl}
+            avatarSize={PROFILE_SETUP_AVATAR_SIZE}
+            disabled={saveProfileMutation.isPending || uploadingAvatar}
+            onRefreshRandom={refreshAvatarSeed}
+            hint={null}
+          />
 
           <View style={styles.fieldBlock}>
             <TextField
@@ -241,49 +177,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     textAlign: "left",
   },
-  avatarStage: {
-    width: AVATAR_SIZE + STAGE_PAD * 2,
-    height: AVATAR_SIZE + STAGE_PAD * 2,
-    alignSelf: "center",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.lg,
-  },
-  avatarRing: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.barBackground,
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
-  refreshFabWrap: {
-    position: "absolute",
-    right: spacing.xs,
-    bottom: spacing.xs,
-  },
-  refreshFab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.barBackground,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  refreshFabPressed: {
-    opacity: 0.92,
-  },
-  refreshFabDisabled: {
-    opacity: 0.45,
-  },
   fieldBlock: {
+    marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
   charCount: {
