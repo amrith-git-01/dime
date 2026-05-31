@@ -1,11 +1,12 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList } from "@shopify/flash-list";
+import { LayoutGrid } from "lucide-react-native";
 import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
+import { BENTO_MONTH_OPTIONS_COUNT } from "@/components/bento/bentoMonthPickerTokens";
 import {
-  BUDGET_MONTH_OPTIONS_COUNT,
   BUDGET_ROW_HEIGHT_SPENT_ONLY,
   BUDGET_ROW_HEIGHT_WITH_PROGRESS,
 } from "@/components/budget/bento/budgetBentoTokens";
@@ -19,35 +20,25 @@ import {
   type BudgetMonthBentoSummary,
 } from "@/components/budget/bento/BudgetMonthBentoCard";
 import { BudgetMonthBentoSkeleton } from "@/components/budget/bento/BudgetMonthBentoSkeleton";
+import { BudgetCategoriesSectionHeader } from "@/components/budget/BudgetCategoriesSectionHeader";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
-import { BudgetCategoriesSectionHeader } from "@/features/budgets/components/BudgetCategoriesSectionHeader";
+import { TwoToneEmptyState } from "@/components/shared";
+import { colors, spacing } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
-import { formatInrCompact } from "@/features/transactions/formatAmount";
 import {
   useMonthDebitTotalsByCategoryQuery,
   useMonthSummaryQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { MainStackParamList } from "@/navigation/types";
 import { buildMonthOptions } from "@/utils/buildMonthOptions";
+import { formatInrCompact } from "@/utils/currency";
 
 const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
-});
-
-const BudgetListEmpty = memo(function BudgetListEmpty() {
-  return (
-    <View style={styles.emptyWrap}>
-      <Text style={styles.emptyText}>
-        No categories yet. Sync categories to see budgets.
-      </Text>
-    </View>
-  );
 });
 
 const BudgetListFooter = memo(function BudgetListFooter() {
@@ -67,7 +58,7 @@ export default function BudgetScreen() {
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const monthOptions = useMemo(
-    () => buildMonthOptions(BUDGET_MONTH_OPTIONS_COUNT),
+    () => buildMonthOptions(BENTO_MONTH_OPTIONS_COUNT),
     [],
   );
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
@@ -262,7 +253,14 @@ export default function BudgetScreen() {
     if (isListLoading) {
       return <BudgetCategoryRowsSkeleton />;
     }
-    return <BudgetListEmpty />;
+    return (
+      <TwoToneEmptyState
+        layout="inline"
+        icon={LayoutGrid}
+        title="No categories yet"
+        message="Sync categories to see budgets."
+      />
+    );
   }, [isListLoading]);
 
   const listFooter = useMemo(() => <BudgetListFooter />, []);
@@ -358,13 +356,5 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: spacing.md,
-  },
-  emptyWrap: {
-    paddingVertical: spacing.md,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontFamily: fontFamilies.regular,
-    color: colors.textSecondary,
   },
 });

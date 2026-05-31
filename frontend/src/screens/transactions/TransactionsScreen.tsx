@@ -4,22 +4,23 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { addDays, endOfMonth, format, parseISO, subDays } from "date-fns";
+import { Calendar, Receipt } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { BentoSectionCardSegment } from "@/components/home/bento/BentoSectionCard";
-import { BentoTransactionTile } from "@/components/home/bento/BentoTransactionTile";
+import { BENTO_MONTH_OPTIONS_COUNT } from "@/components/bento/bentoMonthPickerTokens";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import {
+  BentoQuickAddPills,
+  BentoSectionCardSegment,
+  BentoTransactionTile,
+  TwoToneEmptyState,
+} from "@/components/shared";
 import { TransactionsBentoHeader } from "@/components/transactions/bento/TransactionsBentoHeader";
 import { TransactionsBentoSkeleton } from "@/components/transactions/bento/TransactionsBentoSkeleton";
-import { TRANSACTIONS_MONTH_OPTIONS_COUNT } from "@/components/transactions/bento/transactionsBentoTokens";
-import { TransactionsDayEmpty } from "@/components/transactions/bento/TransactionsDayEmpty";
 import type { TransactionsMonthBentoSummary } from "@/components/transactions/bento/TransactionsMonthBentoCard";
-import { colors, spacing } from "@/constants/theme";
-import {
-  formatNetDisplay,
-  formatSpendMagnitude,
-} from "@/features/transactions/formatAmount";
+import { colors, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import { usePrefetchTransactionsForSelectedDay } from "@/features/transactions/hooks/usePrefetchTransactionsForSelectedDay";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import {
@@ -36,6 +37,7 @@ import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 import { buildMonthOptions } from "@/utils/buildMonthOptions";
+import { formatNetDisplay, formatSpendMagnitude } from "@/utils/currency";
 
 type TransactionsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Transactions">,
@@ -61,7 +63,7 @@ export default function TransactionsScreen() {
   const navigation = useNavigation<TransactionsScreenNavigation>();
   const listRef = useRef<FlashListRef<TransactionFlashListItem>>(null);
   const monthOptions = useMemo(
-    () => buildMonthOptions(TRANSACTIONS_MONTH_OPTIONS_COUNT),
+    () => buildMonthOptions(BENTO_MONTH_OPTIONS_COUNT),
     [],
   );
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
@@ -275,16 +277,40 @@ export default function TransactionsScreen() {
   }, [flatRows.length, listEmpty, showDayLoading, showMonthLoading]);
 
   const listEmptyComponent = useMemo(() => {
-    if (emptyVariant === null) {
+    if (emptyVariant === null || emptyVariant === "month-loading") {
       return null;
     }
+    if (emptyVariant === "day-loading") {
+      return (
+        <View style={styles.dayLoadingWrap}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.dayLoadingText}>Loading this day…</Text>
+        </View>
+      );
+    }
     return (
-      <TransactionsDayEmpty
-        variant={emptyVariant}
-        monthHasNoTransactions={monthHasNoTransactions}
-        onManualAdd={onManualAdd}
-        onReceipt={onReceipt}
-        onVoice={onVoice}
+      <TwoToneEmptyState
+        layout="inline"
+        icon={monthHasNoTransactions ? Receipt : Calendar}
+        title={
+          monthHasNoTransactions
+            ? "No transactions here"
+            : "No transactions on this day"
+        }
+        message={
+          monthHasNoTransactions
+            ? "No transactions are available for this period."
+            : "Try another day or add a transaction."
+        }
+        footer={
+          monthHasNoTransactions ? (
+            <BentoQuickAddPills
+              onManualAdd={onManualAdd}
+              onReceipt={onReceipt}
+              onVoice={onVoice}
+            />
+          ) : undefined
+        }
       />
     );
   }, [emptyVariant, monthHasNoTransactions, onManualAdd, onReceipt, onVoice]);
@@ -368,5 +394,18 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  dayLoadingWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xl,
+  },
+  dayLoadingText: {
+    marginTop: spacing.md,
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
 });

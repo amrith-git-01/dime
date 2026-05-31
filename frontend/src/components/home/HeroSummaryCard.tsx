@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { AnimatedProgressBar } from "@/components/ui/AnimatedProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
-import { colors, hero, layout, spacing, typography } from "@/constants/theme";
+import { colors, hero, layout, spacing, typography } from "@/constants";
 
 type HeroSummaryCardProps = {
   title: string;

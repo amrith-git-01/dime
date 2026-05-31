@@ -1,4 +1,4 @@
-import { colors } from "./theme";
+import { colors } from "./colors";
 
 /** `#RRGGBB` or `RRGGBB` → `rgba(r,g,b,a)`. */
 export function hexToRgba(hex: string, alpha: number): string {

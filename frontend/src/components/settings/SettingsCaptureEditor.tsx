@@ -6,9 +6,9 @@ import {
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
 import { SettingsToggleRow } from "@/components/settings/SettingsToggleRow";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
+import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento } from "@/constants/theme";
 
 export type SettingsCaptureEditorProps = {
   smsEnabled: boolean;

@@ -6,11 +6,11 @@ import {
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
 import { ProfileAvatarEditor } from "@/components/profile/ProfileAvatarEditor";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
 import { Button } from "@/components/ui/Button/Button";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, spacing } from "@/constants/theme";
 import type { UsernameValidation } from "@/hooks/useProfileSetup";
 
 import {

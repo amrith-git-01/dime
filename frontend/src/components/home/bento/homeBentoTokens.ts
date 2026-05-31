@@ -1,4 +1,6 @@
-import { spacing } from "@/constants/theme";
+import { bentoTileMinHeight } from "@/constants/dimensions";
+
+/** Home-only layout — shared gaps live in `@/components/bento/bentoLayoutTokens`. */
 
 /** Spend row: today ~45%, month ~55%. */
 export const HOME_SPEND_FLEX = {
@@ -6,25 +8,11 @@ export const HOME_SPEND_FLEX = {
   month: 55,
 } as const;
 
-/** Gap between sibling bento tiles (spend row, category grid, recent stack). */
-export const HOME_BENTO_GAP = spacing.lg;
+export const HOME_SPEND_ROW_MIN_HEIGHT = bentoTileMinHeight.homeSpendRow;
 
-/** Vertical gap between major Home sections (spend, cash flow, categories, recent). */
-export const HOME_BENTO_SECTION_GAP = spacing.xl;
+export const HOME_CATEGORY_TILE_MIN_HEIGHT = bentoTileMinHeight.homeCategory;
 
-/** Space below section titles before the bento card/grid. */
-export const HOME_SECTION_HEADER_GAP = spacing.lg;
-
-/** Inner padding for category/recent section bento boxes. */
-export const HOME_SECTION_CARD_PADDING = spacing.lg;
-
-export const HOME_SPEND_ROW_MIN_HEIGHT = 168;
-
-export const HOME_CATEGORY_TILE_MIN_HEIGHT = 112;
-
-export const HOME_RECENT_TILE_MIN_HEIGHT = 64;
-
-export const HOME_INCOME_TILE_MIN_HEIGHT = 92;
+export const HOME_INCOME_TILE_MIN_HEIGHT = bentoTileMinHeight.homeIncome;
 
 /** Max categories shown in bento grid (2×2). */
 export const HOME_MAX_CATEGORIES = 4;

@@ -6,8 +6,8 @@ import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
-import { bento, typography } from "@/constants/theme";
+import { TwoToneCard } from "@/components/shared";
+import { bento, typography } from "@/constants";
 
 import { BudgetAmountStepSlider } from "./BudgetAmountStepSlider";
 import {

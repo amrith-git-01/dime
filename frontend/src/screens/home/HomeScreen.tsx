@@ -10,9 +10,9 @@ import { HomeBentoContent } from "@/components/home/bento/HomeBentoContent";
 import { HOME_MAX_CATEGORIES } from "@/components/home/bento/homeBentoTokens";
 import type { HomeCategoryBentoItem } from "@/components/home/bento/types";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { colors, layout } from "@/constants/theme";
+import { colors, layout } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
-import { formatInrCompact, formatNetDisplay, formatSpendMagnitude } from "@/features/transactions/formatAmount";
+import { formatInrCompact, formatNetDisplay, formatSpendMagnitude } from "@/utils/currency";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import {
   useMonthSummaryQuery,

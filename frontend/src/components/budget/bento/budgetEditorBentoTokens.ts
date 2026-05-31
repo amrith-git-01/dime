@@ -1,4 +1,4 @@
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 /** Daily cap tile ~40%, monthly ~60% (matches Home spend row). */
 export const BUDGET_EDITOR_FLEX = {

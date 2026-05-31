@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
-import { radius, spacing } from "@/constants/theme";
+import { radius, spacing } from "@/constants";
 
 import { BUDGET_ROW_HEIGHT_WITH_PROGRESS } from "./budgetBentoTokens";
 

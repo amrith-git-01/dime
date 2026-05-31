@@ -2,8 +2,8 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, surfaces } from "@/constants/theme";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { colors, radius, spacing, surfaces } from "@/constants";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 
 export type CategoryPillProps = {
   label: string;

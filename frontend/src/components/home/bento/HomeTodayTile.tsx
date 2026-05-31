@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { StyleSheet } from "react-native";
 
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 import { BentoSevenDayBarChart } from "./BentoSevenDayBarChart";
 import { HomeSpendBentoTile } from "./HomeSpendBentoTile";

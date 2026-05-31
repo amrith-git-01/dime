@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, View, type ViewProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors } from "@/constants/theme";
+import { colors } from "@/constants";
 
 export type ScreenContainerProps = ViewProps & {
   children: ReactNode;

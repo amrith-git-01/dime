@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react-native";
-import { AlertTriangle, Bell, ScanLine } from "lucide-react-native";
+import { AlertTriangle, ScanLine } from "lucide-react-native";
 
-import { colors, surfaces } from "@/constants/theme";
+import { colors, surfaces } from "@/constants";
 
 import type { NotificationKind } from "./types";
 
@@ -17,24 +17,17 @@ export const NOTIFICATION_ROW_VISUALS: Record<
 > = {
   transaction_auto: {
     icon: ScanLine,
-    backgroundColor: "rgba(56, 189, 248, 0.18)",
-    iconColor: "#0284C7",
+    backgroundColor: surfaces.iconWellSky,
+    iconColor: colors.iconAccentSky,
   },
   budget_threshold: {
     icon: AlertTriangle,
-    backgroundColor: "rgba(251, 146, 60, 0.2)",
-    iconColor: "#EA580C",
+    backgroundColor: surfaces.iconWellOrange,
+    iconColor: colors.iconAccentOrange,
   },
   capture_failed: {
     icon: AlertTriangle,
-    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    backgroundColor: surfaces.iconWellDanger,
     iconColor: colors.danger,
   },
 };
-
-export const NOTIFICATION_EMPTY_ICON = Bell;
-
-export const NOTIFICATION_EMPTY_ACCENT = {
-  backgroundColor: surfaces.primaryTint10,
-  iconColor: colors.brandPrimary,
-} as const;

@@ -6,9 +6,9 @@ import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
 import { TextField } from "@/components/ui/TextField/TextField";
-import { typography } from "@/constants/theme";
+import { typography } from "@/constants";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
 
 import { CustomCategoryChipPickers } from "./CustomCategoryChipPickers";

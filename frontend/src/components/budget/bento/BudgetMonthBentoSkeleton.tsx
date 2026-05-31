@@ -1,8 +1,8 @@
 import { StyleSheet, View } from "react-native";
 
-import { HOME_SECTION_CARD_PADDING } from "@/components/home/bento/homeBentoTokens";
+import { BENTO_SECTION_CARD_PADDING } from "@/components/bento/bentoLayoutTokens";
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
-import { bento, radius, spacing } from "@/constants/theme";
+import { bento, radius, spacing } from "@/constants";
 
 /** Shape-matched skeleton for the Budget month summary bento card. */
 export function BudgetMonthBentoSkeleton() {
@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     backgroundColor: bento.twoToneHeaderSurface,
-    padding: HOME_SECTION_CARD_PADDING,
+    padding: BENTO_SECTION_CARD_PADDING,
     paddingBottom: spacing.md,
   },
   bodySection: {
     backgroundColor: bento.twoToneBodySurface,
-    padding: HOME_SECTION_CARD_PADDING,
+    padding: BENTO_SECTION_CARD_PADDING,
     paddingTop: spacing.md,
   },
   headerRow: {

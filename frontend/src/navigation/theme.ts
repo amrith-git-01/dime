@@ -1,10 +1,16 @@
 import { DefaultTheme, type Theme } from "@react-navigation/native";
 
 import { fontFamilies } from "@/constants/fonts";
+import { colors } from "@/constants";
 
 /** React Navigation headers, labels, and other themed text use these faces. */
 export const appNavigationTheme: Theme = {
   ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.pageBackground,
+    card: colors.pageBackground,
+  },
   fonts: {
     regular: {
       fontFamily: fontFamilies.regular,

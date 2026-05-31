@@ -1,21 +1,23 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { HOME_BENTO_SECTION_GAP } from "@/components/home/bento/homeBentoTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
-import {
-  NOTIFICATION_FILTER_EMPTY,
-  NOTIFICATION_INBOX_EMPTY,
-  NotificationEmptyState,
-} from "@/components/notifications/NotificationEmptyState";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { TwoToneEmptyState } from "@/components/shared";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
 import { useToast } from "@/features/toast/useToast";
 import type { MainStackParamList } from "@/navigation/types";
+
+import {
+  NOTIFICATION_FILTER_EMPTY,
+  NOTIFICATION_INBOX_EMPTY,
+} from "./notificationEmptyCopy";
 
 export default function NotificationsScreen() {
   const navigation =
@@ -58,7 +60,13 @@ export default function NotificationsScreen() {
   );
 
   if (isInboxEmpty) {
-    return <NotificationEmptyState {...NOTIFICATION_INBOX_EMPTY} />;
+    return (
+      <TwoToneEmptyState
+        layout="centered"
+        icon={Bell}
+        {...NOTIFICATION_INBOX_EMPTY}
+      />
+    );
   }
 
   return (
@@ -67,7 +75,11 @@ export default function NotificationsScreen() {
 
       {isFilterEmpty ? (
         <View style={styles.filterEmptyWrap}>
-          <NotificationEmptyState {...NOTIFICATION_FILTER_EMPTY[filter]} />
+          <TwoToneEmptyState
+            layout="centered"
+            icon={Bell}
+            {...NOTIFICATION_FILTER_EMPTY[filter]}
+          />
         </View>
       ) : (
         <View style={styles.sections}>
@@ -93,10 +105,10 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   root: {
     flexGrow: 1,
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   sections: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   filterEmptyWrap: {
     flexGrow: 1,

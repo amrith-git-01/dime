@@ -5,7 +5,7 @@ import {
   StackScreenShell,
   type StackScreenShellProps,
 } from "@/components/layout/StackScreenShell";
-import { colors } from "@/constants/theme";
+import { colors } from "@/constants";
 
 type StackShellConfig = Omit<StackScreenShellProps, "children">;
 

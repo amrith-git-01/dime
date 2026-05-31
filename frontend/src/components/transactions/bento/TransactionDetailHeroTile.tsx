@@ -1,13 +1,13 @@
 import { memo } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants/theme";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
-} from "@/features/transactions/components/transactionListShared";
+} from "@/components/transactions/transactionListShared";
 import type { TransactionRow } from "@/features/transactions/types";
 
 import { TRANSACTION_DETAIL_HERO_MIN_HEIGHT } from "./transactionDetailBentoTokens";
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     minHeight: TRANSACTION_DETAIL_HERO_MIN_HEIGHT,
     gap: spacing.md,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.barBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },

@@ -1,15 +1,18 @@
 import { StyleSheet, View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui/SkeletonBlock";
-import { bento, colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, radius, spacing } from "@/constants";
 
 import {
-  HOME_BENTO_GAP,
-  HOME_BENTO_SECTION_GAP,
+  BENTO_GAP,
+  BENTO_SECTION_CARD_PADDING,
+  BENTO_SECTION_GAP,
+  BENTO_TRANSACTION_TILE_MIN_HEIGHT,
+} from "@/components/bento/bentoLayoutTokens";
+
+import {
   HOME_CATEGORY_TILE_MIN_HEIGHT,
   HOME_INCOME_TILE_MIN_HEIGHT,
-  HOME_RECENT_TILE_MIN_HEIGHT,
-  HOME_SECTION_CARD_PADDING,
   HOME_SPEND_FLEX,
   HOME_SPEND_ROW_MIN_HEIGHT,
 } from "./homeBentoTokens";
@@ -121,7 +124,7 @@ export function HomeBentoSkeleton() {
             key={i}
             style={[
               styles.recentTileSkel,
-              { minHeight: HOME_RECENT_TILE_MIN_HEIGHT },
+              { minHeight: BENTO_TRANSACTION_TILE_MIN_HEIGHT },
             ]}
           >
             <SkeletonBlock tone="surface" style={styles.skelIconChipSm} />
@@ -139,12 +142,12 @@ export function HomeBentoSkeleton() {
 
 const styles = StyleSheet.create({
   root: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   /** Spend row */
   spendRow: {
     flexDirection: "row",
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
   spendTodaySkel: {
     backgroundColor: colors.headerGradientStart,
@@ -186,8 +189,8 @@ const styles = StyleSheet.create({
   sectionCardSkel: {
     backgroundColor: bento.sectionSurface,
     borderRadius: radius.lg,
-    padding: HOME_SECTION_CARD_PADDING,
-    gap: HOME_BENTO_GAP,
+    padding: BENTO_SECTION_CARD_PADDING,
+    gap: BENTO_GAP,
   },
   /** Income tile */
   incomeSkel: {
@@ -209,11 +212,11 @@ const styles = StyleSheet.create({
   },
   /** Category grid */
   catGrid: {
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
   catRowPair: {
     flexDirection: "row",
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
   catTileSkel: {
     flex: 1,
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
   recentTileSkel: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.barBackground,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
