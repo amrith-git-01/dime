@@ -1,4 +1,4 @@
-import { spacing } from "@/constants/theme";
+import { spacing } from "@/constants";
 
 /** Shared horizontal padding for two-tone bento form editors. */
 export const BENTO_FORM_SECTION_PADDING = spacing.lg;

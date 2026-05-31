@@ -16,7 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants/theme";
+import { colors, radius, spacing } from "@/constants";
 
 import { BUDGET_SLIDER_SPRING } from "./budgetEditorBentoTokens";
 import {
