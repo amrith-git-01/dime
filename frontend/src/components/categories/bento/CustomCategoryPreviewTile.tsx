@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { BudgetCategoryBentoRow } from "@/components/budget/bento/BudgetCategoryBentoRow";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, radius, spacing } from "@/constants";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
 
 type CustomCategoryPreviewTileProps = {

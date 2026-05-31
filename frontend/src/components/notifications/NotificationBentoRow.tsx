@@ -1,12 +1,12 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants/theme";
 import { NOTIFICATION_ROW_VISUALS } from "@/features/notifications/notificationBentoTokens";
 import type { AppNotification } from "@/features/notifications/types";
-import { formatNotificationTime } from "@/features/notifications/utils/formatNotificationTime";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { formatNotificationTime } from "@/utils/dateTime";
 
 export type NotificationBentoRowProps = {
   notification: AppNotification;

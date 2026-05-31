@@ -1,6 +1,6 @@
 import { ActivityIndicator, type ColorValue } from "react-native";
 
-import { colors } from "@/constants/theme";
+import { colors } from "@/constants";
 
 type SpinnerTone = "white" | "primary";
 

@@ -1,18 +1,28 @@
 import { Edit3 } from "lucide-react-native";
-import { memo, useCallback, useMemo } from "react";
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { BentoStatCell } from "@/components/shared/BentoStatCell";
-import type { BentoStatCellTone } from "@/components/shared/BentoStatCell";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { BENTO_MONTH_DROPDOWN_VISIBLE } from "@/components/bento/bentoMonthPickerTokens";
+import { useBentoMonthDropdown } from "@/components/bento/useBentoMonthDropdown";
+import {
+  BentoStatCell,
+  TwoToneCard,
+  type BentoStatCellTone,
+} from "@/components/shared";
 import { Button } from "@/components/ui/Button/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
+import {
+  bento,
+  colors,
+  progressBar,
+  radius,
+  spacing,
+  surfaces,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, progressBar, radius, spacing } from "@/constants/theme";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
-import { BUDGET_MONTH_DROPDOWN_VISIBLE } from "./budgetBentoTokens";
 import {
   BudgetMonthBodySkeleton,
   BudgetMonthHeaderSkeleton,
@@ -54,23 +64,9 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   onEditBudget,
   onSetBudget,
 }: BudgetMonthBentoCardProps) {
-  const dropdownOptions = useMemo(
-    () =>
-      monthOptions.map((month) => ({
-        label: month.label,
-        value: month.label,
-      })),
-    [monthOptions],
-  );
-
-  const handleMonthChange = useCallback(
-    (next: string) => {
-      const index = monthOptions.findIndex((month) => month.label === next);
-      if (index >= 0) {
-        onSelectMonth(index);
-      }
-    },
-    [monthOptions, onSelectMonth],
+  const { dropdownOptions, handleMonthChange } = useBentoMonthDropdown(
+    monthOptions,
+    onSelectMonth,
   );
 
   const remainingLabel = summary?.isOverBudget ? "Over" : "Remaining";
@@ -127,7 +123,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
                 showLabel={false}
                 size="compact"
                 menuPlacement="inline"
-                maxVisibleOptions={BUDGET_MONTH_DROPDOWN_VISIBLE}
+                maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
               />
             </View>
           </View>
@@ -146,7 +142,9 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
               <View style={styles.statsRow}>
                 <BentoStatCell
                   label="Budget"
-                  value={hasMonthlyBudget ? (summary?.budgetDisplay ?? "—") : "—"}
+                  value={
+                    hasMonthlyBudget ? (summary?.budgetDisplay ?? "—") : "—"
+                  }
                 />
                 <View style={styles.divider} />
                 <BentoStatCell
@@ -218,7 +216,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: "rgba(255, 255, 255, 0.55)",
+    backgroundColor: surfaces.whiteOverlay55,
   },
   editButtonPressed: {
     opacity: 0.85,
@@ -275,7 +273,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(99, 85, 232, 0.14)",
+    backgroundColor: surfaces.primaryTint14,
     marginHorizontal: spacing.xs,
   },
   progressWrap: {

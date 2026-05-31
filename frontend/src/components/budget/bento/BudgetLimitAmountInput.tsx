@@ -2,7 +2,7 @@ import { forwardRef, memo } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors } from "@/constants/theme";
+import { bento, colors } from "@/constants";
 
 export type BudgetLimitAmountVariant = "onDark" | "onPastel";
 

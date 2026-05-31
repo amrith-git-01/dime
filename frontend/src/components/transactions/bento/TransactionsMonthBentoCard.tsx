@@ -1,14 +1,13 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { BentoStatCell, netTone } from "@/components/shared/BentoStatCell";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { BENTO_MONTH_DROPDOWN_VISIBLE } from "@/components/bento/bentoMonthPickerTokens";
+import { useBentoMonthDropdown } from "@/components/bento/useBentoMonthDropdown";
+import { BentoStatCell, netTone, TwoToneCard } from "@/components/shared";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
+import { bento, colors, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, spacing } from "@/constants/theme";
 import type { MonthOption } from "@/utils/buildMonthOptions";
-
-import { TRANSACTIONS_MONTH_DROPDOWN_VISIBLE } from "./transactionsBentoTokens";
 
 export type TransactionsMonthBentoSummary = {
   transactionCount: number;
@@ -41,23 +40,9 @@ export const TransactionsMonthBentoCard = memo(
     onSelectMonth,
     monthOptions,
   }: TransactionsMonthBentoCardProps) {
-    const dropdownOptions = useMemo(
-      () =>
-        monthOptions.map((month) => ({
-          label: month.label,
-          value: month.label,
-        })),
-      [monthOptions],
-    );
-
-    const handleMonthChange = useCallback(
-      (next: string) => {
-        const index = monthOptions.findIndex((month) => month.label === next);
-        if (index >= 0) {
-          onSelectMonth(index);
-        }
-      },
-      [monthOptions, onSelectMonth],
+    const { dropdownOptions, handleMonthChange } = useBentoMonthDropdown(
+      monthOptions,
+      onSelectMonth,
     );
 
     return (
@@ -88,7 +73,7 @@ export const TransactionsMonthBentoCard = memo(
                 showLabel={false}
                 size="compact"
                 menuPlacement="modal"
-                maxVisibleOptions={TRANSACTIONS_MONTH_DROPDOWN_VISIBLE}
+                maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
               />
             </View>
           </View>
@@ -203,7 +188,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(99, 85, 232, 0.14)",
+    backgroundColor: surfaces.primaryTint14,
     marginHorizontal: spacing.xs,
   },
 });

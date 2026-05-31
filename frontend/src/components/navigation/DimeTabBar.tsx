@@ -33,7 +33,7 @@ import {
   springs,
   timings,
 } from "@/constants/motion";
-import { colors, radius, spacing } from "@/constants/theme";
+import { colors, radius, spacing } from "@/constants";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import {

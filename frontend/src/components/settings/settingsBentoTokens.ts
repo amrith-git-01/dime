@@ -1,10 +1,10 @@
-import { colors, surfaces } from "@/constants/theme";
+import { colors, surfaces } from "@/constants";
 
 /** Tinted icon wells for settings hub rows. */
 export const SETTINGS_ROW_ACCENTS = {
   capture: {
-    backgroundColor: "rgba(56, 189, 248, 0.18)",
-    iconColor: "#0284C7",
+    backgroundColor: surfaces.iconWellSky,
+    iconColor: colors.iconAccentSky,
   },
   feedback: {
     backgroundColor: surfaces.primaryTint10,

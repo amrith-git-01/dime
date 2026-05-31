@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, radius, spacing } from "@/constants";
 
 import { BudgetLimitAmountInput } from "./BudgetLimitAmountInput";
 import { BUDGET_EDITOR_FLEX } from "./budgetEditorBentoTokens";

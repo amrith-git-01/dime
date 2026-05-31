@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Switch, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors, spacing } from "@/constants";
 
 export type SettingsToggleRowProps = {
   label: string;

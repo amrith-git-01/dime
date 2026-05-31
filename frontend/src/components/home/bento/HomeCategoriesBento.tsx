@@ -1,13 +1,18 @@
-import { memo, useMemo } from "react";
+import { LayoutGrid } from "lucide-react-native";
+import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { bento, spacing, typography } from "@/constants/theme";
+import { BENTO_GAP } from "@/components/bento/bentoLayoutTokens";
+import {
+  BentoQuickAddPills,
+  BentoSectionCard,
+  TwoToneEmptyState,
+} from "@/components/shared";
 
 import { BentoCategoryTile } from "./BentoCategoryTile";
-import { BentoEmptyState } from "./BentoEmptyState";
-import { BentoSectionCard } from "./BentoSectionCard";
 import { BentoSectionHeader } from "./BentoSectionHeader";
-import { HOME_BENTO_GAP, HOME_MAX_CATEGORIES } from "./homeBentoTokens";
+
+import { HOME_MAX_CATEGORIES } from "./homeBentoTokens";
 import type { HomeCategoryBentoItem } from "./types";
 
 type HomeCategoriesBentoProps = {
@@ -21,7 +26,6 @@ type HomeCategoriesBentoProps = {
 
 /**
  * 2-column category bento grid inside a soft pastel section box.
- * Empty state: copy + compact quick-add pills.
  */
 export const HomeCategoriesBento = memo(function HomeCategoriesBento({
   items,
@@ -32,15 +36,10 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
   onVoice,
 }: HomeCategoriesBentoProps) {
   const visible = items.slice(0, HOME_MAX_CATEGORIES);
-
-  // Memoized: only re-groups when the items list changes.
-  const rows = useMemo(() => {
-    const result: HomeCategoryBentoItem[][] = [];
-    for (let i = 0; i < visible.length; i += 2) {
-      result.push(visible.slice(i, i + 2));
-    }
-    return result;
-  }, [visible]);
+  const rows: HomeCategoryBentoItem[][] = [];
+  for (let i = 0; i < visible.length; i += 2) {
+    rows.push(visible.slice(i, i + 2));
+  }
 
   return (
     <View>
@@ -48,12 +47,18 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
 
       <BentoSectionCard>
         {visible.length === 0 ? (
-          <BentoEmptyState
+          <TwoToneEmptyState
+            layout="inline"
+            icon={LayoutGrid}
             title="No spending yet this month"
-            hint="Your categories will appear here once you add transactions."
-            onManualAdd={onManualAdd}
-            onReceipt={onReceipt}
-            onVoice={onVoice}
+            message="Your categories will appear here once you add transactions."
+            footer={
+              <BentoQuickAddPills
+                onManualAdd={onManualAdd}
+                onReceipt={onReceipt}
+                onVoice={onVoice}
+              />
+            }
           />
         ) : (
           <View style={styles.grid}>
@@ -78,11 +83,11 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
 
 const styles = StyleSheet.create({
   grid: {
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
   row: {
     flexDirection: "row",
-    gap: HOME_BENTO_GAP,
+    gap: BENTO_GAP,
   },
   tileSpacer: {
     flex: 1,

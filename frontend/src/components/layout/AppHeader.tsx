@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-import { colors, hero, overlays, spacing, typography } from "@/constants/theme";
+import { colors, hero, overlays, spacing, typography } from "@/constants";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {

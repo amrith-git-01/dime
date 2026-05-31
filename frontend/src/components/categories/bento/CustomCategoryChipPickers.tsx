@@ -2,8 +2,8 @@ import { memo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, surfaces } from "@/constants/theme";
-import { CategoryLucideIcon } from "@/features/categories/components/CategoryLucideIcon";
+import { colors, radius, spacing, surfaces } from "@/constants";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import {
   CUSTOM_CATEGORY_COLOR_OPTIONS,
   CUSTOM_CATEGORY_ICON_OPTIONS,

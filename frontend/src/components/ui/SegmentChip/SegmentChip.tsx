@@ -1,8 +1,8 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
+import { bento, colors, hero, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing, surfaces } from "@/constants/theme";
 
 export type SegmentChipVariant = "default" | "onDark";
 
@@ -82,8 +82,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   chipOnDark: {
-    borderColor: "rgba(255,255,255,0.35)",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    borderColor: hero.chipBorder,
+    backgroundColor: surfaces.onPrimaryChipBg,
   },
   chipOnDarkSelected: {
     backgroundColor: colors.barBackground,

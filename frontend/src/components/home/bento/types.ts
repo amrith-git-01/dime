@@ -1,15 +1,7 @@
 import type { TransactionRow } from "@/features/transactions/types";
+import type { BentoCategoryItem } from "./BentoCategoryTile";
 
-export type HomeCategoryBentoItem = {
-  id: string;
-  label: string;
-  icon_name: string;
-  amount: string;
-  /** 0..1 — fraction of monthly total */
-  progress: number;
-  /** Full-saturation category primary hex */
-  color: string;
-};
+export type HomeCategoryBentoItem = BentoCategoryItem;
 
 export type HomeBentoContentProps = {
   isError: boolean;

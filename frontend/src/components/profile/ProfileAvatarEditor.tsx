@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, spacing } from "@/constants/theme";
+import { bento, colors, spacing } from "@/constants";
 import { useAvatarRefreshAnimation } from "@/features/profile/hooks/useAvatarRefreshAnimation";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 

@@ -1,7 +1,8 @@
 import { Platform, StyleSheet } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants/theme";
+import { colors } from "./colors";
+import { spacing } from "./spacing";
 
 export const formStyles = StyleSheet.create({
   fieldLabel: {

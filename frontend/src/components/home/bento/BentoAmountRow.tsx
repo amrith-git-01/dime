@@ -2,8 +2,8 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Spinner } from "@/components/ui/Spinner";
+import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento } from "@/constants/theme";
 
 type BentoAmountRowProps = {
   amount: string;

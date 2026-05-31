@@ -7,7 +7,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { springs } from "@/constants/motion";
-import { progressBar, radius } from "@/constants/theme";
+import { progressBar, radius } from "@/constants";
 
 interface AnimatedProgressBarProps {
   progress: number; // 0-1

@@ -10,13 +10,7 @@ import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { uploadProfileAvatarFromUrl } from "@/lib/api/uploadProfileAvatar";
 
-export type ProfileSetupScreenProps = {
-  onProfileComplete: () => void;
-};
-
-export default function ProfileSetupScreen({
-  onProfileComplete,
-}: ProfileSetupScreenProps) {
+export default function ProfileSetupScreen() {
   const { avatarUrl, refreshAvatarSeed, username, setUsername, validation } =
     useProfileSetup();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -60,13 +54,12 @@ export default function ProfileSetupScreen({
         currency: "INR",
         avatarUrl: uploadedAvatarUrl,
       });
-      onProfileComplete();
     } catch (error) {
       setAvatarUploadError(parseFastApiError(error));
     } finally {
       setUploadingAvatar(false);
     }
-  }, [avatarUrl, onProfileComplete, saveProfileMutation, username]);
+  }, [avatarUrl, saveProfileMutation, username]);
 
   const fieldError = useMemo(() => {
     if (avatarUploadError) {

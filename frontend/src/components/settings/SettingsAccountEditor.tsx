@@ -7,10 +7,10 @@ import {
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento/bentoFormTokens";
 import { ProfileAvatarEditor } from "@/components/profile/ProfileAvatarEditor";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
+import { TwoToneCard } from "@/components/shared";
 import { TextField } from "@/components/ui/TextField/TextField";
+import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento } from "@/constants/theme";
 
 import {
   SETTINGS_ACCOUNT_AVATAR_SIZE,

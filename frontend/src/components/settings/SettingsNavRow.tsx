@@ -3,7 +3,7 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants/theme";
+import { colors, radius, spacing } from "@/constants";
 
 export type SettingsNavRowIconAccent = {
   backgroundColor: string;

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors } from "@/constants/theme";
+import { bento, colors } from "@/constants";
 
 export type BentoStatCellTone =
   | "neutral"

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { bento, colors, radius } from "@/constants/theme";
+import { bento, colors, radius, shadows } from "@/constants";
 
 export type TwoToneCardProps = {
   /** Content rendered in the violet tinted header zone. */
@@ -19,22 +19,12 @@ export type TwoToneCardProps = {
  */
 export function TwoToneCard({ header, body }: TwoToneCardProps) {
   return (
-    <View style={[styles.card, cardShadowStyle]}>
+    <View style={[styles.card, shadows.cardElevated]}>
       <View style={styles.headerSection}>{header}</View>
       <View style={styles.bodySection}>{body}</View>
     </View>
   );
 }
-
-const cardShadowStyle = Platform.select({
-  android: { elevation: 3 },
-  default: {
-    shadowColor: colors.brandPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-  },
-});
 
 const styles = StyleSheet.create({
   card: {

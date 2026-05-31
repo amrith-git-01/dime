@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { formatInrCompact } from "@/features/transactions/formatAmount";
+import { formatInrCompact } from "@/utils/currency";
 
 import {
   BUDGET_CUSTOM_STEP_INDEX,

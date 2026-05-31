@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { HOME_BENTO_SECTION_GAP } from "@/components/home/bento/homeBentoTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
 import { TransactionsDayBar } from "./TransactionsDayBar";
@@ -65,9 +65,9 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
 
 const styles = StyleSheet.create({
   root: {
-    gap: HOME_BENTO_SECTION_GAP,
+    gap: BENTO_SECTION_GAP,
   },
   dayBarGap: {
-    marginBottom: HOME_BENTO_SECTION_GAP,
+    marginBottom: BENTO_SECTION_GAP,
   },
 });

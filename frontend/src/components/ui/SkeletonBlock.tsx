@@ -9,7 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { skeletonPulse } from "@/constants/motion";
-import { radius, skeleton } from "@/constants/theme";
+import { radius, skeleton } from "@/constants";
 
 type SkeletonTone = "surface" | "onPrimary";
 
