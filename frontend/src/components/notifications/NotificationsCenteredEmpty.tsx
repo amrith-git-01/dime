@@ -46,7 +46,6 @@ const styles = StyleSheet.create({
   root: {
     flexGrow: 1,
     width: "100%",
-    minHeight: 240,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.xl,
