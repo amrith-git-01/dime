@@ -2,8 +2,10 @@ import type { LucideIcon } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { BENTO_FORM_SECTION_PADDING } from "@/components/bento/bentoFormTokens";
+import { TwoToneCard } from "@/components/shared/TwoToneCard";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants/theme";
+import { bento, colors, radius, spacing } from "@/constants/theme";
 import {
   NOTIFICATION_EMPTY_ACCENT,
   NOTIFICATION_EMPTY_ICON,
@@ -22,34 +24,58 @@ export const NotificationsCenteredEmpty = memo(
     icon: Icon = NOTIFICATION_EMPTY_ICON,
   }: NotificationsCenteredEmptyProps) {
     return (
-      <View style={styles.root}>
-        <View
-          style={[
-            styles.iconWell,
-            { backgroundColor: NOTIFICATION_EMPTY_ACCENT.backgroundColor },
-          ]}
-        >
-          <Icon
-            size={22}
-            color={NOTIFICATION_EMPTY_ACCENT.iconColor}
-            strokeWidth={2}
+      <View style={styles.centerWrap}>
+        <View style={styles.cardShell}>
+          <TwoToneCard
+            header={
+              <View style={styles.header}>
+                <View
+                  style={[
+                    styles.iconWell,
+                    {
+                      backgroundColor:
+                        NOTIFICATION_EMPTY_ACCENT.backgroundColor,
+                    },
+                  ]}
+                >
+                  <Icon
+                    size={22}
+                    color={NOTIFICATION_EMPTY_ACCENT.iconColor}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.headerTitle}>{title}</Text>
+              </View>
+            }
+            body={
+              <View style={styles.body}>
+                <Text style={styles.bodyText}>{message}</Text>
+              </View>
+            }
           />
         </View>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.message}>{message}</Text>
       </View>
     );
   },
 );
 
 const styles = StyleSheet.create({
-  root: {
+  centerWrap: {
     flexGrow: 1,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  cardShell: {
+    width: "100%",
+    maxWidth: 360,
+  },
+  header: {
+    alignItems: "center",
     gap: spacing.sm,
+    padding: BENTO_FORM_SECTION_PADDING,
+    paddingVertical: spacing.lg,
   },
   iconWell: {
     width: 44,
@@ -57,21 +83,24 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.xs,
   },
-  title: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.textPrimary,
+  headerTitle: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: bento.onPastel.primary,
     textAlign: "center",
   },
-  message: {
+  body: {
+    paddingHorizontal: BENTO_FORM_SECTION_PADDING,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  bodyText: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,
     textAlign: "center",
-    maxWidth: 260,
   },
 });
