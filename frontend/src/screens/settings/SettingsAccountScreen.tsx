@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { SettingsAccountEditor } from "@/components/settings/SettingsAccountEditor";
+import { SettingsAccountEditor } from "@/features/settings/components";
 import { useAccountAvatarDraft } from "@/features/profile/hooks/useAccountAvatarDraft";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileMutation";
