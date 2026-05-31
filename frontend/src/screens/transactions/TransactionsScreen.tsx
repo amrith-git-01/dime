@@ -7,19 +7,19 @@ import { addDays, endOfMonth, format, parseISO, subDays } from "date-fns";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
+import { BentoSectionCardSegment } from "@/components/home/bento/BentoSectionCard";
 import { BentoTransactionTile } from "@/components/home/bento/BentoTransactionTile";
-import {
-  HOME_BENTO_GAP,
-  HOME_SECTION_CARD_PADDING,
-} from "@/components/home/bento/homeBentoTokens";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { TransactionsBentoHeader } from "@/components/transactions/bento/TransactionsBentoHeader";
 import { TransactionsBentoSkeleton } from "@/components/transactions/bento/TransactionsBentoSkeleton";
 import { TRANSACTIONS_MONTH_OPTIONS_COUNT } from "@/components/transactions/bento/transactionsBentoTokens";
 import { TransactionsDayEmpty } from "@/components/transactions/bento/TransactionsDayEmpty";
 import type { TransactionsMonthBentoSummary } from "@/components/transactions/bento/TransactionsMonthBentoCard";
-import { bento, colors, radius, spacing } from "@/constants/theme";
-import { formatInrCompact } from "@/features/transactions/formatAmount";
+import { colors, spacing } from "@/constants/theme";
+import {
+  formatNetDisplay,
+  formatSpendMagnitude,
+} from "@/features/transactions/formatAmount";
 import { usePrefetchTransactionsForSelectedDay } from "@/features/transactions/hooks/usePrefetchTransactionsForSelectedDay";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import {
@@ -41,23 +41,6 @@ type TransactionsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Transactions">,
   NativeStackNavigationProp<MainStackParamList>
 >;
-
-function formatSpendMagnitude(amount: string): string {
-  const n = Number.parseFloat(amount);
-  if (!Number.isFinite(n)) {
-    return "₹0";
-  }
-  return formatInrCompact(Math.abs(n));
-}
-
-function formatNetDisplay(net: string): string {
-  const n = Number.parseFloat(net);
-  if (!Number.isFinite(n)) {
-    return "₹0";
-  }
-  const sign = n >= 0 ? "+" : "-";
-  return `${sign}${formatInrCompact(Math.abs(n))}`;
-}
 
 const TransactionsListFooter = memo(function TransactionsListFooter({
   show,
@@ -241,19 +224,16 @@ export default function TransactionsScreen() {
       const isFirst = index === 0;
       const isLast = index === lastRowIndex;
       return (
-        <View
-          style={[
-            styles.cardSegment,
-            isFirst && styles.cardSegmentFirst,
-            isLast && styles.cardSegmentLast,
-          ]}
+        <BentoSectionCardSegment
+          isFirst={isFirst}
+          isLast={isLast}
+          showGapAfter={!isLast}
         >
           <BentoTransactionTile
             transaction={item.transaction}
             onPress={openTransactionDetail}
           />
-          {!isLast ? <View style={styles.tileGap} /> : null}
-        </View>
+        </BentoSectionCardSegment>
       );
     },
     [lastRowIndex, openTransactionDetail],
@@ -388,22 +368,5 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
-  },
-  cardSegment: {
-    backgroundColor: bento.sectionSurface,
-    paddingHorizontal: HOME_SECTION_CARD_PADDING,
-  },
-  cardSegmentFirst: {
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingTop: HOME_SECTION_CARD_PADDING,
-  },
-  cardSegmentLast: {
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-    paddingBottom: HOME_SECTION_CARD_PADDING,
-  },
-  tileGap: {
-    height: HOME_BENTO_GAP,
   },
 });

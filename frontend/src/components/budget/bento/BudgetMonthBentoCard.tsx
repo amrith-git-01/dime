@@ -1,7 +1,10 @@
 import { Edit3 } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { BentoStatCell } from "@/components/shared/BentoStatCell";
+import type { BentoStatCellTone } from "@/components/shared/BentoStatCell";
+import { TwoToneCard } from "@/components/shared/TwoToneCard";
 import { Button } from "@/components/ui/Button/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SelectDropdown } from "@/components/ui/SelectDropdown/SelectDropdown";
@@ -40,33 +43,6 @@ export type BudgetMonthBentoCardProps = {
   onSetBudget: () => void;
 };
 
-function BudgetStat({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "debit" | "credit";
-}) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.statValue,
-          tone === "credit" && styles.statValueCredit,
-          tone === "debit" && styles.statValueDebit,
-        ]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   selectedMonth,
   monthOptions,
@@ -101,16 +77,16 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   const remainingValue = summary?.isOverBudget
     ? summary.overageDisplay
     : (summary?.remainingDisplay ?? "—");
-  const remainingTone = summary?.isOverBudget
+  const remainingTone: BentoStatCellTone = summary?.isOverBudget
     ? "debit"
     : summary && summary.remainingValue > 0
       ? "credit"
       : "neutral";
 
   return (
-    <View style={[styles.card, cardShadowStyle]}>
-      <View style={styles.headerSection}>
-        <View style={styles.headerRow}>
+    <TwoToneCard
+      header={
+        <View style={styles.headerInner}>
           <View style={styles.headerLeft}>
             {summaryFailed ? (
               <Text style={styles.errorText}>
@@ -156,89 +132,71 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
             </View>
           </View>
         </View>
-      </View>
+      }
+      body={
+        <View style={styles.bodyInner}>
+          <Text style={styles.bodyKicker}>Budget</Text>
 
-      <View style={styles.bodySection}>
-        <Text style={styles.bodyKicker}>Budget</Text>
-
-        {summaryFailed ? (
-          <Text style={styles.unavailable}>—</Text>
-        ) : summaryLoading ? (
-          <BudgetMonthBodySkeleton />
-        ) : (
-          <>
-            <View style={styles.statsRow}>
-              <BudgetStat
-                label="Budget"
-                value={hasMonthlyBudget ? (summary?.budgetDisplay ?? "—") : "—"}
-              />
-              <View style={styles.divider} />
-              <BudgetStat
-                label="Spent"
-                value={summary?.spentDisplay ?? "—"}
-                tone={summary?.isOverBudget ? "debit" : "neutral"}
-              />
-              <View style={styles.divider} />
-              <BudgetStat
-                label={remainingLabel}
-                value={remainingValue}
-                tone={remainingTone}
-              />
-            </View>
-
-            {hasMonthlyBudget && summary ? (
-              <View style={styles.progressWrap}>
-                <ProgressBar
-                  progress={summary.usagePct}
-                  fillColor={
-                    summary.isOverBudget ? colors.danger : colors.primary
-                  }
-                  backgroundColor={progressBar.track}
-                  height={8}
+          {summaryFailed ? (
+            <Text style={styles.unavailable}>—</Text>
+          ) : summaryLoading ? (
+            <BudgetMonthBodySkeleton />
+          ) : (
+            <>
+              <View style={styles.statsRow}>
+                <BentoStatCell
+                  label="Budget"
+                  value={hasMonthlyBudget ? (summary?.budgetDisplay ?? "—") : "—"}
+                />
+                <View style={styles.divider} />
+                <BentoStatCell
+                  label="Spent"
+                  value={summary?.spentDisplay ?? "—"}
+                  tone={summary?.isOverBudget ? "debit" : "neutral"}
+                />
+                <View style={styles.divider} />
+                <BentoStatCell
+                  label={remainingLabel}
+                  value={remainingValue}
+                  tone={remainingTone}
                 />
               </View>
-            ) : null}
 
-            {!hasMonthlyBudget ? (
-              <View style={styles.setBudgetWrap}>
-                <Button title="Set budget" onPress={onSetBudget} />
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
-    </View>
+              {hasMonthlyBudget && summary ? (
+                <View style={styles.progressWrap}>
+                  <ProgressBar
+                    progress={summary.usagePct}
+                    fillColor={
+                      summary.isOverBudget ? colors.danger : colors.primary
+                    }
+                    backgroundColor={progressBar.track}
+                    height={8}
+                  />
+                </View>
+              ) : null}
+
+              {!hasMonthlyBudget ? (
+                <View style={styles.setBudgetWrap}>
+                  <Button title="Set budget" onPress={onSetBudget} />
+                </View>
+              ) : null}
+            </>
+          )}
+        </View>
+      }
+    />
   );
 });
 
-const cardShadowStyle = Platform.select({
-  android: { elevation: 3 },
-  default: {
-    shadowColor: colors.brandPrimary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-  },
-});
-
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: radius.lg,
-    overflow: "visible",
-  },
-  headerSection: {
-    backgroundColor: bento.twoToneHeaderSurface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  headerRow: {
+  headerInner: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   headerLeft: {
     flex: 1,
@@ -290,12 +248,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: bento.onPastel.primary,
   },
-  bodySection: {
-    backgroundColor: bento.twoToneBodySurface,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
+  bodyInner: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -318,31 +271,6 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  stat: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2,
-  },
-  statLabel: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 10,
-    lineHeight: 14,
-    color: bento.onPastel.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  statValue: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: bento.onPastel.primary,
-  },
-  statValueCredit: {
-    color: colors.success,
-  },
-  statValueDebit: {
-    color: colors.danger,
   },
   divider: {
     width: 1,

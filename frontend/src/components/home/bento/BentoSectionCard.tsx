@@ -3,21 +3,19 @@ import { Platform, StyleSheet, View } from "react-native";
 
 import { bento, radius } from "@/constants/theme";
 
-import { HOME_SECTION_CARD_PADDING } from "./homeBentoTokens";
+import { HOME_BENTO_GAP, HOME_SECTION_CARD_PADDING } from "./homeBentoTokens";
 
 type BentoSectionCardProps = {
   children: ReactNode;
 };
 
-/**
- * Soft pastel container wrapping a Home section body (categories grid, recent list).
- * Matches reference bento-box grouping on light lavender tint.
- */
-export const BentoSectionCard = memo(function BentoSectionCard({
-  children,
-}: BentoSectionCardProps) {
-  return <View style={[styles.card, shadowStyle]}>{children}</View>;
-});
+export type BentoSectionCardSegmentProps = {
+  children: ReactNode;
+  isFirst: boolean;
+  isLast: boolean;
+  /** Gap between stacked rows inside the same section card (FlashList segments). */
+  showGapAfter?: boolean;
+};
 
 const shadowStyle = Platform.select({
   android: { elevation: 2 },
@@ -29,11 +27,62 @@ const shadowStyle = Platform.select({
   },
 });
 
+/**
+ * Soft pastel container wrapping a Home section body (categories grid, recent list).
+ * Matches reference bento-box grouping on light lavender tint.
+ */
+export const BentoSectionCard = memo(function BentoSectionCard({
+  children,
+}: BentoSectionCardProps) {
+  return <View style={[styles.card, shadowStyle]}>{children}</View>;
+});
+
+/**
+ * One row of a virtualized list that visually continues {@link BentoSectionCard}.
+ * First/last segments get corner radius; shadow stays on the full card only.
+ */
+export const BentoSectionCardSegment = memo(function BentoSectionCardSegment({
+  children,
+  isFirst,
+  isLast,
+  showGapAfter = false,
+}: BentoSectionCardSegmentProps) {
+  return (
+    <View
+      style={[
+        styles.segmentBase,
+        isFirst && styles.segmentFirst,
+        isLast && styles.segmentLast,
+      ]}
+    >
+      {children}
+      {showGapAfter ? <View style={styles.segmentGap} /> : null}
+    </View>
+  );
+});
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: bento.sectionSurface,
     borderRadius: radius.lg,
     padding: HOME_SECTION_CARD_PADDING,
     overflow: "visible",
+  },
+  segmentBase: {
+    backgroundColor: bento.sectionSurface,
+    paddingHorizontal: HOME_SECTION_CARD_PADDING,
+  },
+  segmentFirst: {
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingTop: HOME_SECTION_CARD_PADDING,
+  },
+  segmentLast: {
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    paddingBottom: HOME_SECTION_CARD_PADDING,
+  },
+  segmentGap: {
+    height: HOME_BENTO_GAP,
   },
 });

@@ -12,6 +12,9 @@ export type MainTabParamList = {
 export type MainStackParamList = {
   MainTabs: undefined;
   Settings: undefined;
+  SettingsAccount: undefined;
+  SettingsCapture: undefined;
+  SettingsFeedback: undefined;
   Notifications: undefined;
   ManualAddTransaction:
     | {
