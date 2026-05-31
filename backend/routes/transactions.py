@@ -106,6 +106,7 @@ async def create_transaction(
     body: TransactionCreate,
     user: CurrentUser = Depends(get_current_user),
     _supabase: Client = Depends(get_supabase_service_client),
+    timezone: str = Query(..., min_length=2, max_length=80),
 ) -> dict[str, bool]:
     try:
         enqueue_manual(
@@ -113,6 +114,7 @@ async def create_transaction(
             ManualTransactionJob(
                 user_id=user.id,
                 payload=body,
+                timezone=timezone,
             ),
         )
         return {"accepted": True}
@@ -132,6 +134,7 @@ async def create_transaction_from_receipt(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
     _supabase: Client = Depends(get_supabase_service_client),
+    timezone: str = Query(..., min_length=2, max_length=80),
 ) -> dict[str, bool]:
     try:
         content = await file.read()
@@ -143,6 +146,7 @@ async def create_transaction_from_receipt(
                 user_id=user.id,
                 file_bytes=content,
                 mime_type=file.content_type or "application/octet-stream",
+                timezone=timezone,
             ),
         )
         return {"accepted": True}
@@ -162,6 +166,7 @@ async def create_transaction_from_voice(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
     _supabase: Client = Depends(get_supabase_service_client),
+    timezone: str = Query(..., min_length=2, max_length=80),
 ) -> dict[str, bool]:
     try:
         content = await file.read()
@@ -173,6 +178,7 @@ async def create_transaction_from_voice(
                 user_id=user.id,
                 file_bytes=content,
                 mime_type=file.content_type or "application/octet-stream",
+                timezone=timezone,
             ),
         )
         return {"accepted": True}
