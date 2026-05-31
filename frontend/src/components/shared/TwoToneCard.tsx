@@ -1,5 +1,5 @@
-import { Platform, StyleSheet, View } from "react-native";
 import type { ReactNode } from "react";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { bento, colors, radius } from "@/constants/theme";
 
@@ -45,6 +45,7 @@ const styles = StyleSheet.create({
     backgroundColor: bento.twoToneHeaderSurface,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
+    overflow: "visible",
   },
   bodySection: {
     backgroundColor: bento.twoToneBodySurface,

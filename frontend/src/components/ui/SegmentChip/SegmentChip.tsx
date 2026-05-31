@@ -2,12 +2,16 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, surfaces } from "@/constants/theme";
+import { bento, colors, radius, spacing, surfaces } from "@/constants/theme";
+
+export type SegmentChipVariant = "default" | "onDark";
 
 export type SegmentChipProps = {
   label: string;
   selected: boolean;
   onPress: () => void;
+  /** Use onDark on violet bento headers (e.g. manual add amount card). */
+  variant?: SegmentChipVariant;
 };
 
 /**
@@ -18,7 +22,10 @@ export const SegmentChip = memo(function SegmentChip({
   label,
   selected,
   onPress,
+  variant = "default",
 }: SegmentChipProps) {
+  const onDark = variant === "onDark";
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -26,11 +33,20 @@ export const SegmentChip = memo(function SegmentChip({
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
-        selected && styles.chipSelected,
+        onDark && styles.chipOnDark,
+        !onDark && selected && styles.chipSelected,
+        onDark && selected && styles.chipOnDarkSelected,
         pressed && styles.chipPressed,
       ]}
     >
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>
+      <Text
+        style={[
+          styles.chipText,
+          onDark && styles.chipTextOnDark,
+          !onDark && selected && styles.chipTextOn,
+          onDark && selected && styles.chipTextOnDarkSelected,
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -63,6 +79,20 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   chipTextOn: {
+    color: colors.textPrimary,
+  },
+  chipOnDark: {
+    borderColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  chipOnDarkSelected: {
+    backgroundColor: colors.barBackground,
+    borderColor: colors.barBackground,
+  },
+  chipTextOnDark: {
+    color: bento.onSurface.secondary,
+  },
+  chipTextOnDarkSelected: {
     color: colors.textPrimary,
   },
 });
