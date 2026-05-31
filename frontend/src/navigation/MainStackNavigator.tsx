@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { colors } from "@/constants/theme";
+import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 
@@ -15,8 +16,18 @@ const SettingsScreen = lazyStackScreen(
   () => import("@/screens/settings/SettingsScreen"),
   settingsStackShellConfig,
 );
+const SettingsAccountScreen = lazyStackScreen(
+  () => import("@/screens/settings/SettingsAccountScreen"),
+);
+const SettingsCaptureScreen = lazyStackScreen(
+  () => import("@/screens/settings/SettingsCaptureScreen"),
+);
+const SettingsFeedbackScreen = lazyStackScreen(
+  () => import("@/screens/settings/SettingsFeedbackScreen"),
+);
 const NotificationsScreen = lazyStackScreen(
   () => import("@/screens/notifications/NotificationsScreen"),
+  notificationsStackShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
@@ -44,6 +55,21 @@ export default function MainStackNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ ...stackScreenOptions, title: "Settings" }}
+      />
+      <Stack.Screen
+        name="SettingsAccount"
+        component={SettingsAccountScreen}
+        options={{ ...stackScreenOptions, title: "Account" }}
+      />
+      <Stack.Screen
+        name="SettingsCapture"
+        component={SettingsCaptureScreen}
+        options={{ ...stackScreenOptions, title: "Capture" }}
+      />
+      <Stack.Screen
+        name="SettingsFeedback"
+        component={SettingsFeedbackScreen}
+        options={{ ...stackScreenOptions, title: "Feedback" }}
       />
       <Stack.Screen
         name="Notifications"
