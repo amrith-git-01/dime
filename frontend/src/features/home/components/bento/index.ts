@@ -1,5 +1,4 @@
 export { BentoAmountRow } from "./BentoAmountRow";
-export { BentoCategoryTile } from "./BentoCategoryTile";
 export { BentoProgressRing } from "./BentoProgressRing";
 export { BentoSectionHeader } from "./BentoSectionHeader";
 export { BentoSevenDayBarChart } from "./BentoSevenDayBarChart";
@@ -13,4 +12,4 @@ export { HomeRecentSection } from "./HomeRecentSection";
 export { HomeSpendBentoTile } from "./HomeSpendBentoTile";
 export { HomeSpendRow } from "./HomeSpendRow";
 export { HomeTodayTile } from "./HomeTodayTile";
-export type { HomeBentoContentProps, HomeCategoryBentoItem } from "./types";
+export type { HomeBentoContentProps, HomeTopCategoryItem } from "./types";

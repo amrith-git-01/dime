@@ -1,8 +1,6 @@
-import type { NotificationInboxFilter } from "./types";
-
 export const notificationQueryKeys = {
   all: ["notifications"] as const,
-  list: (filter: NotificationInboxFilter) =>
-    [...notificationQueryKeys.all, "list", filter] as const,
+  /** Full inbox — filter tabs slice this client-side. */
+  inboxList: () => [...notificationQueryKeys.all, "inboxList"] as const,
   unreadCount: () => [...notificationQueryKeys.all, "unreadCount"] as const,
 };
