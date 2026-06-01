@@ -1,9 +1,10 @@
 import { Camera, Edit3, Mic } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { bento, iconSizes, radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { bento, spacing } from "@/constants";
+
+import { BentoActionPill } from "./BentoActionPill";
 
 type BentoQuickAddPillsProps = {
   onManualAdd: () => void;
@@ -34,7 +35,6 @@ const ACTIONS = [
 
 /**
  * Compact pill quick-add row for section empty states.
- * Icon + label inline on a small pastel pill — not bulky circle buttons.
  */
 export const BentoQuickAddPills = memo(function BentoQuickAddPills({
   onManualAdd,
@@ -50,24 +50,14 @@ export const BentoQuickAddPills = memo(function BentoQuickAddPills({
   return (
     <View style={styles.row}>
       {ACTIONS.map(({ key, label, Icon, bg }) => (
-        <Pressable
+        <BentoActionPill
           key={key}
-          accessibilityRole="button"
+          label={label}
+          icon={Icon}
+          backgroundColor={bg}
           accessibilityLabel={`Add ${label} transaction`}
           onPress={handlers[key]}
-          style={({ pressed }) => [
-            styles.pill,
-            { backgroundColor: bg },
-            pressed && styles.pillPressed,
-          ]}
-        >
-          <Icon
-            size={iconSizes.quickAdd}
-            color={bento.onSurface.primary}
-            strokeWidth={2}
-          />
-          <Text style={styles.pillLabel}>{label}</Text>
-        </Pressable>
+        />
       ))}
     </View>
   );
@@ -80,22 +70,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     marginTop: spacing.md,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 7,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: radius.full,
-  },
-  pillPressed: {
-    opacity: 0.82,
-  },
-  pillLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 14,
-    color: bento.onSurface.primary,
   },
 });
