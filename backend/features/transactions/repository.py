@@ -12,7 +12,7 @@ from features.transactions.supabase_http import execute_with_http_retry
 
 logger = logging.getLogger(__name__)
 
-# No PostgREST embed: category_id may point at system or user_categories (no single FK).
+# No PostgREST embed: category display resolved via CategoryRepository.fetch_meta_by_ids.
 # TransactionService enriches name/icon/color after fetch.
 _LIST_SELECT = (
     "id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,"

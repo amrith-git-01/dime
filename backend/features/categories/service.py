@@ -23,16 +23,10 @@ class CategoryService:
         self._repo = CategoryRepository(supabase)
 
     def list_categories(self, user_id: str) -> list[CategoryResponse]:
-        system_rows = self._repo.list_system()
-        user_rows = self._repo.list_user(user_id)
-
+        rows = self._repo.list_for_user(user_id)
         categories: list[CategoryResponse] = []
-        for row in system_rows:
-            parsed = self._system_row_to_response(row)
-            if parsed is not None:
-                categories.append(parsed)
-        for row in user_rows:
-            parsed = self._user_row_to_response(row)
+        for row in rows:
+            parsed = self._row_to_response(row)
             if parsed is not None:
                 categories.append(parsed)
         return categories
@@ -49,26 +43,19 @@ class CategoryService:
                 detail="Category name is required.",
             )
 
-        if self._repo.count_user_categories(user_id) >= MAX_CUSTOM_CATEGORIES_PER_USER:
+        if self._repo.count_custom_categories(user_id) >= MAX_CUSTOM_CATEGORIES_PER_USER:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 detail=f"You can add up to {MAX_CUSTOM_CATEGORIES_PER_USER} custom categories.",
             )
 
         name_key = name.casefold()
-        for row in self._repo.list_user(user_id):
+        for row in self._repo.list_for_user(user_id):
             existing = row.get("name")
             if isinstance(existing, str) and existing.strip().casefold() == name_key:
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
                     detail="You already have a category with this name.",
-                )
-        for row in self._repo.list_system():
-            existing = row.get("name")
-            if isinstance(existing, str) and existing.strip().casefold() == name_key:
-                raise HTTPException(
-                    status.HTTP_409_CONFLICT,
-                    detail="This name matches a built-in category.",
                 )
 
         icon_name = (body.icon_name or DEFAULT_CUSTOM_ICON).strip() or DEFAULT_CUSTOM_ICON
@@ -80,20 +67,20 @@ class CategoryService:
             )
 
         try:
-            row = self._repo.insert_user_category(
+            row = self._repo.insert_custom_category(
                 user_id=user_id,
                 name=name,
                 icon_name=icon_name,
                 color=color,
             )
         except Exception as exc:
-            logger.exception("user_categories insert failed")
+            logger.exception("categories insert failed")
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY,
                 detail="Could not create category.",
             ) from exc
 
-        parsed = self._user_row_to_response(row)
+        parsed = self._row_to_response(row)
         if parsed is None:
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY,
@@ -106,33 +93,6 @@ class CategoryService:
         return bool(re.fullmatch(r"#[0-9A-Fa-f]{6}", value))
 
     @staticmethod
-    def _system_row_to_response(row: dict[str, object]) -> CategoryResponse | None:
-        category_id = row.get("id")
-        name = row.get("name")
-        icon_name = row.get("icon_name")
-        color = row.get("color")
-        created_at = row.get("created_at")
-        if not isinstance(category_id, str):
-            return None
-        if not isinstance(name, str):
-            return None
-        if not isinstance(icon_name, str):
-            return None
-        if not isinstance(color, str):
-            return None
-        if not isinstance(created_at, str):
-            return None
-        return CategoryResponse(
-            id=category_id,
-            name=name,
-            icon_name=icon_name,
-            color=color,
-            is_system=True,
-            created_at=created_at,
-            user_id=None,
-        )
-
-    @staticmethod
     def _coerce_text(value: object) -> str | None:
         if isinstance(value, str):
             return value
@@ -141,13 +101,15 @@ class CategoryService:
         return None
 
     @staticmethod
-    def _user_row_to_response(row: dict[str, object]) -> CategoryResponse | None:
+    def _row_to_response(row: dict[str, object]) -> CategoryResponse | None:
         category_id = CategoryService._coerce_text(row.get("id"))
         name = CategoryService._coerce_text(row.get("name"))
         icon_name = CategoryService._coerce_text(row.get("icon_name"))
         color = CategoryService._coerce_text(row.get("color"))
         created_at = CategoryService._coerce_text(row.get("created_at"))
         user_id = CategoryService._coerce_text(row.get("user_id"))
+        is_system_raw = row.get("is_system")
+        is_system = is_system_raw is True or is_system_raw == "true"
         if not category_id or not name or not icon_name or not color or not created_at:
             return None
         return CategoryResponse(
@@ -155,7 +117,7 @@ class CategoryService:
             name=name,
             icon_name=icon_name,
             color=color,
-            is_system=False,
+            is_system=is_system,
             created_at=created_at,
-            user_id=user_id,
+            user_id=None if is_system else user_id,
         )
