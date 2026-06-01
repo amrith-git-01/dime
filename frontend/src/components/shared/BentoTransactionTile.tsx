@@ -5,12 +5,12 @@ import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
-} from "@/components/transactions/transactionListShared";
+} from "@/features/transactions/utils/transactionDisplay";
 import { colors, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { TransactionRow } from "@/features/transactions/types";
 
-import { BENTO_TRANSACTION_TILE_MIN_HEIGHT } from "@/components/bento/bentoLayoutTokens";
+import { BENTO_TRANSACTION_TILE_MIN_HEIGHT } from "@/components/bento";
 
 type BentoTransactionTileProps = {
   transaction: TransactionRow;

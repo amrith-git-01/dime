@@ -1,4 +1,4 @@
-import { SettingsCaptureEditor } from "@/components/settings/SettingsCaptureEditor";
+import { SettingsCaptureEditor } from "@/features/settings/components";
 import { useCapturePreferences } from "@/features/settings/hooks/useCapturePreferences";
 
 export default function SettingsCaptureScreen() {

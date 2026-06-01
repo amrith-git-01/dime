@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { SettingsFeedbackEditor } from "@/components/settings/SettingsFeedbackEditor";
+import { SettingsFeedbackEditor } from "@/features/settings/components";
 import { useToast } from "@/features/toast/useToast";
 
 export default function SettingsFeedbackScreen() {

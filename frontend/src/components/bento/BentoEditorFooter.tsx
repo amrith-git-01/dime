@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { Button } from "@/components/ui/Button/Button";
+import { Button } from "@/components/ui";
 import { spacing } from "@/constants";
 
 export type BentoEditorFooterProps = {

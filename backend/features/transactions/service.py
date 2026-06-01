@@ -12,6 +12,15 @@ from supabase import Client
 
 from core.async_utils import run_sync
 from core.security import CurrentUser
+from features.budgets.repository import BudgetRepository
+from features.notifications.budget_evaluator import BudgetThresholdEvaluator
+from features.notifications.emitter import (
+    AUTO_DETECTED,
+    NotificationEmitter,
+    body_for_auto_tx,
+    title_for_auto_tx,
+)
+from features.notifications.repository import NotificationRepository
 from features.transactions.repository import TransactionRepository
 from features.transactions.schemas import (
     DailySpendRow,
@@ -467,7 +476,13 @@ class TransactionService:
             row["category_color"] = col if isinstance(col, str) else None
         return flattened
 
-    def create_manual(self, user: CurrentUser, body: TransactionCreate) -> TransactionResponse:
+    def create_manual(
+        self,
+        user: CurrentUser,
+        body: TransactionCreate,
+        *,
+        timezone: str,
+    ) -> TransactionResponse:
         category_id = str(body.category_id) if body.category_id is not None else None
         if category_id and not self._category_exists(user.id, category_id):
             category_id = None
@@ -495,4 +510,28 @@ class TransactionService:
 
         raw = self._repo.insert(row)
         enriched = self._enrich_rows(user.id, [raw])
-        return TransactionResponse.model_validate(enriched[0])
+        enriched_row = enriched[0]
+        db = self._repo._db  # type: ignore[attr-defined]
+        notifier = NotificationEmitter(NotificationRepository(db))
+
+        if body.type == "debit":
+            BudgetThresholdEvaluator(
+                budget_repo=BudgetRepository(db),
+                transaction_repo=self._repo,
+                emitter=notifier,
+            ).evaluate_after_debit(
+                user_id=user.id,
+                timezone=timezone,
+                transaction_at_iso=body.transaction_at.isoformat(),
+            )
+
+        detected = body.detected_via or "manual"
+        if detected in AUTO_DETECTED:
+            notifier.emit_transaction_auto(
+                user_id=user.id,
+                transaction_id=str(enriched_row["id"]),
+                title=title_for_auto_tx(enriched_row),
+                body=body_for_auto_tx(enriched_row),
+            )
+
+        return TransactionResponse.model_validate(enriched_row)

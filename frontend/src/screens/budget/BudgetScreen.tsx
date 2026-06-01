@@ -1,42 +1,26 @@
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FlashList } from "@shopify/flash-list";
 import { LayoutGrid } from "lucide-react-native";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
-import { BENTO_MONTH_OPTIONS_COUNT } from "@/components/bento/bentoMonthPickerTokens";
 import {
   BUDGET_ROW_HEIGHT_SPENT_ONLY,
   BUDGET_ROW_HEIGHT_WITH_PROGRESS,
-} from "@/components/budget/bento/budgetBentoTokens";
-import {
-  BudgetCategoryBentoRow,
-  type BudgetCategoryRowData,
-} from "@/components/budget/bento/BudgetCategoryBentoRow";
-import { BudgetCategoryRowsSkeleton } from "@/components/budget/bento/BudgetCategoryRowsSkeleton";
-import {
+  BudgetCategoriesSectionHeader,
+  BudgetCategoryRowsSkeleton,
   BudgetMonthBentoCard,
-  type BudgetMonthBentoSummary,
-} from "@/components/budget/bento/BudgetMonthBentoCard";
-import { BudgetMonthBentoSkeleton } from "@/components/budget/bento/BudgetMonthBentoSkeleton";
-import { BudgetCategoriesSectionHeader } from "@/components/budget/BudgetCategoriesSectionHeader";
+  BudgetMonthBentoSkeleton,
+} from "@/features/budgets/components";
+import {
+  CategorySpendBentoRow,
+  type CategorySpendRowData,
+} from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { TwoToneEmptyState } from "@/components/shared";
 import { colors, spacing } from "@/constants";
-import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
-import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
-import { useToast } from "@/features/toast/useToast";
-import {
-  useMonthDebitTotalsByCategoryQuery,
-  useMonthSummaryQuery,
-} from "@/features/transactions/hooks/useTransactionsOverviewQueries";
-import type { MainStackParamList } from "@/navigation/types";
-import { buildMonthOptions } from "@/utils/buildMonthOptions";
-import { formatInrCompact } from "@/utils/currency";
 
-const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
+import { useBudgetScreenModel } from "./useBudgetScreenModel";
+
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
 });
@@ -52,174 +36,29 @@ const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
 }) as number;
 
 export default function BudgetScreen() {
-  const stackNavigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { showToast } = useToast();
-  const { data: categories, loading: categoriesLoading } = useLocalCategories();
-  const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
-  const monthOptions = useMemo(
-    () => buildMonthOptions(BENTO_MONTH_OPTIONS_COUNT),
-    [],
-  );
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
-  const selected = monthOptions[selectedMonthIndex] ?? monthOptions[0];
-
-  const monthSummaryQuery = useMonthSummaryQuery(
-    selected.year,
-    selected.monthIndex0,
-  );
   const {
-    data: spendByCategory = {},
-    isPlaceholderData: isMonthSpendPlaceholder,
-    isPending: isMonthSpendPending,
-    isFetched: isMonthSpendFetched,
-  } = useMonthDebitTotalsByCategoryQuery(selected.year, selected.monthIndex0);
-
-  const budgetListKey = `${selected.year}-${selected.monthIndex0}`;
-
-  const existingBudget = budgetResp?.budget
-    ? Number.parseFloat(budgetResp.budget.monthly_budget)
-    : 0;
-  const hasMonthlyBudget =
-    Number.isFinite(existingBudget) && existingBudget > 0;
-
-  const knownCategoryIds = useMemo(
-    () => new Set(categories.map((c) => c.id)),
-    [categories],
-  );
-
-  const budgetItems = useMemo((): BudgetCategoryRowData[] => {
-    const rows: BudgetCategoryRowData[] = categories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      icon_name: category.icon_name,
-      color: category.color,
-      spentMonth: spendByCategory[category.id] ?? 0,
-      is_system: category.is_system,
-    }));
-
-    const uncategorizedSpent = spendByCategory[UNCATEGORIZED_SPEND_KEY] ?? 0;
-    if (uncategorizedSpent > 0) {
-      rows.push({
-        id: UNCATEGORIZED_SPEND_KEY,
-        name: "Uncategorized",
-        icon_name: "Package",
-        color: colors.categoryDefault,
-        spentMonth: uncategorizedSpent,
-        is_system: true,
-      });
-    }
-
-    for (const [categoryId, amount] of Object.entries(spendByCategory)) {
-      if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) {
-        continue;
-      }
-      if (!knownCategoryIds.has(categoryId)) {
-        rows.push({
-          id: categoryId,
-          name: "Unknown category",
-          icon_name: "Package",
-          color: colors.categoryDefault,
-          spentMonth: amount,
-          is_system: true,
-        });
-      }
-    }
-
-    return rows.sort(
-      (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
-    );
-  }, [categories, spendByCategory, knownCategoryIds]);
-
-  const handleSelectBudgetMonth = useCallback((index: number) => {
-    setSelectedMonthIndex(index);
-  }, []);
-
-  const navigateToBudgetEditor = useCallback(
-    (mode: "create" | "edit") => {
-      stackNavigation.navigate("EditMonthlyBudget", {
-        mode,
-        selectedYear: selected.year,
-        selectedMonthIndex0: selected.monthIndex0,
-      });
-    },
-    [selected.monthIndex0, selected.year, stackNavigation],
-  );
-
-  const handleSetBudget = useCallback(() => {
-    navigateToBudgetEditor("create");
-  }, [navigateToBudgetEditor]);
-
-  const handleEditBudget = useCallback(() => {
-    navigateToBudgetEditor("edit");
-  }, [navigateToBudgetEditor]);
-
-  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
-  const spentMonthNum = monthSummaryQuery.data
-    ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
-    : Number.NaN;
-  const hasSpentMonth = Number.isFinite(spentMonthNum);
-  const monthSummaryFailed = monthSummaryQuery.isError;
-  const isOverBudget =
-    hasMonthlyBudget && hasSpentMonth && spentMonthNum > monthlyBudgetAmount;
-  const remainingValue =
-    hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed
-      ? Math.max(0, monthlyBudgetAmount - spentMonthNum)
-      : 0;
-  const overageValue =
-    isOverBudget && hasSpentMonth ? spentMonthNum - monthlyBudgetAmount : 0;
-  const usagePct =
-    hasMonthlyBudget &&
-    hasSpentMonth &&
-    !monthSummaryFailed &&
-    monthlyBudgetAmount > 0
-      ? Math.min(1, spentMonthNum / monthlyBudgetAmount)
-      : 0;
-  const usageLabel = isOverBudget
-    ? "Over budget"
-    : hasMonthlyBudget && hasSpentMonth
-      ? `${Math.round(usagePct * 100)}% used`
-      : hasMonthlyBudget
-        ? "0% used"
-        : "No budget set";
-
-  const summaryLoading =
-    monthSummaryQuery.isPending ||
-    (isBudgetLoading && budgetResp === undefined);
-
-  const monthSummary: BudgetMonthBentoSummary | null =
-    summaryLoading || monthSummaryFailed
-      ? null
-      : {
-          budgetDisplay: formatInrCompact(monthlyBudgetAmount),
-          spentDisplay: hasSpentMonth ? formatInrCompact(spentMonthNum) : "—",
-          remainingDisplay: formatInrCompact(remainingValue),
-          spentValue: hasSpentMonth ? spentMonthNum : 0,
-          budgetValue: monthlyBudgetAmount,
-          remainingValue,
-          isOverBudget,
-          overageDisplay: formatInrCompact(overageValue),
-          usagePct,
-          usageLabel,
-        };
-
-  const categoriesStillLoading = categoriesLoading && categories.length === 0;
-
-  const isListLoading =
-    categoriesStillLoading ||
-    isMonthSpendPlaceholder ||
-    (isMonthSpendPending && !isMonthSpendFetched);
-
-  const listData = isListLoading ? [] : budgetItems;
-
-  const showSummarySkeleton =
-    !monthSummaryFailed &&
-    ((isBudgetLoading && budgetResp === undefined) ||
-      (monthSummaryQuery.isPending && monthSummaryQuery.data === undefined));
+    addCustomCategoryDisabled,
+    budgetListKey,
+    handleAddCustomCategory,
+    handleEditBudget,
+    handleSelectBudgetMonth,
+    handleSetBudget,
+    hasMonthlyBudget,
+    isListLoading,
+    listData,
+    listExtraData,
+    monthOptions,
+    monthSummary,
+    monthSummaryFailed,
+    monthlyBudgetAmount,
+    selectedMonth,
+    showSummarySkeleton,
+    summaryLoading,
+  } = useBudgetScreenModel();
 
   const renderCategory = useCallback(
-    ({ item }: { item: BudgetCategoryRowData }) => (
-      <BudgetCategoryBentoRow
+    ({ item }: { item: CategorySpendRowData }) => (
+      <CategorySpendBentoRow
         item={item}
         hasMonthlyBudget={hasMonthlyBudget}
         monthlyBudgetAmount={monthlyBudgetAmount}
@@ -228,19 +67,10 @@ export default function BudgetScreen() {
     [hasMonthlyBudget, monthlyBudgetAmount],
   );
 
-  const listExtraData = useMemo(
-    () => ({
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      monthKey: selected.label,
-    }),
-    [hasMonthlyBudget, monthlyBudgetAmount, selected.label],
-  );
-
   const overrideItemLayout = useCallback(
     (
       layout: { span?: number; size?: number },
-      _item: BudgetCategoryRowData,
+      _item: CategorySpendRowData,
     ) => {
       layout.size = hasMonthlyBudget
         ? BUDGET_ROW_HEIGHT_WITH_PROGRESS
@@ -265,30 +95,14 @@ export default function BudgetScreen() {
 
   const listFooter = useMemo(() => <BudgetListFooter />, []);
 
-  const customCategoryCount = useMemo(
-    () => categories.filter((category) => !category.is_system).length,
-    [categories],
-  );
-
-  const handleAddCustomCategory = useCallback(() => {
-    if (customCategoryCount >= MAX_CUSTOM_CATEGORIES) {
-      showToast({
-        variant: "error",
-        message: `Maximum ${MAX_CUSTOM_CATEGORIES} custom categories`,
-      });
-      return;
-    }
-    stackNavigation.navigate("CreateCustomCategory", { origin: "budget" });
-  }, [customCategoryCount, showToast, stackNavigation]);
-
   const listSectionHeader = useMemo(
     () => (
       <BudgetCategoriesSectionHeader
         onAddPress={handleAddCustomCategory}
-        addDisabled={customCategoryCount >= MAX_CUSTOM_CATEGORIES}
+        addDisabled={addCustomCategoryDisabled}
       />
     ),
-    [customCategoryCount, handleAddCustomCategory],
+    [addCustomCategoryDisabled, handleAddCustomCategory],
   );
 
   return (
@@ -299,7 +113,7 @@ export default function BudgetScreen() {
             <BudgetMonthBentoSkeleton />
           ) : (
             <BudgetMonthBentoCard
-              selectedMonth={selected.label}
+              selectedMonth={selectedMonth.label}
               monthOptions={monthOptions}
               onSelectMonth={handleSelectBudgetMonth}
               hasMonthlyBudget={hasMonthlyBudget}

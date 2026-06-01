@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.job_runner import start_workers, stop_workers
-from routes import budget, categories, health, me, profile, transactions
+from routes import budget, categories, health, me, notifications, profile, transactions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +48,7 @@ def create_application() -> FastAPI:
     application.include_router(categories.router, prefix=api_prefix)
     application.include_router(transactions.router, prefix=api_prefix)
     application.include_router(budget.router, prefix=api_prefix)
+    application.include_router(notifications.router, prefix=api_prefix)
 
     @application.get("/")
     def read_root() -> dict[str, str]:

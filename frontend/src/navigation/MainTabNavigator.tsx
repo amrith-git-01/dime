@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
+import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
@@ -41,6 +42,8 @@ export default function MainTabNavigator() {
   const onManualAddPress = useCallback(() => {
     stackNavigation.navigate("ManualAddTransaction");
   }, [stackNavigation]);
+  const unreadQuery = useUnreadNotificationCount();
+  const showUnreadNotificationDot = (unreadQuery.data ?? 0) > 0;
 
   return (
     <View style={styles.root}>
@@ -49,6 +52,7 @@ export default function MainTabNavigator() {
           onNotificationsPress={onNotificationsPress}
           onSettingsPress={onSettingsPress}
           onHeaderReady={() => setHeaderReady(true)}
+          showUnreadNotificationDot={showUnreadNotificationDot}
         />
       </View>
       <View style={styles.navigatorSlot}>

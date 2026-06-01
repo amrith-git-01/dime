@@ -19,6 +19,7 @@ export type AppHeaderProps = {
   onNotificationsPress: () => void;
   onSettingsPress?: () => void;
   onHeaderReady?: () => void;
+  showUnreadNotificationDot?: boolean;
 };
 
 const AVATAR_SIZE = 40;
@@ -36,6 +37,7 @@ export function AppHeader({
   onNotificationsPress,
   onSettingsPress,
   onHeaderReady,
+  showUnreadNotificationDot = false,
 }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
@@ -46,14 +48,17 @@ export function AppHeader({
   const [avatarImageError, setAvatarImageError] = useState(false);
   const headerReadyNotifiedRef = useRef(false);
 
-  const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    setHeaderSize({ w: width, h: height });
-    if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
-      headerReadyNotifiedRef.current = true;
-      onHeaderReady?.();
-    }
-  }, []);
+  const onHeaderLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { width, height } = e.nativeEvent.layout;
+      setHeaderSize({ w: width, h: height });
+      if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
+        headerReadyNotifiedRef.current = true;
+        onHeaderReady?.();
+      }
+    },
+    [onHeaderReady],
+  );
 
   return (
     <View style={styles.root}>
@@ -189,6 +194,9 @@ export function AppHeader({
                 color={colors.textOnPrimary}
                 strokeWidth={1.5}
               />
+              {showUnreadNotificationDot ? (
+                <View style={styles.unreadBadge} />
+              ) : null}
             </Pressable>
           </View>
         </View>
@@ -285,6 +293,7 @@ const styles = StyleSheet.create({
     width: spacing.sm,
   },
   bellCircle: {
+    position: "relative",
     width: BELL_CIRCLE,
     height: BELL_CIRCLE,
     borderRadius: BELL_CIRCLE / 2,
@@ -294,6 +303,17 @@ const styles = StyleSheet.create({
   },
   bellPressed: {
     opacity: 0.85,
+  },
+  unreadBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.brandPrimary,
+    borderWidth: 1.5,
+    borderColor: colors.headerBellCircleBg,
   },
   headerIconGap: {
     marginRight: spacing.sm,

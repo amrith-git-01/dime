@@ -10,7 +10,7 @@ export type MainTabParamList = {
 };
 
 export type MainStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Settings: undefined;
   SettingsAccount: undefined;
   SettingsCapture: undefined;

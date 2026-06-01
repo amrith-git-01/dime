@@ -1,5 +1,3 @@
-import type { SelectDropdownOption } from "@/components/ui/SelectDropdown/SelectDropdown";
-
 export const COUNTERPARTY_TYPES = [
   "merchant",
   "person",
@@ -16,9 +14,14 @@ const COUNTERPARTY_LABELS: Record<CounterpartyType, string> = {
   unknown: "Unknown",
 };
 
+export type CounterpartyTypeOption = {
+  value: CounterpartyType;
+  label: string;
+};
+
 export const COUNTERPARTY_TYPE_OPTIONS = COUNTERPARTY_TYPES.map((value) => ({
   value,
   label: COUNTERPARTY_LABELS[value],
-})) as readonly SelectDropdownOption<CounterpartyType>[];
+})) as readonly CounterpartyTypeOption[];
 
 export const DEFAULT_COUNTERPARTY_TYPE: CounterpartyType = "merchant";

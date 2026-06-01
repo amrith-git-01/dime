@@ -38,6 +38,7 @@ export function useManualAddScreenLifecycle({
   onResetUi,
   onSubmitMutationReset,
 }: UseManualAddScreenLifecycleParams) {
+  const { categoryId, clearCategory, reset, selectCategory, txType } = form;
   const navigatedToCreateCategoryRef = useRef(false);
   const pendingReturnCategoryIdRef = useRef<string | null>(null);
   const consumedReturnCategoryRef = useRef(false);
@@ -58,7 +59,7 @@ export function useManualAddScreenLifecycle({
         consumedReturnCategoryRef.current = true;
         hasFocusedOnceRef.current = true;
         pendingReturnCategoryIdRef.current = returnCategoryId;
-        form.selectCategory(returnCategoryId, returnCategoryName ?? "");
+        selectCategory(returnCategoryId, returnCategoryName ?? "");
         navigation.setParams({
           createdCategoryId: undefined,
           createdCategoryName: undefined,
@@ -71,7 +72,7 @@ export function useManualAddScreenLifecycle({
         const frame = requestAnimationFrame(() => {
           pendingReturnCategoryIdRef.current = null;
           consumedReturnCategoryRef.current = false;
-          form.reset();
+          reset();
           onSubmitMutationReset();
           onResetUi();
         });
@@ -83,13 +84,13 @@ export function useManualAddScreenLifecycle({
 
       return () => undefined;
     }, [
-      form.reset,
-      form.selectCategory,
       navigation,
       onResetUi,
       onSubmitMutationReset,
       returnCategoryId,
       returnCategoryName,
+      reset,
+      selectCategory,
     ]),
   );
 
@@ -100,43 +101,37 @@ export function useManualAddScreenLifecycle({
     }
     const match = categories.find((category) => category.id === pendingId);
     if (match) {
-      form.selectCategory(match.id, match.name);
+      selectCategory(match.id, match.name);
       pendingReturnCategoryIdRef.current = null;
     }
-  }, [categories, form.selectCategory]);
+  }, [categories, selectCategory]);
 
   useEffect(() => {
     if (categories.length === 0) {
       return;
     }
 
-    const current = form.categoryId
-      ? categories.find((category) => category.id === form.categoryId)
+    const current = categoryId
+      ? categories.find((category) => category.id === categoryId)
       : undefined;
 
-    if (form.txType === "credit") {
+    if (txType === "credit") {
       if (current && isCategoryAllowedForTxType(current, "credit")) {
         return;
       }
       const income = findIncomeCategory(categories);
       if (income) {
-        form.selectCategory(income.id, income.name);
+        selectCategory(income.id, income.name);
       } else {
-        form.clearCategory();
+        clearCategory();
       }
       return;
     }
 
     if (current && !isCategoryAllowedForTxType(current, "debit")) {
-      form.clearCategory();
+      clearCategory();
     }
-  }, [
-    categories,
-    form.categoryId,
-    form.clearCategory,
-    form.selectCategory,
-    form.txType,
-  ]);
+  }, [categories, categoryId, clearCategory, selectCategory, txType]);
 
   return { markNavigatedToCreateCategory };
 }
