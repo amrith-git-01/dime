@@ -67,13 +67,16 @@ export function formatSpendMagnitude(amount: string | number): string {
 }
 
 /**
- * Net cash-flow display: signed compact ("+₹ 1,200" or "-₹ 800").
+ * Net cash-flow display: signed compact ("+₹ 1,200" or "-₹ 800"); zero has no sign.
  */
 export function formatNetDisplay(net: string | number): string {
   const n = typeof net === "string" ? Number.parseFloat(net) : net;
   if (!Number.isFinite(n)) {
     return formatInrCompact(0);
   }
-  const sign = n >= 0 ? "+" : "-";
+  if (n === 0) {
+    return formatInrCompact(0);
+  }
+  const sign = n > 0 ? "+" : "-";
   return `${sign}${formatInrCompact(Math.abs(n))}`;
 }

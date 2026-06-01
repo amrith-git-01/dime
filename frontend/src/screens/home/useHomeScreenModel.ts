@@ -5,13 +5,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format, subDays } from "date-fns";
 import { useCallback, useMemo } from "react";
 
-import type {
-  HomeBentoContentProps,
-  HomeCategoryBentoItem,
-} from "@/features/home/components";
-import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { colors } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import type { HomeBentoContentProps } from "@/features/home/components";
+import { HOME_MAX_CATEGORIES } from "@/features/home/components";
 import {
   useMonthSummaryQuery,
   useTransactionsHomeQuery,
@@ -67,7 +65,6 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   );
   const { data: budgetResp } = useBudgetQuery();
   const budget = budgetResp?.budget ?? null;
-  const hasBudget = Boolean(budget);
 
   const monthlyBudget = budget ? Number.parseFloat(budget.monthly_budget) : NaN;
   const spentMonthNum = overview
@@ -128,30 +125,26 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       })()
     : 0;
 
-  const topCategories = useMemo((): HomeCategoryBentoItem[] => {
+  const topCategories = useMemo((): CategorySpendRowData[] => {
     if (!overview?.top_categories?.length) {
       return [];
     }
-    const monthTotal = Number.parseFloat(overview.spent_this_month);
-    const denom =
-      Number.isFinite(monthTotal) && monthTotal > 0 ? monthTotal : 1;
     return overview.top_categories
       .slice(0, HOME_MAX_CATEGORIES)
       .map((row, index) => {
-        const totalNum = Number.parseFloat(row.total);
-        const progress = Number.isFinite(totalNum)
-          ? Math.min(1, totalNum / denom)
-          : 0;
+        const spent = Number.parseFloat(row.total);
         return {
           id: row.category_id ?? `uncategorized-${index}`,
-          label: row.name,
+          name: row.name,
           icon_name: row.icon_name ?? "Package",
-          amount: formatSpendMagnitude(row.total),
-          progress,
           color: row.color ?? colors.categoryDefault,
+          spentMonth: Number.isFinite(spent) ? Math.abs(spent) : 0,
+          is_system: true,
         };
       });
   }, [overview]);
+
+  const monthlyBudgetAmount = hasMonthlyBudget ? monthlyBudget : 0;
 
   const last7DaysSpend = useMemo(
     () => buildLast7DaysSpend(overview?.last_7_days_spend),
@@ -210,7 +203,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     onTransactionPress,
     onVoice,
     recentTransactions,
-    showCategoryProgress: hasBudget,
+    monthlyBudgetAmount,
     showRecentEmpty,
     spentMonthDisplay,
     spentTodayDisplay,
