@@ -27,11 +27,6 @@ export function useCategoriesRealtimeSync(userId: string | null) {
         { event: "*", schema: "public", table: "categories" },
         invalidate,
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_categories" },
-        invalidate,
-      )
       .subscribe();
 
     return () => {

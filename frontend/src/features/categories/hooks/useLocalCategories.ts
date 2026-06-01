@@ -6,7 +6,6 @@ import {
 } from "@/db/categoriesRepo";
 import { database } from "@/db/database";
 import { Category } from "@/db/models/Category";
-import { UserCategory } from "@/db/models/UserCategory";
 
 export type LocalCategory = LocalCategoryRecord;
 
@@ -36,16 +35,8 @@ export function useLocalCategories() {
 
     void load();
 
-    const systemSub = database
+    const sub = database
       .get<Category>("categories")
-      .query()
-      .observe()
-      .subscribe(() => {
-        void load();
-      });
-
-    const userSub = database
-      .get<UserCategory>("user_categories")
       .query()
       .observe()
       .subscribe(() => {
@@ -54,8 +45,7 @@ export function useLocalCategories() {
 
     return () => {
       cancelled = true;
-      systemSub.unsubscribe();
-      userSub.unsubscribe();
+      sub.unsubscribe();
     };
   }, []);
 
