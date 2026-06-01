@@ -44,22 +44,22 @@ export const HomeRecentSection = memo(function HomeRecentSection({
     <View>
       <BentoSectionHeader title="Recent transactions" onViewAll={onViewAll} />
 
-      <BentoSectionCard>
-        {isEmpty ? (
-          <TwoToneEmptyState
-            layout="inline"
-            icon={ArrowLeftRight}
-            title="No recent transactions"
-            message="Transactions will appear here as you add them."
-            footer={
-              <BentoQuickAddPills
-                onManualAdd={onManualAdd}
-                onReceipt={onReceipt}
-                onVoice={onVoice}
-              />
-            }
-          />
-        ) : (
+      {isEmpty ? (
+        <TwoToneEmptyState
+          layout="inline"
+          icon={ArrowLeftRight}
+          title="No recent transactions"
+          message="Transactions will appear here as you add them."
+          footer={
+            <BentoQuickAddPills
+              onManualAdd={onManualAdd}
+              onReceipt={onReceipt}
+              onVoice={onVoice}
+            />
+          }
+        />
+      ) : (
+        <BentoSectionCard>
           <View style={styles.stack}>
             {visible.map((tx) => (
               <BentoTransactionTile
@@ -69,8 +69,8 @@ export const HomeRecentSection = memo(function HomeRecentSection({
               />
             ))}
           </View>
-        )}
-      </BentoSectionCard>
+        </BentoSectionCard>
+      )}
     </View>
   );
 });

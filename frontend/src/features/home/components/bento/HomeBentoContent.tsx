@@ -55,10 +55,11 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         onPress={props.onNavigateTransactions}
       />
 
-      {/* 3 — Top categories: 2-col saturated bento grid */}
+      {/* 3 — Top categories: Budget-style spend rows */}
       <HomeCategoriesBento
         items={props.topCategories}
-        showProgress={props.showCategoryProgress}
+        hasMonthlyBudget={props.hasMonthlyBudget}
+        monthlyBudgetAmount={props.monthlyBudgetAmount}
         onViewAll={props.onNavigateBudgets}
         onManualAdd={props.onManualAdd}
         onReceipt={props.onReceipt}
