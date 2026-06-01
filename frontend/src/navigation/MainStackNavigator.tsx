@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useEffect } from "react";
 
 import { colors } from "@/constants";
 import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
@@ -6,43 +7,50 @@ import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellC
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
-import { lazyStackScreen, withStackScreen } from "./stackScreenHosts";
+import {
+  lazyStackScreen,
+  scheduleStackScreenPreload,
+  withStackScreen,
+} from "./stackScreenHosts";
+import { stackScreenModules } from "./stackScreenModules";
 import { stackScreenOptions } from "./stackScreenOptions";
 import type { MainStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 const SettingsScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsScreen"),
+  stackScreenModules.settings,
   settingsStackShellConfig,
 );
 const SettingsAccountScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsAccountScreen"),
+  stackScreenModules.settingsAccount,
 );
 const SettingsCaptureScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsCaptureScreen"),
+  stackScreenModules.settingsCapture,
 );
 const SettingsFeedbackScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsFeedbackScreen"),
+  stackScreenModules.settingsFeedback,
 );
 const NotificationsScreen = lazyStackScreen(
-  () => import("@/screens/notifications/NotificationsScreen"),
+  stackScreenModules.notifications,
   notificationsStackShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
 const TransactionDetailScreen = lazyStackScreen(
-  () => import("@/screens/transactions/TransactionDetailScreen"),
+  stackScreenModules.transactionDetail,
 );
 const CreateCustomCategoryScreen = lazyStackScreen(
-  () => import("@/screens/categories/CreateCustomCategoryScreen"),
+  stackScreenModules.createCustomCategory,
 );
 const EditMonthlyBudgetScreen = lazyStackScreen(
-  () => import("@/screens/budget/EditMonthlyBudgetScreen"),
+  stackScreenModules.editMonthlyBudget,
 );
 
 export default function MainStackNavigator() {
+  useEffect(() => scheduleStackScreenPreload(), []);
+
   return (
     <Stack.Navigator
       screenOptions={{
