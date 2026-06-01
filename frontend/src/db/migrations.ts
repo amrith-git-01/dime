@@ -37,5 +37,16 @@ export const migrations = schemaMigrations({
         unsafeExecuteSql("ALTER TABLE categories DROP COLUMN user_id;"),
       ],
     },
+    {
+      toVersion: 5,
+      steps: [
+        unsafeExecuteSql("ALTER TABLE categories ADD COLUMN user_id TEXT;"),
+        unsafeExecuteSql(
+          `INSERT INTO categories (id, name, icon_name, color, is_system, created_at, user_id)
+           SELECT id, name, icon_name, color, 0, created_at, user_id FROM user_categories;`,
+        ),
+        unsafeExecuteSql("DROP TABLE user_categories;"),
+      ],
+    },
   ],
 });

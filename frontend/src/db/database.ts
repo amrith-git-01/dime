@@ -3,7 +3,6 @@ import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite";
 
 import { migrations } from "./migrations";
 import { Category } from "./models/Category";
-import { UserCategory } from "./models/UserCategory";
 import { schema } from "./schema";
 import { isWatermelonJsiAvailable } from "./watermelonJsi";
 
@@ -21,5 +20,5 @@ const adapter = new SQLiteAdapter({
 
 export const database = new Database({
   adapter,
-  modelClasses: [Category, UserCategory],
+  modelClasses: [Category],
 });
