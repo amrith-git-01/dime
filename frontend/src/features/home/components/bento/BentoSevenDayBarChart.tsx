@@ -5,11 +5,15 @@ import { StyleSheet, Text, View } from "react-native";
 import { bento, hero } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
+const CHART_LABEL_ROW_HEIGHT = 16;
+
 export type BentoSevenDayBarChartProps = {
   /** Oldest → newest; length 7 */
   days: { date: string; total: number }[];
   barColor?: string;
   labelColor?: string;
+  activeLabelColor?: string;
+  /** Bar plot area height (labels add {@link CHART_LABEL_ROW_HEIGHT}px). */
   height?: number;
 };
 
@@ -18,12 +22,14 @@ export const BentoSevenDayBarChart = memo(function BentoSevenDayBarChart({
   days,
   barColor = hero.sparkBar,
   labelColor = bento.onSurface.muted,
+  activeLabelColor = bento.onSurface.primary,
   height = 40,
 }: BentoSevenDayBarChartProps) {
   const max = useMemo(() => Math.max(1, ...days.map((d) => d.total)), [days]);
+  const chartHeight = height + CHART_LABEL_ROW_HEIGHT;
 
   return (
-    <View style={[styles.root, { height: height + 14 }]}>
+    <View style={[styles.root, { height: chartHeight }]}>
       <View style={[styles.barsRow, { height }]}>
         {days.map((day, index) => {
           const ratio = day.total / max;
@@ -49,14 +55,21 @@ export const BentoSevenDayBarChart = memo(function BentoSevenDayBarChart({
         })}
       </View>
       <View style={styles.labelsRow}>
-        {days.map((day) => (
-          <Text
-            key={`${day.date}-label`}
-            style={[styles.dayLabel, { color: labelColor }]}
-          >
-            {format(new Date(`${day.date}T12:00:00`), "EEEEE")}
-          </Text>
-        ))}
+        {days.map((day, index) => {
+          const isToday = index === days.length - 1;
+          return (
+            <Text
+              key={`${day.date}-label`}
+              style={[
+                styles.dayLabel,
+                { color: isToday ? activeLabelColor : labelColor },
+                isToday ? styles.dayLabelActive : styles.dayLabelInactive,
+              ]}
+            >
+              {format(new Date(`${day.date}T12:00:00`), "EEEEE")}
+            </Text>
+          );
+        })}
       </View>
     </View>
   );
@@ -93,5 +106,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 9,
     lineHeight: 12,
+  },
+  dayLabelInactive: {
+    opacity: 0.55,
+  },
+  dayLabelActive: {
+    opacity: 1,
+    fontFamily: fontFamilies.semiBold,
   },
 });

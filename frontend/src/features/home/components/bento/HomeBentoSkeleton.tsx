@@ -14,6 +14,7 @@ import {
   HOME_CATEGORY_TILE_MIN_HEIGHT,
   HOME_INCOME_TILE_MIN_HEIGHT,
   HOME_SPEND_FLEX,
+  HOME_SPEND_RING_SIZE,
   HOME_SPEND_ROW_MIN_HEIGHT,
 } from "./homeBentoTokens";
 
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 4,
     flex: 1,
-    minHeight: 48,
+    minHeight: HOME_SPEND_RING_SIZE + spacing.sm,
     marginVertical: spacing.xs,
   },
   skelBar: {
@@ -177,9 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.xs,
   },
   ringSkeleton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: HOME_SPEND_RING_SIZE,
+    height: HOME_SPEND_RING_SIZE,
+    borderRadius: HOME_SPEND_RING_SIZE / 2,
     borderWidth: 7,
     borderColor: bento.chartOnPastel.track,
     alignSelf: "center",
