@@ -1,10 +1,10 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ProgressBar } from "@/components/ui";
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { ProgressBar } from "@/components/ui";
+import { colors, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import { formatInrCompact } from "@/utils/currency";
 
 export type CategorySpendRowData = {
@@ -101,6 +101,9 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
   );
 }, categorySpendRowPropsAreEqual);
 
+/** Keeps the budget subtitle on one line beside category meta on home/budget rows. */
+const CATEGORY_SPEND_PROGRESS_WIDTH = 68;
+
 const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: "row",
@@ -159,7 +162,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   catRight: {
-    width: 120,
+    flexShrink: 0,
     alignItems: "flex-end",
   },
   catSpent: {
@@ -170,6 +173,6 @@ const styles = StyleSheet.create({
   },
   catProgressWrap: {
     marginTop: spacing.xs,
-    width: "100%",
+    width: CATEGORY_SPEND_PROGRESS_WIDTH,
   },
 });

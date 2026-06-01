@@ -10,9 +10,11 @@ import {
   BENTO_TRANSACTION_TILE_MIN_HEIGHT,
 } from "@/components/bento";
 
+import { BudgetCategoryRowsSkeleton } from "@/features/budgets/components";
+
 import {
-  HOME_CATEGORY_TILE_MIN_HEIGHT,
   HOME_INCOME_TILE_MIN_HEIGHT,
+  HOME_MAX_CATEGORIES,
   HOME_SPEND_FLEX,
   HOME_SPEND_RING_SIZE,
   HOME_SPEND_ROW_MIN_HEIGHT,
@@ -20,7 +22,7 @@ import {
 
 /**
  * Shape-matched loading skeleton for the bento Home layout.
- * Mirrors exact geometry: spend row 45/55 split, income bar, 2×2 category grid, 3 recent tiles.
+ * Mirrors exact geometry: spend row 45/55 split, income bar, category list rows, 3 recent tiles.
  * Colored tiles use onPrimary tone (white shimmer on hued bg).
  * White card tiles use surface tone.
  */
@@ -87,32 +89,7 @@ export function HomeBentoSkeleton() {
         <SkeletonBlock tone="surface" style={styles.skelSectionTitle} />
       </View>
       <View style={styles.sectionCardSkel}>
-        <View style={styles.catGrid}>
-          {[0, 1].map((i) => (
-            <View key={i} style={styles.catRowPair}>
-              <View
-                style={[
-                  styles.catTileSkel,
-                  { minHeight: HOME_CATEGORY_TILE_MIN_HEIGHT },
-                ]}
-              >
-                <SkeletonBlock tone="surface" style={styles.skelIconChip} />
-                <SkeletonBlock tone="surface" style={styles.skelLabel} />
-                <SkeletonBlock tone="surface" style={styles.skelAmountSm} />
-              </View>
-              <View
-                style={[
-                  styles.catTileSkel,
-                  { minHeight: HOME_CATEGORY_TILE_MIN_HEIGHT },
-                ]}
-              >
-                <SkeletonBlock tone="surface" style={styles.skelIconChip} />
-                <SkeletonBlock tone="surface" style={styles.skelLabel} />
-                <SkeletonBlock tone="surface" style={styles.skelAmountSm} />
-              </View>
-            </View>
-          ))}
-        </View>
+        <BudgetCategoryRowsSkeleton rowCount={HOME_MAX_CATEGORIES} />
       </View>
 
       {/* Recent section */}
@@ -210,28 +187,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 20,
     borderRadius: radius.xs,
-  },
-  /** Category grid */
-  catGrid: {
-    gap: BENTO_GAP,
-  },
-  catRowPair: {
-    flexDirection: "row",
-    gap: BENTO_GAP,
-  },
-  catTileSkel: {
-    flex: 1,
-    backgroundColor: colors.surfaceTint,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  skelIconChip: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
   },
   /** Recent tiles */
   recentTileSkel: {
