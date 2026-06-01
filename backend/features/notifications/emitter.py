@@ -86,8 +86,9 @@ class NotificationEmitter:
         self,
         *,
         user_id: str,
+        scope: Literal["monthly", "daily"],
+        period_key: str,
         threshold: Literal[80, 100],
-        month_key: str,
         title: str,
         body: str,
     ) -> None:
@@ -99,6 +100,6 @@ class NotificationEmitter:
                 "body": body,
                 "action_type": "home",
                 "action_transaction_id": None,
-                "dedupe_key": f"budget:monthly:{threshold}:{month_key}",
+                "dedupe_key": f"budget:{scope}:{threshold}:{period_key}",
             }
         )
