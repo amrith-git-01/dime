@@ -1,8 +1,8 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
 import { bento, colors } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 
 export type BentoStatCellTone =
   | "neutral"
@@ -56,6 +56,7 @@ const styles = StyleSheet.create({
   cell: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
     gap: 2,
   },
   label: {

@@ -71,7 +71,11 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   );
 });
 
-export function MonthSummaryHeaderKicker({ children }: { children: ReactNode }) {
+export function MonthSummaryHeaderKicker({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return <Text style={styles.activityKicker}>{children}</Text>;
 }
 
@@ -164,12 +168,13 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
   },
   divider: {
     width: 1,
-    height: 28,
-    backgroundColor: surfaces.primaryTint14,
+    alignSelf: "stretch",
+    minHeight: 36,
+    backgroundColor: surfaces.primaryBorder28,
     marginHorizontal: spacing.xs,
   },
 });
