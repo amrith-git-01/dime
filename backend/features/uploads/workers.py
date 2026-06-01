@@ -15,6 +15,8 @@ from features.ai.preprocess.errors import OcrError, PreprocessError, Transcripti
 from features.ai.schemas import ParseExpenseResult
 from features.ai.service import AIParseError, AIOrchestratorService
 from features.ai.voice_audio import VoiceAudioNormalizeError, normalize_audio_for_transcription
+from features.notifications.emitter import NotificationEmitter
+from features.notifications.repository import NotificationRepository
 from features.transactions.schemas import TransactionCreate
 from features.transactions.service import TransactionService
 
@@ -29,6 +31,7 @@ MAX_JOB_ATTEMPTS = 3
 class ManualTransactionJob:
     user_id: str
     payload: TransactionCreate
+    timezone: str
 
 
 @dataclass(slots=True, frozen=True)
@@ -36,6 +39,7 @@ class ReceiptJob:
     user_id: str
     file_bytes: bytes
     mime_type: str
+    timezone: str
 
 
 @dataclass(slots=True, frozen=True)
@@ -43,6 +47,7 @@ class VoiceJob:
     user_id: str
     file_bytes: bytes
     mime_type: str
+    timezone: str
 
 
 def _build_user(user_id: str) -> CurrentUser:
@@ -199,10 +204,34 @@ async def _run_with_retries(
 async def process_manual_job(*, client: Client, job: ManualTransactionJob) -> None:
     service = TransactionService(client)
     user = _build_user(job.user_id)
-    await asyncio.to_thread(service.create_manual, user, job.payload)
+    await asyncio.to_thread(
+        service.create_manual,
+        user,
+        job.payload,
+        timezone=job.timezone,
+    )
 
 
 async def process_receipt_job(
+    *,
+    client: Client,
+    bucket: str,
+    job: ReceiptJob,
+) -> None:
+    try:
+        await _process_receipt_job_inner(client=client, bucket=bucket, job=job)
+    except Exception:
+        NotificationEmitter(NotificationRepository(client)).emit_capture_failed(
+            user_id=job.user_id,
+            source="scan",
+            title="Receipt scan failed",
+            body="We couldn't read this receipt. Try again or add manually.",
+            day_key=datetime.now(UTC).date().isoformat(),
+        )
+        raise
+
+
+async def _process_receipt_job_inner(
     *,
     client: Client,
     bucket: str,
@@ -245,7 +274,11 @@ async def process_receipt_job(
         )
         await process_manual_job(
             client=client,
-            job=ManualTransactionJob(user_id=job.user_id, payload=payload),
+            job=ManualTransactionJob(
+                user_id=job.user_id,
+                payload=payload,
+                timezone=job.timezone,
+            ),
         )
 
     await _run_with_retries(
@@ -352,7 +385,11 @@ async def process_voice_job(
         )
         await process_manual_job(
             client=client,
-            job=ManualTransactionJob(user_id=job.user_id, payload=payload),
+            job=ManualTransactionJob(
+                user_id=job.user_id,
+                payload=payload,
+                timezone=job.timezone,
+            ),
         )
         logger.info("[voice-pipeline] db-insert-done user_id=%s", job.user_id)
 

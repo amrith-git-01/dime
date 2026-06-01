@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -12,6 +13,7 @@ export type NotificationBentoRowProps = {
   notification: AppNotification;
   unread: boolean;
   onPress: (notification: AppNotification) => void;
+  onDelete?: (id: string) => void;
   showSeparator?: boolean;
 };
 
@@ -21,6 +23,7 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
   notification,
   unread,
   onPress,
+  onDelete,
   showSeparator = false,
 }: NotificationBentoRowProps) {
   const visual = NOTIFICATION_ROW_VISUALS[notification.kind];
@@ -29,36 +32,66 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
 
   return (
     <View>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => {
-          void triggerLightHaptic();
-          onPress(notification);
-        }}
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-      >
-        <View
-          style={[styles.iconWell, { backgroundColor: visual.backgroundColor }]}
+      <View style={styles.row}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            void triggerLightHaptic();
+            onPress(notification);
+          }}
+          style={({ pressed }) => [
+            styles.mainPressable,
+            pressed && styles.rowPressed,
+          ]}
         >
-          <Icon size={22} color={visual.iconColor} strokeWidth={2} />
-        </View>
-
-        <View style={styles.textCol}>
-          <View style={styles.titleRow}>
-            <Text
-              style={[styles.title, unread && styles.titleUnread]}
-              numberOfLines={2}
-            >
-              {notification.title}
-            </Text>
-            {unread ? <View style={styles.unreadDot} /> : null}
+          <View
+            style={[
+              styles.iconWell,
+              { backgroundColor: visual.backgroundColor },
+            ]}
+          >
+            <Icon size={22} color={visual.iconColor} strokeWidth={2} />
           </View>
-          <Text style={styles.body} numberOfLines={2}>
-            {notification.body}
-          </Text>
-          <Text style={styles.time}>{timeLabel}</Text>
-        </View>
-      </Pressable>
+
+          <View style={styles.textCol}>
+            <View style={styles.titleRow}>
+              <Text
+                style={[styles.title, unread && styles.titleUnread]}
+                numberOfLines={2}
+              >
+                {notification.title}
+              </Text>
+              {unread ? <View style={styles.unreadDot} /> : null}
+            </View>
+            <Text style={styles.body} numberOfLines={2}>
+              {notification.body}
+            </Text>
+            <Text style={styles.time}>{timeLabel}</Text>
+          </View>
+        </Pressable>
+
+        {onDelete ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete notification"
+            hitSlop={8}
+            onPress={() => {
+              void triggerLightHaptic();
+              onDelete(notification.id);
+            }}
+            style={({ pressed }) => [
+              styles.deleteButton,
+              pressed && styles.rowPressed,
+            ]}
+          >
+            <Trash2
+              size={18}
+              color={colors.textListSecondary}
+              strokeWidth={1.75}
+            />
+          </Pressable>
+        ) : null}
+      </View>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>
   );
@@ -68,9 +101,15 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: spacing.md,
     paddingVertical: spacing.md,
     minHeight: 56,
+  },
+  mainPressable: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+    minWidth: 0,
   },
   rowPressed: {
     opacity: 0.88,
@@ -121,6 +160,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.brandPrimary,
     marginTop: 6,
+  },
+  deleteButton: {
+    padding: spacing.xs,
+    marginTop: spacing.xs,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

@@ -1,7 +1,7 @@
 import { memo, useCallback } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { SegmentChip } from "@/components/ui/SegmentChip/SegmentChip";
+import { SegmentChip } from "@/components/ui";
 import { spacing } from "@/constants";
 import type { NotificationInboxFilter } from "@/features/notifications/types";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";

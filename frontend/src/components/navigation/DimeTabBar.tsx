@@ -2,16 +2,7 @@ import {
   BottomTabBarHeightCallbackContext,
   type BottomTabBarProps,
 } from "@react-navigation/bottom-tabs";
-import {
-  ArrowLeftRight,
-  Camera,
-  ChartBar,
-  Edit3,
-  House,
-  Mic,
-  Plus,
-  Target,
-} from "lucide-react-native";
+import { Camera, Edit3, House, Mic, Plus } from "lucide-react-native";
 import { useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
@@ -45,89 +36,21 @@ import {
 } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
-const TAB_ICON_SIZE = 22;
-const ACTIVE_ICON_SIZE = 24;
-const ACTIVE_BUBBLE_SIZE = 44;
-const ACTION_BUBBLE_SIZE = 64;
-const ACTION_PLUS_ICON_SIZE = 30;
-const OPTION_BUBBLE_SIZE = 44;
-const LIQUID_PILL_WIDTH = 56;
-const LIQUID_PILL_HEIGHT = 30;
-const NOTCH_CUTOUT_SIZE = 52;
-const TOTAL_NAV_SLOTS = 5;
-
-const ROUTE_ICONS = {
-  Home: House,
-  Transactions: ArrowLeftRight,
-  Budgets: Target,
-  Insights: ChartBar,
-} as const;
-
-type RouteName = keyof typeof ROUTE_ICONS;
-
-function isRouteName(name: string): name is RouteName {
-  return name in ROUTE_ICONS;
-}
-
-function tabLabel(
-  options: BottomTabBarProps["descriptors"][string]["options"],
-  routeName: string,
-): string {
-  if (
-    typeof options.tabBarLabel === "string" &&
-    options.tabBarLabel.length > 0
-  ) {
-    return options.tabBarLabel;
-  }
-  if (typeof options.title === "string" && options.title.length > 0) {
-    return options.title;
-  }
-  return routeName;
-}
-
-type TabItemProps = {
-  routeName: string;
-  label: string;
-  isFocused: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-};
-
-function TabItem({
-  routeName,
-  label,
-  isFocused,
-  onPress,
-  onLongPress,
-}: TabItemProps) {
-  const tabText =
-    typeof label === "string" && label.trim().length > 0
-      ? label
-      : routeName || "Tab";
-
-  const Icon = isRouteName(routeName) ? ROUTE_ICONS[routeName] : House;
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: isFocused }}
-      accessibilityLabel={tabText}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={styles.tabItem}
-    >
-      <View style={styles.tabItemBody}>
-        <View style={styles.iconStack}>
-          <Icon
-            size={TAB_ICON_SIZE}
-            color={isFocused ? "transparent" : colors.tabBarOnPrimaryInactive}
-            strokeWidth={1.7}
-          />
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+import { DimeTabBarItem } from "./DimeTabBarItem";
+import {
+  ACTION_BUBBLE_SIZE,
+  ACTION_PLUS_ICON_SIZE,
+  ACTIVE_BUBBLE_SIZE,
+  ACTIVE_ICON_SIZE,
+  LIQUID_PILL_HEIGHT,
+  LIQUID_PILL_WIDTH,
+  NOTCH_CUTOUT_SIZE,
+  OPTION_BUBBLE_SIZE,
+  ROUTE_ICONS,
+  TOTAL_NAV_SLOTS,
+  isRouteName,
+  tabLabel,
+} from "./dimeTabBarConfig";
 
 export function DimeTabBar({
   state,
@@ -295,7 +218,6 @@ export function DimeTabBar({
       onFirstLayout,
       onTabBarHeightChange,
       state.index,
-      state.routes.length,
     ],
   );
 
@@ -417,7 +339,7 @@ export function DimeTabBar({
           };
 
           return (
-            <TabItem
+            <DimeTabBarItem
               key={route.key}
               routeName={route.name}
               label={label}
@@ -477,7 +399,7 @@ export function DimeTabBar({
           };
 
           return (
-            <TabItem
+            <DimeTabBarItem
               key={route.key}
               routeName={route.name}
               label={label}
@@ -688,25 +610,6 @@ const styles = StyleSheet.create({
   radialActionHit: {
     minWidth: 44,
     minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabItem: {
-    flex: 1,
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 0,
-  },
-  tabItemBody: {
-    width: "100%",
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconStack: {
-    width: ACTIVE_BUBBLE_SIZE,
-    height: ACTIVE_BUBBLE_SIZE,
     alignItems: "center",
     justifyContent: "center",
   },

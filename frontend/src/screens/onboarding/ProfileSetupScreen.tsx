@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { BackHandler } from "react-native";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { ProfileSetupEditor } from "@/components/profile/bento/ProfileSetupEditor";
+import { ProfileSetupEditor } from "@/features/profile/components";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileMutation";
 import { useProfileSetup } from "@/hooks/useProfileSetup";

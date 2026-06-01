@@ -1,0 +1,1 @@
+export { CustomCategoryEditor } from "./bento";

@@ -3,12 +3,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MessageSquareText, ScanLine } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 
-import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
-import { SettingsHubHero } from "@/components/settings/SettingsHubHero";
-import { SettingsNavRow } from "@/components/settings/SettingsNavRow";
-import { SettingsSection } from "@/components/settings/SettingsSection";
-import { SETTINGS_ROW_ACCENTS } from "@/components/settings/settingsBentoTokens";
-import { Button } from "@/components/ui/Button/Button";
+import { BENTO_SECTION_GAP } from "@/components/bento";
+import {
+  SETTINGS_ROW_ACCENTS,
+  SettingsHubHero,
+  SettingsNavRow,
+  SettingsSection,
+} from "@/features/settings/components";
+import { Button } from "@/components/ui";
 import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";

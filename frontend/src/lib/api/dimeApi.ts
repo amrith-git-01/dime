@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from "axios";
+import { create, type AxiosInstance } from "axios";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
@@ -116,7 +116,7 @@ export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export const dimeApi: AxiosInstance = axios.create({
+export const dimeApi: AxiosInstance = create({
   baseURL: getDimeApiBaseUrl(),
   timeout: 45_000,
 });

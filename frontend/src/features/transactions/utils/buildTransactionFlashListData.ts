@@ -1,7 +1,7 @@
 import { format, parseISO, subDays } from "date-fns";
 
-import { signedAmount } from "@/components/transactions/transactionListShared";
 import type { TransactionRow } from "@/features/transactions/types";
+import { signedAmount } from "@/features/transactions/utils/transactionDisplay";
 
 export function transactionCalendarDayKey(transactionAtIso: string): string {
   return format(parseISO(transactionAtIso), "yyyy-MM-dd");

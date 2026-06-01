@@ -13,8 +13,10 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ToastHost } from "@/components/toast/ToastHost";
-import { ReceiptScanBusyOverlay } from "@/components/transactions/ReceiptScanBusyOverlay";
-import { VoiceCaptureBar } from "@/components/transactions/VoiceCaptureBar";
+import {
+  ReceiptScanBusyOverlay,
+  VoiceCaptureBar,
+} from "@/features/transactions/components";
 import { colors } from "@/constants";
 import { loadableAppFonts } from "@/constants/fonts";
 import { useCategoriesSyncBootstrap } from "@/hooks/useCategoriesSyncBootstrap";

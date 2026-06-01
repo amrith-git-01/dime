@@ -1,16 +1,19 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-import { BENTO_SECTION_GAP } from "@/components/bento/bentoLayoutTokens";
+import { BENTO_SECTION_GAP } from "@/components/bento";
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
-import { SettingsSection } from "@/components/settings/SettingsSection";
 import { TwoToneEmptyState } from "@/components/shared";
+import { colors } from "@/constants";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
+import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
+import { SettingsSection } from "@/features/settings/components";
 import { useToast } from "@/features/toast/useToast";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -22,6 +25,7 @@ import {
 export default function NotificationsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const {
     filter,
@@ -30,7 +34,10 @@ export default function NotificationsScreen() {
     isInboxEmpty,
     isFilterEmpty,
     markRead,
+    deleteNotification,
     isUnread,
+    isLoading,
+    isError,
   } = useNotificationsFeed();
 
   const handlePress = useCallback(
@@ -44,20 +51,56 @@ export default function NotificationsScreen() {
         case "manual_add":
           navigation.navigate("ManualAddTransaction");
           break;
-        case "transaction_detail":
-          showToast({
-            variant: "success",
-            message: "Transaction detail will open when inbox is wired up",
-          });
+        case "transaction_detail": {
+          const transaction = findTransactionInCache(
+            queryClient,
+            notification.action.transactionId,
+          );
+          if (transaction) {
+            navigation.navigate("TransactionDetail", { transaction });
+          } else {
+            showToast({
+              variant: "info",
+              message: "Open Transactions to view this entry",
+            });
+            navigation.navigate("MainTabs", { screen: "Transactions" });
+          }
           break;
+        }
         case "none":
           break;
         default:
           break;
       }
     },
-    [markRead, navigation, showToast],
+    [markRead, navigation, queryClient, showToast],
   );
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      deleteNotification(id);
+    },
+    [deleteNotification],
+  );
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.brandPrimary} />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <TwoToneEmptyState
+        layout="centered"
+        icon={Bell}
+        title="Could not load notifications"
+        message="Check your connection and pull to refresh from the tab bar."
+      />
+    );
+  }
 
   if (isInboxEmpty) {
     return (
@@ -91,6 +134,7 @@ export default function NotificationsScreen() {
                   notification={item}
                   unread={isUnread(item)}
                   onPress={handlePress}
+                  onDelete={handleDelete}
                   showSeparator={index < group.items.length - 1}
                 />
               ))}
@@ -112,6 +156,11 @@ const styles = StyleSheet.create({
   },
   filterEmptyWrap: {
     flexGrow: 1,
+    justifyContent: "center",
+  },
+  centered: {
+    flexGrow: 1,
+    alignItems: "center",
     justifyContent: "center",
   },
 });

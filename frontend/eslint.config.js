@@ -39,6 +39,33 @@ const dimeTokenRules = {
             message:
               "Screens and components must not import feature UI; migrate to @/components.",
           },
+          {
+            group: ["@/components/ui/**"],
+            message: "Import UI primitives from @/components/ui.",
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const dimeFeatureBoundaryRules = {
+  files: ["src/features/**/*.{ts,tsx}"],
+  ignores: ["src/features/**/components/**/*.{ts,tsx}"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            group: ["@/constants/theme"],
+            message: "Import from @/constants instead of @/constants/theme.",
+          },
+          {
+            group: ["@/components/**"],
+            message:
+              "Feature modules must not import components. Move shared non-UI logic to features, utils, or hooks.",
+          },
         ],
       },
     ],
@@ -51,4 +78,5 @@ module.exports = defineConfig([
     ignores: ["dist/*"],
   },
   dimeTokenRules,
+  dimeFeatureBoundaryRules,
 ]);

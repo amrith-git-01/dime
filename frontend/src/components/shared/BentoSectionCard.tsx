@@ -6,7 +6,7 @@ import { bento, radius } from "@/constants";
 import {
   BENTO_GAP,
   BENTO_SECTION_CARD_PADDING,
-} from "@/components/bento/bentoLayoutTokens";
+} from "@/components/bento";
 
 type BentoSectionCardProps = {
   children: ReactNode;
