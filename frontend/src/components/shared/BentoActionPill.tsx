@@ -12,6 +12,7 @@ export type BentoActionPillProps = {
   accessibilityLabel?: string;
   icon?: LucideIcon;
   trailing?: ReactNode;
+  disabled?: boolean;
 };
 
 /**
@@ -24,16 +25,20 @@ export const BentoActionPill = memo(function BentoActionPill({
   accessibilityLabel,
   icon: Icon,
   trailing,
+  disabled = false,
 }: BentoActionPillProps) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.pill,
         { backgroundColor },
-        pressed && styles.pillPressed,
+        disabled && styles.pillDisabled,
+        pressed && !disabled && styles.pillPressed,
       ]}
     >
       {Icon ? (
@@ -57,6 +62,9 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: radius.full,
+  },
+  pillDisabled: {
+    opacity: 0.45,
   },
   pillPressed: {
     opacity: 0.82,
