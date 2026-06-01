@@ -1,15 +1,15 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { colors } from "@/constants";
-import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
-import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
-import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
+import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
+import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
+import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 

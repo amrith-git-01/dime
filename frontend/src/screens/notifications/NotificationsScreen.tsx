@@ -3,12 +3,13 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
 import { TwoToneEmptyState } from "@/components/shared";
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
+import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
@@ -90,11 +91,7 @@ export default function NotificationsScreen() {
   );
 
   if (isInitialLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.brandPrimary} />
-      </View>
-    );
+    return <NotificationsInboxSkeleton />;
   }
 
   if (isError) {
@@ -163,11 +160,6 @@ const styles = StyleSheet.create({
   },
   filterEmptyWrap: {
     flexGrow: 1,
-    justifyContent: "center",
-  },
-  centered: {
-    flexGrow: 1,
-    alignItems: "center",
     justifyContent: "center",
   },
 });
