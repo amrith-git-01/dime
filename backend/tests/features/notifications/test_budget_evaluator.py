@@ -30,8 +30,10 @@ def _evaluator(
     emitter = NotificationEmitter(emitter_repo)
     evaluator = BudgetThresholdEvaluator(
         budget_repo=budget_repo,
+        category_budget_repo=MagicMock(),
         transaction_repo=transaction_repo,
         emitter=emitter,
+        db_client=MagicMock(),
     )
     return evaluator, emitter_repo
 
@@ -67,8 +69,10 @@ def test_no_budget_row_is_noop() -> None:
     emitter_repo = MagicMock()
     evaluator = BudgetThresholdEvaluator(
         budget_repo=budget_repo,
+        category_budget_repo=MagicMock(),
         transaction_repo=MagicMock(),
         emitter=NotificationEmitter(emitter_repo),
+        db_client=MagicMock(),
     )
     evaluator.evaluate_after_debit(
         user_id=_USER,
