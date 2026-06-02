@@ -1,4 +1,3 @@
-export { BudgetCategoriesSectionHeader } from "./BudgetCategoriesSectionHeader";
 export {
   BUDGET_ROW_HEIGHT_SPENT_ONLY,
   BUDGET_ROW_HEIGHT_WITH_PROGRESS,
@@ -13,3 +12,4 @@ export {
   useBudgetLimitStepControl,
   type BudgetMonthBentoSummary,
 } from "./bento";
+export { BudgetCategoriesSectionHeader } from "./BudgetCategoriesSectionHeader";

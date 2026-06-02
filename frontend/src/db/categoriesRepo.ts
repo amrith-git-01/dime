@@ -58,6 +58,19 @@ export async function upsertCategoriesFromApi(
   });
 }
 
+export async function deleteCategoryFromLocal(
+  categoryId: string,
+): Promise<void> {
+  const col = categoryCollection();
+  const found = await col.find(categoryId).catch(() => null);
+  if (!found) {
+    return;
+  }
+  await database.write(async () => {
+    await found.destroyPermanently();
+  });
+}
+
 export async function upsertCategoryFromApi(row: CategoryRow): Promise<void> {
   const col = categoryCollection();
   const found = await col.find(row.id).catch(() => null);
