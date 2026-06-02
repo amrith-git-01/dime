@@ -21,3 +21,7 @@ class UpdateCategoryRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     icon_name: str | None = Field(default=None, max_length=64)
     color: str | None = Field(default=None, max_length=16)
+
+
+class CategoryDeleteImpactResponse(BaseModel):
+    transaction_count: int = Field(ge=0)

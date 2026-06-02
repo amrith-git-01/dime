@@ -159,6 +159,45 @@ class CategoryRepository:
         first = data[0]
         return first if isinstance(first, dict) else None
 
+    def count_transactions_for_category(
+        self,
+        *,
+        user_id: str,
+        category_id: str,
+    ) -> int:
+        res = (
+            self._db.table("transactions")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("category_id", category_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        count = res.count
+        return int(count) if isinstance(count, int) else 0
+
+    def reassign_transactions_category(
+        self,
+        *,
+        user_id: str,
+        from_category_id: str,
+        to_category_id: str,
+        to_category_name: str,
+    ) -> None:
+        (
+            self._db.table("transactions")
+            .update(
+                {
+                    "category_id": to_category_id,
+                    "category": to_category_name,
+                },
+            )
+            .eq("user_id", user_id)
+            .eq("category_id", from_category_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+
     def delete_custom_category(self, *, user_id: str, category_id: str) -> bool:
         res = (
             self._db.table("categories")

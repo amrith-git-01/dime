@@ -10,6 +10,7 @@ from supabase import Client
 
 from features.categories.repository import CategoryRepository
 from features.categories.schemas import (
+    CategoryDeleteImpactResponse,
     CategoryResponse,
     CreateCategoryRequest,
     UpdateCategoryRequest,
@@ -160,7 +161,11 @@ class CategoryService:
             )
         return parsed
 
-    def delete_custom_category(self, user_id: str, category_id: str) -> None:
+    def get_delete_impact(
+        self,
+        user_id: str,
+        category_id: str,
+    ) -> CategoryDeleteImpactResponse:
         existing = self._repo.fetch_by_id_for_user(user_id, category_id)
         if existing is None:
             raise HTTPException(
@@ -172,6 +177,63 @@ class CategoryService:
                 status.HTTP_403_FORBIDDEN,
                 detail="System categories cannot be deleted.",
             )
+        count = self._repo.count_transactions_for_category(
+            user_id=user_id,
+            category_id=category_id,
+        )
+        return CategoryDeleteImpactResponse(transaction_count=count)
+
+    def delete_custom_category(
+        self,
+        user_id: str,
+        category_id: str,
+        *,
+        reassign_to_category_id: str | None = None,
+    ) -> None:
+        existing = self._repo.fetch_by_id_for_user(user_id, category_id)
+        if existing is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+        if existing.get("is_system") is True:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="System categories cannot be deleted.",
+            )
+
+        tx_count = self._repo.count_transactions_for_category(
+            user_id=user_id,
+            category_id=category_id,
+        )
+        if tx_count > 0:
+            if not reassign_to_category_id or reassign_to_category_id == category_id:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Choose a category to move transactions to before deleting.",
+                )
+            target = self._repo.fetch_by_id_for_user(
+                user_id,
+                reassign_to_category_id,
+            )
+            if target is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Target category not found.",
+                )
+            target_name = self._coerce_text(target.get("name"))
+            if not target_name:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Target category not found.",
+                )
+            self._repo.reassign_transactions_category(
+                user_id=user_id,
+                from_category_id=category_id,
+                to_category_id=reassign_to_category_id,
+                to_category_name=target_name,
+            )
+
         deleted = self._repo.delete_custom_category(
             user_id=user_id,
             category_id=category_id,
