@@ -12,7 +12,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-import { colors, hero, overlays, spacing, typography } from "@/constants";
+import {
+  colors,
+  hero,
+  overlays,
+  progressBar,
+  spacing,
+  typography,
+} from "@/constants";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {
@@ -25,6 +32,7 @@ export type AppHeaderProps = {
 const AVATAR_SIZE = 40;
 const BELL_ICON = 20;
 const BELL_CIRCLE = 36;
+const UNREAD_BADGE_SIZE = 8;
 
 function timeOfDayGreeting(): string {
   const hour = new Date().getHours();
@@ -294,6 +302,7 @@ const styles = StyleSheet.create({
   },
   bellCircle: {
     position: "relative",
+    overflow: "visible",
     width: BELL_CIRCLE,
     height: BELL_CIRCLE,
     borderRadius: BELL_CIRCLE / 2,
@@ -306,14 +315,12 @@ const styles = StyleSheet.create({
   },
   unreadBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brandPrimary,
-    borderWidth: 1.5,
-    borderColor: colors.headerBellCircleBg,
+    top: 2,
+    right: 2,
+    width: UNREAD_BADGE_SIZE,
+    height: UNREAD_BADGE_SIZE,
+    borderRadius: UNREAD_BADGE_SIZE / 2,
+    backgroundColor: progressBar.fillDefault,
   },
   headerIconGap: {
     marginRight: spacing.sm,

@@ -68,9 +68,46 @@ def test_delete_custom_category_success(service: CategoryService) -> None:
     service._repo.fetch_by_id_for_user = MagicMock(
         return_value={"id": _CAT, "is_system": False},
     )
+    service._repo.count_transactions_for_category = MagicMock(return_value=0)
     service._repo.delete_custom_category = MagicMock(return_value=True)
     service.delete_custom_category(_USER, _CAT)
     service._repo.delete_custom_category.assert_called_once_with(
         user_id=_USER,
         category_id=_CAT,
+    )
+
+
+def test_delete_custom_category_requires_reassign_when_txns_exist(
+    service: CategoryService,
+) -> None:
+    service._repo.fetch_by_id_for_user = MagicMock(
+        return_value={"id": _CAT, "is_system": False, "name": "Old"},
+    )
+    service._repo.count_transactions_for_category = MagicMock(return_value=3)
+    with pytest.raises(HTTPException) as exc:
+        service.delete_custom_category(_USER, _CAT)
+    assert exc.value.status_code == 422
+
+
+def test_delete_custom_category_reassigns_then_deletes(service: CategoryService) -> None:
+    target = "cat-2"
+    service._repo.fetch_by_id_for_user = MagicMock(
+        side_effect=[
+            {"id": _CAT, "is_system": False, "name": "Old"},
+            {"id": target, "is_system": True, "name": "Food"},
+        ],
+    )
+    service._repo.count_transactions_for_category = MagicMock(return_value=2)
+    service._repo.reassign_transactions_category = MagicMock()
+    service._repo.delete_custom_category = MagicMock(return_value=True)
+    service.delete_custom_category(
+        _USER,
+        _CAT,
+        reassign_to_category_id=target,
+    )
+    service._repo.reassign_transactions_category.assert_called_once_with(
+        user_id=_USER,
+        from_category_id=_CAT,
+        to_category_id=target,
+        to_category_name="Food",
     )
