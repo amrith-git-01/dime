@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { colors } from "@/constants";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
+import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
 import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
@@ -38,6 +39,7 @@ const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
 const CreateCustomCategoryScreen = withStackScreen(
   CreateCustomCategoryScreenBase,
 );
+const EditCategoryScreen = withStackScreen(EditCategoryScreenBase);
 const EditMonthlyBudgetScreen = withStackScreen(EditMonthlyBudgetScreenBase);
 
 export default function MainStackNavigator() {
@@ -88,6 +90,11 @@ export default function MainStackNavigator() {
         name="CreateCustomCategory"
         component={CreateCustomCategoryScreen}
         options={{ ...stackScreenOptions, title: "Custom category" }}
+      />
+      <Stack.Screen
+        name="EditCategory"
+        component={EditCategoryScreen}
+        options={{ ...stackScreenOptions, title: "Edit category" }}
       />
       <Stack.Screen
         name="EditMonthlyBudget"

@@ -23,6 +23,7 @@ export type MainStackParamList = {
       }
     | undefined;
   CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  EditCategory: { categoryId: string };
   EditMonthlyBudget:
     | {
         mode?: "create" | "edit";

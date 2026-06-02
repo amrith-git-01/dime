@@ -4,6 +4,13 @@ import { memo, useCallback, useMemo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import {
+  CategorySpendBentoRow,
+  type CategorySpendRowData,
+} from "@/components/categories/CategorySpendBentoRow";
+import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { TwoToneEmptyState } from "@/components/shared";
+import { colors, spacing } from "@/constants";
+import {
   BUDGET_ROW_HEIGHT_SPENT_ONLY,
   BUDGET_ROW_HEIGHT_WITH_PROGRESS,
   BudgetCategoriesSectionHeader,
@@ -11,15 +18,11 @@ import {
   BudgetMonthBentoCard,
   BudgetMonthBentoSkeleton,
 } from "@/features/budgets/components";
-import {
-  CategorySpendBentoRow,
-  type CategorySpendRowData,
-} from "@/components/categories/CategorySpendBentoRow";
-import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { TwoToneEmptyState } from "@/components/shared";
-import { colors, spacing } from "@/constants";
 
-import { useBudgetScreenModel } from "./useBudgetScreenModel";
+import {
+  UNCATEGORIZED_SPEND_KEY,
+  useBudgetScreenModel,
+} from "./useBudgetScreenModel";
 
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
@@ -35,12 +38,19 @@ const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
   default: 240,
 }) as number;
 
+function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
+  return (
+    item.id !== UNCATEGORIZED_SPEND_KEY && item.name !== "Unknown category"
+  );
+}
+
 export default function BudgetScreen() {
   const {
     addCustomCategoryDisabled,
     budgetListKey,
     handleAddCustomCategory,
     handleEditBudget,
+    handleEditCategory,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
@@ -62,17 +72,21 @@ export default function BudgetScreen() {
         item={item}
         hasMonthlyBudget={hasMonthlyBudget}
         monthlyBudgetAmount={monthlyBudgetAmount}
+        onEditPress={
+          isBudgetCategoryEditable(item)
+            ? () => handleEditCategory(item.id)
+            : undefined
+        }
       />
     ),
-    [hasMonthlyBudget, monthlyBudgetAmount],
+    [handleEditCategory, hasMonthlyBudget, monthlyBudgetAmount],
   );
 
   const overrideItemLayout = useCallback(
-    (
-      layout: { span?: number; size?: number },
-      _item: CategorySpendRowData,
-    ) => {
-      layout.size = hasMonthlyBudget
+    (layout: { span?: number; size?: number }, item: CategorySpendRowData) => {
+      const hasCategoryCap = (item.monthlyCap ?? 0) > 0;
+      const showProgress = hasCategoryCap || hasMonthlyBudget;
+      layout.size = showProgress
         ? BUDGET_ROW_HEIGHT_WITH_PROGRESS
         : BUDGET_ROW_HEIGHT_SPENT_ONLY;
     },
