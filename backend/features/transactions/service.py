@@ -12,6 +12,7 @@ from supabase import Client
 
 from core.async_utils import run_sync
 from core.security import CurrentUser
+from features.budgets.category_budget_repository import CategoryBudgetRepository
 from features.budgets.repository import BudgetRepository
 from features.notifications.budget_evaluator import BudgetThresholdEvaluator
 from features.notifications.emitter import (
@@ -506,12 +507,15 @@ class TransactionService:
         if body.type == "debit":
             BudgetThresholdEvaluator(
                 budget_repo=BudgetRepository(db),
+                category_budget_repo=CategoryBudgetRepository(db),
                 transaction_repo=self._repo,
                 emitter=notifier,
+                db_client=db,
             ).evaluate_after_debit(
                 user_id=user.id,
                 timezone=timezone,
                 transaction_at_iso=body.transaction_at.isoformat(),
+                category_id=category_id,
             )
 
         detected = body.detected_via or "manual"
