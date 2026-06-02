@@ -12,14 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
-import {
-  colors,
-  hero,
-  overlays,
-  progressBar,
-  spacing,
-  typography,
-} from "@/constants";
+import { colors, hero, overlays, spacing, typography } from "@/constants";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
 export type AppHeaderProps = {
@@ -320,7 +313,7 @@ const styles = StyleSheet.create({
     width: UNREAD_BADGE_SIZE,
     height: UNREAD_BADGE_SIZE,
     borderRadius: UNREAD_BADGE_SIZE / 2,
-    backgroundColor: progressBar.fillDefault,
+    backgroundColor: colors.primary,
   },
   headerIconGap: {
     marginRight: spacing.sm,

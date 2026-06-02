@@ -37,34 +37,6 @@ const COMPACT_TRIGGER_HEIGHT = 28;
 const DEFAULT_TRIGGER_HEIGHT = 52;
 const COMPACT_OPTION_ROW_HEIGHT = 32;
 
-// #region agent log
-function debugDropdownLog(
-  message: string,
-  data: Record<string, unknown>,
-  hypothesisId: string,
-) {
-  fetch("http://127.0.0.1:7661/ingest/bfb39b2b-f4e9-405f-bc2b-e2607dc208da", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "ccb14a",
-    },
-    body: JSON.stringify({
-      sessionId: "ccb14a",
-      location: "SelectDropdown.tsx",
-      message,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-      runId: "post-fix",
-    }),
-  }).catch(() => {});
-  if (__DEV__) {
-    console.warn(`[SelectDropdown] ${message}`, data);
-  }
-}
-// #endregion
-
 export type SelectDropdownOption<T extends string = string> = {
   value: T;
   label: string;
@@ -305,70 +277,38 @@ export function SelectDropdown<T extends string>({
    * trigger regardless.
    */
   const measureMenuPosition = useCallback(
-    (onMeasured: (rect: MenuRect) => void, source: string) => {
+    (onMeasured: (rect: MenuRect) => void) => {
       if (panelAnchorRef?.current) {
         panelAnchorRef.current.measureInWindow((left, top, width, height) => {
           if (width <= 0 || height <= 0) return;
           const anchorBottom = top + height;
-          const rect = resolveMenuRectBelowAnchor(
-            anchorBottom,
-            left,
-            width,
-            options.length,
-            size,
-            maxVisibleOptions,
-          );
-          // #region agent log
-          debugDropdownLog(
-            "measure anchor path",
-            {
-              source,
-              anchorTop: top,
-              anchorH: height,
+          onMeasured(
+            resolveMenuRectBelowAnchor(
               anchorBottom,
-              rect,
-            },
-            "A",
+              left,
+              width,
+              options.length,
+              size,
+              maxVisibleOptions,
+            ),
           );
-          // #endregion
-          onMeasured(rect);
         });
         return;
       }
       triggerRef.current?.measureInWindow((left, top, width, height) => {
         if (width <= 0 || height <= 0) return;
-        const rect = resolveMenuRect(
-          left,
-          top,
-          width,
-          height,
-          options.length,
-          size,
-          maxVisibleOptions,
-          menuOpenDirection,
-        );
-        const triggerBottom =
-          top + (height > 0 ? height : triggerHeightFallback(size));
-        // #region agent log
-        debugDropdownLog(
-          "measure trigger path",
-          {
-            source,
-            triggerTop: top,
-            triggerWidth: width,
-            triggerHeight: height,
-            triggerBottom,
-            expectedBelowTop: triggerBottom + menuGap(size),
-            menuOpenDirection,
+        onMeasured(
+          resolveMenuRect(
+            left,
+            top,
+            width,
+            height,
+            options.length,
+            size,
             maxVisibleOptions,
-            panelScrollHeight,
-            rect,
-            windowHeight: Dimensions.get("window").height,
-          },
-          "A",
+            menuOpenDirection,
+          ),
         );
-        // #endregion
-        onMeasured(rect);
       });
     },
     [
@@ -385,7 +325,7 @@ export function SelectDropdown<T extends string>({
       measureMenuPosition((rect) => {
         setMenuRect(rect);
         setOpen(true);
-      }, "openMenu");
+      });
     });
   }, [measureMenuPosition]);
 
@@ -468,7 +408,6 @@ export function SelectDropdown<T extends string>({
       nestedScrollEnabled
       scrollEnabled
       showsVerticalScrollIndicator={showScrollIndicator}
-      scrollEventThrottle={16}
       style={[
         styles.panelScroll,
         maxVisibleOptions
@@ -479,29 +418,6 @@ export function SelectDropdown<T extends string>({
           : { maxHeight: scrollViewportHeight },
       ]}
       contentContainerStyle={styles.panelScrollContent}
-      onContentSizeChange={(_w, contentHeight) => {
-        // #region agent log
-        debugDropdownLog(
-          "scroll content size",
-          {
-            contentHeight,
-            scrollViewportHeight,
-            scrollable: contentHeight > scrollViewportHeight,
-            optionCount: options.length,
-          },
-          "C",
-        );
-        // #endregion
-      }}
-      onScroll={(e) => {
-        // #region agent log
-        debugDropdownLog(
-          "scroll offset",
-          { y: e.nativeEvent.contentOffset.y },
-          "C",
-        );
-        // #endregion
-      }}
     >
       {renderOptions()}
     </ScrollView>
@@ -620,22 +536,6 @@ export function SelectDropdown<T extends string>({
                       maxHeight: menuRect.maxHeight,
                     },
               ]}
-              onLayout={(e) => {
-                // #region agent log
-                debugDropdownLog(
-                  "panel layout",
-                  {
-                    layout: e.nativeEvent.layout,
-                    menuRect,
-                    scrollViewportHeight,
-                    panelScrollHeight,
-                    panelChromeHeight,
-                    optionCount: options.length,
-                  },
-                  "B",
-                );
-                // #endregion
-              }}
             >
               {optionsPanel}
             </View>

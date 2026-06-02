@@ -1,4 +1,5 @@
-import { memo, type ReactNode } from "react";
+import { memo, useRef, type ReactNode } from "react";
+import type { View as ViewRef } from "react-native";
 import { StyleSheet, Text, View } from "react-native";
 
 import {
@@ -34,6 +35,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   bodyKicker,
   children,
 }: MonthSummaryCardShellProps) {
+  const dropdownAnchorRef = useRef<ViewRef>(null);
   const { dropdownOptions, handleMonthChange } = useBentoMonthDropdown(
     monthOptions,
     onSelectMonth,
@@ -47,7 +49,11 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
 
           <View style={styles.headerRight}>
             {headerActions}
-            <View style={styles.dropdownWrap} collapsable={false}>
+            <View
+              ref={dropdownAnchorRef}
+              style={styles.dropdownWrap}
+              collapsable={false}
+            >
               <SelectDropdown
                 options={dropdownOptions}
                 value={selectedMonth}
@@ -59,6 +65,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
                 menuOpenDirection="below"
                 maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
                 onOpenChange={onMonthMenuOpenChange}
+                panelAnchorRef={dropdownAnchorRef}
               />
             </View>
           </View>
