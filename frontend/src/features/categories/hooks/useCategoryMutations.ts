@@ -6,8 +6,9 @@ import {
 } from "@/db/categoriesRepo";
 import { categoryBudgetsQueryKey } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
 
+import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import { deleteCategory } from "../api/categoryDeleteApi";
 import {
-  deleteCategory,
   patchCategory,
   type UpdateCategoryPayload,
 } from "../api/categoryMutationsApi";
@@ -32,17 +33,32 @@ export function useUpdateCategoryMutation() {
   });
 }
 
+export type DeleteCategoryVariables = {
+  categoryId: string;
+  reassignToCategoryId?: string;
+};
+
 export function useDeleteCategoryMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (categoryId: string) => deleteCategory(categoryId),
-    onSuccess: async (_void, categoryId) => {
+    mutationFn: ({
+      categoryId,
+      reassignToCategoryId,
+    }: DeleteCategoryVariables) =>
+      deleteCategory(categoryId, reassignToCategoryId),
+    onSuccess: async (_void, { categoryId }) => {
       await deleteCategoryFromLocal(categoryId);
       await queryClient.invalidateQueries({
         queryKey: categoriesQueryKeys.all,
       });
       await queryClient.invalidateQueries({
         queryKey: categoryBudgetsQueryKey,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: transactionsQueryKeys.all,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: categoriesQueryKeys.deleteImpactAll(),
       });
     },
   });

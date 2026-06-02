@@ -31,6 +31,7 @@ export type TransactionsMonthBentoCardProps = {
   summaryFailed: boolean;
   onSelectMonth: (index: number) => void;
   monthOptions: MonthOption[];
+  onMonthMenuOpenChange?: (open: boolean) => void;
 };
 
 function transactionCountLabel(count: number): string {
@@ -45,12 +46,14 @@ export const TransactionsMonthBentoCard = memo(
     summaryFailed,
     onSelectMonth,
     monthOptions,
+    onMonthMenuOpenChange,
   }: TransactionsMonthBentoCardProps) {
     return (
       <MonthSummaryCardShell
         selectedMonth={selectedMonth}
         monthOptions={monthOptions}
         onSelectMonth={onSelectMonth}
+        onMonthMenuOpenChange={onMonthMenuOpenChange}
         bodyKicker="Cash flow"
         headerContent={
           summaryFailed ? (
