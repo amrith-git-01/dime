@@ -16,7 +16,6 @@ export type MonthSummaryCardShellProps = {
   selectedMonth: string;
   monthOptions: MonthOption[];
   onSelectMonth: (index: number) => void;
-  menuPlacement?: "inline" | "modal";
   headerContent: ReactNode;
   headerActions?: ReactNode;
   bodyKicker: string;
@@ -27,7 +26,6 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   selectedMonth,
   monthOptions,
   onSelectMonth,
-  menuPlacement = "modal",
   headerContent,
   headerActions,
   bodyKicker,
@@ -46,15 +44,16 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
 
           <View style={styles.headerRight}>
             {headerActions}
-            <View style={styles.dropdownWrap}>
+            <View style={styles.dropdownWrap} collapsable={false}>
               <SelectDropdown
                 options={dropdownOptions}
                 value={selectedMonth}
                 onChange={handleMonthChange}
-                variant="default"
+                placeholder="Select month"
                 showLabel={false}
                 size="compact"
-                menuPlacement={menuPlacement}
+                menuPlacement="modal"
+                menuOpenDirection="below"
                 maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
               />
             </View>
@@ -123,7 +122,8 @@ const styles = StyleSheet.create({
   },
   dropdownWrap: {
     flexShrink: 0,
-    width: 120,
+    alignSelf: "flex-start",
+    zIndex: 1,
   },
   activityKicker: {
     fontFamily: fontFamilies.medium,

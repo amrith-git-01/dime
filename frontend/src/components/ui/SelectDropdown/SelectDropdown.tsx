@@ -8,14 +8,18 @@ import {
 } from "react";
 import {
   Dimensions,
+  InteractionManager,
   Keyboard,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import {
+  GestureHandlerRootView,
+  ScrollView,
+} from "react-native-gesture-handler";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -23,9 +27,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { colors, overlays, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
-import { colors, radius, spacing, surfaces } from "@/constants";
 
 const MENU_GAP = 6;
 const MENU_GAP_COMPACT = 4;
@@ -34,6 +38,34 @@ const ARROW_ROTATION_MS = 220;
 const COMPACT_TRIGGER_HEIGHT = 28;
 const DEFAULT_TRIGGER_HEIGHT = 52;
 const COMPACT_OPTION_ROW_HEIGHT = 32;
+
+// #region agent log
+function debugDropdownLog(
+  message: string,
+  data: Record<string, unknown>,
+  hypothesisId: string,
+) {
+  fetch("http://127.0.0.1:7661/ingest/bfb39b2b-f4e9-405f-bc2b-e2607dc208da", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "ccb14a",
+    },
+    body: JSON.stringify({
+      sessionId: "ccb14a",
+      location: "SelectDropdown.tsx",
+      message,
+      data,
+      hypothesisId,
+      timestamp: Date.now(),
+      runId: "post-fix",
+    }),
+  }).catch(() => {});
+  if (__DEV__) {
+    console.warn(`[SelectDropdown] ${message}`, data);
+  }
+}
+// #endregion
 
 export type SelectDropdownOption<T extends string = string> = {
   value: T;
@@ -52,8 +84,13 @@ export type SelectDropdownProps<T extends string = string> = {
   showLabel?: boolean;
   triggerText?: string;
   onOpenChange?: (open: boolean) => void;
-  /** Inline = menu anchors below trigger (fixed headers). Modal = portal overlay (forms, lists). */
+  /**
+   * `modal` — menu portals in a full-screen overlay (default; supports scroll).
+   * `inline` — same overlay; trigger is measured so the menu opens below it (bento headers).
+   */
   menuPlacement?: "inline" | "modal";
+  /** When "below", always open under the trigger (never flip above). */
+  menuOpenDirection?: "auto" | "below";
   size?: "default" | "compact";
   /** Cap visible rows; additional options scroll inside the panel. */
   maxVisibleOptions?: number;
@@ -62,7 +99,7 @@ export type SelectDropdownProps<T extends string = string> = {
    * When provided the panel appears below THIS view's bottom edge (e.g. an outer card),
    * while X-position and width are still derived from the trigger button.
    */
-  panelAnchorRef?: RefObject<View>;
+  panelAnchorRef?: RefObject<View | null>;
 };
 
 type MenuRect = {
@@ -93,6 +130,26 @@ function triggerHeightFallback(size: "default" | "compact"): number {
   return size === "compact" ? COMPACT_TRIGGER_HEIGHT : DEFAULT_TRIGGER_HEIGHT;
 }
 
+function menuGap(size: "default" | "compact"): number {
+  return size === "compact" ? MENU_GAP_COMPACT : MENU_GAP;
+}
+
+/** When capped, panel height matches scroll viewport (not full space below). */
+function cappedPanelMaxHeight(
+  preferredHeight: number,
+  maxVisibleOptions: number | undefined,
+  spaceBelow: number,
+  minDropHeight: number,
+): number {
+  if (maxVisibleOptions != null) {
+    return preferredHeight;
+  }
+  return Math.max(
+    minDropHeight,
+    Math.min(preferredHeight, Math.max(spaceBelow, minDropHeight)),
+  );
+}
+
 function resolveMenuRect(
   triggerLeft: number,
   triggerTop: number,
@@ -101,38 +158,82 @@ function resolveMenuRect(
   optionCount: number,
   size: "default" | "compact",
   maxVisibleOptions?: number,
+  menuOpenDirection: "auto" | "below" = "auto",
 ): MenuRect {
+  const gap = menuGap(size);
   const windowHeight = Dimensions.get("window").height;
   const preferredHeight = resolvePanelScrollHeight(
     size,
     optionCount,
     maxVisibleOptions,
   );
-  const measuredHeight = Math.max(triggerHeight, triggerHeightFallback(size));
-  const belowTop = triggerTop + measuredHeight + MENU_GAP;
+  const resolvedTriggerHeight =
+    triggerHeight > 0 ? triggerHeight : triggerHeightFallback(size);
+  const triggerBottom = triggerTop + resolvedTriggerHeight;
+  const belowTop = triggerBottom + gap;
   const spaceBelow = windowHeight - belowTop - spacing.lg;
-  const spaceAbove = triggerTop - MENU_GAP - spacing.lg;
+  const spaceAbove = triggerTop - gap - spacing.lg;
   const minDropHeight = optionRowHeight(size) + spacing.xs * 2;
 
-  // Prefer opening below the trigger; only flip up when there is no room below.
-  if (spaceBelow >= minDropHeight) {
-    return {
-      left: triggerLeft,
-      top: belowTop,
-      width: triggerWidth,
-      maxHeight: Math.max(Math.min(preferredHeight, spaceBelow), minDropHeight),
-    };
+  const openBelow = (maxHeight: number): MenuRect => ({
+    left: triggerLeft,
+    top: belowTop,
+    width: triggerWidth,
+    maxHeight,
+  });
+
+  if (menuOpenDirection === "below" || spaceBelow >= minDropHeight) {
+    return openBelow(
+      cappedPanelMaxHeight(
+        preferredHeight,
+        maxVisibleOptions,
+        spaceBelow,
+        minDropHeight,
+      ),
+    );
   }
 
-  const maxHeight = Math.max(
-    Math.min(preferredHeight, Math.max(spaceAbove, minDropHeight)),
-    minDropHeight,
+  const maxHeightAbove = Math.min(
+    preferredHeight,
+    Math.max(spaceAbove, minDropHeight),
   );
   return {
     left: triggerLeft,
-    top: Math.max(spacing.lg, triggerTop - MENU_GAP - maxHeight),
+    top: Math.max(spacing.lg, triggerTop - gap - maxHeightAbove),
     width: triggerWidth,
-    maxHeight,
+    maxHeight: maxHeightAbove,
+  };
+}
+
+function resolveMenuRectBelowAnchor(
+  anchorBottom: number,
+  triggerLeft: number,
+  triggerWidth: number,
+  optionCount: number,
+  size: "default" | "compact",
+  maxVisibleOptions?: number,
+): MenuRect {
+  const gap = menuGap(size);
+  const belowTop = anchorBottom + gap;
+  const windowHeight = Dimensions.get("window").height;
+  const preferredHeight = resolvePanelScrollHeight(
+    size,
+    optionCount,
+    maxVisibleOptions,
+  );
+  const minDropHeight = optionRowHeight(size) + spacing.xs * 2;
+  const spaceBelow = windowHeight - belowTop - spacing.lg;
+
+  return {
+    left: triggerLeft,
+    top: belowTop,
+    width: triggerWidth,
+    maxHeight: cappedPanelMaxHeight(
+      preferredHeight,
+      maxVisibleOptions,
+      spaceBelow,
+      minDropHeight,
+    ),
   };
 }
 
@@ -148,7 +249,7 @@ export function SelectDropdown<T extends string>({
   showLabel = true,
   triggerText,
   onOpenChange,
-  menuPlacement = "modal",
+  menuOpenDirection = "auto",
   size = "default",
   maxVisibleOptions,
   panelAnchorRef,
@@ -191,8 +292,11 @@ export function SelectDropdown<T extends string>({
     ? options.length > maxVisibleOptions
     : options.length > 5;
 
-  const scrollViewportHeight =
-    menuRect != null
+  const panelChromeHeight = panelScrollHeight + spacing.xs * 2;
+
+  const scrollViewportHeight = maxVisibleOptions
+    ? panelScrollHeight
+    : menuRect != null
       ? Math.min(menuRect.maxHeight, panelScrollHeight)
       : panelScrollHeight;
 
@@ -203,69 +307,89 @@ export function SelectDropdown<T extends string>({
    * trigger regardless.
    */
   const measureMenuPosition = useCallback(
-    (onMeasured: (rect: MenuRect) => void) => {
+    (onMeasured: (rect: MenuRect) => void, source: string) => {
       if (panelAnchorRef?.current) {
-        // Two-phase: anchor → Y extent, trigger → X + width
-        panelAnchorRef.current.measureInWindow(
-          (anchorLeft, anchorTop, anchorW, anchorH) => {
-            if (anchorW <= 0 || anchorH <= 0) return;
-            const anchorBottom = anchorTop + anchorH;
-            triggerRef.current?.measureInWindow((left, _top, width, height) => {
-              if (width <= 0 || height <= 0) return;
-              const mh = Math.max(height, triggerHeightFallback(size));
-              // Synthesise triggerTop so resolveMenuRect produces belowTop = anchorBottom
-              const syntheticTop = anchorBottom - mh - MENU_GAP;
-              onMeasured(
-                resolveMenuRect(
-                  left,
-                  syntheticTop,
-                  width,
-                  height,
-                  options.length,
-                  size,
-                  maxVisibleOptions,
-                ),
-              );
-            });
-          },
-        );
-        return;
-      }
-      // Default: single measurement from trigger
-      triggerRef.current?.measureInWindow((left, top, width, height) => {
-        if (width <= 0 || height <= 0) return;
-        onMeasured(
-          resolveMenuRect(
+        panelAnchorRef.current.measureInWindow((left, top, width, height) => {
+          if (width <= 0 || height <= 0) return;
+          const anchorBottom = top + height;
+          const rect = resolveMenuRectBelowAnchor(
+            anchorBottom,
             left,
-            top,
             width,
-            height,
             options.length,
             size,
             maxVisibleOptions,
-          ),
+          );
+          // #region agent log
+          debugDropdownLog(
+            "measure anchor path",
+            {
+              source,
+              anchorTop: top,
+              anchorH: height,
+              anchorBottom,
+              rect,
+            },
+            "A",
+          );
+          // #endregion
+          onMeasured(rect);
+        });
+        return;
+      }
+      triggerRef.current?.measureInWindow((left, top, width, height) => {
+        if (width <= 0 || height <= 0) return;
+        const rect = resolveMenuRect(
+          left,
+          top,
+          width,
+          height,
+          options.length,
+          size,
+          maxVisibleOptions,
+          menuOpenDirection,
         );
+        const triggerBottom =
+          top + (height > 0 ? height : triggerHeightFallback(size));
+        // #region agent log
+        debugDropdownLog(
+          "measure trigger path",
+          {
+            source,
+            triggerTop: top,
+            triggerWidth: width,
+            triggerHeight: height,
+            triggerBottom,
+            expectedBelowTop: triggerBottom + menuGap(size),
+            menuOpenDirection,
+            maxVisibleOptions,
+            panelScrollHeight,
+            rect,
+            windowHeight: Dimensions.get("window").height,
+          },
+          "A",
+        );
+        // #endregion
+        onMeasured(rect);
       });
     },
-    [maxVisibleOptions, options.length, panelAnchorRef, size],
+    [
+      maxVisibleOptions,
+      menuOpenDirection,
+      options.length,
+      panelAnchorRef,
+      size,
+    ],
   );
 
   const openMenu = useCallback(() => {
-    measureMenuPosition((rect) => {
-      setMenuRect(rect);
-      setOpen(true);
+    InteractionManager.runAfterInteractions(() => {
+      measureMenuPosition((rect) => {
+        setMenuRect(rect);
+        setOpen(true);
+      }, "openMenu");
     });
   }, [measureMenuPosition]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const measure = () => measureMenuPosition(setMenuRect);
-    measure();
-    const frame = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(frame);
-  }, [measureMenuPosition, open]);
 
   const onTriggerPress = useCallback(() => {
     if (disabled) {
@@ -443,7 +567,7 @@ export function SelectDropdown<T extends string>({
         onRequestClose={closeMenu}
         statusBarTranslucent
       >
-        <View style={styles.modalRoot} pointerEvents="box-none">
+        <GestureHandlerRootView style={styles.modalRoot}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close menu"
@@ -457,18 +581,42 @@ export function SelectDropdown<T extends string>({
                 styles.panelOverlay,
                 panelVariantStyle,
                 size === "compact" && styles.panelCompact,
-                {
-                  top: menuRect.top,
-                  left: menuRect.left,
-                  width: menuRect.width,
-                  maxHeight: menuRect.maxHeight,
-                },
+                maxVisibleOptions
+                  ? {
+                      top: menuRect.top,
+                      left: menuRect.left,
+                      width: menuRect.width,
+                      height: panelChromeHeight,
+                      maxHeight: panelChromeHeight,
+                    }
+                  : {
+                      top: menuRect.top,
+                      left: menuRect.left,
+                      width: menuRect.width,
+                      maxHeight: menuRect.maxHeight,
+                    },
               ]}
+              onLayout={(e) => {
+                // #region agent log
+                debugDropdownLog(
+                  "panel layout",
+                  {
+                    layout: e.nativeEvent.layout,
+                    menuRect,
+                    scrollViewportHeight,
+                    panelScrollHeight,
+                    panelChromeHeight,
+                    optionCount: options.length,
+                  },
+                  "B",
+                );
+                // #endregion
+              }}
             >
               {optionsPanel}
             </View>
           ) : null}
-        </View>
+        </GestureHandlerRootView>
       </Modal>
     </View>
   );
@@ -488,7 +636,8 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "transparent",
+    backgroundColor: overlays.backdrop,
+    zIndex: 0,
   },
   labelPrimary: {
     color: colors.textOnPrimaryMuted,
@@ -508,7 +657,7 @@ const styles = StyleSheet.create({
   },
   panelOverlay: {
     position: "absolute",
-    zIndex: 10000,
+    zIndex: 2,
     elevation: 24,
   },
   panelInline: {

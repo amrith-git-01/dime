@@ -20,6 +20,10 @@ export {
 export { SkeletonListRow } from "./SkeletonListRow";
 export { TwoToneCard, type TwoToneCardProps } from "./TwoToneCard";
 export {
+  TwoToneConfirmModal,
+  type TwoToneConfirmModalProps,
+} from "./TwoToneConfirmModal";
+export {
   TwoToneEmptyState,
   type TwoToneEmptyAccent,
   type TwoToneEmptyStateLayout,
