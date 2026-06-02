@@ -19,6 +19,5 @@ export async function patchCategory(
   return data;
 }
 
-export async function deleteCategory(categoryId: string): Promise<void> {
-  await dimeApi.delete(`/api/v1/categories/${categoryId}`);
-}
+export { deleteCategory, fetchCategoryDeleteImpact } from "./categoryDeleteApi";
+export type { CategoryDeleteImpact } from "./categoryDeleteApi";

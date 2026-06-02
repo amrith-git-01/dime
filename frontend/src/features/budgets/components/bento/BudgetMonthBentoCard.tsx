@@ -45,6 +45,7 @@ export type BudgetMonthBentoCardProps = {
   summaryFailed: boolean;
   onEditBudget: () => void;
   onSetBudget: () => void;
+  onMonthMenuOpenChange?: (open: boolean) => void;
 };
 
 export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
@@ -57,6 +58,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   summaryFailed,
   onEditBudget,
   onSetBudget,
+  onMonthMenuOpenChange,
 }: BudgetMonthBentoCardProps) {
   const remainingLabel = summary?.isOverBudget ? "Over" : "Remaining";
   const remainingValue = summary?.isOverBudget
@@ -73,6 +75,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
       selectedMonth={selectedMonth}
       monthOptions={monthOptions}
       onSelectMonth={onSelectMonth}
+      onMonthMenuOpenChange={onMonthMenuOpenChange}
       bodyKicker="Budget"
       headerContent={
         summaryFailed ? (

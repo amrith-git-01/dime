@@ -16,6 +16,8 @@ export type MonthSummaryCardShellProps = {
   selectedMonth: string;
   monthOptions: MonthOption[];
   onSelectMonth: (index: number) => void;
+  /** Fired when the month picker menu opens or closes (used to pause list scroll). */
+  onMonthMenuOpenChange?: (open: boolean) => void;
   headerContent: ReactNode;
   headerActions?: ReactNode;
   bodyKicker: string;
@@ -26,6 +28,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   selectedMonth,
   monthOptions,
   onSelectMonth,
+  onMonthMenuOpenChange,
   headerContent,
   headerActions,
   bodyKicker,
@@ -55,6 +58,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
                 menuPlacement="modal"
                 menuOpenDirection="below"
                 maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
+                onOpenChange={onMonthMenuOpenChange}
               />
             </View>
           </View>
