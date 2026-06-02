@@ -23,6 +23,7 @@ export type TransactionsBentoHeaderProps = {
   canGoNextDay: boolean;
   onPrevDay: () => void;
   onNextDay: () => void;
+  onMonthMenuOpenChange?: (open: boolean) => void;
 };
 
 export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
@@ -38,6 +39,7 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
   canGoNextDay,
   onPrevDay,
   onNextDay,
+  onMonthMenuOpenChange,
 }: TransactionsBentoHeaderProps) {
   return (
     <View style={styles.root}>
@@ -48,6 +50,7 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
         summaryFailed={summaryFailed}
         onSelectMonth={onSelectMonth}
         monthOptions={monthOptions}
+        onMonthMenuOpenChange={onMonthMenuOpenChange}
       />
       <View style={styles.dayBarGap}>
         <TransactionsDayBar

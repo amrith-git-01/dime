@@ -1,6 +1,6 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Calendar, Receipt } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
@@ -37,6 +37,7 @@ const TransactionsListFooter = memo(function TransactionsListFooter({
 
 export default function TransactionsScreen() {
   const listRef = useRef<FlashListRef<TransactionFlashListItem>>(null);
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const {
     canGoNextDay,
     canGoPrevDay,
@@ -156,12 +157,14 @@ export default function TransactionsScreen() {
               canGoNextDay={canGoNextDay}
               onPrevDay={goPrevDay}
               onNextDay={goNextDay}
+              onMonthMenuOpenChange={setMonthMenuOpen}
             />
           )}
         </View>
         <FlashList
           ref={listRef}
           style={styles.list}
+          scrollEnabled={!monthMenuOpen}
           data={flashListData}
           extraData={listExtraData}
           renderItem={renderFlashRow}

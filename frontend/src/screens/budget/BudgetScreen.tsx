@@ -1,6 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import { LayoutGrid } from "lucide-react-native";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
 import {
@@ -45,6 +45,7 @@ function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
 }
 
 export default function BudgetScreen() {
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const {
     addCustomCategoryDisabled,
     budgetListKey,
@@ -136,6 +137,7 @@ export default function BudgetScreen() {
               summaryFailed={monthSummaryFailed}
               onEditBudget={handleEditBudget}
               onSetBudget={handleSetBudget}
+              onMonthMenuOpenChange={setMonthMenuOpen}
             />
           )}
         </View>
@@ -143,6 +145,7 @@ export default function BudgetScreen() {
         <FlashList
           key={budgetListKey}
           style={styles.list}
+          scrollEnabled={!monthMenuOpen}
           data={listData}
           extraData={listExtraData}
           keyExtractor={(item) => item.id}

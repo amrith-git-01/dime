@@ -10,6 +10,7 @@ import {
 } from "@/features/budgets/hooks/useCategoryBudgetMutations";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
 import { CustomCategoryEditor } from "@/features/categories/components";
+import { DeleteCategorySheet } from "@/features/categories/components/DeleteCategorySheet";
 import {
   DEFAULT_CUSTOM_CATEGORY_COLOR,
   DEFAULT_CUSTOM_CATEGORY_ICON,
@@ -64,6 +65,7 @@ export default function EditCategoryScreen() {
     category?.color ?? DEFAULT_CUSTOM_CATEGORY_COLOR,
   );
   const [monthlyBudget, setMonthlyBudget] = useState(initialBudget);
+  const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
   const fieldsDisabled = category?.is_system ?? false;
 
@@ -145,44 +147,35 @@ export default function EditCategoryScreen() {
     void handleSave();
   }, [handleSave]);
 
-  const handleDelete = useCallback(() => {
+  const handleConfirmDelete = useCallback(
+    (reassignToCategoryId?: string) => {
+      void deleteMutation
+        .mutateAsync({ categoryId, reassignToCategoryId })
+        .then(() => {
+          setDeleteSheetVisible(false);
+          showToast({
+            variant: "success",
+            message: "Category deleted",
+          });
+          navigation.goBack();
+        })
+        .catch(() => {
+          showToast({
+            variant: "error",
+            message: "Could not delete category",
+          });
+        });
+    },
+    [categoryId, deleteMutation, navigation, showToast],
+  );
+
+  const onDeletePress = useCallback(() => {
     if (!category || category.is_system) {
       return;
     }
-    Alert.alert(
-      `Delete ${category.name}?`,
-      "Past transactions will become uncategorized. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void deleteMutation
-              .mutateAsync(categoryId)
-              .then(() => {
-                showToast({
-                  variant: "success",
-                  message: "Category deleted",
-                });
-                navigation.goBack();
-              })
-              .catch(() => {
-                showToast({
-                  variant: "error",
-                  message: "Could not delete category",
-                });
-              });
-          },
-        },
-      ],
-    );
-  }, [category, categoryId, deleteMutation, navigation, showToast]);
-
-  const onDeletePress = useCallback(() => {
     void triggerLightHaptic();
-    handleDelete();
-  }, [handleDelete]);
+    setDeleteSheetVisible(true);
+  }, [category]);
 
   const handleClear = useCallback(() => {
     void triggerLightHaptic();
@@ -203,27 +196,37 @@ export default function EditCategoryScreen() {
   }
 
   return (
-    <CustomCategoryEditor
-      name={name}
-      iconName={iconName}
-      color={color}
-      monthlyBudget={monthlyBudget}
-      atLimit={false}
-      saveDisabled={false}
-      saveLoading={
-        updateMutation.isPending ||
-        upsertBudgetMutation.isPending ||
-        deleteBudgetMutation.isPending
-      }
-      fieldsDisabled={fieldsDisabled}
-      onDelete={fieldsDisabled ? undefined : onDeletePress}
-      deleteLoading={deleteMutation.isPending}
-      onNameChange={setName}
-      onIconChange={setIconName}
-      onColorChange={setColor}
-      onMonthlyBudgetChange={setMonthlyBudget}
-      onClear={handleClear}
-      onSave={onSavePress}
-    />
+    <>
+      <CustomCategoryEditor
+        name={name}
+        iconName={iconName}
+        color={color}
+        monthlyBudget={monthlyBudget}
+        atLimit={false}
+        saveDisabled={false}
+        saveLoading={
+          updateMutation.isPending ||
+          upsertBudgetMutation.isPending ||
+          deleteBudgetMutation.isPending
+        }
+        fieldsDisabled={fieldsDisabled}
+        onDelete={fieldsDisabled ? undefined : onDeletePress}
+        deleteLoading={deleteMutation.isPending}
+        onNameChange={setName}
+        onIconChange={setIconName}
+        onColorChange={setColor}
+        onMonthlyBudgetChange={setMonthlyBudget}
+        onClear={handleClear}
+        onSave={onSavePress}
+      />
+      <DeleteCategorySheet
+        visible={deleteSheetVisible}
+        category={category}
+        categories={categories ?? []}
+        onClose={() => setDeleteSheetVisible(false)}
+        onConfirmDelete={handleConfirmDelete}
+        deleteLoading={deleteMutation.isPending}
+      />
+    </>
   );
 }
