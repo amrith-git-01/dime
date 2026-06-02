@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useState } from "react";
 import { Alert, Keyboard } from "react-native";
 
+import { useUpsertCategoryBudgetMutation } from "@/features/budgets/hooks/useCategoryBudgetMutations";
 import { CustomCategoryEditor } from "@/features/categories/components";
 import {
   DEFAULT_CUSTOM_CATEGORY_COLOR,
@@ -13,6 +14,7 @@ import {
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCreateCategoryMutation } from "@/features/categories/hooks/useCreateCategoryMutation";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
@@ -25,6 +27,7 @@ export default function CreateCustomCategoryScreen() {
   const route = useRoute<CreateRoute>();
   const { showToast } = useToast();
   const createMutation = useCreateCategoryMutation();
+  const upsertBudgetMutation = useUpsertCategoryBudgetMutation();
   const { data: categories } = useLocalCategories();
 
   const customCount = categories.filter(
@@ -37,6 +40,7 @@ export default function CreateCustomCategoryScreen() {
     DEFAULT_CUSTOM_CATEGORY_ICON,
   );
   const [color, setColor] = useState<string>(DEFAULT_CUSTOM_CATEGORY_COLOR);
+  const [monthlyBudget, setMonthlyBudget] = useState("");
 
   const handleSave = useCallback(async () => {
     const trimmed = name.trim();
@@ -58,6 +62,15 @@ export default function CreateCustomCategoryScreen() {
         icon_name: iconName,
         color,
       });
+
+      const amount = parseBudgetAmount(monthlyBudget);
+      if (amount != null) {
+        await upsertBudgetMutation.mutateAsync({
+          categoryId: row.id,
+          monthlyAmount: amount,
+        });
+      }
+
       showToast({ variant: "success", message: "Category created" });
 
       if (route.params?.origin === "manual-add") {
@@ -84,10 +97,12 @@ export default function CreateCustomCategoryScreen() {
     color,
     createMutation,
     iconName,
+    monthlyBudget,
     name,
     navigation,
     route.params?.origin,
     showToast,
+    upsertBudgetMutation,
   ]);
 
   const onSavePress = useCallback(() => {
@@ -101,6 +116,7 @@ export default function CreateCustomCategoryScreen() {
     setName("");
     setIconName(DEFAULT_CUSTOM_CATEGORY_ICON);
     setColor(DEFAULT_CUSTOM_CATEGORY_COLOR);
+    setMonthlyBudget("");
   }, []);
 
   const limitHint = atLimit
@@ -112,13 +128,15 @@ export default function CreateCustomCategoryScreen() {
       name={name}
       iconName={iconName}
       color={color}
+      monthlyBudget={monthlyBudget}
       atLimit={atLimit}
       saveDisabled={false}
-      saveLoading={createMutation.isPending}
+      saveLoading={createMutation.isPending || upsertBudgetMutation.isPending}
       limitHint={limitHint}
       onNameChange={setName}
       onIconChange={setIconName}
       onColorChange={setColor}
+      onMonthlyBudgetChange={setMonthlyBudget}
       onClear={handleClear}
       onSave={onSavePress}
     />

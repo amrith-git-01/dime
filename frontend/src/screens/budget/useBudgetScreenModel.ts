@@ -7,6 +7,7 @@ import type { CategorySpendRowData } from "@/components/categories/CategorySpend
 import { colors } from "@/constants";
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { useToast } from "@/features/toast/useToast";
@@ -17,7 +18,7 @@ import {
 import type { MainStackParamList } from "@/navigation/types";
 import { formatInrCompact } from "@/utils/currency";
 
-const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
+export const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
 
 export function useBudgetScreenModel() {
   const stackNavigation =
@@ -25,6 +26,8 @@ export function useBudgetScreenModel() {
   const { showToast } = useToast();
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
+
   const {
     monthOptions,
     selectedMonth,
@@ -44,6 +47,17 @@ export function useBudgetScreenModel() {
     selectedMonth.year,
     selectedMonth.monthIndex0,
   );
+
+  const categoryCapById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of categoryBudgets) {
+      const amount = Number.parseFloat(row.monthly_amount);
+      if (Number.isFinite(amount) && amount > 0) {
+        map.set(row.category_id, amount);
+      }
+    }
+    return map;
+  }, [categoryBudgets]);
 
   const budgetListKey = `${selectedMonth.year}-${selectedMonth.monthIndex0}`;
   const existingBudget = budgetResp?.budget
@@ -66,6 +80,7 @@ export function useBudgetScreenModel() {
       color: category.color,
       spentMonth: spendByCategory[category.id] ?? 0,
       is_system: category.is_system,
+      monthlyCap: categoryCapById.get(category.id) ?? null,
     }));
 
     const uncategorizedSpent = spendByCategory[UNCATEGORIZED_SPEND_KEY] ?? 0;
@@ -77,6 +92,7 @@ export function useBudgetScreenModel() {
         color: colors.categoryDefault,
         spentMonth: uncategorizedSpent,
         is_system: true,
+        monthlyCap: null,
       });
     }
 
@@ -92,6 +108,7 @@ export function useBudgetScreenModel() {
           color: colors.categoryDefault,
           spentMonth: amount,
           is_system: true,
+          monthlyCap: categoryCapById.get(categoryId) ?? null,
         });
       }
     }
@@ -99,7 +116,7 @@ export function useBudgetScreenModel() {
     return rows.sort(
       (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
     );
-  }, [categories, spendByCategory, knownCategoryIds]);
+  }, [categories, spendByCategory, knownCategoryIds, categoryCapById]);
 
   const navigateToBudgetEditor = useCallback(
     (mode: "create" | "edit") => {
@@ -119,6 +136,13 @@ export function useBudgetScreenModel() {
   const handleEditBudget = useCallback(() => {
     navigateToBudgetEditor("edit");
   }, [navigateToBudgetEditor]);
+
+  const handleEditCategory = useCallback(
+    (categoryId: string) => {
+      stackNavigation.navigate("EditCategory", { categoryId });
+    },
+    [stackNavigation],
+  );
 
   const spentMonthNum = monthSummaryQuery.data
     ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
@@ -214,6 +238,7 @@ export function useBudgetScreenModel() {
     budgetListKey,
     handleAddCustomCategory,
     handleEditBudget,
+    handleEditCategory,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
