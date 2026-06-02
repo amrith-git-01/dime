@@ -103,3 +103,25 @@ class NotificationEmitter:
                 "dedupe_key": f"budget:{scope}:{threshold}:{period_key}",
             }
         )
+
+    def emit_category_budget_threshold(
+        self,
+        *,
+        user_id: str,
+        category_id: str,
+        period_key: str,
+        threshold: Literal[80, 100],
+        title: str,
+        body: str,
+    ) -> None:
+        self._repo.insert_deduped(
+            {
+                "user_id": user_id,
+                "kind": "budget_threshold",
+                "title": title,
+                "body": body,
+                "action_type": "home",
+                "action_transaction_id": None,
+                "dedupe_key": f"budget:category:{category_id}:{threshold}:{period_key}",
+            }
+        )

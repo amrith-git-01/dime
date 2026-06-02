@@ -111,3 +111,62 @@ class CategoryRepository:
         )
         rows = res.data if isinstance(res.data, list) else []
         return bool(rows)
+
+    def fetch_by_id_for_user(
+        self,
+        user_id: str,
+        category_id: str,
+    ) -> dict[str, Any] | None:
+        res = (
+            self._db.table("categories")
+            .select(_SELECT)
+            .eq("id", category_id)
+            .or_(self._visible_filter(user_id))
+            .maybe_single()
+            .execute()
+        )
+        if res is None:
+            return None
+        data = res.data
+        return data if isinstance(data, dict) else None
+
+    def update_custom_category(
+        self,
+        *,
+        user_id: str,
+        category_id: str,
+        name: str,
+        icon_name: str,
+        color: str,
+    ) -> dict[str, Any] | None:
+        res = (
+            self._db.table("categories")
+            .update(
+                {
+                    "name": name,
+                    "icon_name": icon_name,
+                    "color": color,
+                },
+            )
+            .eq("id", category_id)
+            .eq("user_id", user_id)
+            .eq("is_system", False)
+            .execute()
+        )
+        data = res.data
+        if not isinstance(data, list) or len(data) == 0:
+            return None
+        first = data[0]
+        return first if isinstance(first, dict) else None
+
+    def delete_custom_category(self, *, user_id: str, category_id: str) -> bool:
+        res = (
+            self._db.table("categories")
+            .delete()
+            .eq("id", category_id)
+            .eq("user_id", user_id)
+            .eq("is_system", False)
+            .execute()
+        )
+        data = res.data
+        return isinstance(data, list) and len(data) > 0

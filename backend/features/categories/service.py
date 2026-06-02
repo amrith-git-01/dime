@@ -9,7 +9,11 @@ from fastapi import HTTPException, status
 from supabase import Client
 
 from features.categories.repository import CategoryRepository
-from features.categories.schemas import CategoryResponse, CreateCategoryRequest
+from features.categories.schemas import (
+    CategoryResponse,
+    CreateCategoryRequest,
+    UpdateCategoryRequest,
+)
 
 MAX_CUSTOM_CATEGORIES_PER_USER = 15
 DEFAULT_CUSTOM_ICON = "Tag"
@@ -87,6 +91,96 @@ class CategoryService:
                 detail="Could not create category.",
             )
         return parsed
+
+    def update_custom_category(
+        self,
+        user_id: str,
+        category_id: str,
+        body: UpdateCategoryRequest,
+    ) -> CategoryResponse:
+        existing = self._repo.fetch_by_id_for_user(user_id, category_id)
+        if existing is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+        if existing.get("is_system") is True:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="System categories cannot be edited.",
+            )
+
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Category name is required.",
+            )
+
+        name_key = name.casefold()
+        for row in self._repo.list_for_user(user_id):
+            row_id = row.get("id")
+            if row_id == category_id:
+                continue
+            existing_name = row.get("name")
+            if (
+                isinstance(existing_name, str)
+                and existing_name.strip().casefold() == name_key
+            ):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="You already have a category with this name.",
+                )
+
+        icon_name = (body.icon_name or DEFAULT_CUSTOM_ICON).strip() or DEFAULT_CUSTOM_ICON
+        color = (body.color or DEFAULT_CUSTOM_COLOR).strip() or DEFAULT_CUSTOM_COLOR
+        if not self._is_hex_color(color):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Color must be a hex value like #94A3B8.",
+            )
+
+        row = self._repo.update_custom_category(
+            user_id=user_id,
+            category_id=category_id,
+            name=name,
+            icon_name=icon_name,
+            color=color,
+        )
+        if row is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+        parsed = self._row_to_response(row)
+        if parsed is None:
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                detail="Could not update category.",
+            )
+        return parsed
+
+    def delete_custom_category(self, user_id: str, category_id: str) -> None:
+        existing = self._repo.fetch_by_id_for_user(user_id, category_id)
+        if existing is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+        if existing.get("is_system") is True:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="System categories cannot be deleted.",
+            )
+        deleted = self._repo.delete_custom_category(
+            user_id=user_id,
+            category_id=category_id,
+        )
+        if not deleted:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
 
     @staticmethod
     def _is_hex_color(value: str) -> bool:
