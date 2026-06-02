@@ -73,7 +73,6 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
       selectedMonth={selectedMonth}
       monthOptions={monthOptions}
       onSelectMonth={onSelectMonth}
-      menuPlacement="inline"
       bodyKicker="Budget"
       headerContent={
         summaryFailed ? (
@@ -136,7 +135,9 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
             <View style={styles.progressWrap}>
               <ProgressBar
                 progress={summary.usagePct}
-                fillColor={summary.isOverBudget ? colors.danger : colors.primary}
+                fillColor={
+                  summary.isOverBudget ? colors.danger : colors.primary
+                }
                 backgroundColor={progressBar.track}
                 height={8}
               />

@@ -12,14 +12,12 @@ import {
   Keyboard,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import {
-  GestureHandlerRootView,
-  ScrollView,
-} from "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -470,6 +468,7 @@ export function SelectDropdown<T extends string>({
       nestedScrollEnabled
       scrollEnabled
       showsVerticalScrollIndicator={showScrollIndicator}
+      scrollEventThrottle={16}
       style={[
         styles.panelScroll,
         maxVisibleOptions
@@ -480,6 +479,29 @@ export function SelectDropdown<T extends string>({
           : { maxHeight: scrollViewportHeight },
       ]}
       contentContainerStyle={styles.panelScrollContent}
+      onContentSizeChange={(_w, contentHeight) => {
+        // #region agent log
+        debugDropdownLog(
+          "scroll content size",
+          {
+            contentHeight,
+            scrollViewportHeight,
+            scrollable: contentHeight > scrollViewportHeight,
+            optionCount: options.length,
+          },
+          "C",
+        );
+        // #endregion
+      }}
+      onScroll={(e) => {
+        // #region agent log
+        debugDropdownLog(
+          "scroll offset",
+          { y: e.nativeEvent.contentOffset.y },
+          "C",
+        );
+        // #endregion
+      }}
     >
       {renderOptions()}
     </ScrollView>
@@ -576,6 +598,8 @@ export function SelectDropdown<T extends string>({
           />
           {menuRect ? (
             <View
+              pointerEvents="box-none"
+              onStartShouldSetResponder={() => true}
               style={[
                 styles.panel,
                 styles.panelOverlay,
