@@ -12,6 +12,8 @@ from core.async_utils import run_sync
 from core.job_runner import enqueue_manual, enqueue_receipt, enqueue_voice
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
+from features.insights.schemas import MonthInsightsResponse
+from features.insights.service import InsightsService
 from features.transactions.schemas import (
     HomeOverviewResponse,
     MonthSummaryResponse,
@@ -68,6 +70,33 @@ async def transactions_month_summary(
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
             detail="Could not load month summary.",
+        ) from exc
+
+
+@router.get("/month-insights", response_model=MonthInsightsResponse)
+async def transactions_month_insights(
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    timezone: str = Query(..., min_length=2, max_length=80),
+) -> MonthInsightsResponse:
+    try:
+        service = InsightsService(supabase)
+        return await run_sync(
+            service.month_insights,
+            user,
+            year=year,
+            month=month,
+            timezone=timezone,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed month insights for user id=%s", user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load month insights.",
         ) from exc
 
 
