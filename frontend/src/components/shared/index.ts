@@ -8,10 +8,18 @@ export {
 } from "./BentoStatCell";
 export { BentoTransactionTile } from "./BentoTransactionTile";
 export {
+  ChartPressTooltip,
+  ChartTooltipScrim,
+  type ChartPressTooltipProps,
+  type ChartPressTooltipRow,
+  type ChartTooltipScrimProps,
+} from "./ChartPressTooltip";
+export {
   MonthSummaryCardShell,
   MonthSummaryHeaderError,
   MonthSummaryHeaderKicker,
   MonthSummaryHeaderTitle,
+  MonthSummarySectionDivider,
   MonthSummaryStatDivider,
   MonthSummaryStatsRow,
   MonthSummaryUnavailableText,

@@ -21,6 +21,8 @@ export type MonthSummaryCardShellProps = {
   onMonthMenuOpenChange?: (open: boolean) => void;
   headerContent: ReactNode;
   headerActions?: ReactNode;
+  /** Full-width row in the header tone (e.g. day-range pager). */
+  headerBelow?: ReactNode;
   bodyKicker: string;
   children: ReactNode;
 };
@@ -32,6 +34,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   onMonthMenuOpenChange,
   headerContent,
   headerActions,
+  headerBelow,
   bodyKicker,
   children,
 }: MonthSummaryCardShellProps) {
@@ -44,31 +47,36 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   return (
     <TwoToneCard
       header={
-        <View style={styles.headerInner}>
-          <View style={styles.headerLeft}>{headerContent}</View>
+        <View>
+          <View style={styles.headerInner}>
+            <View style={styles.headerLeft}>{headerContent}</View>
 
-          <View style={styles.headerRight}>
-            {headerActions}
-            <View
-              ref={dropdownAnchorRef}
-              style={styles.dropdownWrap}
-              collapsable={false}
-            >
-              <SelectDropdown
-                options={dropdownOptions}
-                value={selectedMonth}
-                onChange={handleMonthChange}
-                placeholder="Select month"
-                showLabel={false}
-                size="compact"
-                menuPlacement="modal"
-                menuOpenDirection="below"
-                maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
-                onOpenChange={onMonthMenuOpenChange}
-                panelAnchorRef={dropdownAnchorRef}
-              />
+            <View style={styles.headerRight}>
+              {headerActions}
+              <View
+                ref={dropdownAnchorRef}
+                style={styles.dropdownWrap}
+                collapsable={false}
+              >
+                <SelectDropdown
+                  options={dropdownOptions}
+                  value={selectedMonth}
+                  onChange={handleMonthChange}
+                  placeholder="Select month"
+                  showLabel={false}
+                  size="compact"
+                  menuPlacement="modal"
+                  menuOpenDirection="below"
+                  maxVisibleOptions={BENTO_MONTH_DROPDOWN_VISIBLE}
+                  onOpenChange={onMonthMenuOpenChange}
+                  panelAnchorRef={dropdownAnchorRef}
+                />
+              </View>
             </View>
           </View>
+          {headerBelow ? (
+            <View style={styles.headerBelow}>{headerBelow}</View>
+          ) : null}
         </View>
       }
       body={
@@ -109,6 +117,10 @@ export function MonthSummaryStatDivider() {
   return <View style={styles.divider} />;
 }
 
+export function MonthSummarySectionDivider() {
+  return <View style={styles.sectionDivider} />;
+}
+
 const styles = StyleSheet.create({
   headerInner: {
     flexDirection: "row",
@@ -117,6 +129,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  headerBelow: {
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
   headerLeft: {
@@ -187,5 +203,9 @@ const styles = StyleSheet.create({
     minHeight: 36,
     backgroundColor: surfaces.primaryBorder28,
     marginHorizontal: spacing.xs,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: surfaces.primaryBorder28,
   },
 });
