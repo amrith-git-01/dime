@@ -162,6 +162,10 @@ class TransactionService:
     def __init__(self, supabase: Client) -> None:
         self._repo = TransactionRepository(supabase)
 
+    def enrich_rows(self, user_id: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Resolve category display fields on raw transaction rows."""
+        return self._enrich_rows(user_id, rows)
+
     def list_mine(self, user: CurrentUser) -> list[TransactionResponse]:
         rows = self._repo.list_for_user(user.id)
         return [
