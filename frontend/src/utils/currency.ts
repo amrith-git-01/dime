@@ -42,6 +42,31 @@ export function formatInrCompact(amount: string | number): string {
   return formatInrWithSymbol(formatted);
 }
 
+/** Short ₹ labels for narrow chart axes (e.g. ₹12k, ₹1.2L). */
+export function formatInrChartAxis(amount: number): string {
+  const n = Math.abs(amount);
+  if (!Number.isFinite(n) || n === 0) {
+    return "₹0";
+  }
+  if (n >= 100_000) {
+    const lakhs = n / 100_000;
+    const rounded =
+      lakhs >= 10 || Math.abs(lakhs - Math.round(lakhs)) < 0.05
+        ? String(Math.round(lakhs))
+        : lakhs.toFixed(1);
+    return `₹${rounded}L`;
+  }
+  if (n >= 1000) {
+    const thousands = n / 1000;
+    const rounded =
+      thousands >= 10 || Math.abs(thousands - Math.round(thousands)) < 0.05
+        ? String(Math.round(thousands))
+        : thousands.toFixed(1);
+    return `₹${rounded}k`;
+  }
+  return `₹${Math.round(n)}`;
+}
+
 /** Debit-style display: leading minus, whole rupees (for outflows on light surfaces). */
 export function formatInrDebitCompact(amount: string | number): string {
   const n = typeof amount === "string" ? Number.parseFloat(amount) : amount;

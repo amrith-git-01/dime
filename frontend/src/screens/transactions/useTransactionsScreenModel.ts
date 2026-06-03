@@ -1,9 +1,9 @@
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { CompositeNavigationProp } from "@react-navigation/native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { addDays, endOfMonth, format, parseISO, subDays } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
 import type { TransactionsMonthBentoSummary } from "@/features/transactions/components";
@@ -20,6 +20,7 @@ import {
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
+import { useTransactionsInsightsIntentStore } from "@/stores/transactionsInsightsIntentStore";
 import { formatNetDisplay, formatSpendMagnitude } from "@/utils/currency";
 
 type TransactionsScreenNavigation = CompositeNavigationProp<
@@ -44,6 +45,7 @@ export function useTransactionsScreenModel() {
   const [selectedDayKey, setSelectedDayKey] = useState(() =>
     format(new Date(), "yyyy-MM-dd"),
   );
+  const skipNextMonthDayResetRef = useRef(false);
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
@@ -93,7 +95,29 @@ export function useTransactionsScreenModel() {
     };
   }, [selectedMonth.year, selectedMonth.monthIndex0]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const intent = useTransactionsInsightsIntentStore.getState().consume();
+      if (intent) {
+        skipNextMonthDayResetRef.current = true;
+        const idx = monthOptions.findIndex(
+          (m) => m.year === intent.year && m.monthIndex0 === intent.monthIndex0,
+        );
+        if (idx >= 0) {
+          handleSelectMonth(idx);
+        }
+        if (intent.dayKey) {
+          setSelectedDayKey(intent.dayKey);
+        }
+      }
+    }, [handleSelectMonth, monthOptions]),
+  );
+
   useEffect(() => {
+    if (skipNextMonthDayResetRef.current) {
+      skipNextMonthDayResetRef.current = false;
+      return;
+    }
     const now = new Date();
     if (
       now.getFullYear() === selectedMonth.year &&
