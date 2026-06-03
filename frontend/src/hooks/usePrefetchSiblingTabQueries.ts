@@ -2,6 +2,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights";
+import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { fetchBudget } from "@/features/budgets/api/budgetsApi";
 import { budgetQueryKey } from "@/features/budgets/hooks/useBudget";
 import {
@@ -76,6 +78,18 @@ export function usePrefetchSiblingTabQueries() {
       void queryClient.prefetchQuery({
         queryKey: budgetQueryKey,
         queryFn: fetchBudget,
+        staleTime: PREFETCH_STALE_MS,
+      });
+
+      void queryClient.prefetchQuery({
+        queryKey: insightsQueryKeys.month(
+          userId,
+          year,
+          calendarMonth,
+          timezone,
+        ),
+        queryFn: () =>
+          fetchMonthInsights({ year, month: calendarMonth, timezone }),
         staleTime: PREFETCH_STALE_MS,
       });
     }, [authReady, queryClient, userId]),
