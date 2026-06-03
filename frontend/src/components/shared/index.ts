@@ -9,10 +9,12 @@ export {
 export { BentoTransactionTile } from "./BentoTransactionTile";
 export {
   ChartPressTooltip,
-  ChartTooltipScrim,
+  ChartTooltipOverlay,
+  computeChartTooltipPosition,
   type ChartPressTooltipProps,
   type ChartPressTooltipRow,
-  type ChartTooltipScrimProps,
+  type ChartTooltipAnchor,
+  type ChartTooltipOverlayProps,
 } from "./ChartPressTooltip";
 export {
   MonthSummaryCardShell,

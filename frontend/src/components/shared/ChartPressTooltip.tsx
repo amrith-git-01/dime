@@ -1,5 +1,12 @@
-import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { memo, useMemo } from "react";
+import {
+  Dimensions,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { bento, colors, shadows, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -12,43 +19,36 @@ export type ChartPressTooltipRow = {
   tone?: BentoStatCellTone;
 };
 
+/** Window coordinates of the tapped chart column. */
+export type ChartTooltipAnchor = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ChartPressTooltipProps = {
-  visible: boolean;
   title: string;
   rows: ChartPressTooltipRow[];
-  /** Center X within the positioning parent (chart plot). */
-  anchorX: number;
-  parentWidth: number;
-  /** Width of the tooltip card — used for horizontal clamping. */
+  anchor: ChartTooltipAnchor;
+  viewportWidth?: number;
+  viewportHeight?: number;
   width?: number;
+  gap?: number;
+};
+
+export type ChartTooltipOverlayProps = {
+  visible: boolean;
+  onDismiss: () => void;
+  title: string;
+  rows: ChartPressTooltipRow[];
+  anchor: ChartTooltipAnchor | null;
 };
 
 const DEFAULT_WIDTH = 148;
-const HORIZONTAL_INSET = 6;
-
-export type ChartTooltipScrimProps = {
-  visible: boolean;
-  onDismiss: () => void;
-};
-
-/** Light dim overlay; tap to dismiss an open chart tooltip. */
-export const ChartTooltipScrim = memo(function ChartTooltipScrim({
-  visible,
-  onDismiss,
-}: ChartTooltipScrimProps) {
-  if (!visible) {
-    return null;
-  }
-
-  return (
-    <Pressable
-      style={[StyleSheet.absoluteFill, styles.scrim]}
-      onPress={onDismiss}
-      accessibilityRole="button"
-      accessibilityLabel="Dismiss chart details"
-    />
-  );
-});
+const ANCHOR_GAP = 8;
+const SCREEN_INSET = 12;
+const ESTIMATED_TOOLTIP_HEIGHT = 92;
 
 function toneStyle(tone: BentoStatCellTone | undefined) {
   if (tone === "credit" || tone === "net-positive") {
@@ -60,38 +60,63 @@ function toneStyle(tone: BentoStatCellTone | undefined) {
   return null;
 }
 
-function clampAnchorX(
-  anchorX: number,
-  parentWidth: number,
-  tooltipWidth: number,
-): number {
-  const half = tooltipWidth / 2;
-  const min = HORIZONTAL_INSET + half;
-  const max = parentWidth - HORIZONTAL_INSET - half;
-  if (max <= min) {
-    return parentWidth / 2;
-  }
-  return Math.min(Math.max(anchorX, min), max);
+export function computeChartTooltipPosition(
+  anchor: ChartTooltipAnchor,
+  viewportWidth: number,
+  viewportHeight: number,
+  tooltipWidth: number = DEFAULT_WIDTH,
+  gap: number = ANCHOR_GAP,
+): { left: number; top: number; placement: "left" | "right" } {
+  const anchorCenterX = anchor.x + anchor.width / 2;
+  const placeOnRight = anchorCenterX < viewportWidth / 2;
+
+  let left = placeOnRight
+    ? anchor.x + anchor.width + gap
+    : anchor.x - tooltipWidth - gap;
+
+  left = Math.max(
+    SCREEN_INSET,
+    Math.min(left, viewportWidth - tooltipWidth - SCREEN_INSET),
+  );
+
+  let top = anchor.y + anchor.height / 2 - ESTIMATED_TOOLTIP_HEIGHT / 2;
+  top = Math.max(
+    SCREEN_INSET,
+    Math.min(top, viewportHeight - ESTIMATED_TOOLTIP_HEIGHT - SCREEN_INSET),
+  );
+
+  return { left, top, placement: placeOnRight ? "right" : "left" };
 }
 
 export const ChartPressTooltip = memo(function ChartPressTooltip({
-  visible,
   title,
   rows,
-  anchorX,
-  parentWidth,
+  anchor,
+  viewportWidth = Dimensions.get("window").width,
+  viewportHeight = Dimensions.get("window").height,
   width = DEFAULT_WIDTH,
+  gap = ANCHOR_GAP,
 }: ChartPressTooltipProps) {
-  if (!visible || rows.length === 0) {
+  const { left, top } = useMemo(
+    () =>
+      computeChartTooltipPosition(
+        anchor,
+        viewportWidth,
+        viewportHeight,
+        width,
+        gap,
+      ),
+    [anchor, gap, viewportHeight, viewportWidth, width],
+  );
+
+  if (rows.length === 0) {
     return null;
   }
-
-  const left = clampAnchorX(anchorX, parentWidth, width) - width / 2;
 
   return (
     <View
       pointerEvents="none"
-      style={[styles.root, { left, width }]}
+      style={[styles.tooltipRoot, { left, top, width }]}
       accessibilityRole="text"
       accessibilityLabel={`${title}. ${rows.map((r) => `${r.label} ${r.value}`).join(". ")}`}
     >
@@ -115,15 +140,49 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
   );
 });
 
+/** Full-screen scrim + tooltip anchored beside the tapped chart column. */
+export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
+  visible,
+  onDismiss,
+  title,
+  rows,
+  anchor,
+}: ChartTooltipOverlayProps) {
+  if (!visible || anchor == null || rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <View style={styles.overlayRoot}>
+        <Pressable
+          style={[StyleSheet.absoluteFill, styles.scrim]}
+          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss chart details"
+        />
+        <ChartPressTooltip title={title} rows={rows} anchor={anchor} />
+      </View>
+    </Modal>
+  );
+});
+
 const styles = StyleSheet.create({
+  overlayRoot: {
+    flex: 1,
+  },
   scrim: {
     backgroundColor: "rgba(10, 10, 31, 0.06)",
-    zIndex: 1,
   },
-  root: {
+  tooltipRoot: {
     position: "absolute",
-    top: 4,
-    zIndex: 3,
+    zIndex: 2,
   },
   card: {
     backgroundColor: colors.barBackground,
