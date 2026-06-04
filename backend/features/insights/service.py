@@ -108,9 +108,10 @@ def _roll_up_counterparty_spend(
         amt = _to_decimal(row.get("amount", "0"))
         bucket = buckets.setdefault(
             key,
-            {"total": Decimal("0"), "display": "Unknown"},
+            {"total": Decimal("0"), "display": "Unknown", "count": 0},
         )
         bucket["total"] += amt
+        bucket["count"] += 1
         name = row.get("counterparty_name")
         if isinstance(name, str) and name.strip():
             bucket["display"] = name.strip()
@@ -118,6 +119,7 @@ def _roll_up_counterparty_spend(
     ranked = sorted(buckets.items(), key=lambda item: item[1]["total"], reverse=True)
     top = ranked[:_TOP_PAYEES]
     other_total = sum(item[1]["total"] for item in ranked[_TOP_PAYEES:])
+    other_count = sum(item[1]["count"] for item in ranked[_TOP_PAYEES:])
 
     result: list[CounterpartySpendRow] = []
     for key, data in top:
@@ -128,6 +130,7 @@ def _roll_up_counterparty_spend(
                 display_name=str(data["display"]),
                 debit_total=format(total, "f"),
                 share=float((total / month_debit_total).quantize(Decimal("0.0001"))),
+                transaction_count=int(data["count"]),
             )
         )
 
@@ -138,6 +141,7 @@ def _roll_up_counterparty_spend(
                 display_name="Other",
                 debit_total=format(other_total, "f"),
                 share=float((other_total / month_debit_total).quantize(Decimal("0.0001"))),
+                transaction_count=other_count,
             )
         )
     return result

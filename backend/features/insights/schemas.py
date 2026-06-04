@@ -25,6 +25,7 @@ class CounterpartySpendRow(BaseModel):
     display_name: str
     debit_total: str
     share: float = Field(ge=0, le=1)
+    transaction_count: int = Field(ge=0)
 
 
 class MonthInsightsResponse(BaseModel):
