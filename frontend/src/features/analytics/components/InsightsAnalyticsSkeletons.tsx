@@ -79,6 +79,23 @@ export function InsightsCashflowChartSkeleton() {
   );
 }
 
+export function InsightsTopExpensesSkeleton() {
+  return (
+    <View style={styles.topExpensesSkel}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <View key={i} style={styles.topExpenseRowSkel}>
+          <View style={styles.topExpenseHeaderSkel}>
+            <SkeletonBlock tone="surface" style={styles.topExpenseNameSkel} />
+            <SkeletonBlock tone="surface" style={styles.topExpenseAmountSkel} />
+          </View>
+          <SkeletonBlock tone="surface" style={styles.topExpenseMetaSkel} />
+          <SkeletonBlock tone="surface" style={styles.topExpenseBarSkel} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function InsightsDonutCardSkeleton() {
   return (
     <View style={styles.donutContentSkel}>
@@ -143,6 +160,37 @@ const styles = StyleSheet.create({
   },
   burnRateBodySkel: {
     minHeight: 72,
+  },
+  topExpensesSkel: {
+    gap: spacing.md,
+  },
+  topExpenseRowSkel: {
+    gap: 6,
+  },
+  topExpenseHeaderSkel: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  topExpenseNameSkel: {
+    flex: 1,
+    height: 14,
+    borderRadius: radius.sm,
+  },
+  topExpenseAmountSkel: {
+    width: 64,
+    height: 14,
+    borderRadius: radius.sm,
+  },
+  topExpenseMetaSkel: {
+    width: "48%",
+    height: 10,
+    borderRadius: radius.sm,
+  },
+  topExpenseBarSkel: {
+    width: "100%",
+    height: 6,
+    borderRadius: 3,
   },
   cashflowSkel: {
     gap: spacing.sm,

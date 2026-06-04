@@ -18,7 +18,7 @@ import {
   TwoToneCard,
   type ChartTooltipAnchor,
 } from "@/components/shared";
-import { bento, colors, spacing } from "@/constants";
+import { bento, colors, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   dayHitCellSelected: {
-    backgroundColor: "rgba(99, 85, 232, 0.08)",
+    backgroundColor: surfaces.primaryTint08,
   },
   xLabelsRow: {
     flexDirection: "row",
