@@ -119,6 +119,23 @@ export function filterTransactionsByCalendarDay(
   );
 }
 
+/** Newest first, no day headers (payee / search-style month lists). */
+export function buildTransactionFlashListRowsOnly(
+  transactions: TransactionRow[],
+): TransactionFlashListItem[] {
+  const sorted = [...transactions].sort(
+    (a, b) =>
+      parseISO(b.transaction_at).getTime() -
+      parseISO(a.transaction_at).getTime(),
+  );
+  return sorted.map((transaction, sectionRowIndex) => ({
+    kind: "row" as const,
+    id: transaction.id,
+    transaction,
+    sectionRowIndex,
+  }));
+}
+
 /** Newest first within the day (matches API month ordering). */
 export function buildTransactionFlashListItemsForSingleDay(
   transactions: TransactionRow[],

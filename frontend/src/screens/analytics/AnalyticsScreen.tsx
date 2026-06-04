@@ -6,15 +6,16 @@ import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { colors, layout } from "@/constants";
 import {
   InsightsBurnRateMetricCard,
+  InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsMonthSummaryCard,
 } from "@/features/analytics/components";
-
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 
 export default function AnalyticsScreen() {
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
+  const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const {
     monthOptions,
     selectedMonth,
@@ -23,11 +24,11 @@ export default function AnalyticsScreen() {
     summaryLoading,
     summaryFailed,
     chartLoading,
-    showInsightsBlocks,
     burnRateMetrics,
     dailyCashflow,
     chartYear,
     chartMonthIndex0,
+    counterpartySpend,
   } = useAnalyticsScreenModel();
 
   return (
@@ -37,7 +38,10 @@ export default function AnalyticsScreen() {
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={!monthMenuOpen}
         showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={() => cashflowTooltipDismissRef.current?.()}
+        onScrollBeginDrag={() => {
+          cashflowTooltipDismissRef.current?.();
+          payeeTooltipDismissRef.current?.();
+        }}
       >
         <InsightsMonthSummaryCard
           selectedMonth={selectedMonth.label}
@@ -49,21 +53,22 @@ export default function AnalyticsScreen() {
           summaryFailed={summaryFailed}
         />
 
-        {showInsightsBlocks ? (
-          <>
-            <InsightsBurnRateMetricCard
-              metrics={burnRateMetrics}
-              loading={chartLoading}
-            />
-            <InsightsDailyCashflowChart
-              dailyCashflow={dailyCashflow}
-              year={chartYear}
-              monthIndex0={chartMonthIndex0}
-              loading={chartLoading}
-              tooltipDismissRef={cashflowTooltipDismissRef}
-            />
-          </>
-        ) : null}
+        <InsightsBurnRateMetricCard
+          metrics={burnRateMetrics}
+          loading={chartLoading}
+        />
+        <InsightsDailyCashflowChart
+          dailyCashflow={dailyCashflow}
+          year={chartYear}
+          monthIndex0={chartMonthIndex0}
+          loading={chartLoading}
+          tooltipDismissRef={cashflowTooltipDismissRef}
+        />
+        <InsightsCounterpartyDonutCard
+          counterpartySpend={counterpartySpend}
+          loading={chartLoading}
+          tooltipDismissRef={payeeTooltipDismissRef}
+        />
       </ScrollView>
     </TabScreenShell>
   );
