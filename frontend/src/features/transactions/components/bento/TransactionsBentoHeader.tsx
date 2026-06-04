@@ -9,6 +9,12 @@ import {
   TransactionsMonthBentoCard,
   type TransactionsMonthBentoSummary,
 } from "./TransactionsMonthBentoCard";
+import { TransactionsPayeeFilterBar } from "./TransactionsPayeeFilterBar";
+
+export type TransactionsPayeeFilterHeader = {
+  displayName: string;
+  transactionCount: number;
+};
 
 export type TransactionsBentoHeaderProps = {
   selectedMonthLabel: string;
@@ -24,6 +30,7 @@ export type TransactionsBentoHeaderProps = {
   onPrevDay: () => void;
   onNextDay: () => void;
   onMonthMenuOpenChange?: (open: boolean) => void;
+  payeeFilter?: TransactionsPayeeFilterHeader | null;
 };
 
 export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
@@ -40,6 +47,7 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
   onPrevDay,
   onNextDay,
   onMonthMenuOpenChange,
+  payeeFilter = null,
 }: TransactionsBentoHeaderProps) {
   return (
     <View style={styles.root}>
@@ -53,14 +61,21 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
         onMonthMenuOpenChange={onMonthMenuOpenChange}
       />
       <View style={styles.dayBarGap}>
-        <TransactionsDayBar
-          dayKey={selectedDayKey}
-          transactionCount={transactionCount}
-          canGoPrev={canGoPrevDay}
-          canGoNext={canGoNextDay}
-          onPrev={onPrevDay}
-          onNext={onNextDay}
-        />
+        {payeeFilter ? (
+          <TransactionsPayeeFilterBar
+            payeeLabel={payeeFilter.displayName}
+            transactionCount={payeeFilter.transactionCount}
+          />
+        ) : (
+          <TransactionsDayBar
+            dayKey={selectedDayKey}
+            transactionCount={transactionCount}
+            canGoPrev={canGoPrevDay}
+            canGoNext={canGoNextDay}
+            onPrev={onPrevDay}
+            onNext={onNextDay}
+          />
+        )}
       </View>
     </View>
   );
