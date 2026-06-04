@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
   BentoStatCell,
@@ -11,6 +11,7 @@ import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type { InsightsBurnRateMetrics } from "../utils/computeBurnRateMetrics";
+import { InsightsBurnRateBodySkeleton } from "./InsightsAnalyticsSkeletons";
 
 export type InsightsBurnRateMetricCardProps = {
   metrics: InsightsBurnRateMetrics | null;
@@ -42,12 +43,8 @@ export const InsightsBurnRateMetricCard = memo(
         body={
           <View style={styles.body}>
             {loading ? (
-              <View style={styles.loading}>
-                <ActivityIndicator color={colors.primary} size="small" />
-              </View>
-            ) : metrics == null ? (
-              <Text style={styles.empty}>No spending data for this month.</Text>
-            ) : (
+              <InsightsBurnRateBodySkeleton />
+            ) : metrics ? (
               <>
                 <MonthSummaryStatsRow>
                   <BentoStatCell
@@ -74,7 +71,7 @@ export const InsightsBurnRateMetricCard = memo(
                   </Text>
                 ) : null}
               </>
-            )}
+            ) : null}
           </View>
         }
       />
@@ -106,19 +103,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
-  },
-  loading: {
-    minHeight: 72,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  empty: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: bento.onPastel.muted,
-    textAlign: "center",
-    paddingVertical: spacing.md,
   },
   budgetHint: {
     fontFamily: fontFamilies.medium,

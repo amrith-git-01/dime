@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
   BentoStatCell,
@@ -14,9 +14,14 @@ import {
   netTone,
   type BentoStatCellTone,
 } from "@/components/shared";
-import { bento, colors, spacing } from "@/constants";
+import { bento, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { MonthOption } from "@/utils/buildMonthOptions";
+
+import {
+  InsightsMonthSummaryBodySkeleton,
+  InsightsMonthSummaryHeaderSkeleton,
+} from "./InsightsAnalyticsSkeletons";
 
 export type InsightsMonthSummary = {
   transactionCount: number;
@@ -44,6 +49,9 @@ export type InsightsMonthSummaryCardProps = {
 };
 
 function transactionCountLabel(count: number): string {
+  if (count <= 0) {
+    return "\u2014";
+  }
   return count === 1 ? "1 transaction" : `${count} transactions`;
 }
 
@@ -75,7 +83,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             Could not load summary
           </MonthSummaryHeaderError>
         ) : summaryLoading ? (
-          <ActivityIndicator color={colors.primary} />
+          <InsightsMonthSummaryHeaderSkeleton />
         ) : summary ? (
           <>
             <MonthSummaryHeaderKicker>This month</MonthSummaryHeaderKicker>
@@ -89,9 +97,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
       {summaryFailed ? (
         <MonthSummaryUnavailableText />
       ) : summaryLoading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.primary} size="small" />
-        </View>
+        <InsightsMonthSummaryBodySkeleton />
       ) : summary ? (
         <View style={styles.bodySections}>
           <MonthSummaryStatsRow>
@@ -141,11 +147,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
 });
 
 const styles = StyleSheet.create({
-  loading: {
-    minHeight: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   bodySections: {
     gap: spacing.md,
   },

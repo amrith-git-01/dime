@@ -9,14 +9,7 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Bar, CartesianChart, Line } from "victory-native";
 
 import {
@@ -39,6 +32,7 @@ import {
   chartTrailingAnchorDay,
   formatCashflowXLabel,
 } from "../utils/buildCashflowWindow";
+import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
 import {
   NET_DEFICIT_BAR,
   NET_SURPLUS_BAR,
@@ -277,11 +271,7 @@ export const InsightsDailyCashflowChart = memo(
           body={
             <View style={styles.body}>
               {loading ? (
-                <View style={styles.loading}>
-                  <ActivityIndicator color={colors.primary} />
-                </View>
-              ) : monthDays.length === 0 ? (
-                <Text style={styles.empty}>No activity this month.</Text>
+                <InsightsCashflowChartSkeleton />
               ) : (
                 <>
                   <View style={styles.chartRow}>
@@ -548,19 +538,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
     gap: spacing.sm,
-  },
-  loading: {
-    height: CHART_PLOT_HEIGHT + X_LABEL_ROW_HEIGHT + 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  empty: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: bento.onPastel.muted,
-    textAlign: "center",
-    paddingVertical: spacing.xl,
   },
   chartRow: {
     flexDirection: "row",
