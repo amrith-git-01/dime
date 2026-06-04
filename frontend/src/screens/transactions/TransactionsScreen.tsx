@@ -10,12 +10,12 @@ import {
   BentoTransactionTile,
   TwoToneEmptyState,
 } from "@/components/shared";
+import { colors, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import {
   TransactionsBentoHeader,
   TransactionsBentoSkeleton,
 } from "@/features/transactions/components";
-import { colors, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
@@ -56,6 +56,7 @@ export default function TransactionsScreen() {
     onReceipt,
     onVoice,
     openTransactionDetail,
+    payeeFilterHeader,
     selectedDayKey,
     selectedMonth,
     selectedMonthIndex,
@@ -68,7 +69,7 @@ export default function TransactionsScreen() {
 
   useEffect(() => {
     listRef.current?.scrollToTop({ animated: false });
-  }, [selectedDayKey, selectedMonthIndex]);
+  }, [listExtraData.payeeKey, selectedDayKey, selectedMonthIndex]);
 
   const renderFlashRow = useCallback(
     ({ item, index }: { item: TransactionFlashListItem; index: number }) => {
@@ -101,7 +102,11 @@ export default function TransactionsScreen() {
       return (
         <View style={styles.dayLoadingWrap}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.dayLoadingText}>Loading this day...</Text>
+          <Text style={styles.dayLoadingText}>
+            {payeeFilterHeader
+              ? "Loading transactions..."
+              : "Loading this day..."}
+          </Text>
         </View>
       );
     }
@@ -112,12 +117,16 @@ export default function TransactionsScreen() {
         title={
           monthHasNoTransactions
             ? "No transactions here"
-            : "No transactions on this day"
+            : payeeFilterHeader
+              ? "No transactions for this payee"
+              : "No transactions on this day"
         }
         message={
           monthHasNoTransactions
             ? "No transactions are available for this period."
-            : "Try another day or add a transaction."
+            : payeeFilterHeader
+              ? "Try another month or payee from Insights."
+              : "Try another day or add a transaction."
         }
         footer={
           monthHasNoTransactions ? (
@@ -130,7 +139,14 @@ export default function TransactionsScreen() {
         }
       />
     );
-  }, [emptyVariant, monthHasNoTransactions, onManualAdd, onReceipt, onVoice]);
+  }, [
+    emptyVariant,
+    monthHasNoTransactions,
+    onManualAdd,
+    onReceipt,
+    onVoice,
+    payeeFilterHeader,
+  ]);
 
   const listFooter = useMemo(
     () => <TransactionsListFooter show={showListFooter} />,
@@ -158,6 +174,7 @@ export default function TransactionsScreen() {
               onPrevDay={goPrevDay}
               onNextDay={goNextDay}
               onMonthMenuOpenChange={setMonthMenuOpen}
+              payeeFilter={payeeFilterHeader}
             />
           )}
         </View>

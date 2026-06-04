@@ -15,8 +15,10 @@ import {
 import type { TransactionRow } from "@/features/transactions/types";
 import {
   buildTransactionFlashListItemsForSingleDay,
+  buildTransactionFlashListRowsOnly,
   transactionCalendarDayKey,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { filterTransactionsByPayee } from "@/features/transactions/utils/payeeKey";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
@@ -45,7 +47,13 @@ export function useTransactionsScreenModel() {
   const [selectedDayKey, setSelectedDayKey] = useState(() =>
     format(new Date(), "yyyy-MM-dd"),
   );
+  const [payeeFilter, setPayeeFilter] = useState<{
+    payeeKey: string;
+    payeeKeysTop: string[];
+    displayName: string;
+  } | null>(null);
   const skipNextMonthDayResetRef = useRef(false);
+  const skipPayeeClearRef = useRef(false);
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
@@ -106,6 +114,16 @@ export function useTransactionsScreenModel() {
         if (idx >= 0) {
           handleSelectMonth(idx);
         }
+        if (intent.payeeKey) {
+          skipPayeeClearRef.current = true;
+          setPayeeFilter({
+            payeeKey: intent.payeeKey,
+            payeeKeysTop: intent.payeeKeysTop ?? [],
+            displayName: intent.payeeDisplayName?.trim() || "Payee",
+          });
+        } else {
+          setPayeeFilter(null);
+        }
         if (intent.dayKey) {
           setSelectedDayKey(intent.dayKey);
         }
@@ -114,8 +132,19 @@ export function useTransactionsScreenModel() {
   );
 
   useEffect(() => {
+    if (skipPayeeClearRef.current) {
+      skipPayeeClearRef.current = false;
+      return;
+    }
+    setPayeeFilter(null);
+  }, [selectedMonth.year, selectedMonth.monthIndex0]);
+
+  useEffect(() => {
     if (skipNextMonthDayResetRef.current) {
       skipNextMonthDayResetRef.current = false;
+      return;
+    }
+    if (payeeFilter) {
       return;
     }
     const now = new Date();
@@ -127,7 +156,12 @@ export function useTransactionsScreenModel() {
       return;
     }
     setSelectedDayKey(monthDayBounds.endKey);
-  }, [selectedMonth.year, selectedMonth.monthIndex0, monthDayBounds.endKey]);
+  }, [
+    payeeFilter,
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+    monthDayBounds.endKey,
+  ]);
 
   usePrefetchTransactionsForSelectedDay({
     selectedDayKey,
@@ -135,12 +169,39 @@ export function useTransactionsScreenModel() {
     hasNextPage: Boolean(hasNextPage),
     isFetchingNextPage,
     fetchNextPage,
+    disabled: payeeFilter != null,
   });
 
-  const flashListData = useMemo(
-    () => buildTransactionFlashListItemsForSingleDay(flatRows, selectedDayKey),
-    [flatRows, selectedDayKey],
-  );
+  useEffect(() => {
+    if (!payeeFilter || !hasNextPage || isFetchingNextPage) {
+      return;
+    }
+    void fetchNextPage();
+  }, [
+    payeeFilter,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    flatRows.length,
+  ]);
+
+  const payeeFilteredRows = useMemo(() => {
+    if (!payeeFilter) {
+      return null;
+    }
+    return filterTransactionsByPayee(
+      flatRows,
+      payeeFilter.payeeKey,
+      payeeFilter.payeeKeysTop,
+    );
+  }, [flatRows, payeeFilter]);
+
+  const flashListData = useMemo(() => {
+    if (payeeFilteredRows) {
+      return buildTransactionFlashListRowsOnly(payeeFilteredRows);
+    }
+    return buildTransactionFlashListItemsForSingleDay(flatRows, selectedDayKey);
+  }, [flatRows, payeeFilteredRows, selectedDayKey]);
 
   const dayRowCount = useMemo(
     () => flashListData.filter((item) => item.kind === "row").length,
@@ -195,12 +256,23 @@ export function useTransactionsScreenModel() {
   }, [canGoNextDay]);
 
   const waitingForOlderPages =
+    !payeeFilter &&
     dayRowCount === 0 &&
     Boolean(hasNextPage) &&
     oldestLoadedDayKey !== null &&
     selectedDayKey < oldestLoadedDayKey;
-  const showDayLoading = dayRowCount === 0 && waitingForOlderPages;
-  const listEmpty = !infinitePending && dayRowCount === 0 && !showDayLoading;
+  const showPayeeLoading =
+    payeeFilter != null &&
+    dayRowCount === 0 &&
+    Boolean(hasNextPage) &&
+    infinitePending === false;
+  const showDayLoading =
+    !payeeFilter && dayRowCount === 0 && waitingForOlderPages;
+  const listEmpty =
+    !infinitePending &&
+    dayRowCount === 0 &&
+    !showDayLoading &&
+    !showPayeeLoading;
 
   const monthHasNoTransactions =
     !summaryQuery.isPending &&
@@ -214,14 +286,14 @@ export function useTransactionsScreenModel() {
     if (showMonthLoading) {
       return "month-loading";
     }
-    if (showDayLoading) {
+    if (showDayLoading || showPayeeLoading) {
       return "day-loading";
     }
     if (listEmpty) {
       return "empty";
     }
     return null;
-  }, [listEmpty, showDayLoading, showMonthLoading]);
+  }, [listEmpty, showDayLoading, showMonthLoading, showPayeeLoading]);
 
   const showListFooter = Boolean(hasNextPage) && isFetchingNextPage;
 
@@ -230,9 +302,20 @@ export function useTransactionsScreenModel() {
       dayKey: selectedDayKey,
       monthIndex: selectedMonthIndex,
       lastRowIndex,
+      payeeKey: payeeFilter?.payeeKey ?? null,
     }),
-    [selectedDayKey, selectedMonthIndex, lastRowIndex],
+    [payeeFilter?.payeeKey, selectedDayKey, selectedMonthIndex, lastRowIndex],
   );
+
+  const payeeFilterHeader = useMemo(() => {
+    if (!payeeFilter) {
+      return null;
+    }
+    return {
+      displayName: payeeFilter.displayName,
+      transactionCount: dayRowCount,
+    };
+  }, [dayRowCount, payeeFilter]);
 
   return {
     canGoNextDay,
@@ -252,6 +335,7 @@ export function useTransactionsScreenModel() {
     onReceipt,
     onVoice,
     openTransactionDetail,
+    payeeFilterHeader,
     selectedDayKey,
     selectedMonth,
     selectedMonthIndex,

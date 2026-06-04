@@ -4,6 +4,10 @@ import { useBentoMonthSelection } from "@/components/bento";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
 import { computeBurnRateMetrics } from "@/features/analytics/utils/computeBurnRateMetrics";
+import {
+  buildEmptyBurnRateMetrics,
+  buildEmptyInsightsMonthSummary,
+} from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import {
   formatInrCompact,
@@ -31,10 +35,25 @@ export function useAnalyticsScreenModel() {
     Number.isFinite(existingBudget) && existingBudget > 0;
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
 
+  const insightsLoading = insightsQuery.isPending;
+  const summaryLoading =
+    insightsLoading || (isBudgetLoading && budgetResp === undefined);
+  const summaryFailed = insightsQuery.isError;
+  const chartLoading = insightsLoading;
+
+  const dailyCashflow = insightsQuery.data?.daily_cashflow ?? [];
+  const counterpartySpend = insightsQuery.data?.counterparty_spend ?? [];
+
   const summary = useMemo((): InsightsMonthSummary | null => {
-    const data = insightsQuery.data?.summary;
-    if (!data) {
+    if (summaryLoading || summaryFailed) {
       return null;
+    }
+    const data = insightsQuery.data?.summary;
+    if (!data || data.transaction_count === 0) {
+      return buildEmptyInsightsMonthSummary(
+        hasMonthlyBudget,
+        monthlyBudgetAmount,
+      );
     }
     const netValue = (() => {
       const n = Number.parseFloat(data.net);
@@ -79,38 +98,46 @@ export function useAnalyticsScreenModel() {
       netDisplay: formatNetDisplay(data.net),
       netValue,
     };
-  }, [hasMonthlyBudget, insightsQuery.data?.summary, monthlyBudgetAmount]);
+  }, [
+    hasMonthlyBudget,
+    insightsQuery.data?.summary,
+    monthlyBudgetAmount,
+    summaryFailed,
+    summaryLoading,
+  ]);
 
-  const summaryLoading =
-    insightsQuery.isPending || (isBudgetLoading && budgetResp === undefined);
-  const summaryFailed = insightsQuery.isError;
-
-  const dailyCashflow = insightsQuery.data?.daily_cashflow ?? [];
-  const chartLoading = insightsQuery.isPending;
-  const showInsightsBlocks =
-    !insightsQuery.isError &&
-    !insightsQuery.isPending &&
-    (insightsQuery.data?.summary.transaction_count ?? 0) > 0;
-
-  const burnRateMetrics = useMemo(
-    () =>
-      showInsightsBlocks
-        ? computeBurnRateMetrics(
-            dailyCashflow,
-            hasMonthlyBudget ? monthlyBudgetAmount : null,
-            selectedMonth.year,
-            selectedMonth.monthIndex0,
-          )
-        : null,
-    [
+  const burnRateMetrics = useMemo(() => {
+    if (chartLoading) {
+      return null;
+    }
+    if (summaryFailed) {
+      return buildEmptyBurnRateMetrics(
+        hasMonthlyBudget,
+        hasMonthlyBudget ? monthlyBudgetAmount : null,
+      );
+    }
+    const computed = computeBurnRateMetrics(
       dailyCashflow,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      selectedMonth.monthIndex0,
+      hasMonthlyBudget ? monthlyBudgetAmount : null,
       selectedMonth.year,
-      showInsightsBlocks,
-    ],
-  );
+      selectedMonth.monthIndex0,
+    );
+    return (
+      computed ??
+      buildEmptyBurnRateMetrics(
+        hasMonthlyBudget,
+        hasMonthlyBudget ? monthlyBudgetAmount : null,
+      )
+    );
+  }, [
+    chartLoading,
+    dailyCashflow,
+    hasMonthlyBudget,
+    monthlyBudgetAmount,
+    selectedMonth.monthIndex0,
+    selectedMonth.year,
+    summaryFailed,
+  ]);
 
   return {
     monthOptions,
@@ -122,9 +149,9 @@ export function useAnalyticsScreenModel() {
     hasMonthlyBudget,
     dailyCashflow,
     chartLoading,
-    showInsightsBlocks,
     burnRateMetrics,
     chartYear: selectedMonth.year,
     chartMonthIndex0: selectedMonth.monthIndex0,
+    counterpartySpend,
   };
 }
