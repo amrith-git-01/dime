@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { bento, colors, shadows, spacing } from "@/constants";
+import { bento, charts, colors, shadows, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type { BentoStatCellTone } from "./BentoStatCell";
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrim: {
-    backgroundColor: "rgba(10, 10, 31, 0.06)",
+    backgroundColor: charts.tooltipScrim,
   },
   tooltipRoot: {
     position: "absolute",

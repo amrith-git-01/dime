@@ -5,3 +5,4 @@ export {
   InsightsMonthSummaryCard,
   type InsightsMonthSummary,
 } from "./InsightsMonthSummaryCard";
+export { InsightsTopExpensesCard } from "./InsightsTopExpensesCard";
