@@ -43,12 +43,13 @@ export type ChartTooltipOverlayProps = {
   title: string;
   rows: ChartPressTooltipRow[];
   anchor: ChartTooltipAnchor | null;
+  width?: number;
 };
 
 const DEFAULT_WIDTH = 148;
 const ANCHOR_GAP = 8;
 const SCREEN_INSET = 12;
-const ESTIMATED_TOOLTIP_HEIGHT = 92;
+const ESTIMATED_ROW_HEIGHT = 17;
 
 function toneStyle(tone: BentoStatCellTone | undefined) {
   if (tone === "credit" || tone === "net-positive") {
@@ -66,7 +67,9 @@ export function computeChartTooltipPosition(
   viewportHeight: number,
   tooltipWidth: number = DEFAULT_WIDTH,
   gap: number = ANCHOR_GAP,
+  rowCount: number = 3,
 ): { left: number; top: number; placement: "left" | "right" } {
+  const estimatedHeight = 36 + Math.max(0, rowCount) * ESTIMATED_ROW_HEIGHT;
   const anchorCenterX = anchor.x + anchor.width / 2;
   const placeOnRight = anchorCenterX < viewportWidth / 2;
 
@@ -79,10 +82,10 @@ export function computeChartTooltipPosition(
     Math.min(left, viewportWidth - tooltipWidth - SCREEN_INSET),
   );
 
-  let top = anchor.y + anchor.height / 2 - ESTIMATED_TOOLTIP_HEIGHT / 2;
+  let top = anchor.y + anchor.height / 2 - estimatedHeight / 2;
   top = Math.max(
     SCREEN_INSET,
-    Math.min(top, viewportHeight - ESTIMATED_TOOLTIP_HEIGHT - SCREEN_INSET),
+    Math.min(top, viewportHeight - estimatedHeight - SCREEN_INSET),
   );
 
   return { left, top, placement: placeOnRight ? "right" : "left" };
@@ -105,8 +108,9 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
         viewportHeight,
         width,
         gap,
+        rows.length,
       ),
-    [anchor, gap, viewportHeight, viewportWidth, width],
+    [anchor, gap, rows.length, viewportHeight, viewportWidth, width],
   );
 
   if (rows.length === 0) {
@@ -147,6 +151,7 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
   title,
   rows,
   anchor,
+  width = DEFAULT_WIDTH,
 }: ChartTooltipOverlayProps) {
   if (!visible || anchor == null || rows.length === 0) {
     return null;
@@ -167,7 +172,12 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
           accessibilityRole="button"
           accessibilityLabel="Dismiss chart details"
         />
-        <ChartPressTooltip title={title} rows={rows} anchor={anchor} />
+        <ChartPressTooltip
+          title={title}
+          rows={rows}
+          anchor={anchor}
+          width={width}
+        />
       </View>
     </Modal>
   );

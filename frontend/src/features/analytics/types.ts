@@ -18,6 +18,7 @@ export type CounterpartySpendRow = {
   display_name: string;
   debit_total: string;
   share: number;
+  transaction_count: number;
 };
 
 export type MonthInsights = {
