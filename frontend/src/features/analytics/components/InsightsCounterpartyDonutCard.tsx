@@ -22,7 +22,6 @@ import {
   buildCounterpartyDonutData,
   type CounterpartyDonutDatum,
 } from "@/features/analytics/utils/buildCounterpartyDonutData";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
 
 import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
@@ -139,7 +138,6 @@ export const InsightsCounterpartyDonutCard = memo(
 
     const openTooltip = useCallback(
       (slice: CounterpartyDonutDatum, anchor: ChartTooltipAnchor) => {
-        void triggerLightHaptic();
         setTooltipPayee({ slice, anchor });
       },
       [],

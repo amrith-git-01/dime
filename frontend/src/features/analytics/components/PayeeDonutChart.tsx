@@ -5,6 +5,7 @@ import Svg, { G, Path } from "react-native-svg";
 import type { ChartTooltipAnchor } from "@/components/shared";
 import { bento } from "@/constants";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 const DEG = Math.PI / 180;
 const STROKE_GAP_DEG = 1.25;
@@ -210,6 +211,7 @@ export const PayeeDonutChart = memo(function PayeeDonutChart({
             if (!slice) {
               return;
             }
+            void triggerLightHaptic();
             wrapRef.current?.measureInWindow((chartX, chartY) => {
               const half = TOUCH_ANCHOR_SIZE / 2;
               onSlicePress(slice, {

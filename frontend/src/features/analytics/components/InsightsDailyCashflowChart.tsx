@@ -21,6 +21,7 @@ import {
 import { bento, colors, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
 
 import {
@@ -118,6 +119,7 @@ const CashflowDayHitCell = memo(function CashflowDayHitCell({
         selected && styles.dayHitCellSelected,
       ]}
       onPress={() => {
+        void triggerLightHaptic();
         cellRef.current?.measureInWindow((x, y, w, h) => {
           onPress({ x, y, width: w, height: h });
         });

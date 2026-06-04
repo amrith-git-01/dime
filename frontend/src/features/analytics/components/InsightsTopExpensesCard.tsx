@@ -40,7 +40,7 @@ const TopExpenseRow = memo(function TopExpenseRow({
     if (row.transaction == null) {
       return;
     }
-    triggerLightHaptic();
+    void triggerLightHaptic();
     onPress(row.transaction);
   }, [onPress, row.transaction]);
 
