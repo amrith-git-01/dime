@@ -34,7 +34,7 @@ export type NotificationActionAccent = {
 export const NOTIFICATION_ROW_ACTIONS = {
   markRead: {
     iconColor: colors.success,
-    backgroundColor: "rgba(22, 163, 74, 0.14)",
+    backgroundColor: surfaces.successTint14,
   },
   delete: {
     iconColor: colors.danger,

@@ -1,4 +1,8 @@
-import { useMemo } from "react";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { CompositeNavigationProp } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useCallback, useMemo } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
@@ -9,13 +13,21 @@ import {
   buildEmptyInsightsMonthSummary,
 } from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import type { TransactionRow } from "@/features/transactions/types";
+import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
   formatNetDisplay,
   formatSpendMagnitude,
 } from "@/utils/currency";
 
+type AnalyticsScreenNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Insights">,
+  NativeStackNavigationProp<MainStackParamList>
+>;
+
 export function useAnalyticsScreenModel() {
+  const navigation = useNavigation<AnalyticsScreenNavigation>();
   const {
     monthOptions,
     selectedMonth,
@@ -41,8 +53,12 @@ export function useAnalyticsScreenModel() {
   const summaryFailed = insightsQuery.isError;
   const chartLoading = insightsLoading;
 
-  const dailyCashflow = insightsQuery.data?.daily_cashflow ?? [];
+  const dailyCashflow = useMemo(
+    () => insightsQuery.data?.daily_cashflow ?? [],
+    [insightsQuery.data?.daily_cashflow],
+  );
   const counterpartySpend = insightsQuery.data?.counterparty_spend ?? [];
+  const topExpenses = insightsQuery.data?.top_expenses ?? [];
 
   const summary = useMemo((): InsightsMonthSummary | null => {
     if (summaryLoading || summaryFailed) {
@@ -139,10 +155,18 @@ export function useAnalyticsScreenModel() {
     summaryFailed,
   ]);
 
+  const openTransactionDetail = useCallback(
+    (transaction: TransactionRow) => {
+      navigation.navigate("TransactionDetail", { transaction });
+    },
+    [navigation],
+  );
+
   return {
     monthOptions,
     selectedMonth,
     handleSelectMonth,
+    openTransactionDetail,
     summary,
     summaryLoading,
     summaryFailed,
@@ -153,5 +177,6 @@ export function useAnalyticsScreenModel() {
     chartYear: selectedMonth.year,
     chartMonthIndex0: selectedMonth.monthIndex0,
     counterpartySpend,
+    topExpenses,
   };
 }

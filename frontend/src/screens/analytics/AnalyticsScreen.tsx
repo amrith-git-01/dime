@@ -9,6 +9,7 @@ import {
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsMonthSummaryCard,
+  InsightsTopExpensesCard,
 } from "@/features/analytics/components";
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 
@@ -29,6 +30,8 @@ export default function AnalyticsScreen() {
     chartYear,
     chartMonthIndex0,
     counterpartySpend,
+    topExpenses,
+    openTransactionDetail,
   } = useAnalyticsScreenModel();
 
   return (
@@ -68,6 +71,11 @@ export default function AnalyticsScreen() {
           counterpartySpend={counterpartySpend}
           loading={chartLoading}
           tooltipDismissRef={payeeTooltipDismissRef}
+        />
+        <InsightsTopExpensesCard
+          topExpenses={topExpenses}
+          loading={chartLoading}
+          onTransactionPress={openTransactionDetail}
         />
       </ScrollView>
     </TabScreenShell>
