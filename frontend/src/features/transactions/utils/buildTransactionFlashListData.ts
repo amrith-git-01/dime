@@ -1,4 +1,4 @@
-import { format, parseISO, subDays } from "date-fns";
+import { format, isToday, isYesterday, parseISO, subDays } from "date-fns";
 
 import type { TransactionRow } from "@/features/transactions/types";
 import { signedAmount } from "@/features/transactions/utils/transactionDisplay";
@@ -14,6 +14,89 @@ export type GroupedTransactionSection = {
   sectionIndex: number;
   data: TransactionRow[];
 };
+
+/** Notifications-style section for {@link TransactionsListScreen}. */
+export type TransactionListSection = {
+  key: string;
+  title: string;
+  data: TransactionRow[];
+};
+
+const RELATIVE_DAY_ORDER = ["today", "yesterday", "earlier"] as const;
+type RelativeDayKey = (typeof RELATIVE_DAY_ORDER)[number];
+
+const RELATIVE_DAY_TITLES: Record<RelativeDayKey, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  earlier: "Earlier",
+};
+
+function relativeDayBucket(dayKey: string): RelativeDayKey {
+  const date = parseISO(`${dayKey}T12:00:00`);
+  if (isToday(date)) {
+    return "today";
+  }
+  if (isYesterday(date)) {
+    return "yesterday";
+  }
+  return "earlier";
+}
+
+/** Section title for a calendar day (Today / Yesterday / formatted date). */
+export function transactionListDaySectionTitle(dayKey: string): string {
+  const bucket = relativeDayBucket(dayKey);
+  if (bucket === "today" || bucket === "yesterday") {
+    return RELATIVE_DAY_TITLES[bucket];
+  }
+  return format(parseISO(`${dayKey}T12:00:00`), "d MMMM yyyy");
+}
+
+/** Today → Yesterday → Earlier buckets (matches notifications inbox). */
+export function groupTransactionsByRelativeDay(
+  transactions: TransactionRow[],
+): TransactionListSection[] {
+  const buckets = new Map<RelativeDayKey, TransactionRow[]>();
+
+  const sorted = [...transactions].sort(
+    (a, b) =>
+      parseISO(b.transaction_at).getTime() -
+      parseISO(a.transaction_at).getTime(),
+  );
+
+  for (const transaction of sorted) {
+    const bucket = relativeDayBucket(
+      transactionCalendarDayKey(transaction.transaction_at),
+    );
+    const list = buckets.get(bucket) ?? [];
+    list.push(transaction);
+    buckets.set(bucket, list);
+  }
+
+  return RELATIVE_DAY_ORDER.filter((key) => buckets.has(key)).map((key) => ({
+    key,
+    title: RELATIVE_DAY_TITLES[key],
+    data: buckets.get(key) ?? [],
+  }));
+}
+
+export type TransactionListFilter = "day" | "payee" | "category";
+
+export function buildTransactionListSections(
+  transactions: TransactionRow[],
+  filter: TransactionListFilter,
+  dayKey?: string,
+): TransactionListSection[] {
+  if (filter === "day" && dayKey) {
+    return [
+      {
+        key: dayKey,
+        title: transactionListDaySectionTitle(dayKey),
+        data: transactions,
+      },
+    ];
+  }
+  return groupTransactionsByRelativeDay(transactions);
+}
 
 export type TransactionFlashListItem =
   | {
@@ -41,6 +124,20 @@ function sectionDateHeading(dateKey: string): string {
   }
   const d = parseISO(`${dateKey}T12:00:00`);
   return format(d, "EEE, d MMM").toUpperCase();
+}
+
+/** Section label for grouped transaction lists (Insights drill-down, etc.). */
+export function transactionDaySectionTitle(dayKey: string): string {
+  return sectionDateHeading(dayKey);
+}
+
+/** Stack header title for a single-day transaction list. */
+export function transactionDayScreenTitle(dayKey: string): string {
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  if (dayKey === todayKey) {
+    return "Today";
+  }
+  return format(parseISO(`${dayKey}T12:00:00`), "d MMM yyyy");
 }
 
 export function groupTransactionsByDay(
