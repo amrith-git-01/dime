@@ -6,7 +6,12 @@ import { useCallback, useMemo } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
+import type { InsightsCashflowDaySelection } from "@/features/analytics/components/InsightsDailyCashflowChart";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
+import {
+  topPayeeKeysFromSpend,
+  type CounterpartyDonutDatum,
+} from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { computeBurnRateMetrics } from "@/features/analytics/utils/computeBurnRateMetrics";
 import {
   buildEmptyBurnRateMetrics,
@@ -14,6 +19,7 @@ import {
 } from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import type { TransactionRow } from "@/features/transactions/types";
+import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -28,6 +34,8 @@ type AnalyticsScreenNavigation = CompositeNavigationProp<
 
 export function useAnalyticsScreenModel() {
   const navigation = useNavigation<AnalyticsScreenNavigation>();
+  const { onManualAdd, onReceipt, onVoice } =
+    useTransactionQuickAddActions(navigation);
   const {
     monthOptions,
     selectedMonth,
@@ -57,7 +65,14 @@ export function useAnalyticsScreenModel() {
     () => insightsQuery.data?.daily_cashflow ?? [],
     [insightsQuery.data?.daily_cashflow],
   );
-  const counterpartySpend = insightsQuery.data?.counterparty_spend ?? [];
+  const counterpartySpend = useMemo(
+    () => insightsQuery.data?.counterparty_spend ?? [],
+    [insightsQuery.data?.counterparty_spend],
+  );
+  const topPayeeKeys = useMemo(
+    () => topPayeeKeysFromSpend(counterpartySpend),
+    [counterpartySpend],
+  );
   const topExpenses = insightsQuery.data?.top_expenses ?? [];
 
   const summary = useMemo((): InsightsMonthSummary | null => {
@@ -162,11 +177,39 @@ export function useAnalyticsScreenModel() {
     [navigation],
   );
 
+  const openTransactionsListForDay = useCallback(
+    (day: InsightsCashflowDaySelection) => {
+      navigation.navigate("TransactionsList", {
+        filter: "day",
+        year: selectedMonth.year,
+        monthIndex0: selectedMonth.monthIndex0,
+        dayKey: day.date,
+      });
+    },
+    [navigation, selectedMonth.monthIndex0, selectedMonth.year],
+  );
+
+  const openTransactionsListForPayee = useCallback(
+    (slice: CounterpartyDonutDatum) => {
+      navigation.navigate("TransactionsList", {
+        filter: "payee",
+        year: selectedMonth.year,
+        monthIndex0: selectedMonth.monthIndex0,
+        payeeKey: slice.payee_key,
+        payeeKeysTop: topPayeeKeys,
+        payeeDisplayName: slice.display_name,
+      });
+    },
+    [navigation, selectedMonth.monthIndex0, selectedMonth.year, topPayeeKeys],
+  );
+
   return {
     monthOptions,
     selectedMonth,
     handleSelectMonth,
     openTransactionDetail,
+    openTransactionsListForDay,
+    openTransactionsListForPayee,
     summary,
     summaryLoading,
     summaryFailed,
@@ -178,5 +221,8 @@ export function useAnalyticsScreenModel() {
     chartMonthIndex0: selectedMonth.monthIndex0,
     counterpartySpend,
     topExpenses,
+    onManualAdd,
+    onReceipt,
+    onVoice,
   };
 }

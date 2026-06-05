@@ -32,6 +32,28 @@ export type MainStackParamList = {
       }
     | undefined;
   TransactionDetail: { transaction: TransactionRow };
+  TransactionsList:
+    | {
+        filter: "day";
+        year: number;
+        monthIndex0: number;
+        dayKey: string;
+      }
+    | {
+        filter: "payee";
+        year: number;
+        monthIndex0: number;
+        payeeKey: string;
+        payeeKeysTop: string[];
+        payeeDisplayName: string;
+      }
+    | {
+        filter: "category";
+        year: number;
+        monthIndex0: number;
+        categoryId: string;
+        categoryDisplayName: string;
+      };
 };
 
 export type RootStackParamList = {

@@ -13,6 +13,8 @@ import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
+import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
+import { transactionsListStackShellConfig } from "@/screens/transactions/transactionsListStackShellConfig";
 
 import MainTabNavigator from "./MainTabNavigator";
 import { withStackScreen } from "./stackScreenHosts";
@@ -36,6 +38,10 @@ const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
 const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
+const TransactionsListScreen = withStackScreen(
+  TransactionsListScreenBase,
+  transactionsListStackShellConfig,
+);
 const CreateCustomCategoryScreen = withStackScreen(
   CreateCustomCategoryScreenBase,
 );
@@ -85,6 +91,11 @@ export default function MainStackNavigator() {
         name="TransactionDetail"
         component={TransactionDetailScreen}
         options={{ ...stackScreenOptions, title: "Transaction" }}
+      />
+      <Stack.Screen
+        name="TransactionsList"
+        component={TransactionsListScreen}
+        options={{ ...stackScreenOptions, title: "Transactions" }}
       />
       <Stack.Screen
         name="CreateCustomCategory"

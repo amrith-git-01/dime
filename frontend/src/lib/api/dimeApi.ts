@@ -55,6 +55,29 @@ export function getDimeApiBaseUrl(): string {
 
 const TOKEN_REFRESH_BUFFER_MS = 60_000;
 
+/** Dev-only artificial latency so loading skeletons are visible on device. */
+function getDevApiDelayMs(): number {
+  if (!__DEV__) {
+    return 0;
+  }
+  const raw = process.env.EXPO_PUBLIC_API_DELAY_MS?.trim();
+  if (!raw) {
+    return 0;
+  }
+  const ms = Number.parseInt(raw, 10);
+  return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+function maybeDevApiDelay(): Promise<void> {
+  const ms = getDevApiDelayMs();
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
 
 /** Drop in-memory token (sign-out or auth errors). */
@@ -127,9 +150,17 @@ if (__DEV__) {
       "[dimeApi] EXPO_PUBLIC_API_BASE_URL is empty — requests will fail.",
     );
   }
+  const devApiDelayMs = getDevApiDelayMs();
+  if (devApiDelayMs > 0) {
+    console.info(
+      `[dimeApi] EXPO_PUBLIC_API_DELAY_MS=${devApiDelayMs} — all requests delayed (dev only).`,
+    );
+  }
 }
 
 dimeApi.interceptors.request.use(async (config) => {
+  await maybeDevApiDelay();
+
   const auth = await getDimeAuthHeaders();
   if (auth.Authorization) {
     config.headers.set("Authorization", auth.Authorization);
