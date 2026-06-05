@@ -9,5 +9,10 @@ export {
   type SelectDropdownProps,
 } from "./SelectDropdown/SelectDropdown";
 export { SkeletonBlock } from "./SkeletonBlock";
+export { SkeletonStrip, type SkeletonStripProps } from "./SkeletonStrip";
+export {
+  skeletonStripPresets,
+  type SkeletonStripVariant,
+} from "./skeletonStripPresets";
 export { Spinner } from "./Spinner";
 export { TextField, type TextFieldProps } from "./TextField/TextField";

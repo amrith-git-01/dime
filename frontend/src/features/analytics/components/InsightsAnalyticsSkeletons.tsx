@@ -1,7 +1,11 @@
 import { StyleSheet, View } from "react-native";
 
-import { SkeletonBlock } from "@/components/ui";
-import { radius, spacing } from "@/constants";
+import {
+  BENTO_GAP,
+  BENTO_TRANSACTION_TILE_MIN_HEIGHT,
+} from "@/components/bento";
+import { SkeletonBlock, SkeletonStrip } from "@/components/ui";
+import { colors, radius, spacing } from "@/constants";
 
 const CHART_PLOT_HEIGHT = 212;
 const X_LABEL_ROW_HEIGHT = 22;
@@ -9,46 +13,6 @@ const Y_AXIS_GUTTER = 46;
 const DONUT_SIZE = 192;
 const LEGEND_WIDTH = 168;
 const CONTENT_MIN_HEIGHT = 228;
-
-export function InsightsMonthSummaryHeaderSkeleton() {
-  return (
-    <View style={styles.headerLeftSkel}>
-      <SkeletonBlock tone="surface" style={styles.kickerSkel} />
-      <SkeletonBlock tone="surface" style={styles.titleSkel} />
-    </View>
-  );
-}
-
-export function InsightsMonthSummaryBodySkeleton() {
-  return (
-    <View style={styles.summaryBodySkel}>
-      <View style={styles.statsRowSkel}>
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-      </View>
-      <SkeletonBlock tone="surface" style={styles.sectionDividerSkel} />
-      <SkeletonBlock tone="surface" style={styles.sectionKickerSkel} />
-      <View style={styles.statsRowSkel}>
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-      </View>
-    </View>
-  );
-}
-
-export function InsightsBurnRateBodySkeleton() {
-  return (
-    <View style={styles.burnRateBodySkel}>
-      <View style={styles.statsRowSkel}>
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-        <SkeletonBlock tone="surface" style={styles.statCellSkel} />
-      </View>
-    </View>
-  );
-}
 
 export function InsightsCashflowChartSkeleton() {
   return (
@@ -79,17 +43,18 @@ export function InsightsCashflowChartSkeleton() {
   );
 }
 
+/** Compact transaction-tile placeholders (max three while loading). */
 export function InsightsTopExpensesSkeleton() {
   return (
     <View style={styles.topExpensesSkel}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <View key={i} style={styles.topExpenseRowSkel}>
-          <View style={styles.topExpenseHeaderSkel}>
-            <SkeletonBlock tone="surface" style={styles.topExpenseNameSkel} />
-            <SkeletonBlock tone="surface" style={styles.topExpenseAmountSkel} />
+      {Array.from({ length: 3 }, (_, i) => (
+        <View key={i} style={styles.topExpenseTileSkel}>
+          <SkeletonBlock tone="surface" style={styles.topExpenseIconSkel} />
+          <View style={styles.topExpenseTextSkel}>
+            <SkeletonStrip variant="listTitle" />
+            <SkeletonStrip variant="listMeta" />
           </View>
-          <SkeletonBlock tone="surface" style={styles.topExpenseMetaSkel} />
-          <SkeletonBlock tone="surface" style={styles.topExpenseBarSkel} />
+          <SkeletonStrip variant="listAmount" />
         </View>
       ))}
     </View>
@@ -122,75 +87,27 @@ export function InsightsDonutCardSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  headerLeftSkel: {
-    flex: 1,
-    gap: 6,
-  },
-  kickerSkel: {
-    width: 72,
-    height: 10,
-    borderRadius: radius.sm,
-  },
-  titleSkel: {
-    width: "55%",
-    height: 22,
-    borderRadius: radius.sm,
-  },
-  summaryBodySkel: {
-    gap: spacing.md,
-  },
-  statsRowSkel: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  statCellSkel: {
-    flex: 1,
-    height: 36,
-    borderRadius: radius.sm,
-  },
-  sectionDividerSkel: {
-    width: "100%",
-    height: StyleSheet.hairlineWidth,
-    borderRadius: radius.sm,
-  },
-  sectionKickerSkel: {
-    width: 56,
-    height: 10,
-    borderRadius: radius.sm,
-  },
-  burnRateBodySkel: {
-    minHeight: 72,
-  },
   topExpensesSkel: {
-    gap: spacing.md,
+    gap: BENTO_GAP,
   },
-  topExpenseRowSkel: {
-    gap: 6,
-  },
-  topExpenseHeaderSkel: {
+  topExpenseTileSkel: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     gap: spacing.sm,
+    minHeight: BENTO_TRANSACTION_TILE_MIN_HEIGHT,
+    backgroundColor: colors.barBackground,
+    borderRadius: radius.md,
+    padding: spacing.md,
   },
-  topExpenseNameSkel: {
+  topExpenseIconSkel: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
+    flexShrink: 0,
+  },
+  topExpenseTextSkel: {
     flex: 1,
-    height: 14,
-    borderRadius: radius.sm,
-  },
-  topExpenseAmountSkel: {
-    width: 64,
-    height: 14,
-    borderRadius: radius.sm,
-  },
-  topExpenseMetaSkel: {
-    width: "48%",
-    height: 10,
-    borderRadius: radius.sm,
-  },
-  topExpenseBarSkel: {
-    width: "100%",
-    height: 6,
-    borderRadius: 3,
+    gap: spacing.xs,
   },
   cashflowSkel: {
     gap: spacing.sm,
