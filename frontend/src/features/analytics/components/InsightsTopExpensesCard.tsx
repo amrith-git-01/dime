@@ -1,106 +1,39 @@
-import { memo, useCallback, useMemo } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { memo, useMemo } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import { TwoToneCard } from "@/components/shared";
-import { bento, colors, radius, spacing } from "@/constants";
+import { BENTO_GAP } from "@/components/bento";
+import type { BentoSectionEmptyQuickAddProps } from "@/components/shared";
+import {
+  BentoRecentTransactionsEmptyInset,
+  BentoTransactionTile,
+  TwoToneCard,
+} from "@/components/shared";
+import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { TransactionRow } from "@/features/transactions/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
-import {
-  buildTopExpensesBarRows,
-  type TopExpenseBarRow,
-} from "../utils/buildTopExpensesBarRows";
+import { TOP_EXPENSES_MAX } from "../constants/topExpenses";
 import { InsightsTopExpensesSkeleton } from "./InsightsAnalyticsSkeletons";
 
-export type InsightsTopExpensesCardProps = {
+export type InsightsTopExpensesCardProps = BentoSectionEmptyQuickAddProps & {
   topExpenses: TransactionRow[];
   loading?: boolean;
   onTransactionPress: (transaction: TransactionRow) => void;
 };
 
-type TopExpenseRowProps = {
-  row: TopExpenseBarRow;
-  onPress: (transaction: TransactionRow) => void;
-};
-
-const TopExpenseRow = memo(function TopExpenseRow({
-  row,
-  onPress,
-}: TopExpenseRowProps) {
-  const handlePress = useCallback(() => {
-    if (row.transaction == null) {
-      return;
-    }
-    void triggerLightHaptic();
-    onPress(row.transaction);
-  }, [onPress, row.transaction]);
-
-  const barFillStyle = useMemo(
-    (): StyleProp<ViewStyle> => [
-      styles.barFill,
-      {
-        width: `${Math.round(row.barFraction * 100)}%`,
-        backgroundColor: row.barColor,
-        opacity: row.isPlaceholder ? 0.2 : 1,
-      },
-    ],
-    [row.barColor, row.barFraction, row.isPlaceholder],
-  );
-
-  return (
-    <Pressable
-      accessibilityRole={row.isPlaceholder ? "text" : "button"}
-      accessibilityLabel={
-        row.isPlaceholder
-          ? undefined
-          : `${row.merchant}, ${row.amountDisplay}, ${row.meta}`
-      }
-      disabled={row.isPlaceholder}
-      onPress={handlePress}
-      style={({ pressed }) => [
-        styles.row,
-        !row.isPlaceholder && pressed && styles.rowPressed,
-      ]}
-    >
-      <View style={styles.rowHeader}>
-        <Text style={styles.merchant} numberOfLines={1}>
-          {row.merchant}
-        </Text>
-        <Text
-          style={[styles.amount, row.isPlaceholder && styles.amountPlaceholder]}
-          numberOfLines={1}
-        >
-          {row.amountDisplay}
-        </Text>
-      </View>
-      <Text style={styles.meta} numberOfLines={1}>
-        {row.meta}
-      </Text>
-      <View style={styles.barTrack}>
-        <View style={barFillStyle} />
-      </View>
-    </Pressable>
-  );
-});
-
 export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
   topExpenses,
   loading = false,
   onTransactionPress,
+  onManualAdd,
+  onReceipt,
+  onVoice,
 }: InsightsTopExpensesCardProps) {
-  const rows = useMemo(
-    () => buildTopExpensesBarRows(topExpenses),
+  const visible = useMemo(
+    () => topExpenses.slice(0, TOP_EXPENSES_MAX),
     [topExpenses],
   );
+  const isEmpty = !loading && visible.length === 0;
 
   return (
     <TwoToneCard
@@ -114,12 +47,18 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
         <View style={styles.body}>
           {loading ? (
             <InsightsTopExpensesSkeleton />
+          ) : isEmpty ? (
+            <BentoRecentTransactionsEmptyInset
+              onManualAdd={onManualAdd}
+              onReceipt={onReceipt}
+              onVoice={onVoice}
+            />
           ) : (
-            <View style={styles.list}>
-              {rows.map((row) => (
-                <TopExpenseRow
-                  key={row.key}
-                  row={row}
+            <View style={styles.stack}>
+              {visible.map((transaction) => (
+                <BentoTransactionTile
+                  key={transaction.id}
+                  transaction={transaction}
                   onPress={onTransactionPress}
                 />
               ))}
@@ -129,11 +68,6 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
       }
     />
   );
-});
-
-const rowShadow = Platform.select({
-  android: { elevation: 0 },
-  default: {},
 });
 
 const styles = StyleSheet.create({
@@ -160,58 +94,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
   },
-  list: {
-    gap: spacing.md,
-  },
-  row: {
-    gap: 4,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.md,
-    ...rowShadow,
-  },
-  rowPressed: {
-    opacity: 0.88,
-  },
-  rowHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  merchant: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textPrimary,
-  },
-  amount: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.danger,
-  },
-  amountPlaceholder: {
-    color: bento.onPastel.muted,
-  },
-  meta: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 10,
-    lineHeight: 14,
-    color: bento.onPastel.muted,
-  },
-  barTrack: {
-    marginTop: 2,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.borderList,
-    overflow: "hidden",
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 3,
-    minWidth: 0,
+  stack: {
+    gap: BENTO_GAP,
   },
 });

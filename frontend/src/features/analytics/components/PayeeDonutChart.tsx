@@ -4,6 +4,7 @@ import Svg, { G, Path } from "react-native-svg";
 
 import type { ChartTooltipAnchor } from "@/components/shared";
 import { bento } from "@/constants";
+import { COUNTERPARTY_DONUT_OTHER_COLOR } from "@/features/analytics/constants/counterpartyDonutColors";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
@@ -224,6 +225,40 @@ export const PayeeDonutChart = memo(function PayeeDonutChart({
           }}
         />
       ) : null}
+    </View>
+  );
+});
+
+export type PayeeDonutEmptyChartProps = {
+  size?: number;
+  innerRadiusRatio?: number;
+};
+
+/** Neutral full ring when there is no payee spend (matches live donut geometry). */
+export const PayeeDonutEmptyChart = memo(function PayeeDonutEmptyChart({
+  size = 168,
+  innerRadiusRatio = 0.56,
+}: PayeeDonutEmptyChartProps) {
+  const path = useMemo(() => {
+    const pad = 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    const outerR = size / 2 - pad;
+    const innerR = outerR * innerRadiusRatio;
+    return describeAnnularSlice(cx, cy, outerR, innerR, 0, 359.99);
+  }, [innerRadiusRatio, size]);
+
+  return (
+    <View style={[styles.wrap, { width: size, height: size }]}>
+      <Svg width={size} height={size}>
+        <Path
+          d={path}
+          fill={COUNTERPARTY_DONUT_OTHER_COLOR}
+          opacity={0.35}
+          stroke={bento.twoToneBodySurface}
+          strokeWidth={1.5}
+        />
+      </Svg>
     </View>
   );
 });
