@@ -13,12 +13,16 @@ import {
 } from "@/components/shared";
 
 import { BentoSectionHeader } from "./BentoSectionHeader";
+import { HomeRecentTransactionRowSkeleton } from "./HomeRecentTransactionRowSkeleton";
 
 import { HOME_MAX_RECENT } from "./homeBentoTokens";
+
+const RECENT_SKELETON_ROW_COUNT = 3;
 
 type HomeRecentSectionProps = {
   transactions: TransactionRow[];
   isEmpty: boolean;
+  isLoading?: boolean;
   onViewAll: () => void;
   onTransactionPress: (tx: TransactionRow) => void;
   onManualAdd: () => void;
@@ -37,6 +41,7 @@ export const HomeRecentSection = memo(function HomeRecentSection({
   onManualAdd,
   onReceipt,
   onVoice,
+  isLoading = false,
 }: HomeRecentSectionProps) {
   const visible = transactions.slice(0, HOME_MAX_RECENT);
 
@@ -44,7 +49,15 @@ export const HomeRecentSection = memo(function HomeRecentSection({
     <View>
       <BentoSectionHeader title="Recent transactions" onViewAll={onViewAll} />
 
-      {isEmpty ? (
+      {isLoading ? (
+        <BentoSectionCard>
+          <View style={styles.stack}>
+            {Array.from({ length: RECENT_SKELETON_ROW_COUNT }, (_, index) => (
+              <HomeRecentTransactionRowSkeleton key={index} />
+            ))}
+          </View>
+        </BentoSectionCard>
+      ) : isEmpty ? (
         <TwoToneEmptyState
           layout="inline"
           icon={ArrowLeftRight}

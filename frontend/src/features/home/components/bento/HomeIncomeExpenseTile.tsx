@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text } from "react-native";
 
 import {
   BentoStatCell,
@@ -7,7 +7,6 @@ import {
   MonthSummaryStatsRow,
   netTone,
 } from "@/components/shared";
-import { Spinner } from "@/components/ui";
 import { bento, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
@@ -46,27 +45,28 @@ export const HomeIncomeExpenseTile = memo(function HomeIncomeExpenseTile({
     >
       <Text style={styles.title}>Cash flow · this month</Text>
 
-      {isPending ? (
-        <View style={styles.spinnerWrap}>
-          <Spinner tone="primary" size="small" />
-        </View>
-      ) : (
-        <MonthSummaryStatsRow>
-          <BentoStatCell
-            label="Credited"
-            value={creditedDisplay}
-            tone="credit"
-          />
-          <MonthSummaryStatDivider />
-          <BentoStatCell label="Debited" value={debitedDisplay} tone="debit" />
-          <MonthSummaryStatDivider />
-          <BentoStatCell
-            label="Net"
-            value={netDisplay}
-            tone={netTone(netValue)}
-          />
-        </MonthSummaryStatsRow>
-      )}
+      <MonthSummaryStatsRow>
+        <BentoStatCell
+          label="Credited"
+          value={creditedDisplay}
+          tone="credit"
+          isValueLoading={isPending}
+        />
+        <MonthSummaryStatDivider />
+        <BentoStatCell
+          label="Debited"
+          value={debitedDisplay}
+          tone="debit"
+          isValueLoading={isPending}
+        />
+        <MonthSummaryStatDivider />
+        <BentoStatCell
+          label="Net"
+          value={netDisplay}
+          tone={netTone(netValue)}
+          isValueLoading={isPending}
+        />
+      </MonthSummaryStatsRow>
     </Pressable>
   );
 });
@@ -102,10 +102,5 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
-  },
-  spinnerWrap: {
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
   },
 });

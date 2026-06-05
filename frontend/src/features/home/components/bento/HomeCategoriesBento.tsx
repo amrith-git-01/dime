@@ -10,12 +10,16 @@ import {
   TwoToneEmptyState,
 } from "@/components/shared";
 
+import { BudgetCategoryRowsSkeleton } from "@/features/budgets/components";
+
 import { BentoSectionHeader } from "./BentoSectionHeader";
+import { HOME_MAX_CATEGORIES } from "./homeBentoTokens";
 
 type HomeCategoriesBentoProps = {
   items: CategorySpendRowData[];
   hasMonthlyBudget: boolean;
   monthlyBudgetAmount: number;
+  isLoading?: boolean;
   onViewAll: () => void;
   onManualAdd: () => void;
   onReceipt: () => void;
@@ -33,14 +37,19 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
   onManualAdd,
   onReceipt,
   onVoice,
+  isLoading = false,
 }: HomeCategoriesBentoProps) {
-  const isEmpty = items.length === 0;
+  const isEmpty = !isLoading && items.length === 0;
 
   return (
     <View>
       <BentoSectionHeader title="Top categories" onViewAll={onViewAll} />
 
-      {isEmpty ? (
+      {isLoading ? (
+        <BentoSectionCard>
+          <BudgetCategoryRowsSkeleton rowCount={HOME_MAX_CATEGORIES} />
+        </BentoSectionCard>
+      ) : isEmpty ? (
         <TwoToneEmptyState
           layout="inline"
           icon={LayoutGrid}
