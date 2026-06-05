@@ -52,7 +52,7 @@ export function computeBurnRateMetrics(
   const idealLabel = hasMonthlyBudget
     ? current
       ? "Ideal by today"
-      : "Ideal (even pace)"
+      : "Ideal"
     : "Ideal by today";
 
   return {
