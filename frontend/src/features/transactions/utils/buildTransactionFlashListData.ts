@@ -79,6 +79,35 @@ export function groupTransactionsByRelativeDay(
   }));
 }
 
+/** One section per calendar day (newest first); titles use Today / Yesterday / date. */
+export function groupTransactionsByCalendarDay(
+  transactions: TransactionRow[],
+): TransactionListSection[] {
+  const dayOrder: string[] = [];
+  const grouped = new Map<string, TransactionRow[]>();
+
+  const sorted = [...transactions].sort(
+    (a, b) =>
+      parseISO(b.transaction_at).getTime() -
+      parseISO(a.transaction_at).getTime(),
+  );
+
+  for (const transaction of sorted) {
+    const dayKey = transactionCalendarDayKey(transaction.transaction_at);
+    if (!grouped.has(dayKey)) {
+      dayOrder.push(dayKey);
+      grouped.set(dayKey, []);
+    }
+    grouped.get(dayKey)?.push(transaction);
+  }
+
+  return dayOrder.map((dayKey) => ({
+    key: dayKey,
+    title: transactionListDaySectionTitle(dayKey),
+    data: grouped.get(dayKey) ?? [],
+  }));
+}
+
 export type TransactionListFilter = "day" | "payee" | "category";
 
 export function buildTransactionListSections(
@@ -95,7 +124,7 @@ export function buildTransactionListSections(
       },
     ];
   }
-  return groupTransactionsByRelativeDay(transactions);
+  return groupTransactionsByCalendarDay(transactions);
 }
 
 export type TransactionFlashListItem =

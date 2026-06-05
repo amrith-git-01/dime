@@ -1,3 +1,5 @@
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo } from "react";
@@ -15,14 +17,20 @@ import {
   useMonthDebitTotalsByCategoryQuery,
   useMonthSummaryQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
-import type { MainStackParamList } from "@/navigation/types";
+import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { formatInrCompact } from "@/utils/currency";
 
-export const UNCATEGORIZED_SPEND_KEY = "__uncategorized__";
+import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
+
+export const UNCATEGORIZED_SPEND_KEY = UNCATEGORIZED_CATEGORY_KEY;
+
+type BudgetScreenNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Budgets">,
+  NativeStackNavigationProp<MainStackParamList>
+>;
 
 export function useBudgetScreenModel() {
-  const stackNavigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const stackNavigation = useNavigation<BudgetScreenNavigation>();
   const { showToast } = useToast();
   const { data: categories, loading: categoriesLoading } = useLocalCategories();
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
@@ -144,6 +152,19 @@ export function useBudgetScreenModel() {
     [stackNavigation],
   );
 
+  const openCategoryTransactions = useCallback(
+    (item: CategorySpendRowData) => {
+      stackNavigation.navigate("TransactionsList", {
+        filter: "category",
+        year: selectedMonth.year,
+        monthIndex0: selectedMonth.monthIndex0,
+        categoryId: item.id,
+        categoryDisplayName: item.name,
+      });
+    },
+    [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
+  );
+
   const spentMonthNum = monthSummaryQuery.data
     ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
     : Number.NaN;
@@ -234,6 +255,7 @@ export function useBudgetScreenModel() {
     handleAddCustomCategory,
     handleEditBudget,
     handleEditCategory,
+    openCategoryTransactions,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,

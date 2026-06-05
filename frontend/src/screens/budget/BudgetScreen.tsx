@@ -51,6 +51,7 @@ export default function BudgetScreen() {
     handleAddCustomCategory,
     handleEditBudget,
     handleEditCategory,
+    openCategoryTransactions,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
@@ -71,6 +72,7 @@ export default function BudgetScreen() {
         item={item}
         hasMonthlyBudget={hasMonthlyBudget}
         monthlyBudgetAmount={monthlyBudgetAmount}
+        onPress={() => openCategoryTransactions(item)}
         onEditPress={
           isBudgetCategoryEditable(item)
             ? () => handleEditCategory(item.id)
@@ -78,7 +80,12 @@ export default function BudgetScreen() {
         }
       />
     ),
-    [handleEditCategory, hasMonthlyBudget, monthlyBudgetAmount],
+    [
+      handleEditCategory,
+      hasMonthlyBudget,
+      monthlyBudgetAmount,
+      openCategoryTransactions,
+    ],
   );
 
   const overrideItemLayout = useCallback(

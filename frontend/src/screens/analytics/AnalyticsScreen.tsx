@@ -32,6 +32,11 @@ export default function AnalyticsScreen() {
     counterpartySpend,
     topExpenses,
     openTransactionDetail,
+    openTransactionsListForDay,
+    openTransactionsListForPayee,
+    onManualAdd,
+    onReceipt,
+    onVoice,
   } = useAnalyticsScreenModel();
 
   return (
@@ -66,16 +71,21 @@ export default function AnalyticsScreen() {
           monthIndex0={chartMonthIndex0}
           loading={chartLoading}
           tooltipDismissRef={cashflowTooltipDismissRef}
+          onViewDayPress={openTransactionsListForDay}
         />
         <InsightsCounterpartyDonutCard
           counterpartySpend={counterpartySpend}
           loading={chartLoading}
           tooltipDismissRef={payeeTooltipDismissRef}
+          onViewPayeePress={openTransactionsListForPayee}
         />
         <InsightsTopExpensesCard
           topExpenses={topExpenses}
           loading={chartLoading}
           onTransactionPress={openTransactionDetail}
+          onManualAdd={onManualAdd}
+          onReceipt={onReceipt}
+          onVoice={onVoice}
         />
       </ScrollView>
     </TabScreenShell>
