@@ -1,9 +1,10 @@
 export { BentoAmountRow } from "./BentoAmountRow";
 export { BentoProgressRing } from "./BentoProgressRing";
+export { BentoProgressRingSkeleton } from "./BentoProgressRingSkeleton";
 export { BentoSectionHeader } from "./BentoSectionHeader";
 export { BentoSevenDayBarChart } from "./BentoSevenDayBarChart";
+export { BentoSevenDayBarChartSkeleton } from "./BentoSevenDayBarChartSkeleton";
 export { HomeBentoContent } from "./HomeBentoContent";
-export { HomeBentoSkeleton } from "./HomeBentoSkeleton";
 export { HOME_MAX_CATEGORIES } from "./homeBentoTokens";
 export { HomeCategoriesBento } from "./HomeCategoriesBento";
 export { HomeIncomeExpenseTile } from "./HomeIncomeExpenseTile";
