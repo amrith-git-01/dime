@@ -14,14 +14,10 @@ import {
   netTone,
   type BentoStatCellTone,
 } from "@/components/shared";
+import { SkeletonStrip } from "@/components/ui";
 import { bento, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { MonthOption } from "@/utils/buildMonthOptions";
-
-import {
-  InsightsMonthSummaryBodySkeleton,
-  InsightsMonthSummaryHeaderSkeleton,
-} from "./InsightsAnalyticsSkeletons";
 
 export type InsightsMonthSummary = {
   transactionCount: number;
@@ -69,6 +65,10 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
     : summary && summary.remainingValue > 0
       ? "credit"
       : "neutral";
+  const remainingLabel =
+    summaryLoading || !summary?.isOverBudget
+      ? "Remaining"
+      : summary.remainingLabel;
 
   return (
     <MonthSummaryCardShell
@@ -82,37 +82,46 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
           <MonthSummaryHeaderError>
             Could not load summary
           </MonthSummaryHeaderError>
-        ) : summaryLoading ? (
-          <InsightsMonthSummaryHeaderSkeleton />
-        ) : summary ? (
+        ) : (
           <>
             <MonthSummaryHeaderKicker>This month</MonthSummaryHeaderKicker>
-            <MonthSummaryHeaderTitle>
-              {transactionCountLabel(summary.transactionCount)}
-            </MonthSummaryHeaderTitle>
+            {summaryLoading ? (
+              <SkeletonStrip
+                variant="statValue"
+                style={styles.headerTitleSkeleton}
+              />
+            ) : (
+              <MonthSummaryHeaderTitle>
+                {transactionCountLabel(summary?.transactionCount ?? 0)}
+              </MonthSummaryHeaderTitle>
+            )}
           </>
-        ) : null
+        )
       }
     >
       {summaryFailed ? (
         <MonthSummaryUnavailableText />
-      ) : summaryLoading ? (
-        <InsightsMonthSummaryBodySkeleton />
-      ) : summary ? (
+      ) : (
         <View style={styles.bodySections}>
           <MonthSummaryStatsRow>
-            <BentoStatCell label="Budget" value={summary.budgetDisplay} />
-            <MonthSummaryStatDivider />
             <BentoStatCell
-              label="Used"
-              value={summary.usedPctDisplay}
-              tone={summary.isOverBudget ? "debit" : "neutral"}
+              label="Budget"
+              value={summary?.budgetDisplay ?? "—"}
+              isValueLoading={summaryLoading}
             />
             <MonthSummaryStatDivider />
             <BentoStatCell
-              label={summary.remainingLabel}
-              value={summary.remainingDisplay}
+              label="Used"
+              value={summary?.usedPctDisplay ?? "—"}
+              tone={summary?.isOverBudget ? "debit" : "neutral"}
+              isValueLoading={summaryLoading}
+            />
+            <MonthSummaryStatDivider />
+            <BentoStatCell
+              label={remainingLabel}
+              value={summary?.remainingDisplay ?? "—"}
               tone={remainingTone}
+              isValueLoading={summaryLoading}
             />
           </MonthSummaryStatsRow>
 
@@ -123,25 +132,28 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             <MonthSummaryStatsRow>
               <BentoStatCell
                 label="Spent"
-                value={summary.spentDisplay}
+                value={summary?.spentDisplay ?? "—"}
                 tone="debit"
+                isValueLoading={summaryLoading}
               />
               <MonthSummaryStatDivider />
               <BentoStatCell
                 label="Income"
-                value={summary.incomeDisplay}
+                value={summary?.incomeDisplay ?? "—"}
                 tone="credit"
+                isValueLoading={summaryLoading}
               />
               <MonthSummaryStatDivider />
               <BentoStatCell
                 label="Net"
-                value={summary.netDisplay}
-                tone={netTone(summary.netValue)}
+                value={summary?.netDisplay ?? "—"}
+                tone={summary ? netTone(summary.netValue) : "neutral"}
+                isValueLoading={summaryLoading}
               />
             </MonthSummaryStatsRow>
           </View>
         </View>
-      ) : null}
+      )}
     </MonthSummaryCardShell>
   );
 });
@@ -160,5 +172,9 @@ const styles = StyleSheet.create({
     color: bento.onPastel.muted,
     textTransform: "uppercase",
     letterSpacing: 0.45,
+  },
+  headerTitleSkeleton: {
+    width: "50%",
+    marginTop: 2,
   },
 });

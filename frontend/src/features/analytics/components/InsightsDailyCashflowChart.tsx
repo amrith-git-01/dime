@@ -50,13 +50,15 @@ const ZERO_CHART_ROW = {
   netDeficit: 0,
 } as const;
 
-type CashflowDayPress = {
+export type InsightsCashflowDaySelection = {
   day: number;
   date: string;
   expense: number;
   income: number;
   net: number;
 };
+
+type CashflowDayPress = InsightsCashflowDaySelection;
 
 type SelectedDay = {
   selection: CashflowDayPress;
@@ -138,6 +140,8 @@ export type InsightsDailyCashflowChartProps = {
   loading?: boolean;
   /** Parent scroll views can call this ref to dismiss an open day tooltip. */
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
+  /** Fired when the user taps View in the day tooltip (navigation wired later). */
+  onViewDayPress?: (day: InsightsCashflowDaySelection) => void;
 };
 
 export const InsightsDailyCashflowChart = memo(
@@ -147,6 +151,7 @@ export const InsightsDailyCashflowChart = memo(
     monthIndex0,
     loading = false,
     tooltipDismissRef,
+    onViewDayPress,
   }: InsightsDailyCashflowChartProps) {
     const { monthDays, lastDay, todayDay } = useMemo(
       () => buildFullMonthCashflowDays(dailyCashflow, year, monthIndex0),
@@ -258,6 +263,20 @@ export const InsightsDailyCashflowChart = memo(
       selected != null
         ? cashflowTooltipTitle(selected.selection, todayDay)
         : "";
+
+    const handleTooltipViewPress = useCallback(() => {
+      const day = selected?.selection;
+      if (!day) {
+        return;
+      }
+      dismissTooltip();
+      onViewDayPress?.(day);
+    }, [dismissTooltip, onViewDayPress, selected]);
+
+    const tooltipViewAction = useMemo(
+      () => ({ onPress: handleTooltipViewPress }),
+      [handleTooltipViewPress],
+    );
 
     return (
       <>
@@ -510,6 +529,7 @@ export const InsightsDailyCashflowChart = memo(
           title={tooltipTitle}
           rows={tooltipRows ?? []}
           anchor={selected?.anchorWindow ?? null}
+          viewAction={tooltipViewAction}
         />
       </>
     );

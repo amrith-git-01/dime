@@ -11,7 +11,6 @@ import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type { InsightsBurnRateMetrics } from "../utils/computeBurnRateMetrics";
-import { InsightsBurnRateBodySkeleton } from "./InsightsAnalyticsSkeletons";
 
 export type InsightsBurnRateMetricCardProps = {
   metrics: InsightsBurnRateMetrics | null;
@@ -23,8 +22,9 @@ export const InsightsBurnRateMetricCard = memo(
     metrics,
     loading = false,
   }: InsightsBurnRateMetricCardProps) {
-    const spentTone = metrics?.isOverPace ? "debit" : "neutral";
+    const spentTone = !loading && metrics?.isOverPace ? "debit" : "neutral";
     const projectedTone =
+      !loading &&
       metrics?.hasMonthlyBudget &&
       metrics.projected > (metrics.monthlyBudget ?? 0)
         ? "debit"
@@ -42,35 +42,32 @@ export const InsightsBurnRateMetricCard = memo(
         }
         body={
           <View style={styles.body}>
-            {loading ? (
-              <InsightsBurnRateBodySkeleton />
-            ) : metrics ? (
-              <>
-                <MonthSummaryStatsRow>
-                  <BentoStatCell
-                    label="Spent so far"
-                    value={metrics.spentDisplay}
-                    tone={spentTone}
-                  />
-                  <MonthSummaryStatDivider />
-                  <BentoStatCell
-                    label={metrics.idealLabel}
-                    value={metrics.idealDisplay}
-                  />
-                  <MonthSummaryStatDivider />
-                  <BentoStatCell
-                    label={metrics.projectedLabel}
-                    value={metrics.projectedDisplay}
-                    tone={projectedTone}
-                  />
-                </MonthSummaryStatsRow>
+            <MonthSummaryStatsRow>
+              <BentoStatCell
+                label="Spent so far"
+                value={metrics?.spentDisplay ?? "—"}
+                tone={spentTone}
+                isValueLoading={loading}
+              />
+              <MonthSummaryStatDivider />
+              <BentoStatCell
+                label={metrics?.idealLabel ?? "Ideal by today"}
+                value={metrics?.idealDisplay ?? "—"}
+                isValueLoading={loading}
+              />
+              <MonthSummaryStatDivider />
+              <BentoStatCell
+                label={metrics?.projectedLabel ?? "At this pace"}
+                value={metrics?.projectedDisplay ?? "—"}
+                tone={projectedTone}
+                isValueLoading={loading}
+              />
+            </MonthSummaryStatsRow>
 
-                {!metrics.hasMonthlyBudget ? (
-                  <Text style={styles.budgetHint}>
-                    Set a monthly budget to compare spend against an even pace.
-                  </Text>
-                ) : null}
-              </>
+            {!loading && metrics && !metrics.hasMonthlyBudget ? (
+              <Text style={styles.budgetHint}>
+                Set a monthly budget to compare spend against an even pace.
+              </Text>
             ) : null}
           </View>
         }

@@ -16,7 +16,6 @@ import {
 } from "@/components/shared";
 import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { COUNTERPARTY_DONUT_OTHER_COLOR } from "@/features/analytics/constants/counterpartyDonutColors";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
 import {
   buildCounterpartyDonutData,
@@ -25,19 +24,18 @@ import {
 import { formatInrCompact } from "@/utils/currency";
 
 import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
-import { PayeeDonutChart } from "./PayeeDonutChart";
+import { PayeeDonutChart, PayeeDonutEmptyChart } from "./PayeeDonutChart";
 
 const CHART_SIZE = 192;
 const LEGEND_WIDTH = 168;
 const CONTENT_MIN_HEIGHT = 228;
 const TOOLTIP_WIDTH = 168;
-const EMPTY_LEGEND_ROWS = 4;
-const EM_DASH = "\u2014";
-
 export type InsightsCounterpartyDonutCardProps = {
   counterpartySpend: CounterpartySpendRow[];
   loading?: boolean;
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
+  /** Fired when the user taps View in the payee tooltip (navigation wired later). */
+  onViewPayeePress?: (slice: CounterpartyDonutDatum) => void;
 };
 
 type PayeeTooltipState = {
@@ -76,31 +74,12 @@ function buildPayeeTooltipRows(
 
 const EmptyDonutLayout = memo(function EmptyDonutLayout() {
   return (
-    <View style={styles.contentRow}>
+    <View style={styles.emptyContent}>
       <View style={styles.chartColumn}>
-        <View style={styles.emptyRing} />
+        <PayeeDonutEmptyChart size={CHART_SIZE} innerRadiusRatio={0.56} />
         <View style={styles.chartCenter} pointerEvents="none">
-          <Text style={styles.centerLabel}>{EM_DASH}</Text>
-          <Text style={styles.centerMeta}>{EM_DASH}</Text>
+          <Text style={styles.emptyCenterPercent}>{formatPayeeShare(0)}</Text>
         </View>
-      </View>
-      <View style={styles.legend}>
-        {Array.from({ length: EMPTY_LEGEND_ROWS }, (_, index) => (
-          <View key={index} style={styles.legendRow}>
-            <View
-              style={[
-                styles.legendSwatch,
-                { backgroundColor: COUNTERPARTY_DONUT_OTHER_COLOR },
-              ]}
-            />
-            <View style={styles.legendTextCol}>
-              <Text style={styles.legendName}>{EM_DASH}</Text>
-              <Text style={styles.legendMeta}>
-                {EM_DASH} · {EM_DASH}
-              </Text>
-            </View>
-          </View>
-        ))}
       </View>
     </View>
   );
@@ -111,6 +90,7 @@ export const InsightsCounterpartyDonutCard = memo(
     counterpartySpend,
     loading = false,
     tooltipDismissRef,
+    onViewPayeePress,
   }: InsightsCounterpartyDonutCardProps) {
     const chartData = useMemo(
       () => buildCounterpartyDonutData(counterpartySpend),
@@ -156,6 +136,20 @@ export const InsightsCounterpartyDonutCard = memo(
       }
       return buildPayeeTooltipRows(tooltipPayee.slice);
     }, [tooltipPayee]);
+
+    const handleTooltipViewPress = useCallback(() => {
+      const payee = tooltipPayee?.slice;
+      if (!payee) {
+        return;
+      }
+      dismissTooltip();
+      onViewPayeePress?.(payee);
+    }, [dismissTooltip, onViewPayeePress, tooltipPayee]);
+
+    const tooltipViewAction = useMemo(
+      () => ({ onPress: handleTooltipViewPress }),
+      [handleTooltipViewPress],
+    );
 
     const topSlice = chartData[0];
 
@@ -215,6 +209,7 @@ export const InsightsCounterpartyDonutCard = memo(
           rows={tooltipRows}
           anchor={tooltipPayee?.anchor ?? null}
           width={TOOLTIP_WIDTH}
+          viewAction={tooltipViewAction}
         />
       </>
     );
@@ -289,13 +284,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyRing: {
-    width: CHART_SIZE,
-    height: CHART_SIZE,
-    borderRadius: CHART_SIZE / 2,
-    borderWidth: 28,
-    borderColor: COUNTERPARTY_DONUT_OTHER_COLOR,
-    opacity: 0.45,
+  emptyContent: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
   },
   chartCenter: {
     ...StyleSheet.absoluteFillObject,
@@ -315,6 +308,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 10,
     lineHeight: 13,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  emptyCenterPercent: {
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.primary,
     textAlign: "center",
   },
