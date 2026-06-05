@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { SkeletonStrip } from "@/components/ui";
 import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
@@ -15,6 +16,8 @@ export type BentoStatCellProps = {
   label: string;
   value: string;
   tone?: BentoStatCellTone;
+  /** When true, label stays visible and only the value is skeletonized. */
+  isValueLoading?: boolean;
 };
 
 /**
@@ -33,21 +36,27 @@ export const BentoStatCell = memo(function BentoStatCell({
   label,
   value,
   tone = "neutral",
+  isValueLoading = false,
 }: BentoStatCellProps) {
   return (
     <View style={styles.cell}>
       <Text style={styles.label}>{label}</Text>
-      <Text
-        style={[
-          styles.value,
-          (tone === "credit" || tone === "net-positive") && styles.valueCredit,
-          (tone === "debit" || tone === "net-negative") && styles.valueDebit,
-        ]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {value}
-      </Text>
+      {isValueLoading ? (
+        <SkeletonStrip variant="statValue" style={styles.valueSkeleton} />
+      ) : (
+        <Text
+          style={[
+            styles.value,
+            (tone === "credit" || tone === "net-positive") &&
+              styles.valueCredit,
+            (tone === "debit" || tone === "net-negative") && styles.valueDebit,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {value}
+        </Text>
+      )}
     </View>
   );
 });
@@ -78,5 +87,8 @@ const styles = StyleSheet.create({
   },
   valueDebit: {
     color: colors.danger,
+  },
+  valueSkeleton: {
+    alignSelf: "center",
   },
 });

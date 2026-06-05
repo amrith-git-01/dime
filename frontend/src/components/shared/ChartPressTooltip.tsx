@@ -11,7 +11,9 @@ import {
 import { bento, charts, colors, shadows, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
+import { BentoActionPill } from "./BentoActionPill";
 import type { BentoStatCellTone } from "./BentoStatCell";
+import { MonthSummarySectionDivider } from "./MonthSummaryCardShell";
 
 export type ChartPressTooltipRow = {
   label: string;
@@ -27,6 +29,11 @@ export type ChartTooltipAnchor = {
   height: number;
 };
 
+export type ChartTooltipViewAction = {
+  label?: string;
+  onPress: () => void;
+};
+
 export type ChartPressTooltipProps = {
   title: string;
   rows: ChartPressTooltipRow[];
@@ -35,6 +42,7 @@ export type ChartPressTooltipProps = {
   viewportHeight?: number;
   width?: number;
   gap?: number;
+  viewAction?: ChartTooltipViewAction;
 };
 
 export type ChartTooltipOverlayProps = {
@@ -44,12 +52,16 @@ export type ChartTooltipOverlayProps = {
   rows: ChartPressTooltipRow[];
   anchor: ChartTooltipAnchor | null;
   width?: number;
+  viewAction?: ChartTooltipViewAction;
 };
 
 const DEFAULT_WIDTH = 148;
 const ANCHOR_GAP = 8;
 const SCREEN_INSET = 12;
 const ESTIMATED_ROW_HEIGHT = 17;
+/** 1px divider + vertical margins (matches month summary section spacing). */
+const TITLE_DIVIDER_HEIGHT = 1 + spacing.sm * 2;
+const VIEW_ACTION_BLOCK_HEIGHT = 38;
 
 function toneStyle(tone: BentoStatCellTone | undefined) {
   if (tone === "credit" || tone === "net-positive") {
@@ -68,8 +80,13 @@ export function computeChartTooltipPosition(
   tooltipWidth: number = DEFAULT_WIDTH,
   gap: number = ANCHOR_GAP,
   rowCount: number = 3,
+  hasViewAction: boolean = false,
 ): { left: number; top: number; placement: "left" | "right" } {
-  const estimatedHeight = 36 + Math.max(0, rowCount) * ESTIMATED_ROW_HEIGHT;
+  const estimatedHeight =
+    28 +
+    TITLE_DIVIDER_HEIGHT +
+    Math.max(0, rowCount) * ESTIMATED_ROW_HEIGHT +
+    (hasViewAction ? VIEW_ACTION_BLOCK_HEIGHT : 0);
   const anchorCenterX = anchor.x + anchor.width / 2;
   const placeOnRight = anchorCenterX < viewportWidth / 2;
 
@@ -99,7 +116,10 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
   viewportHeight = Dimensions.get("window").height,
   width = DEFAULT_WIDTH,
   gap = ANCHOR_GAP,
+  viewAction,
 }: ChartPressTooltipProps) {
+  const hasViewAction = viewAction != null;
+
   const { left, top } = useMemo(
     () =>
       computeChartTooltipPosition(
@@ -109,36 +129,65 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
         width,
         gap,
         rows.length,
+        hasViewAction,
       ),
-    [anchor, gap, rows.length, viewportHeight, viewportWidth, width],
+    [
+      anchor,
+      gap,
+      hasViewAction,
+      rows.length,
+      viewportHeight,
+      viewportWidth,
+      width,
+    ],
   );
 
   if (rows.length === 0) {
     return null;
   }
 
+  const viewLabel = viewAction?.label ?? "View";
+
   return (
     <View
-      pointerEvents="none"
+      pointerEvents={hasViewAction ? "box-none" : "none"}
       style={[styles.tooltipRoot, { left, top, width }]}
       accessibilityRole="text"
       accessibilityLabel={`${title}. ${rows.map((r) => `${r.label} ${r.value}`).join(". ")}`}
     >
-      <View style={[styles.card, shadows.cardElevated]}>
+      <View
+        pointerEvents={hasViewAction ? "auto" : "none"}
+        style={[styles.card, shadows.cardElevated]}
+      >
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
-        {rows.map((row) => (
-          <View key={row.label} style={styles.row}>
-            <Text style={styles.rowLabel}>{row.label}</Text>
-            <Text
-              style={[styles.rowValue, toneStyle(row.tone)]}
-              numberOfLines={1}
-            >
-              {row.value}
-            </Text>
+        <View style={styles.titleDividerWrap}>
+          <MonthSummarySectionDivider />
+        </View>
+        <View style={styles.body}>
+          {rows.map((row) => (
+            <View key={row.label} style={styles.row}>
+              <Text style={styles.rowLabel}>{row.label}</Text>
+              <Text
+                style={[styles.rowValue, toneStyle(row.tone)]}
+                numberOfLines={1}
+              >
+                {row.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+        {viewAction ? (
+          <View style={styles.viewActionWrap}>
+            <BentoActionPill
+              label={viewLabel}
+              onPress={viewAction.onPress}
+              accessibilityLabel={`${viewLabel} ${title}`}
+              fullWidth
+            />
           </View>
-        ))}
+        ) : null}
       </View>
     </View>
   );
@@ -152,6 +201,7 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
   rows,
   anchor,
   width = DEFAULT_WIDTH,
+  viewAction,
 }: ChartTooltipOverlayProps) {
   if (!visible || anchor == null || rows.length === 0) {
     return null;
@@ -177,6 +227,7 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
           rows={rows}
           anchor={anchor}
           width={width}
+          viewAction={viewAction}
         />
       </View>
     </Modal>
@@ -200,15 +251,20 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderList,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    gap: 4,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
   },
   title: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 11,
     lineHeight: 14,
     color: colors.textPrimary,
-    marginBottom: 2,
+  },
+  titleDividerWrap: {
+    marginVertical: spacing.sm,
+  },
+  body: {
+    gap: 4,
   },
   row: {
     flexDirection: "row",
@@ -237,5 +293,10 @@ const styles = StyleSheet.create({
   },
   valueDebit: {
     color: colors.danger,
+  },
+  viewActionWrap: {
+    marginTop: spacing.sm,
+    alignSelf: "stretch",
+    width: "100%",
   },
 });
