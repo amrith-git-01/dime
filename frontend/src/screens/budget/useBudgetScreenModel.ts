@@ -201,11 +201,6 @@ export function useBudgetScreenModel() {
     (isMonthSpendPending && !isMonthSpendFetched);
   const listData = isListLoading ? [] : budgetItems;
 
-  const showSummarySkeleton =
-    !monthSummaryFailed &&
-    ((isBudgetLoading && budgetResp === undefined) ||
-      (monthSummaryQuery.isPending && monthSummaryQuery.data === undefined));
-
   const listExtraData = useMemo(
     () => ({
       hasMonthlyBudget,
@@ -250,7 +245,6 @@ export function useBudgetScreenModel() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
-    showSummarySkeleton,
     summaryLoading,
   };
 }

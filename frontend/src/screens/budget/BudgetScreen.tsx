@@ -16,7 +16,6 @@ import {
   BudgetCategoriesSectionHeader,
   BudgetCategoryRowsSkeleton,
   BudgetMonthBentoCard,
-  BudgetMonthBentoSkeleton,
 } from "@/features/budgets/components";
 
 import {
@@ -63,7 +62,6 @@ export default function BudgetScreen() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
-    showSummarySkeleton,
     summaryLoading,
   } = useBudgetScreenModel();
 
@@ -124,22 +122,18 @@ export default function BudgetScreen() {
     <TabScreenShell>
       <View style={styles.screen}>
         <View style={styles.summarySlot}>
-          {showSummarySkeleton ? (
-            <BudgetMonthBentoSkeleton />
-          ) : (
-            <BudgetMonthBentoCard
-              selectedMonth={selectedMonth.label}
-              monthOptions={monthOptions}
-              onSelectMonth={handleSelectBudgetMonth}
-              hasMonthlyBudget={hasMonthlyBudget}
-              summary={monthSummary}
-              summaryLoading={summaryLoading}
-              summaryFailed={monthSummaryFailed}
-              onEditBudget={handleEditBudget}
-              onSetBudget={handleSetBudget}
-              onMonthMenuOpenChange={setMonthMenuOpen}
-            />
-          )}
+          <BudgetMonthBentoCard
+            selectedMonth={selectedMonth.label}
+            monthOptions={monthOptions}
+            onSelectMonth={handleSelectBudgetMonth}
+            hasMonthlyBudget={hasMonthlyBudget}
+            summary={monthSummary}
+            summaryLoading={summaryLoading}
+            summaryFailed={monthSummaryFailed}
+            onEditBudget={handleEditBudget}
+            onSetBudget={handleSetBudget}
+            onMonthMenuOpenChange={setMonthMenuOpen}
+          />
         </View>
 
         <FlashList
