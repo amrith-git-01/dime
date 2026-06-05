@@ -25,6 +25,8 @@ type CategorySpendBentoRowProps = {
   hasMonthlyBudget?: boolean;
   monthlyBudgetAmount?: number;
   nameWraps?: boolean;
+  /** Opens filtered transaction list for this category (budget tab). */
+  onPress?: () => void;
   /** Budget tab: opens category editor when the tile badge is pressed. */
   onEditPress?: () => void;
 };
@@ -39,6 +41,7 @@ function categorySpendRowPropsAreEqual(
     prev.nameWraps === next.nameWraps &&
     prev.hasMonthlyBudget === next.hasMonthlyBudget &&
     prev.monthlyBudgetAmount === next.monthlyBudgetAmount &&
+    prev.onPress === next.onPress &&
     prev.onEditPress === next.onEditPress &&
     prevItem.id === nextItem.id &&
     prevItem.name === nextItem.name &&
@@ -55,6 +58,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
   hasMonthlyBudget = false,
   monthlyBudgetAmount = 0,
   nameWraps = false,
+  onPress,
   onEditPress,
 }: CategorySpendBentoRowProps) {
   const cap = item.monthlyCap ?? null;
@@ -74,8 +78,8 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
 
   const showProgress = hasCategoryCap || hasMonthlyBudget;
 
-  return (
-    <View style={styles.categoryRow}>
+  const row = (
+    <>
       <View style={styles.catLeft}>
         <View style={styles.catTileWrap}>
           <View
@@ -140,7 +144,28 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
           </View>
         ) : null}
       </View>
-    </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.categoryRow}>{row}</View>;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`View transactions for ${item.name}`}
+      onPress={() => {
+        void triggerLightHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => [
+        styles.categoryRow,
+        pressed && styles.categoryRowPressed,
+      ]}
+    >
+      {row}
+    </Pressable>
   );
 }, categorySpendRowPropsAreEqual);
 
@@ -153,6 +178,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
+  },
+  categoryRowPressed: {
+    opacity: 0.88,
   },
   catLeft: {
     flexDirection: "row",

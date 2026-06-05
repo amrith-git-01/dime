@@ -13,6 +13,8 @@ export type BentoActionPillProps = {
   icon?: LucideIcon;
   trailing?: ReactNode;
   disabled?: boolean;
+  /** Stretch to parent width; label stays centered. */
+  fullWidth?: boolean;
 };
 
 /**
@@ -26,6 +28,7 @@ export const BentoActionPill = memo(function BentoActionPill({
   icon: Icon,
   trailing,
   disabled = false,
+  fullWidth = false,
 }: BentoActionPillProps) {
   return (
     <Pressable
@@ -36,6 +39,7 @@ export const BentoActionPill = memo(function BentoActionPill({
       onPress={onPress}
       style={({ pressed }) => [
         styles.pill,
+        fullWidth && styles.pillFullWidth,
         { backgroundColor },
         disabled && styles.pillDisabled,
         pressed && !disabled && styles.pillPressed,
@@ -62,6 +66,10 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: radius.full,
+  },
+  pillFullWidth: {
+    alignSelf: "stretch",
+    justifyContent: "center",
   },
   pillDisabled: {
     opacity: 0.45,
