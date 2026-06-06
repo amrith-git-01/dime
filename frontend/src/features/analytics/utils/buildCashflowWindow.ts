@@ -99,6 +99,51 @@ export function buildCashflowXTickValues(lastDay: number): number[] {
   return Array.from({ length: lastDay }, (_, i) => i + 1);
 }
 
+export type CashflowChartRowY = {
+  expense: number;
+  income: number;
+  netSurplus: number;
+  netDeficit: number;
+};
+
+export function maxCashflowChartY(rows: CashflowChartRowY[]): number {
+  let maxY = 0;
+  for (const row of rows) {
+    maxY = Math.max(
+      maxY,
+      row.expense,
+      row.income,
+      row.netSurplus,
+      row.netDeficit,
+    );
+  }
+  return maxY;
+}
+
+export type CashflowChartScale = {
+  /** Y domain max for the chart library (minimum 1 when the series is all zeros). */
+  yDomainMax: number;
+  yTickValues: number[];
+};
+
+/** Scale + axis ticks; empty months show only ₹0 at the origin. */
+export function buildCashflowChartScale(
+  maxDataY: number,
+  tickCount = 4,
+): CashflowChartScale {
+  if (maxDataY <= 0) {
+    return {
+      yDomainMax: 1,
+      yTickValues: [0],
+    };
+  }
+  const domainMax = maxDataY + maxDataY * 0.1;
+  return {
+    yDomainMax: domainMax,
+    yTickValues: buildCashflowYTickValues(domainMax, tickCount),
+  };
+}
+
 export function buildCashflowYTickValues(
   yMax: number,
   tickCount = 4,

@@ -1,6 +1,8 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { colors } from "@/constants";
+import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
+import { insightsMonthCompareStackShellConfig } from "@/screens/analytics/insightsMonthCompareStackShellConfig";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
@@ -41,6 +43,10 @@ const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
   transactionsListStackShellConfig,
+);
+const InsightsMonthCompareScreen = withStackScreen(
+  InsightsMonthCompareScreenBase,
+  insightsMonthCompareStackShellConfig,
 );
 const CreateCustomCategoryScreen = withStackScreen(
   CreateCustomCategoryScreenBase,
@@ -96,6 +102,11 @@ export default function MainStackNavigator() {
         name="TransactionsList"
         component={TransactionsListScreen}
         options={{ ...stackScreenOptions, title: "Transactions" }}
+      />
+      <Stack.Screen
+        name="InsightsMonthCompare"
+        component={InsightsMonthCompareScreen}
+        options={{ ...stackScreenOptions, title: "Compare months" }}
       />
       <Stack.Screen
         name="CreateCustomCategory"
