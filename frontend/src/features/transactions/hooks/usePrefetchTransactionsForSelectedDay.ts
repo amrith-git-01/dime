@@ -12,7 +12,6 @@ type UsePrefetchTransactionsForSelectedDayArgs = {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => Promise<unknown>;
-  disabled?: boolean;
 };
 
 /**
@@ -25,10 +24,9 @@ export function usePrefetchTransactionsForSelectedDay({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
-  disabled = false,
 }: UsePrefetchTransactionsForSelectedDayArgs) {
   useEffect(() => {
-    if (disabled || !hasNextPage || isFetchingNextPage) {
+    if (!hasNextPage || isFetchingNextPage) {
       return;
     }
 
@@ -52,7 +50,6 @@ export function usePrefetchTransactionsForSelectedDay({
       void fetchNextPage();
     }
   }, [
-    disabled,
     selectedDayKey,
     flatRows,
     hasNextPage,

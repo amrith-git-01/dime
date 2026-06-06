@@ -94,11 +94,6 @@ export function buildFullMonthCashflowDays(
   return { monthDays, lastDay, todayDay };
 }
 
-/** One x tick per day (chart scrolls horizontally when the month is long). */
-export function buildCashflowXTickValues(lastDay: number): number[] {
-  return Array.from({ length: lastDay }, (_, i) => i + 1);
-}
-
 export type CashflowChartRowY = {
   expense: number;
   income: number;

@@ -9,12 +9,6 @@ import {
   TransactionsMonthBentoCard,
   type TransactionsMonthBentoSummary,
 } from "./TransactionsMonthBentoCard";
-import { TransactionsPayeeFilterBar } from "./TransactionsPayeeFilterBar";
-
-export type TransactionsPayeeFilterHeader = {
-  displayName: string;
-  transactionCount: number;
-};
 
 export type TransactionsBentoHeaderProps = {
   selectedMonthLabel: string;
@@ -30,10 +24,9 @@ export type TransactionsBentoHeaderProps = {
   onPrevDay: () => void;
   onNextDay: () => void;
   onMonthMenuOpenChange?: (open: boolean) => void;
-  payeeFilter?: TransactionsPayeeFilterHeader | null;
   /** Full day-bar placeholder (initial month load). */
   dayBarLoading?: boolean;
-  /** Skeleton only on transaction count (day/payee pagination). */
+  /** Skeleton only on transaction count (day pagination). */
   dayBarCountLoading?: boolean;
 };
 
@@ -51,7 +44,6 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
   onPrevDay,
   onNextDay,
   onMonthMenuOpenChange,
-  payeeFilter = null,
   dayBarLoading = false,
   dayBarCountLoading = false,
 }: TransactionsBentoHeaderProps) {
@@ -67,24 +59,16 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
         onMonthMenuOpenChange={onMonthMenuOpenChange}
       />
       <View style={styles.dayBarGap}>
-        {payeeFilter ? (
-          <TransactionsPayeeFilterBar
-            payeeLabel={payeeFilter.displayName}
-            transactionCount={payeeFilter.transactionCount}
-            isCountLoading={dayBarCountLoading || dayBarLoading}
-          />
-        ) : (
-          <TransactionsDayBar
-            dayKey={selectedDayKey}
-            transactionCount={transactionCount}
-            canGoPrev={canGoPrevDay}
-            canGoNext={canGoNextDay}
-            onPrev={onPrevDay}
-            onNext={onNextDay}
-            isLoading={dayBarLoading}
-            isCountLoading={dayBarCountLoading}
-          />
-        )}
+        <TransactionsDayBar
+          dayKey={selectedDayKey}
+          transactionCount={transactionCount}
+          canGoPrev={canGoPrevDay}
+          canGoNext={canGoNextDay}
+          onPrev={onPrevDay}
+          onNext={onNextDay}
+          isLoading={dayBarLoading}
+          isCountLoading={dayBarCountLoading}
+        />
       </View>
     </View>
   );

@@ -55,10 +55,8 @@ export default function TransactionsScreen() {
     onReceipt,
     onVoice,
     openTransactionDetail,
-    payeeFilterHeader,
     selectedDayKey,
     selectedMonth,
-    selectedMonthIndex,
     showListFooter,
     showMonthLoading,
     summary,
@@ -68,13 +66,10 @@ export default function TransactionsScreen() {
 
   useEffect(() => {
     listRef.current?.scrollToTop({ animated: false });
-  }, [listExtraData.payeeKey, selectedDayKey, selectedMonthIndex]);
+  }, [listExtraData.dayKey, listExtraData.monthIndex]);
 
   const renderFlashRow = useCallback(
     ({ item, index }: { item: TransactionFlashListItem; index: number }) => {
-      if (item.kind !== "row") {
-        return null;
-      }
       const isFirst = index === 0;
       const isLast = index === lastRowIndex;
       return (
@@ -107,16 +102,12 @@ export default function TransactionsScreen() {
         title={
           monthHasNoTransactions
             ? "No transactions here"
-            : payeeFilterHeader
-              ? "No transactions for this payee"
-              : "No transactions on this day"
+            : "No transactions on this day"
         }
         message={
           monthHasNoTransactions
             ? "No transactions are available for this period."
-            : payeeFilterHeader
-              ? "Try another month or payee from Insights."
-              : "Try another day or add a transaction."
+            : "Try another day or add a transaction."
         }
         footer={
           monthHasNoTransactions ? (
@@ -129,14 +120,7 @@ export default function TransactionsScreen() {
         }
       />
     );
-  }, [
-    emptyVariant,
-    monthHasNoTransactions,
-    onManualAdd,
-    onReceipt,
-    onVoice,
-    payeeFilterHeader,
-  ]);
+  }, [emptyVariant, monthHasNoTransactions, onManualAdd, onReceipt, onVoice]);
 
   const listFooter = useMemo(
     () => <TransactionsListFooter show={showListFooter} />,
@@ -161,7 +145,6 @@ export default function TransactionsScreen() {
             onPrevDay={goPrevDay}
             onNextDay={goNextDay}
             onMonthMenuOpenChange={setMonthMenuOpen}
-            payeeFilter={payeeFilterHeader}
             dayBarLoading={showMonthLoading}
             dayBarCountLoading={emptyVariant === "day-loading"}
           />
