@@ -3,8 +3,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
+import { SkeletonStrip } from "@/components/ui";
 import { bento, colors, radius, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 
 export type TransactionsDayBarProps = {
   dayKey: string;
@@ -13,6 +14,8 @@ export type TransactionsDayBarProps = {
   canGoNext: boolean;
   onPrev: () => void;
   onNext: () => void;
+  isLoading?: boolean;
+  isCountLoading?: boolean;
 };
 
 function transactionCountLabel(count: number): string {
@@ -33,6 +36,8 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
   canGoNext,
   onPrev,
   onNext,
+  isLoading = false,
+  isCountLoading = false,
 }: TransactionsDayBarProps) {
   return (
     <View style={[styles.bar, shadowStyle]}>
@@ -57,12 +62,28 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
       </Pressable>
 
       <View style={styles.center}>
-        <Text style={styles.title} numberOfLines={1}>
-          {formatDayTitle(dayKey)}
-        </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {transactionCountLabel(transactionCount)}
-        </Text>
+        {isLoading ? (
+          <>
+            <SkeletonStrip variant="listTitle" style={styles.titleSkeleton} />
+            <SkeletonStrip variant="listMeta" style={styles.subtitleSkeleton} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.title} numberOfLines={1}>
+              {formatDayTitle(dayKey)}
+            </Text>
+            {isCountLoading ? (
+              <SkeletonStrip
+                variant="listMeta"
+                style={styles.subtitleSkeleton}
+              />
+            ) : (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {transactionCountLabel(transactionCount)}
+              </Text>
+            )}
+          </>
+        )}
       </View>
 
       <Pressable
@@ -142,5 +163,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: colors.primary,
     textAlign: "center",
+  },
+  titleSkeleton: {
+    width: "70%",
+  },
+  subtitleSkeleton: {
+    width: "45%",
+    marginTop: 4,
   },
 });

@@ -1,12 +1,14 @@
 import { memo } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { SkeletonStrip } from "@/components/ui";
 import { bento, colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 export type TransactionsPayeeFilterBarProps = {
   payeeLabel: string;
   transactionCount: number;
+  isCountLoading?: boolean;
 };
 
 function transactionCountLabel(count: number): string {
@@ -20,6 +22,7 @@ export const TransactionsPayeeFilterBar = memo(
   function TransactionsPayeeFilterBar({
     payeeLabel,
     transactionCount,
+    isCountLoading = false,
   }: TransactionsPayeeFilterBarProps) {
     return (
       <View style={[styles.bar, shadowStyle]}>
@@ -30,9 +33,13 @@ export const TransactionsPayeeFilterBar = memo(
           <Text style={styles.title} numberOfLines={1}>
             {payeeLabel}
           </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {transactionCountLabel(transactionCount)}
-          </Text>
+          {isCountLoading ? (
+            <SkeletonStrip variant="listMeta" style={styles.subtitleSkeleton} />
+          ) : (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {transactionCountLabel(transactionCount)}
+            </Text>
+          )}
         </View>
       </View>
     );
@@ -87,5 +94,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: colors.primary,
     textAlign: "center",
+  },
+  subtitleSkeleton: {
+    width: "40%",
+    marginTop: 4,
   },
 });

@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { Calendar, Receipt } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import {
@@ -11,10 +11,9 @@ import {
   TwoToneEmptyState,
 } from "@/components/shared";
 import { colors, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
 import {
   TransactionsBentoHeader,
-  TransactionsBentoSkeleton,
+  TransactionsListRowsSkeleton,
 } from "@/features/transactions/components";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 
@@ -95,20 +94,11 @@ export default function TransactionsScreen() {
   );
 
   const listEmptyComponent = useMemo(() => {
-    if (emptyVariant === null || emptyVariant === "month-loading") {
+    if (emptyVariant === null) {
       return null;
     }
-    if (emptyVariant === "day-loading") {
-      return (
-        <View style={styles.dayLoadingWrap}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.dayLoadingText}>
-            {payeeFilterHeader
-              ? "Loading transactions..."
-              : "Loading this day..."}
-          </Text>
-        </View>
-      );
+    if (emptyVariant === "month-loading" || emptyVariant === "day-loading") {
+      return <TransactionsListRowsSkeleton />;
     }
     return (
       <TwoToneEmptyState
@@ -157,26 +147,24 @@ export default function TransactionsScreen() {
     <TabScreenShell>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
-          {showMonthLoading ? (
-            <TransactionsBentoSkeleton />
-          ) : (
-            <TransactionsBentoHeader
-              selectedMonthLabel={selectedMonth.label}
-              summary={summary}
-              summaryLoading={summaryLoading}
-              summaryFailed={summaryFailed}
-              monthOptions={monthOptions}
-              onSelectMonth={handleSelectMonth}
-              selectedDayKey={selectedDayKey}
-              transactionCount={dayRowCount}
-              canGoPrevDay={canGoPrevDay}
-              canGoNextDay={canGoNextDay}
-              onPrevDay={goPrevDay}
-              onNextDay={goNextDay}
-              onMonthMenuOpenChange={setMonthMenuOpen}
-              payeeFilter={payeeFilterHeader}
-            />
-          )}
+          <TransactionsBentoHeader
+            selectedMonthLabel={selectedMonth.label}
+            summary={summary}
+            summaryLoading={summaryLoading}
+            summaryFailed={summaryFailed}
+            monthOptions={monthOptions}
+            onSelectMonth={handleSelectMonth}
+            selectedDayKey={selectedDayKey}
+            transactionCount={dayRowCount}
+            canGoPrevDay={canGoPrevDay}
+            canGoNextDay={canGoNextDay}
+            onPrevDay={goPrevDay}
+            onNextDay={goNextDay}
+            onMonthMenuOpenChange={setMonthMenuOpen}
+            payeeFilter={payeeFilterHeader}
+            dayBarLoading={showMonthLoading}
+            dayBarCountLoading={emptyVariant === "day-loading"}
+          />
         </View>
         <FlashList
           ref={listRef}
@@ -218,18 +206,5 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
-  },
-  dayLoadingWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.xl,
-  },
-  dayLoadingText: {
-    marginTop: spacing.md,
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 });
