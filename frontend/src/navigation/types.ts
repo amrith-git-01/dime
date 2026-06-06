@@ -54,6 +54,18 @@ export type MainStackParamList = {
         categoryId: string;
         categoryDisplayName: string;
       };
+  InsightsMonthCompare: {
+    monthA: {
+      year: number;
+      monthIndex0: number;
+      label: string;
+    };
+    monthB: {
+      year: number;
+      monthIndex0: number;
+      label: string;
+    };
+  };
 };
 
 export type RootStackParamList = {

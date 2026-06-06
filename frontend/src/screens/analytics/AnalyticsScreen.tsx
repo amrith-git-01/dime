@@ -8,6 +8,7 @@ import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
+  InsightsMonthCompareLauncherCard,
   InsightsMonthSummaryCard,
   InsightsTopExpensesCard,
 } from "@/features/analytics/components";
@@ -20,7 +21,9 @@ export default function AnalyticsScreen() {
   const {
     monthOptions,
     selectedMonth,
+    selectedMonthIndex,
     handleSelectMonth,
+    openInsightsMonthCompare,
     summary,
     summaryLoading,
     summaryFailed,
@@ -86,6 +89,11 @@ export default function AnalyticsScreen() {
           onManualAdd={onManualAdd}
           onReceipt={onReceipt}
           onVoice={onVoice}
+        />
+        <InsightsMonthCompareLauncherCard
+          monthOptions={monthOptions}
+          insightsSelectedMonthIndex={selectedMonthIndex}
+          onCompare={openInsightsMonthCompare}
         />
       </ScrollView>
     </TabScreenShell>
