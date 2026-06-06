@@ -12,6 +12,7 @@ export type CategorySpendListProps = {
   items: CategorySpendRowData[];
   hasMonthlyBudget: boolean;
   monthlyBudgetAmount: number;
+  onCategoryPress?: (item: CategorySpendRowData) => void;
 };
 
 /**
@@ -21,6 +22,7 @@ export const CategorySpendList = memo(function CategorySpendList({
   items,
   hasMonthlyBudget,
   monthlyBudgetAmount,
+  onCategoryPress,
 }: CategorySpendListProps) {
   return (
     <View>
@@ -31,6 +33,7 @@ export const CategorySpendList = memo(function CategorySpendList({
             item={item}
             hasMonthlyBudget={hasMonthlyBudget}
             monthlyBudgetAmount={monthlyBudgetAmount}
+            onPress={onCategoryPress ? () => onCategoryPress(item) : undefined}
           />
         </Fragment>
       ))}

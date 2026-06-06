@@ -25,6 +25,7 @@ export type HomeBentoContentProps = {
   monthlyBudgetAmount: number;
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
+  onCategoryPress: (item: HomeTopCategoryItem) => void;
   onNavigateBudgets: () => void;
   onAddMonthlyBudget: () => void;
   onAddDailyBudget: () => void;

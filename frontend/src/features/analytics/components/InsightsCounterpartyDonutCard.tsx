@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   ChartTooltipOverlay,
@@ -22,6 +22,7 @@ import {
   buildCounterpartyDonutData,
   type CounterpartyDonutDatum,
 } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
 
 import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
@@ -176,6 +177,15 @@ export const InsightsCounterpartyDonutCard = memo(
 
     const topSlice = chartData[0];
 
+    const handleLegendPress = useCallback(
+      (slice: CounterpartyDonutDatum) => {
+        void triggerLightHaptic();
+        dismissTooltip();
+        onViewPayeePress?.(slice);
+      },
+      [dismissTooltip, onViewPayeePress],
+    );
+
     return (
       <>
         <TwoToneCard
@@ -220,7 +230,11 @@ export const InsightsCounterpartyDonutCard = memo(
 
                   <View style={styles.legend}>
                     {chartData.map((slice) => (
-                      <LegendRow key={slice.payee_key} slice={slice} />
+                      <LegendRow
+                        key={slice.payee_key}
+                        slice={slice}
+                        onPress={() => handleLegendPress(slice)}
+                      />
                     ))}
                   </View>
                 </View>
@@ -245,14 +259,19 @@ export const InsightsCounterpartyDonutCard = memo(
 
 type LegendRowProps = {
   slice: CounterpartyDonutDatum;
+  onPress: () => void;
 };
 
-const LegendRow = memo(function LegendRow({ slice }: LegendRowProps) {
+const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
   return (
-    <View
-      style={styles.legendRow}
-      accessibilityRole="text"
-      accessibilityLabel={`${slice.display_name}, ${formatPayeeShare(slice.share)} of spending`}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`View transactions for ${slice.display_name}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.legendRow,
+        pressed && styles.legendRowPressed,
+      ]}
     >
       <View style={[styles.legendSwatch, { backgroundColor: slice.color }]} />
       <View style={styles.legendTextCol}>
@@ -264,7 +283,7 @@ const LegendRow = memo(function LegendRow({ slice }: LegendRowProps) {
           {formatInrCompact(slice.debit_total)}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 });
 
@@ -359,6 +378,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: spacing.xs,
     borderRadius: 8,
+  },
+  legendRowPressed: {
+    opacity: 0.88,
   },
   legendSwatch: {
     width: 8,

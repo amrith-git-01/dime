@@ -10,6 +10,7 @@ import { colors } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import type { HomeBentoContentProps } from "@/features/home/components";
 import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import {
   useMonthSummaryQuery,
   useTransactionsHomeQuery,
@@ -134,7 +135,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       .map((row, index) => {
         const spent = Number.parseFloat(row.total);
         return {
-          id: row.category_id ?? `uncategorized-${index}`,
+          id: row.category_id ?? UNCATEGORIZED_CATEGORY_KEY,
           name: row.name,
           icon_name: row.icon_name ?? "Package",
           color: row.color ?? colors.categoryDefault,
@@ -178,6 +179,19 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     [navigation],
   );
 
+  const onCategoryPress = useCallback(
+    (item: CategorySpendRowData) => {
+      navigation.navigate("TransactionsList", {
+        filter: "category",
+        year: now.getFullYear(),
+        monthIndex0: now.getMonth(),
+        categoryId: item.id,
+        categoryDisplayName: item.name,
+      });
+    },
+    [navigation, now],
+  );
+
   return {
     creditedDisplay,
     dailySubtext,
@@ -197,6 +211,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     onAddDailyBudget,
     onAddMonthlyBudget,
     onManualAdd,
+    onCategoryPress,
     onNavigateBudgets,
     onNavigateTransactions,
     onReceipt,

@@ -56,6 +56,7 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         monthlyBudgetAmount={props.monthlyBudgetAmount}
         isLoading={overviewLoading}
         onViewAll={props.onNavigateBudgets}
+        onCategoryPress={props.onCategoryPress}
         onManualAdd={props.onManualAdd}
         onReceipt={props.onReceipt}
         onVoice={props.onVoice}

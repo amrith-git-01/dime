@@ -21,6 +21,7 @@ type HomeCategoriesBentoProps = {
   monthlyBudgetAmount: number;
   isLoading?: boolean;
   onViewAll: () => void;
+  onCategoryPress: (item: CategorySpendRowData) => void;
   onManualAdd: () => void;
   onReceipt: () => void;
   onVoice: () => void;
@@ -34,6 +35,7 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
   hasMonthlyBudget,
   monthlyBudgetAmount,
   onViewAll,
+  onCategoryPress,
   onManualAdd,
   onReceipt,
   onVoice,
@@ -69,6 +71,7 @@ export const HomeCategoriesBento = memo(function HomeCategoriesBento({
             items={items}
             hasMonthlyBudget={hasMonthlyBudget}
             monthlyBudgetAmount={monthlyBudgetAmount}
+            onCategoryPress={onCategoryPress}
           />
         </BentoSectionCard>
       )}
