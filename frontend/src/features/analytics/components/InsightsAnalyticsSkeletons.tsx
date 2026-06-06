@@ -63,30 +63,36 @@ export function InsightsTopExpensesSkeleton() {
 
 export function InsightsDonutCardSkeleton() {
   return (
-    <View style={styles.donutContentSkel}>
-      <SkeletonBlock
-        tone="surface"
-        style={[
-          styles.donutRingSkel,
-          { width: DONUT_SIZE, height: DONUT_SIZE },
-        ]}
-      />
-      <View style={styles.legendColSkel}>
-        {Array.from({ length: 5 }, (_, i) => (
-          <View key={i} style={styles.legendRowSkel}>
-            <SkeletonBlock tone="surface" style={styles.legendSwatchSkel} />
-            <View style={styles.legendTextSkel}>
-              <SkeletonBlock tone="surface" style={styles.legendNameSkel} />
-              <SkeletonBlock tone="surface" style={styles.legendMetaSkel} />
+    <View style={styles.donutSkeletonWrap}>
+      <View style={styles.donutContentSkel}>
+        <SkeletonBlock
+          tone="surface"
+          style={[
+            styles.donutRingSkel,
+            { width: DONUT_SIZE, height: DONUT_SIZE },
+          ]}
+        />
+        <View style={styles.legendColSkel}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <View key={i} style={styles.legendRowSkel}>
+              <SkeletonBlock tone="surface" style={styles.legendSwatchSkel} />
+              <View style={styles.legendTextSkel}>
+                <SkeletonBlock tone="surface" style={styles.legendNameSkel} />
+                <SkeletonBlock tone="surface" style={styles.legendMetaSkel} />
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  donutSkeletonWrap: {
+    width: "100%",
+    alignItems: "center",
+  },
   topExpensesSkel: {
     gap: BENTO_GAP,
   },
@@ -164,8 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignSelf: "center",
     gap: spacing.lg,
-    width: "100%",
-    maxWidth: DONUT_SIZE + LEGEND_WIDTH + spacing.lg,
+    flexShrink: 1,
     minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
   },
   donutRingSkel: {

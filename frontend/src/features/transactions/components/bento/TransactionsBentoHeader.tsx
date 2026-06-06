@@ -31,6 +31,10 @@ export type TransactionsBentoHeaderProps = {
   onNextDay: () => void;
   onMonthMenuOpenChange?: (open: boolean) => void;
   payeeFilter?: TransactionsPayeeFilterHeader | null;
+  /** Full day-bar placeholder (initial month load). */
+  dayBarLoading?: boolean;
+  /** Skeleton only on transaction count (day/payee pagination). */
+  dayBarCountLoading?: boolean;
 };
 
 export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
@@ -48,6 +52,8 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
   onNextDay,
   onMonthMenuOpenChange,
   payeeFilter = null,
+  dayBarLoading = false,
+  dayBarCountLoading = false,
 }: TransactionsBentoHeaderProps) {
   return (
     <View style={styles.root}>
@@ -65,6 +71,7 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
           <TransactionsPayeeFilterBar
             payeeLabel={payeeFilter.displayName}
             transactionCount={payeeFilter.transactionCount}
+            isCountLoading={dayBarCountLoading || dayBarLoading}
           />
         ) : (
           <TransactionsDayBar
@@ -74,6 +81,8 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
             canGoNext={canGoNextDay}
             onPrev={onPrevDay}
             onNext={onNextDay}
+            isLoading={dayBarLoading}
+            isCountLoading={dayBarCountLoading}
           />
         )}
       </View>

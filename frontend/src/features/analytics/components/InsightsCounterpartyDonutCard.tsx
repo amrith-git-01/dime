@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   type MutableRefObject,
+  type ReactNode,
 } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -72,15 +73,37 @@ function buildPayeeTooltipRows(
   ];
 }
 
+type DonutChartStageProps = {
+  chart: ReactNode;
+  center: ReactNode;
+};
+
+/** Fixed-size stage so the ring and center label share one coordinate space. */
+const DonutChartStage = memo(function DonutChartStage({
+  chart,
+  center,
+}: DonutChartStageProps) {
+  return (
+    <View style={styles.chartStage}>
+      <View style={styles.chartLayer}>{chart}</View>
+      <View style={styles.chartCenter} pointerEvents="none">
+        {center}
+      </View>
+    </View>
+  );
+});
+
 const EmptyDonutLayout = memo(function EmptyDonutLayout() {
   return (
     <View style={styles.emptyContent}>
-      <View style={styles.chartColumn}>
-        <PayeeDonutEmptyChart size={CHART_SIZE} innerRadiusRatio={0.56} />
-        <View style={styles.chartCenter} pointerEvents="none">
+      <DonutChartStage
+        chart={
+          <PayeeDonutEmptyChart size={CHART_SIZE} innerRadiusRatio={0.56} />
+        }
+        center={
           <Text style={styles.emptyCenterPercent}>{formatPayeeShare(0)}</Text>
-        </View>
-      </View>
+        }
+      />
     </View>
   );
 });
@@ -172,24 +195,28 @@ export const InsightsCounterpartyDonutCard = memo(
                 <EmptyDonutLayout />
               ) : (
                 <View style={styles.contentRow}>
-                  <View style={styles.chartColumn}>
-                    <PayeeDonutChart
-                      data={chartData}
-                      size={CHART_SIZE}
-                      innerRadiusRatio={0.56}
-                      onSlicePress={handleDonutSlicePress}
-                    />
-                    {topSlice ? (
-                      <View style={styles.chartCenter} pointerEvents="none">
-                        <Text style={styles.centerLabel} numberOfLines={1}>
-                          {topSlice.display_name}
-                        </Text>
-                        <Text style={styles.centerMeta}>
-                          {formatPayeeShare(topSlice.share)}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  <DonutChartStage
+                    chart={
+                      <PayeeDonutChart
+                        data={chartData}
+                        size={CHART_SIZE}
+                        innerRadiusRatio={0.56}
+                        onSlicePress={handleDonutSlicePress}
+                      />
+                    }
+                    center={
+                      topSlice ? (
+                        <>
+                          <Text style={styles.centerLabel} numberOfLines={1}>
+                            {topSlice.display_name}
+                          </Text>
+                          <Text style={styles.centerMeta}>
+                            {formatPayeeShare(topSlice.share)}
+                          </Text>
+                        </>
+                      ) : null
+                    }
+                  />
 
                   <View style={styles.legend}>
                     {chartData.map((slice) => (
@@ -261,6 +288,7 @@ const styles = StyleSheet.create({
     color: bento.onPastel.muted,
   },
   body: {
+    width: "100%",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
@@ -272,17 +300,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
     gap: spacing.lg,
-    width: "100%",
-    maxWidth: CHART_SIZE + LEGEND_WIDTH + spacing.lg,
+    flexShrink: 1,
     minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
   },
-  chartColumn: {
+  chartStage: {
     width: CHART_SIZE,
     height: CHART_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "relative",
+    flexShrink: 0,
+  },
+  chartLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
   emptyContent: {
     width: "100%",
@@ -320,6 +349,7 @@ const styles = StyleSheet.create({
   },
   legend: {
     width: LEGEND_WIDTH,
+    flexShrink: 0,
     gap: 8,
   },
   legendRow: {
