@@ -25,13 +25,14 @@ import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
 
 import {
-  buildCashflowYTickValues,
+  buildCashflowChartScale,
   buildFullMonthCashflowDays,
   CASHFLOW_DAY_SLOT_WIDTH,
   cashflowChartScrollWidth,
   CHART_LEADING_ANCHOR_DAY,
   chartTrailingAnchorDay,
   formatCashflowXLabel,
+  maxCashflowChartY,
 } from "../utils/buildCashflowWindow";
 import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
 import {
@@ -178,24 +179,14 @@ export const InsightsDailyCashflowChart = memo(
         ...monthRows,
         { day: trailingAnchorDay, ...ZERO_CHART_ROW },
       ];
-      let maxY = 1;
-      for (const d of data) {
-        maxY = Math.max(
-          maxY,
-          d.expense,
-          d.income,
-          d.netSurplus,
-          d.netDeficit,
-          0,
-        );
-      }
-      const pad = Math.max(maxY, 1) * 0.1;
-      const domainMax = maxY + pad;
+      const { yDomainMax, yTickValues } = buildCashflowChartScale(
+        maxCashflowChartY(data),
+      );
       return {
         chartData: data,
-        yMax: domainMax,
+        yMax: yDomainMax,
         barPadding: netBarInnerPadding(monthRows.length),
-        yTickValues: buildCashflowYTickValues(domainMax),
+        yTickValues,
       };
     }, [monthDays, trailingAnchorDay]);
 
@@ -300,6 +291,8 @@ export const InsightsDailyCashflowChart = memo(
                       style={[
                         styles.yAxisColumn,
                         { height: CHART_PLOT_HEIGHT },
+                        yTickValues.length === 1 &&
+                          styles.yAxisColumnOriginOnly,
                       ]}
                     >
                       {[...yTickValues].reverse().map((tick) => (
@@ -571,6 +564,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 4,
     paddingRight: 4,
+  },
+  yAxisColumnOriginOnly: {
+    justifyContent: "flex-end",
+    paddingTop: 0,
   },
   yAxisLabel: {
     fontFamily: fontFamilies.monoSemiBold,

@@ -2,13 +2,13 @@ import { memo, useCallback } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { colors, radius, spacing, surfaces } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
+import type { TransactionRow } from "@/features/transactions/types";
 import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
-import { colors, radius, spacing, surfaces } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import type { TransactionRow } from "@/features/transactions/types";
 
 import { BENTO_TRANSACTION_TILE_MIN_HEIGHT } from "@/components/bento";
 
@@ -43,7 +43,6 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
         pressed && styles.pressed,
       ]}
     >
-      {/* Category icon */}
       <View style={[styles.iconWrap, { borderColor: ui.category.borderColor }]}>
         <CategoryLucideIcon
           iconName={ui.category.icon_name}
@@ -53,7 +52,6 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
         />
       </View>
 
-      {/* Merchant + time */}
       <View style={styles.textCol}>
         <Text style={styles.merchant} numberOfLines={1}>
           {ui.merchant}
@@ -63,7 +61,6 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
         </Text>
       </View>
 
-      {/* Signed amount — green credit, red debit */}
       <Text
         style={[
           styles.amount,

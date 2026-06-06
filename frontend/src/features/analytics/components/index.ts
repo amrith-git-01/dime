@@ -1,6 +1,7 @@
 export { InsightsBurnRateMetricCard } from "./InsightsBurnRateMetricCard";
 export { InsightsCounterpartyDonutCard } from "./InsightsCounterpartyDonutCard";
 export { InsightsDailyCashflowChart } from "./InsightsDailyCashflowChart";
+export { InsightsMonthCompareLauncherCard } from "./InsightsMonthCompareLauncherCard";
 export {
   InsightsMonthSummaryCard,
   type InsightsMonthSummary,
