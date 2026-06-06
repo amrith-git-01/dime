@@ -10,7 +10,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "env:push:preview": "npx eas-cli env:push --environment preview --path .env",
+    "build:android:preview": "npx eas-cli build -p android --profile preview --clear-cache"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -35,6 +37,7 @@
     "expo-audio": "~1.1.1",
     "expo-auth-session": "~7.0.11",
     "expo-background-fetch": "~14.0.9",
+    "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",

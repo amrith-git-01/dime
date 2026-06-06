@@ -45,6 +45,14 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       "@react-native-google-signin/google-signin",
       [
         "expo-splash-screen",
