@@ -36,6 +36,7 @@ import {
   createAppQueryClient,
 } from "@/lib/appBootstrap";
 import RootNavigator from "@/navigation/RootNavigator";
+import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
 
 GoogleSignin.configure({
@@ -87,11 +88,11 @@ function AppSplashCoordinator({
 function AppRoot() {
   return (
     <>
-      <NavigationContainer theme={appNavigationTheme}>
+      <NavigationContainer ref={navigationRef} theme={appNavigationTheme}>
         <RootNavigator />
+        <ReceiptScanBusyOverlay />
+        <VoiceCaptureBar />
       </NavigationContainer>
-      <ReceiptScanBusyOverlay />
-      <VoiceCaptureBar />
       <ToastHost />
     </>
   );
