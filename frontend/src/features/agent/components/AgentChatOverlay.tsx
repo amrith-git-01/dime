@@ -145,12 +145,14 @@ export function AgentChatOverlay({
     if (!visible) {
       return;
     }
-    const subscription = Keyboard.addListener("keyboardDidShow", () => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
       }, 80);
     });
-    return () => subscription.remove();
+    return () => {
+      showSubscription.remove();
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -230,8 +232,14 @@ export function AgentChatOverlay({
     opacity: interpolate(progress.value, [0, 0.35, 1], [0, 0.4, 1]),
   }));
 
+  // `keyboardHeight.value` is 0 at rest and negative (e.g. -346) when the keyboard
+  // is open on both iOS and Android. Applying it as translateY lifts the panel up
+  // by exactly the keyboard height. This works on Android even with
+  // `edgeToEdgeEnabled: true` (where `softwareKeyboardLayoutMode: resize` is ignored)
+  // because react-native-keyboard-controller reads WindowInsetsCompat directly.
   const panelAnchorStyle = useAnimatedStyle(() => ({
-    bottom: fabBottom + keyboardHeight.value,
+    bottom: fabBottom,
+    transform: [{ translateY: keyboardHeight.value }],
   }));
 
   /**
@@ -240,7 +248,7 @@ export function AgentChatOverlay({
    */
   const panelStyle = useAnimatedStyle(() => {
     const p = progress.value;
-    const keyboardInset = keyboardHeight.value;
+    const keyboardInset = Math.abs(keyboardHeight.value);
     const expandedHeight = Math.min(
       panelHeight,
       Math.max(
