@@ -78,7 +78,8 @@ export function AgentChatOverlay({
 
   const progress = useSharedValue(0);
   const isOpen = useSharedValue(0);
-  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
+  const { height: keyboardHeight, progress: keyboardProgress } =
+    useReanimatedKeyboardAnimation();
 
   const fabRight = spacing.lg;
   const fabBottom =
@@ -232,15 +233,23 @@ export function AgentChatOverlay({
     opacity: interpolate(progress.value, [0, 0.35, 1], [0, 0.4, 1]),
   }));
 
-  // `keyboardHeight.value` is 0 at rest and negative (e.g. -346) when the keyboard
-  // is open on both iOS and Android. Applying it as translateY lifts the panel up
-  // by exactly the keyboard height. This works on Android even with
-  // `edgeToEdgeEnabled: true` (where `softwareKeyboardLayoutMode: resize` is ignored)
-  // because react-native-keyboard-controller reads WindowInsetsCompat directly.
-  const panelAnchorStyle = useAnimatedStyle(() => ({
-    bottom: fabBottom,
-    transform: [{ translateY: keyboardHeight.value }],
-  }));
+  // `keyboardHeight.value` is 0 at rest and negative (e.g. -346) when open on both
+  // iOS and Android. `keyboardProgress.value` runs 0→1 as the keyboard animates in.
+  // As the keyboard opens we animate `bottom` from `fabBottom` → `spacing.md` so the
+  // panel ends up sitting just above the keyboard with a small gap. Without this,
+  // `bottom` stays at `fabBottom` and the visible gap equals `fabBottom` (~150 pt).
+  const panelAnchorStyle = useAnimatedStyle(() => {
+    const anchorBottom = interpolate(
+      keyboardProgress.value,
+      [0, 1],
+      [fabBottom, spacing.md],
+      "clamp",
+    );
+    return {
+      bottom: anchorBottom,
+      transform: [{ translateY: keyboardHeight.value }],
+    };
+  });
 
   /**
    * Morph from bottom-right: scaleX/scaleY independently so collapsed state is a
@@ -249,11 +258,19 @@ export function AgentChatOverlay({
   const panelStyle = useAnimatedStyle(() => {
     const p = progress.value;
     const keyboardInset = Math.abs(keyboardHeight.value);
+    // anchorBottom mirrors the value computed in panelAnchorStyle so the max height
+    // stays consistent with the panel's actual bottom position.
+    const anchorBottom = interpolate(
+      keyboardProgress.value,
+      [0, 1],
+      [fabBottom, spacing.md],
+      "clamp",
+    );
     const expandedHeight = Math.min(
       panelHeight,
       Math.max(
         FAB_SIZE,
-        screenHeight - insets.top - fabBottom - keyboardInset - spacing.md,
+        screenHeight - insets.top - spacing.md - anchorBottom - keyboardInset,
       ),
     );
     const scaleX = interpolate(p, [0, 1], [collapsedScaleX, 1], "clamp");
