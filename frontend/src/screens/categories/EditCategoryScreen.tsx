@@ -16,11 +16,11 @@ import {
   DEFAULT_CUSTOM_CATEGORY_ICON,
   type CustomCategoryIconName,
 } from "@/features/categories/constants/customCategoryPresets";
+import { useCategories } from "@/features/categories/hooks/useCategories";
 import {
   useDeleteCategoryMutation,
   useUpdateCategoryMutation,
 } from "@/features/categories/hooks/useCategoryMutations";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
 import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
@@ -35,7 +35,7 @@ export default function EditCategoryScreen() {
   const { showToast } = useToast();
   const categoryId = route.params.categoryId;
 
-  const { data: categories } = useLocalCategories();
+  const { categories } = useCategories();
   const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
   const updateMutation = useUpdateCategoryMutation();
   const deleteMutation = useDeleteCategoryMutation();

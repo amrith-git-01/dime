@@ -88,6 +88,20 @@ export default function TransactionsScreen() {
     [lastRowIndex, openTransactionDetail],
   );
 
+  const keyExtractor = useCallback(
+    (item: TransactionFlashListItem) => item.id,
+    [],
+  );
+  const getItemType = useCallback(() => "row" as const, []);
+
+  // Tile (64) + gap (16) for typical non-first/non-last items
+  const overrideItemLayout = useCallback(
+    (layout: { span?: number; size?: number }) => {
+      layout.size = 80;
+    },
+    [],
+  );
+
   const listEmptyComponent = useMemo(() => {
     if (emptyVariant === null) {
       return null;
@@ -156,8 +170,9 @@ export default function TransactionsScreen() {
           data={flashListData}
           extraData={listExtraData}
           renderItem={renderFlashRow}
-          keyExtractor={(item) => item.id}
-          getItemType={() => "row"}
+          keyExtractor={keyExtractor}
+          getItemType={getItemType}
+          overrideItemLayout={overrideItemLayout}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.35}
           ListEmptyComponent={listEmptyComponent}
