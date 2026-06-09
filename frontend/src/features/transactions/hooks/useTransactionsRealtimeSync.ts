@@ -2,9 +2,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
-import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { applyRealtimeTransactionChange } from "@/features/transactions/cache/transactionRealtimeCache";
-import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { supabase } from "@/lib/supabase/client";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
@@ -30,18 +28,7 @@ export function useTransactionsRealtimeSync(userId: string | null) {
       }
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
-        void queryClient.invalidateQueries({
-          queryKey: transactionsQueryKeys.all,
-          predicate: (query) => {
-            const segment = query.queryKey[1];
-            return segment === "home" || segment === "monthSummary";
-          },
-          refetchType: "active",
-        });
-        void queryClient.invalidateQueries({
-          queryKey: insightsQueryKeys.all,
-          refetchType: "active",
-        });
+        void queryClient.invalidateQueries({ refetchType: "active" });
       }, SUMMARY_INVALIDATE_DEBOUNCE_MS);
     };
 

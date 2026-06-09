@@ -3,6 +3,7 @@ import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -43,6 +44,7 @@ export function useVoiceCaptureSession() {
   const close = useVoiceCaptureUiStore((s) => s.close);
   const { userId, authReady } = useSessionUserId();
   const { showToast } = useToast();
+  const qc = useQueryClient();
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
 
@@ -248,6 +250,7 @@ export function useVoiceCaptureSession() {
         variant: "success",
         message: "Voice transaction added",
       });
+      void qc.invalidateQueries({ refetchType: "active" });
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
@@ -259,7 +262,7 @@ export function useVoiceCaptureSession() {
     } finally {
       hideBusy();
     }
-  }, [close, hardClose, hideBusy, recorder, showBusy, showToast]);
+  }, [close, hardClose, hideBusy, qc, recorder, showBusy, showToast]);
 
   const statusLine =
     phase === "recording"
