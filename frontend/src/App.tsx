@@ -1,6 +1,10 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+} from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useFonts } from "expo-font";
 import * as NavigationBar from "expo-navigation-bar";
@@ -20,6 +24,7 @@ import {
   ReceiptScanBusyOverlay,
   VoiceCaptureBar,
 } from "@/features/transactions/components";
+import { useAppStartupBootstrap } from "@/hooks/useAppStartupBootstrap";
 import { queryPersister } from "@/lib/queryPersister";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
@@ -31,6 +36,18 @@ WebBrowser.maybeCompleteAuthSession();
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
+  const { cacheReady } = useAppStartupBootstrap();
+
+  useEffect(() => {
+    if (cacheReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [cacheReady]);
+
+  if (!cacheReady) {
+    return null;
+  }
+
   return (
     <>
       <NavigationContainer theme={appNavigationTheme}>
@@ -89,12 +106,11 @@ export default function App() {
     void applyAndroidNavBarStyle();
   }, []);
 
-  useEffect(() => {
-    if (!fontsLoaded && !fontError) {
-      return;
-    }
-    void SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+  if (fontError) {
+    useEffect(() => {
+      void SplashScreen.hideAsync();
+    }, []);
+  }
 
   if (fontError) {
     console.error("[App] useFonts failed:", fontError);
