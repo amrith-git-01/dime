@@ -1,17 +1,17 @@
-import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
+import type { CategoryRow } from "@/features/categories/types";
 
 import type { TransactionType } from "../types";
 
 export function findIncomeCategory(
-  categories: LocalCategory[],
-): LocalCategory | undefined {
+  categories: CategoryRow[],
+): CategoryRow | undefined {
   return categories.find(
     (category) => category.is_system && category.name === "Income",
   );
 }
 
 export function isCategoryAllowedForTxType(
-  category: LocalCategory | undefined,
+  category: CategoryRow | undefined,
   txType: TransactionType,
 ): boolean {
   if (!category) {

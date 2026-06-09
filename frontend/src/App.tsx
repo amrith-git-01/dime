@@ -106,11 +106,11 @@ export default function App() {
     void applyAndroidNavBarStyle();
   }, []);
 
-  if (fontError) {
-    useEffect(() => {
+  useEffect(() => {
+    if (fontError) {
       void SplashScreen.hideAsync();
-    }, []);
-  }
+    }
+  }, [fontError]);
 
   if (fontError) {
     console.error("[App] useFonts failed:", fontError);
