@@ -1,6 +1,7 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useFonts } from "expo-font";
 import * as NavigationBar from "expo-navigation-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -13,13 +14,13 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ToastHost } from "@/components/toast/ToastHost";
+import { colors } from "@/constants";
+import { loadableAppFonts } from "@/constants/fonts";
 import {
   ReceiptScanBusyOverlay,
   VoiceCaptureBar,
 } from "@/features/transactions/components";
-import { colors } from "@/constants";
-import { loadableAppFonts } from "@/constants/fonts";
-import { useCategoriesSyncBootstrap } from "@/hooks/useCategoriesSyncBootstrap";
+import { queryPersister } from "@/lib/queryPersister";
 import RootNavigator from "@/navigation/RootNavigator";
 import { appNavigationTheme } from "@/navigation/theme";
 
@@ -30,8 +31,6 @@ WebBrowser.maybeCompleteAuthSession();
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
-  useCategoriesSyncBootstrap();
-
   return (
     <>
       <NavigationContainer theme={appNavigationTheme}>
@@ -48,9 +47,29 @@ export default function App() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        queryCache: new QueryCache({
+          onError: (error, query) => {
+            console.error(
+              `[QueryCache] fetch failed — key: ${JSON.stringify(query.queryKey)}`,
+              error,
+            );
+          },
+        }),
+        mutationCache: new MutationCache({
+          onError: (error, _variables, _context, mutation) => {
+            console.error(
+              `[MutationCache] mutation failed — key: ${JSON.stringify(mutation.options.mutationKey ?? "unnamed")}`,
+              error,
+            );
+          },
+        }),
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            // Data is considered fresh for 15 minutes — no refetch within that window,
+            // even across app kills (MMKV persister restores the cache with original timestamps).
+            staleTime: 15 * 60 * 1000,
+            // Keep unused cache entries for 24 h so the persister can write them to MMKV.
+            gcTime: 24 * 60 * 60 * 1000,
             retry: 1,
           },
         },
@@ -64,7 +83,6 @@ export default function App() {
     }
 
     const applyAndroidNavBarStyle = async () => {
-      // Edge-to-edge mode blocks background/position APIs; only set button contrast.
       await NavigationBar.setButtonStyleAsync("light");
     };
 
@@ -105,7 +123,13 @@ export default function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: queryPersister,
+        maxAge: 24 * 60 * 60 * 1000,
+      }}
+    >
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
           <KeyboardProvider>
@@ -114,7 +138,7 @@ export default function App() {
           <StatusBar style="auto" />
         </SafeAreaProvider>
       </GestureHandlerRootView>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

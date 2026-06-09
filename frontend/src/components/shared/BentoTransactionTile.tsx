@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
@@ -26,7 +26,7 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
   transaction,
   onPress,
 }: BentoTransactionTileProps) {
-  const ui = mapTransactionRowToUi(transaction);
+  const ui = useMemo(() => mapTransactionRowToUi(transaction), [transaction]);
   const isCredit = ui.amount > 0;
   const handlePress = useCallback(
     () => onPress(transaction),

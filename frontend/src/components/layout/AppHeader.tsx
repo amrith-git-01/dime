@@ -117,6 +117,7 @@ export function AppHeader({
                   source={{ uri: avatarUrl }}
                   style={styles.avatar}
                   accessibilityLabel="Profile avatar"
+                  cachePolicy="memory-disk"
                   onLoadStart={() => {
                     setAvatarImageLoading(true);
                     setAvatarImageError(false);
