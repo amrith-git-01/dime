@@ -64,9 +64,7 @@ export function useTransactionsScreenModel() {
 
   const summary = useMemo((): TransactionsMonthBentoSummary | null => {
     const data = summaryQuery.data;
-    if (!data) {
-      return null;
-    }
+    if (!data) return null;
     return {
       transactionCount: data.transaction_count,
       spentDisplay: formatSpendMagnitude(data.debit_total),
@@ -122,9 +120,7 @@ export function useTransactionsScreenModel() {
   const lastRowIndex = dayRowCount > 0 ? dayRowCount - 1 : -1;
 
   const oldestLoadedDayKey = useMemo(() => {
-    if (flatRows.length === 0) {
-      return null;
-    }
+    if (flatRows.length === 0) return null;
     return transactionCalendarDayKey(
       flatRows[flatRows.length - 1].transaction_at,
     );
@@ -139,18 +135,14 @@ export function useTransactionsScreenModel() {
   );
 
   const handleLoadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const canGoPrevDay = selectedDayKey > monthDayBounds.startKey;
   const canGoNextDay = selectedDayKey < monthDayBounds.endKey;
 
   const goPrevDay = useCallback(() => {
-    if (!canGoPrevDay) {
-      return;
-    }
+    if (!canGoPrevDay) return;
     void triggerLightHaptic();
     setSelectedDayKey((current) =>
       format(subDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
@@ -158,9 +150,7 @@ export function useTransactionsScreenModel() {
   }, [canGoPrevDay]);
 
   const goNextDay = useCallback(() => {
-    if (!canGoNextDay) {
-      return;
-    }
+    if (!canGoNextDay) return;
     void triggerLightHaptic();
     setSelectedDayKey((current) =>
       format(addDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
@@ -184,15 +174,9 @@ export function useTransactionsScreenModel() {
   const showMonthLoading = infinitePending && flatRows.length === 0;
 
   const emptyVariant = useMemo((): TransactionsEmptyVariant => {
-    if (showMonthLoading) {
-      return "month-loading";
-    }
-    if (showDayLoading) {
-      return "day-loading";
-    }
-    if (listEmpty) {
-      return "empty";
-    }
+    if (showMonthLoading) return "month-loading";
+    if (showDayLoading) return "day-loading";
+    if (listEmpty) return "empty";
     return null;
   }, [listEmpty, showDayLoading, showMonthLoading]);
 
