@@ -1,4 +1,4 @@
-import { create, type AxiosInstance } from "axios";
+import { create, type AxiosError, type AxiosInstance } from "axios";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
@@ -158,7 +158,18 @@ if (__DEV__) {
   }
 }
 
+// Augment axios config with a start timestamp for dev latency logging.
+declare module "axios" {
+  interface InternalAxiosRequestConfig {
+    _startMs?: number;
+  }
+}
+
 dimeApi.interceptors.request.use(async (config) => {
+  if (__DEV__) {
+    config._startMs = Date.now();
+  }
+
   await maybeDevApiDelay();
 
   const auth = await getDimeAuthHeaders();
@@ -172,3 +183,25 @@ dimeApi.interceptors.request.use(async (config) => {
 
   return config;
 });
+
+if (__DEV__) {
+  dimeApi.interceptors.response.use(
+    (response) => {
+      const ms = Date.now() - (response.config._startMs ?? Date.now());
+      const serverMs = response.headers["x-process-time-ms"];
+      const serverSuffix = serverMs ? ` (server: ${serverMs}ms)` : "";
+      console.log(
+        `[dimeApi] ${response.config.method?.toUpperCase()} ${response.config.url} → ${response.status} in ${ms}ms${serverSuffix}`,
+      );
+      return response;
+    },
+    (error: AxiosError) => {
+      const ms = Date.now() - (error.config?._startMs ?? Date.now());
+      console.warn(
+        `[dimeApi] ${error.config?.method?.toUpperCase()} ${error.config?.url} → ${error.response?.status ?? "ERR"} in ${ms}ms`,
+        error.message,
+      );
+      return Promise.reject(error);
+    },
+  );
+}
