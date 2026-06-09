@@ -2,7 +2,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useRef } from "react";
 
-import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
+import type { CategoryRow } from "@/features/categories/types";
 import type { MainStackParamList } from "@/navigation/types";
 
 import type { TransactionType } from "../types";
@@ -21,7 +21,7 @@ type FormControls = {
 
 type UseManualAddScreenLifecycleParams = {
   form: FormControls;
-  categories: LocalCategory[];
+  categories: CategoryRow[];
   navigation: NativeStackNavigationProp<MainStackParamList>;
   returnCategoryId?: string;
   returnCategoryName?: string;
