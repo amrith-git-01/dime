@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { colors } from "@/constants";
+import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import { supabase } from "@/lib/supabase/client";
+import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
 import SessionResolvingScreen from "@/screens/onboarding/SessionResolvingScreen";
@@ -30,8 +32,9 @@ function hasEstablishedUsername(
 }
 
 export default function RootNavigator() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(() =>
+    readStoredAuthSession(),
+  );
   const justLoggedInRef = useRef(false);
   const authBootstrappedRef = useRef(false);
   const previousSessionRef = useRef<Session | null>(null);
@@ -39,7 +42,6 @@ export default function RootNavigator() {
   useEffect(() => {
     void supabase.auth.getSession().then(({ data: { session: initial } }) => {
       setSession(initial);
-      setSessionReady(true);
     });
 
     const {
@@ -54,10 +56,6 @@ export default function RootNavigator() {
   }, []);
 
   useEffect(() => {
-    if (!sessionReady) {
-      return;
-    }
-
     if (!authBootstrappedRef.current) {
       authBootstrappedRef.current = true;
       previousSessionRef.current = session;
@@ -73,9 +71,10 @@ export default function RootNavigator() {
     }
 
     previousSessionRef.current = session;
-  }, [session, sessionReady]);
+  }, [session]);
 
   const profileUserId = session?.user.id;
+  useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
   const cachedProfile = useCurrentUserStore((s) => s.profile);
   const meQuery = useCurrentUserProfileQuery(profileUserId);
@@ -104,15 +103,6 @@ export default function RootNavigator() {
   const resolvingAfterLogin = resolvingProfile && justLoggedInRef.current;
   const showAuth = !session || resolvingAfterLogin;
   const showResolvingScreen = resolvingProfile && !justLoggedInRef.current;
-  const initialBoot = !sessionReady;
-
-  if (initialBoot) {
-    return (
-      <View style={styles.boot}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.root}>
@@ -147,12 +137,6 @@ export default function RootNavigator() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  boot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: colors.pageBackground,
   },
   resolvingOverlay: {
