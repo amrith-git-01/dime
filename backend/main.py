@@ -1,11 +1,13 @@
 """FastAPI application entry — health + user profile + avatar routes."""
 
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.job_runner import start_workers, stop_workers
 from routes import budget, categories, health, me, notifications, profile, transactions
@@ -16,6 +18,30 @@ logging.basicConfig(
 )
 logging.getLogger("features").setLevel(logging.INFO)
 logging.getLogger("core").setLevel(logging.INFO)
+
+_access_log = logging.getLogger("access")
+
+
+class RequestTimingMiddleware(BaseHTTPMiddleware):
+    """Logs method, path, status, and wall-clock duration for every request.
+
+    Also injects an ``X-Process-Time-Ms`` response header so the mobile client
+    can read per-call latency without a separate APM agent.
+    """
+
+    async def dispatch(self, request: Request, call_next: object) -> Response:
+        start = time.perf_counter()
+        response: Response = await call_next(request)  # type: ignore[operator]
+        duration_ms = (time.perf_counter() - start) * 1_000
+        response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
+        _access_log.info(
+            "%s %s %d %.1fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
 
 
 @asynccontextmanager
@@ -33,6 +59,7 @@ def create_application() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.add_middleware(RequestTimingMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
