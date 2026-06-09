@@ -8,6 +8,5 @@ export function useCategoryBudgetsQuery() {
   return useQuery({
     queryKey: categoryBudgetsQueryKey,
     queryFn: fetchCategoryBudgets,
-    staleTime: 60_000,
   });
 }
