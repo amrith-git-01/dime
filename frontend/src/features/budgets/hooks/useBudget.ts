@@ -7,11 +7,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const budgetQueryKey = ["budget"] as const;
 
-export function useBudgetQuery() {
+export function useBudgetQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: budgetQueryKey,
     queryFn: fetchBudget,
-    staleTime: 60_000,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -19,6 +19,8 @@ export function useUpsertBudgetMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: UpsertBudgetInput) => upsertBudget(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: budgetQueryKey }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ refetchType: "active" });
+    },
   });
 }

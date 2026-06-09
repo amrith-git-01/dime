@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights";
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
@@ -7,25 +7,20 @@ import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
 const STALE_MS = 5 * 60 * 1000;
 
-export function useMonthInsightsQuery(year: number, monthIndex0: number) {
+export function useMonthInsightsQuery(
+  year: number,
+  monthIndex0: number,
+  options?: { enabled?: boolean },
+) {
   const { userId, authReady } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
   return useQuery({
-    queryKey: insightsQueryKeys.month(
-      userId,
-      year,
-      calendarMonth,
-      timezone,
-    ),
-    queryFn: () =>
-      fetchMonthInsights({
-        year,
-        month: calendarMonth,
-        timezone,
-      }),
-    enabled: authReady && Boolean(userId),
+    queryKey: insightsQueryKeys.month(userId, year, calendarMonth, timezone),
+    queryFn: () => fetchMonthInsights({ year, month: calendarMonth, timezone }),
+    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
     staleTime: STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }

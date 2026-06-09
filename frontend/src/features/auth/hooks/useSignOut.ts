@@ -2,8 +2,8 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { profileQueryKeys } from "@/features/profile/queryKeys";
 import { clearDimeAuthTokenCache } from "@/lib/api/dimeApi";
+import { clearQueryMmkv } from "@/lib/queryPersister";
 import { supabase } from "@/lib/supabase/client";
 import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
@@ -26,8 +26,9 @@ export function useSignOut() {
 
       clearSupabaseAuthMmkv();
       clearDimeAuthTokenCache();
+      clearQueryMmkv();
       useCurrentUserStore.getState().clearProfile();
-      queryClient.removeQueries({ queryKey: profileQueryKeys.all });
+      queryClient.clear();
     } finally {
       setLoading(false);
     }
