@@ -12,8 +12,8 @@ import {
   type CustomCategoryIconName,
 } from "@/features/categories/constants/customCategoryPresets";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
-import { useCreateCategoryMutation } from "@/features/categories/hooks/useCreateCategoryMutation";
-import { useLocalCategories } from "@/features/categories/hooks/useLocalCategories";
+import { useCategories } from "@/features/categories/hooks/useCategories";
+import { useCreateCategoryMutation } from "@/features/categories/hooks/useCategoryMutations";
 import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
@@ -28,7 +28,7 @@ export default function CreateCustomCategoryScreen() {
   const { showToast } = useToast();
   const createMutation = useCreateCategoryMutation();
   const upsertBudgetMutation = useUpsertCategoryBudgetMutation();
-  const { data: categories } = useLocalCategories();
+  const { categories } = useCategories();
 
   const customCount = categories.filter(
     (category) => !category.is_system,

@@ -43,60 +43,55 @@ export function useAnalyticsScreenModel() {
   );
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
 
-  const existingBudget = budgetResp?.budget
-    ? Number.parseFloat(budgetResp.budget.monthly_budget)
-    : 0;
+  const insightsData = insightsQuery.data;
+  const budgetMonthly = budgetResp?.budget?.monthly_budget ?? null;
+  const existingBudget = budgetMonthly ? Number.parseFloat(budgetMonthly) : 0;
   const hasMonthlyBudget =
     Number.isFinite(existingBudget) && existingBudget > 0;
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
 
-  const insightsLoading = insightsQuery.isPending;
+  const insightsLoading = insightsQuery.isPending && !insightsQuery.data;
   const summaryLoading =
     insightsLoading || (isBudgetLoading && budgetResp === undefined);
   const summaryFailed = insightsQuery.isError;
   const chartLoading = insightsLoading;
 
   const dailyCashflow = useMemo(
-    () => insightsQuery.data?.daily_cashflow ?? [],
-    [insightsQuery.data?.daily_cashflow],
+    () => insightsData?.daily_cashflow ?? [],
+    [insightsData?.daily_cashflow],
   );
   const counterpartySpend = useMemo(
-    () => insightsQuery.data?.counterparty_spend ?? [],
-    [insightsQuery.data?.counterparty_spend],
+    () => insightsData?.counterparty_spend ?? [],
+    [insightsData?.counterparty_spend],
   );
   const topPayeeKeys = useMemo(
     () => topPayeeKeysFromSpend(counterpartySpend),
     [counterpartySpend],
   );
-  const topExpenses = insightsQuery.data?.top_expenses ?? [];
+  const topExpenses: TransactionRow[] = insightsData?.top_expenses ?? [];
 
   const summary = useMemo((): InsightsMonthSummary | null => {
-    if (summaryLoading || summaryFailed) {
-      return null;
-    }
+    if (summaryLoading || summaryFailed) return null;
     return buildInsightsMonthSummary(
-      insightsQuery.data?.summary,
+      insightsData?.summary,
       hasMonthlyBudget,
       monthlyBudgetAmount,
     );
   }, [
     hasMonthlyBudget,
-    insightsQuery.data?.summary,
+    insightsData?.summary,
     monthlyBudgetAmount,
     summaryFailed,
     summaryLoading,
   ]);
 
   const burnRateMetrics = useMemo(() => {
-    if (chartLoading) {
-      return null;
-    }
-    if (summaryFailed) {
+    if (chartLoading) return null;
+    if (summaryFailed)
       return buildEmptyBurnRateMetrics(
         hasMonthlyBudget,
         hasMonthlyBudget ? monthlyBudgetAmount : null,
       );
-    }
     const computed = computeBurnRateMetrics(
       dailyCashflow,
       hasMonthlyBudget ? monthlyBudgetAmount : null,
