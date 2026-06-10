@@ -1,7 +1,5 @@
-import { Group, rect } from "@shopify/react-native-skia";
 import { memo, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Bar, CartesianChart, Line } from "victory-native";
 
 import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -19,10 +17,7 @@ import {
   formatCashflowXLabel,
   maxCashflowChartY,
 } from "../../utils/buildCashflowWindow";
-import {
-  NET_DEFICIT_BAR,
-  NET_SURPLUS_BAR,
-} from "../insightsCashflowChartTokens";
+import { CashflowVictoryChart } from "../CashflowVictoryChart";
 
 const X_LABEL_ROW_HEIGHT = 18;
 const Y_AXIS_GUTTER = 34;
@@ -120,70 +115,20 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
           contentContainerStyle={styles.chartScrollContent}
         >
           <View style={{ width: scrollWidth }}>
-            <View
-              style={[
-                styles.chartPlot,
-                {
-                  height: COMPARE_CASHFLOW_PLOT_HEIGHT,
-                  width: scrollWidth,
-                },
-              ]}
-            >
-              <CartesianChart
-                data={chartData}
-                xKey="day"
-                yKeys={["netSurplus", "netDeficit", "expense", "income"]}
+            <View style={styles.chartPlot}>
+              <CashflowVictoryChart
+                key={`compare-cashflow-${year}-${monthIndex0}`}
+                animationKey={`compare-cashflow-${year}-${monthIndex0}`}
+                chartData={chartData}
                 domain={domain}
-                padding={{ left: 4, right: 8, top: 6, bottom: 2 }}
+                barPadding={barPadding}
+                plotHeight={COMPARE_CASHFLOW_PLOT_HEIGHT}
+                plotWidth={scrollWidth}
+                expenseStrokeWidth={2}
+                incomeStrokeWidth={1.5}
+                chartPadding={{ left: 4, right: 8, top: 6, bottom: 2 }}
                 domainPadding={{ left: 8, right: 8, top: 6, bottom: 2 }}
-                axisOptions={{
-                  tickCount: { x: 0, y: 0 },
-                  lineColor: {
-                    grid: { x: "transparent", y: colors.borderList },
-                    frame: "transparent",
-                  },
-                }}
-                renderOutside={({ points, chartBounds }) => (
-                  <Group
-                    clip={rect(
-                      chartBounds.left,
-                      chartBounds.top,
-                      chartBounds.right - chartBounds.left,
-                      chartBounds.bottom - chartBounds.top,
-                    )}
-                  >
-                    <Line
-                      points={points.expense}
-                      color={colors.danger}
-                      strokeWidth={2}
-                      curveType="monotoneX"
-                    />
-                    <Line
-                      points={points.income}
-                      color={colors.success}
-                      strokeWidth={1.5}
-                      curveType="monotoneX"
-                    />
-                  </Group>
-                )}
-              >
-                {({ points, chartBounds }) => (
-                  <>
-                    <Bar
-                      points={points.netSurplus}
-                      chartBounds={chartBounds}
-                      color={NET_SURPLUS_BAR}
-                      innerPadding={barPadding}
-                    />
-                    <Bar
-                      points={points.netDeficit}
-                      chartBounds={chartBounds}
-                      color={NET_DEFICIT_BAR}
-                      innerPadding={barPadding}
-                    />
-                  </>
-                )}
-              </CartesianChart>
+              />
             </View>
 
             <View style={[styles.xLabelsRow, { height: X_LABEL_ROW_HEIGHT }]}>

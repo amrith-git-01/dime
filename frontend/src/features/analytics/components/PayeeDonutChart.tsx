@@ -1,119 +1,37 @@
 import { memo, useMemo, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Svg, { G, Path } from "react-native-svg";
+import { Pie, PolarChart } from "victory-native";
 
 import type { ChartTooltipAnchor } from "@/components/shared";
 import { bento } from "@/constants";
+import {
+  INSIGHTS_CHART_PIE_ANIMATION,
+  type ChartPathAnimationConfig,
+} from "@/features/analytics/constants/chartAnimation";
 import { COUNTERPARTY_DONUT_OTHER_COLOR } from "@/features/analytics/constants/counterpartyDonutColors";
+import { useChartPathAnimation } from "@/features/analytics/hooks/useChartPathAnimation";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
-const DEG = Math.PI / 180;
-const STROKE_GAP_DEG = 1.25;
-/** Small window anchor at the tap point (same idea as a cash-flow day hit cell). */
+const DONUT_START_ANGLE = -90;
+const SLICE_GAP_PX = 2;
 const TOUCH_ANCHOR_SIZE = 32;
 
-type PayeeDonutChartProps = {
+type PayeePolarDatum = CounterpartyDonutDatum;
+
+export type PayeeDonutChartProps = {
   data: CounterpartyDonutDatum[];
   size?: number;
   innerRadiusRatio?: number;
+  /** When set, plays Victory slice animation once per key (tab focus / month). */
+  animationKey?: string;
   onSlicePress?: (
     slice: CounterpartyDonutDatum,
     anchor: ChartTooltipAnchor,
   ) => void;
 };
 
-type SliceArc = {
-  datum: CounterpartyDonutDatum;
-  path: string;
-};
-
-function polarToXY(
-  cx: number,
-  cy: number,
-  radius: number,
-  angleDeg: number,
-): { x: number; y: number } {
-  const rad = (angleDeg - 90) * DEG;
-  return {
-    x: cx + radius * Math.cos(rad),
-    y: cy + radius * Math.sin(rad),
-  };
-}
-
-function describeAnnularSlice(
-  cx: number,
-  cy: number,
-  outerR: number,
-  innerR: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const sweep = endAngle - startAngle;
-  if (sweep >= 359.99) {
-    const mid = polarToXY(cx, cy, outerR, 0);
-    const midInner = polarToXY(cx, cy, innerR, 0);
-    const bottom = polarToXY(cx, cy, outerR, 180);
-    const bottomInner = polarToXY(cx, cy, innerR, 180);
-    return [
-      `M ${mid.x} ${mid.y}`,
-      `A ${outerR} ${outerR} 0 1 1 ${bottom.x} ${bottom.y}`,
-      `A ${outerR} ${outerR} 0 1 1 ${mid.x} ${mid.y}`,
-      `L ${midInner.x} ${midInner.y}`,
-      `A ${innerR} ${innerR} 0 1 0 ${bottomInner.x} ${bottomInner.y}`,
-      `A ${innerR} ${innerR} 0 1 0 ${midInner.x} ${midInner.y}`,
-      "Z",
-    ].join(" ");
-  }
-
-  const largeArc = sweep > 180 ? 1 : 0;
-  const outerStart = polarToXY(cx, cy, outerR, startAngle);
-  const outerEnd = polarToXY(cx, cy, outerR, endAngle);
-  const innerEnd = polarToXY(cx, cy, innerR, endAngle);
-  const innerStart = polarToXY(cx, cy, innerR, startAngle);
-
-  return [
-    `M ${outerStart.x} ${outerStart.y}`,
-    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
-    `L ${innerEnd.x} ${innerEnd.y}`,
-    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
-    "Z",
-  ].join(" ");
-}
-
-function buildSliceArcs(
-  data: CounterpartyDonutDatum[],
-  size: number,
-  innerRadiusRatio: number,
-): SliceArc[] {
-  const total = data.reduce((sum, row) => sum + row.value, 0);
-  if (total <= 0) {
-    return [];
-  }
-
-  const cx = size / 2;
-  const cy = size / 2;
-  const pad = 2;
-  const outerR = size / 2 - pad;
-  const innerR = outerR * innerRadiusRatio;
-  const gapTotal = data.length > 1 ? STROKE_GAP_DEG * data.length : 0;
-  const drawable = 360 - gapTotal;
-
-  let cursor = data.length > 1 ? STROKE_GAP_DEG / 2 : 0;
-  return data.map((datum) => {
-    const sweep = (datum.value / total) * drawable;
-    const startAngle = cursor;
-    const endAngle = startAngle + sweep;
-    cursor = endAngle + (data.length > 1 ? STROKE_GAP_DEG : 0);
-    return {
-      datum,
-      path: describeAnnularSlice(cx, cy, outerR, innerR, startAngle, endAngle),
-    };
-  });
-}
-
-/** Map touch coords to a slice (SVG Path onPress is unreliable inside ScrollView). */
-function hitTestDonutSlice(
+function hitTestVictoryDonutSlice(
   locationX: number,
   locationY: number,
   data: CounterpartyDonutDatum[],
@@ -130,48 +48,100 @@ function hitTestDonutSlice(
   const dx = locationX - cx;
   const dy = locationY - cy;
   const dist = Math.hypot(dx, dy);
-  const pad = 2;
-  const outerR = size / 2 - pad;
+  const outerR = size / 2;
   const innerR = outerR * innerRadiusRatio;
   if (dist < innerR || dist > outerR) {
     return null;
   }
 
-  let angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
-  if (angleDeg < 0) {
-    angleDeg += 360;
-  }
-
-  const gapTotal = data.length > 1 ? STROKE_GAP_DEG * data.length : 0;
-  const drawable = 360 - gapTotal;
-  let cursor = data.length > 1 ? STROKE_GAP_DEG / 2 : 0;
+  const touchAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+  let cursor = DONUT_START_ANGLE;
 
   for (const datum of data) {
-    const sweep = (datum.value / total) * drawable;
-    const startAngle = cursor;
-    const endAngle = startAngle + sweep;
-    if (angleDeg >= startAngle && angleDeg <= endAngle) {
+    const sweep = (datum.value / total) * 360;
+    const start = cursor;
+    const end = cursor + sweep;
+    if (touchAngle >= start && touchAngle < end) {
       return datum;
     }
-    cursor = endAngle + (data.length > 1 ? STROKE_GAP_DEG : 0);
+    cursor = end;
   }
 
   return null;
 }
 
+type PayeeVictoryDonutProps = {
+  data: PayeePolarDatum[];
+  size: number;
+  innerRadius: string;
+  sliceAnimate?: ChartPathAnimationConfig;
+  showSliceGaps: boolean;
+  sliceOpacity?: number;
+};
+
+const PayeeVictoryDonut = memo(function PayeeVictoryDonut({
+  data,
+  size,
+  innerRadius,
+  sliceAnimate,
+  showSliceGaps,
+  sliceOpacity = 0.94,
+}: PayeeVictoryDonutProps) {
+  const angularInset = useMemo(
+    () =>
+      showSliceGaps
+        ? {
+            angularStrokeWidth: SLICE_GAP_PX,
+            angularStrokeColor: bento.twoToneBodySurface,
+          }
+        : null,
+    [showSliceGaps],
+  );
+
+  return (
+    <PolarChart
+      data={data}
+      labelKey="label"
+      valueKey="value"
+      colorKey="color"
+      containerStyle={{ width: size, height: size }}
+      canvasStyle={{ width: size, height: size }}
+    >
+      <Pie.Chart
+        size={size}
+        innerRadius={innerRadius}
+        startAngle={DONUT_START_ANGLE}
+      >
+        {() => (
+          <Pie.Slice animate={sliceAnimate} opacity={sliceOpacity}>
+            {angularInset ? (
+              <Pie.SliceAngularInset
+                angularInset={angularInset}
+                animate={sliceAnimate}
+              />
+            ) : null}
+          </Pie.Slice>
+        )}
+      </Pie.Chart>
+    </PolarChart>
+  );
+});
+
 export const PayeeDonutChart = memo(function PayeeDonutChart({
   data,
   size = 168,
   innerRadiusRatio = 0.56,
+  animationKey,
   onSlicePress,
 }: PayeeDonutChartProps) {
   const wrapRef = useRef<View>(null);
-  const arcs = useMemo(
-    () => buildSliceArcs(data, size, innerRadiusRatio),
-    [data, innerRadiusRatio, size],
+  const innerRadius = `${innerRadiusRatio * 100}%`;
+  const sliceAnimate = useChartPathAnimation(
+    animationKey ?? "payee-donut-static",
+    INSIGHTS_CHART_PIE_ANIMATION,
   );
 
-  if (arcs.length === 0) {
+  if (data.length === 0) {
     return <View style={{ width: size, height: size }} />;
   }
 
@@ -181,20 +151,14 @@ export const PayeeDonutChart = memo(function PayeeDonutChart({
       collapsable={false}
       style={[styles.wrap, { width: size, height: size }]}
     >
-      <Svg width={size} height={size} pointerEvents="none">
-        <G>
-          {arcs.map(({ datum, path }) => (
-            <Path
-              key={datum.payee_key}
-              d={path}
-              fill={datum.color}
-              opacity={0.94}
-              stroke={bento.twoToneBodySurface}
-              strokeWidth={1.5}
-            />
-          ))}
-        </G>
-      </Svg>
+      <PayeeVictoryDonut
+        data={data}
+        size={size}
+        innerRadius={innerRadius}
+        sliceAnimate={animationKey ? sliceAnimate : undefined}
+        showSliceGaps={data.length > 1}
+      />
+
       {onSlicePress ? (
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -202,7 +166,7 @@ export const PayeeDonutChart = memo(function PayeeDonutChart({
           accessibilityLabel="Donut chart slice"
           onPress={(event) => {
             const { locationX, locationY } = event.nativeEvent;
-            const slice = hitTestDonutSlice(
+            const slice = hitTestVictoryDonutSlice(
               locationX,
               locationY,
               data,
@@ -234,38 +198,41 @@ export type PayeeDonutEmptyChartProps = {
   innerRadiusRatio?: number;
 };
 
-/** Neutral full ring when there is no payee spend (matches live donut geometry). */
+const EMPTY_DONUT_ROW: PayeePolarDatum[] = [
+  {
+    label: "empty",
+    value: 1,
+    color: COUNTERPARTY_DONUT_OTHER_COLOR,
+    payee_key: "__empty__",
+    display_name: "",
+    share: 0,
+    debit_total: 0,
+    transaction_count: 0,
+  },
+];
+
+/** Neutral full ring when there is no payee spend. */
 export const PayeeDonutEmptyChart = memo(function PayeeDonutEmptyChart({
   size = 168,
   innerRadiusRatio = 0.56,
 }: PayeeDonutEmptyChartProps) {
-  const path = useMemo(() => {
-    const pad = 2;
-    const cx = size / 2;
-    const cy = size / 2;
-    const outerR = size / 2 - pad;
-    const innerR = outerR * innerRadiusRatio;
-    return describeAnnularSlice(cx, cy, outerR, innerR, 0, 359.99);
-  }, [innerRadiusRatio, size]);
-
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
-      <Svg width={size} height={size}>
-        <Path
-          d={path}
-          fill={COUNTERPARTY_DONUT_OTHER_COLOR}
-          opacity={0.35}
-          stroke={bento.twoToneBodySurface}
-          strokeWidth={1.5}
-        />
-      </Svg>
+      <PayeeVictoryDonut
+        data={EMPTY_DONUT_ROW}
+        size={size}
+        innerRadius={`${innerRadiusRatio * 100}%`}
+        showSliceGaps={false}
+        sliceOpacity={0.35}
+      />
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   wrap: {
-    alignItems: "center",
-    justifyContent: "center",
+    width: "100%",
+    height: "100%",
+    overflow: "hidden",
   },
 });

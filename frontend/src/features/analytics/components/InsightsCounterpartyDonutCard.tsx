@@ -29,11 +29,14 @@ import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
 import { PayeeDonutChart, PayeeDonutEmptyChart } from "./PayeeDonutChart";
 
 const CHART_SIZE = 192;
-const LEGEND_WIDTH = 168;
+const LEGEND_MAX_WIDTH = 168;
 const CONTENT_MIN_HEIGHT = 228;
 const TOOLTIP_WIDTH = 168;
 export type InsightsCounterpartyDonutCardProps = {
   counterpartySpend: CounterpartySpendRow[];
+  chartYear: number;
+  chartMonthIndex0: number;
+  focusGeneration: number;
   loading?: boolean;
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
   /** Fired when the user taps View in the payee tooltip (navigation wired later). */
@@ -86,7 +89,7 @@ const DonutChartStage = memo(function DonutChartStage({
 }: DonutChartStageProps) {
   return (
     <View style={styles.chartStage}>
-      <View style={styles.chartLayer}>{chart}</View>
+      {chart}
       <View style={styles.chartCenter} pointerEvents="none">
         {center}
       </View>
@@ -112,6 +115,9 @@ const EmptyDonutLayout = memo(function EmptyDonutLayout() {
 export const InsightsCounterpartyDonutCard = memo(
   function InsightsCounterpartyDonutCard({
     counterpartySpend,
+    chartYear,
+    chartMonthIndex0,
+    focusGeneration,
     loading = false,
     tooltipDismissRef,
     onViewPayeePress,
@@ -176,6 +182,7 @@ export const InsightsCounterpartyDonutCard = memo(
     );
 
     const topSlice = chartData[0];
+    const donutAnimationKey = `payee-donut-${chartYear}-${chartMonthIndex0}-${focusGeneration}`;
 
     const handleLegendPress = useCallback(
       (slice: CounterpartyDonutDatum) => {
@@ -205,37 +212,41 @@ export const InsightsCounterpartyDonutCard = memo(
                 <EmptyDonutLayout />
               ) : (
                 <View style={styles.contentRow}>
-                  <DonutChartStage
-                    chart={
-                      <PayeeDonutChart
-                        data={chartData}
-                        size={CHART_SIZE}
-                        innerRadiusRatio={0.56}
-                        onSlicePress={handleDonutSlicePress}
-                      />
-                    }
-                    center={
-                      topSlice ? (
-                        <>
-                          <Text style={styles.centerLabel} numberOfLines={1}>
-                            {topSlice.display_name}
-                          </Text>
-                          <Text style={styles.centerMeta}>
-                            {formatPayeeShare(topSlice.share)}
-                          </Text>
-                        </>
-                      ) : null
-                    }
-                  />
+                  <View style={styles.donutLegendCluster}>
+                    <DonutChartStage
+                      chart={
+                        <PayeeDonutChart
+                          key={donutAnimationKey}
+                          data={chartData}
+                          size={CHART_SIZE}
+                          innerRadiusRatio={0.56}
+                          animationKey={donutAnimationKey}
+                          onSlicePress={handleDonutSlicePress}
+                        />
+                      }
+                      center={
+                        topSlice ? (
+                          <>
+                            <Text style={styles.centerLabel} numberOfLines={1}>
+                              {topSlice.display_name}
+                            </Text>
+                            <Text style={styles.centerMeta}>
+                              {formatPayeeShare(topSlice.share)}
+                            </Text>
+                          </>
+                        ) : null
+                      }
+                    />
 
-                  <View style={styles.legend}>
-                    {chartData.map((slice) => (
-                      <LegendRow
-                        key={slice.payee_key}
-                        slice={slice}
-                        onPress={() => handleLegendPress(slice)}
-                      />
-                    ))}
+                    <View style={styles.legend}>
+                      {chartData.map((slice) => (
+                        <LegendRow
+                          key={slice.payee_key}
+                          slice={slice}
+                          onPress={() => handleLegendPress(slice)}
+                        />
+                      ))}
+                    </View>
                   </View>
                 </View>
               )}
@@ -316,21 +327,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   contentRow: {
-    flexDirection: "row",
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.lg,
-    flexShrink: 1,
     minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
+  },
+  donutLegendCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    maxWidth: "100%",
   },
   chartStage: {
     width: CHART_SIZE,
     height: CHART_SIZE,
-    position: "relative",
     flexShrink: 0,
-  },
-  chartLayer: {
-    ...StyleSheet.absoluteFillObject,
   },
   emptyContent: {
     width: "100%",
@@ -367,8 +378,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   legend: {
-    width: LEGEND_WIDTH,
-    flexShrink: 0,
+    flexShrink: 1,
+    maxWidth: LEGEND_MAX_WIDTH,
     gap: 8,
   },
   legendRow: {
@@ -388,7 +399,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendTextCol: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
   },
   legendName: {

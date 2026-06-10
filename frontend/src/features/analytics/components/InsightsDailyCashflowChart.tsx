@@ -1,17 +1,3 @@
-import { Group, rect } from "@shopify/react-native-skia";
-import { format, parseISO } from "date-fns";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Bar, CartesianChart, Line } from "victory-native";
-
 import {
   ChartTooltipOverlay,
   netTone,
@@ -23,6 +9,17 @@ import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
+import { format, parseISO } from "date-fns";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
   buildCashflowChartScale,
@@ -34,6 +31,7 @@ import {
   formatCashflowXLabel,
   maxCashflowChartY,
 } from "../utils/buildCashflowWindow";
+import { CashflowVictoryChart } from "./CashflowVictoryChart";
 import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
 import {
   NET_DEFICIT_BAR,
@@ -138,6 +136,8 @@ export type InsightsDailyCashflowChartProps = {
   dailyCashflow: DailyCashflowRow[];
   year: number;
   monthIndex0: number;
+  /** Tab-focus generation — forces Victory remount so cached MMKV data still animates. */
+  focusGeneration: number;
   loading?: boolean;
   /** Parent scroll views can call this ref to dismiss an open day tooltip. */
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
@@ -150,6 +150,7 @@ export const InsightsDailyCashflowChart = memo(
     dailyCashflow,
     year,
     monthIndex0,
+    focusGeneration,
     loading = false,
     tooltipDismissRef,
     onViewDayPress,
@@ -312,80 +313,16 @@ export const InsightsDailyCashflowChart = memo(
                       onMomentumScrollBegin={dismissTooltip}
                     >
                       <View style={{ width: scrollWidth }}>
-                        <View
-                          style={[
-                            styles.chartPlot,
-                            { height: CHART_PLOT_HEIGHT, width: scrollWidth },
-                          ]}
-                        >
-                          <CartesianChart
-                            data={chartData}
-                            xKey="day"
-                            yKeys={[
-                              "netSurplus",
-                              "netDeficit",
-                              "expense",
-                              "income",
-                            ]}
+                        <View style={styles.chartPlot}>
+                          <CashflowVictoryChart
+                            key={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
+                            animationKey={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
+                            chartData={chartData}
                             domain={domain}
-                            padding={{ left: 6, right: 10, top: 8, bottom: 4 }}
-                            domainPadding={{
-                              left: 10,
-                              right: 10,
-                              top: 8,
-                              bottom: 4,
-                            }}
-                            axisOptions={{
-                              tickCount: { x: 0, y: 0 },
-                              lineColor: {
-                                grid: {
-                                  x: "transparent",
-                                  y: colors.borderList,
-                                },
-                                frame: "transparent",
-                              },
-                            }}
-                            renderOutside={({ points, chartBounds }) => (
-                              <Group
-                                clip={rect(
-                                  chartBounds.left,
-                                  chartBounds.top,
-                                  chartBounds.right - chartBounds.left,
-                                  chartBounds.bottom - chartBounds.top,
-                                )}
-                              >
-                                <Line
-                                  points={points.expense}
-                                  color={colors.danger}
-                                  strokeWidth={2.5}
-                                  curveType="monotoneX"
-                                />
-                                <Line
-                                  points={points.income}
-                                  color={colors.success}
-                                  strokeWidth={2}
-                                  curveType="monotoneX"
-                                />
-                              </Group>
-                            )}
-                          >
-                            {({ points, chartBounds }) => (
-                              <>
-                                <Bar
-                                  points={points.netSurplus}
-                                  chartBounds={chartBounds}
-                                  color={NET_SURPLUS_BAR}
-                                  innerPadding={barPadding}
-                                />
-                                <Bar
-                                  points={points.netDeficit}
-                                  chartBounds={chartBounds}
-                                  color={NET_DEFICIT_BAR}
-                                  innerPadding={barPadding}
-                                />
-                              </>
-                            )}
-                          </CartesianChart>
+                            barPadding={barPadding}
+                            plotHeight={CHART_PLOT_HEIGHT}
+                            plotWidth={scrollWidth}
+                          />
 
                           <View
                             style={styles.dayHitRow}
