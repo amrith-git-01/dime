@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from supabase import Client
 
 from core.async_utils import run_sync
-from core.job_runner import enqueue_manual, enqueue_receipt, enqueue_voice
+from core.job_runner import enqueue_receipt, enqueue_voice
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
+from features.insights.schemas import MonthInsightsResponse
+from features.insights.service import InsightsService
 from features.transactions.schemas import (
     HomeOverviewResponse,
     MonthSummaryResponse,
@@ -19,7 +21,7 @@ from features.transactions.schemas import (
     TransactionListResponse,
 )
 from features.transactions.service import TransactionService
-from features.uploads.workers import ManualTransactionJob, ReceiptJob, VoiceJob
+from features.uploads.workers import ReceiptJob, VoiceJob
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,33 @@ async def transactions_month_summary(
         ) from exc
 
 
+@router.get("/month-insights", response_model=MonthInsightsResponse)
+async def transactions_month_insights(
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    timezone: str = Query(..., min_length=2, max_length=80),
+) -> MonthInsightsResponse:
+    try:
+        service = InsightsService(supabase)
+        return await run_sync(
+            service.month_insights,
+            user,
+            year=year,
+            month=month,
+            timezone=timezone,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed month insights for user id=%s", user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not load month insights.",
+        ) from exc
+
+
 @router.get("", response_model=TransactionListResponse)
 async def list_transactions(
     user: CurrentUser = Depends(get_current_user),
@@ -100,31 +129,26 @@ async def list_transactions(
         ) from exc
 
 
-@router.post("", status_code=status.HTTP_202_ACCEPTED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_transaction(
-    request: Request,
     body: TransactionCreate,
     user: CurrentUser = Depends(get_current_user),
-    _supabase: Client = Depends(get_supabase_service_client),
+    supabase: Client = Depends(get_supabase_service_client),
     timezone: str = Query(..., min_length=2, max_length=80),
 ) -> dict[str, bool]:
+    """Manual transactions need no AI processing — insert synchronously so the client
+    can refetch immediately after receiving 201 and see the new transaction."""
     try:
-        enqueue_manual(
-            request.app,
-            ManualTransactionJob(
-                user_id=user.id,
-                payload=body,
-                timezone=timezone,
-            ),
-        )
+        service = TransactionService(supabase)
+        await run_sync(service.create_manual, user, body, timezone=timezone)
         return {"accepted": True}
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("Failed to enqueue manual transaction for user id=%s", user.id)
+        logger.exception("Failed to create manual transaction for user id=%s", user.id)
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            detail="Could not queue transaction.",
+            detail="Could not save transaction.",
         ) from exc
 
 

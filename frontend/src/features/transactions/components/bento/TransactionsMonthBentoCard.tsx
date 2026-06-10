@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 
 import {
   BentoStatCell,
@@ -12,7 +12,7 @@ import {
   MonthSummaryUnavailableText,
   netTone,
 } from "@/components/shared";
-import { colors } from "@/constants";
+import { SkeletonStrip } from "@/components/ui";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
 export type TransactionsMonthBentoSummary = {
@@ -31,9 +31,13 @@ export type TransactionsMonthBentoCardProps = {
   summaryFailed: boolean;
   onSelectMonth: (index: number) => void;
   monthOptions: MonthOption[];
+  onMonthMenuOpenChange?: (open: boolean) => void;
 };
 
 function transactionCountLabel(count: number): string {
+  if (count <= 0) {
+    return "\u2014";
+  }
   return count === 1 ? "1 transaction" : `${count} transactions`;
 }
 
@@ -45,66 +49,71 @@ export const TransactionsMonthBentoCard = memo(
     summaryFailed,
     onSelectMonth,
     monthOptions,
+    onMonthMenuOpenChange,
   }: TransactionsMonthBentoCardProps) {
     return (
       <MonthSummaryCardShell
         selectedMonth={selectedMonth}
         monthOptions={monthOptions}
         onSelectMonth={onSelectMonth}
+        onMonthMenuOpenChange={onMonthMenuOpenChange}
         bodyKicker="Cash flow"
         headerContent={
           summaryFailed ? (
             <MonthSummaryHeaderError>
               Could not load summary
             </MonthSummaryHeaderError>
-          ) : summaryLoading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : summary ? (
+          ) : (
             <>
               <MonthSummaryHeaderKicker>This month</MonthSummaryHeaderKicker>
-              <MonthSummaryHeaderTitle>
-                {transactionCountLabel(summary.transactionCount)}
-              </MonthSummaryHeaderTitle>
+              {summaryLoading ? (
+                <SkeletonStrip
+                  variant="statValue"
+                  style={styles.headerTitleSkeleton}
+                />
+              ) : (
+                <MonthSummaryHeaderTitle>
+                  {transactionCountLabel(summary?.transactionCount ?? 0)}
+                </MonthSummaryHeaderTitle>
+              )}
             </>
-          ) : null
+          )
         }
       >
         {summaryFailed ? (
           <MonthSummaryUnavailableText />
-        ) : summaryLoading ? (
-          <View style={styles.cashFlowLoading}>
-            <ActivityIndicator color={colors.primary} size="small" />
-          </View>
-        ) : summary ? (
+        ) : (
           <MonthSummaryStatsRow>
             <BentoStatCell
               label="Credited"
-              value={summary.creditedDisplay}
+              value={summary?.creditedDisplay ?? "—"}
               tone="credit"
+              isValueLoading={summaryLoading}
             />
             <MonthSummaryStatDivider />
             <BentoStatCell
               label="Debited"
-              value={summary.debitedDisplay}
+              value={summary?.debitedDisplay ?? "—"}
               tone="debit"
+              isValueLoading={summaryLoading}
             />
             <MonthSummaryStatDivider />
             <BentoStatCell
               label="Net"
-              value={summary.netDisplay}
-              tone={netTone(summary.netValue)}
+              value={summary?.netDisplay ?? "—"}
+              tone={summary ? netTone(summary.netValue) : "neutral"}
+              isValueLoading={summaryLoading}
             />
           </MonthSummaryStatsRow>
-        ) : null}
+        )}
       </MonthSummaryCardShell>
     );
   },
 );
 
 const styles = StyleSheet.create({
-  cashFlowLoading: {
-    minHeight: 40,
-    justifyContent: "center",
-    alignItems: "center",
+  headerTitleSkeleton: {
+    width: "50%",
+    marginTop: 2,
   },
 });

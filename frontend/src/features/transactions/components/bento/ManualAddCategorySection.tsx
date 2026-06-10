@@ -1,18 +1,18 @@
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import type { ReactNode } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { AddCategoryTrigger } from "@/components/categories/AddCategoryTrigger";
 import { CategoryPill } from "@/components/categories/CategoryPill";
 import { colors, radius, spacing } from "@/constants";
 import { formStyles } from "@/constants/formStyles";
-import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
+import type { CategoryRow } from "@/features/categories/types";
 
 type ManualAddCategorySectionProps = {
   categoriesLoading: boolean;
-  visibleCategories: LocalCategory[];
+  visibleCategories: CategoryRow[];
   categoryId: string | null;
   optionalTag: ReactNode;
-  onCategoryPress: (category: LocalCategory, selected: boolean) => void;
+  onCategoryPress: (category: CategoryRow, selected: boolean) => void;
   onAddCategory: () => void;
   addCategoryDisabled: boolean;
 };

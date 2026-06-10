@@ -5,13 +5,12 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format, subDays } from "date-fns";
 import { useCallback, useMemo } from "react";
 
-import type {
-  HomeBentoContentProps,
-  HomeCategoryBentoItem,
-} from "@/features/home/components";
-import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { colors } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import type { HomeBentoContentProps } from "@/features/home/components";
+import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import {
   useMonthSummaryQuery,
   useTransactionsHomeQuery,
@@ -20,7 +19,7 @@ import type {
   HomeOverview,
   TransactionRow,
 } from "@/features/transactions/types";
-import { usePrefetchSiblingTabQueries } from "@/hooks/usePrefetchSiblingTabQueries";
+import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
@@ -40,13 +39,9 @@ function buildLast7DaysSpend(
   if (rows?.length === 7) {
     return rows.map((row) => {
       const n = Number.parseFloat(row.total);
-      return {
-        date: row.date,
-        total: Number.isFinite(n) ? Math.abs(n) : 0,
-      };
+      return { date: row.date, total: Number.isFinite(n) ? Math.abs(n) : 0 };
     });
   }
-
   return Array.from({ length: 7 }, (_, index) => {
     const day = subDays(new Date(), 6 - index);
     return { date: format(day, "yyyy-MM-dd"), total: 0 };
@@ -55,21 +50,23 @@ function buildLast7DaysSpend(
 
 export function useHomeScreenModel(): HomeBentoContentProps {
   const navigation = useNavigation<HomeScreenNavigation>();
-  usePrefetchSiblingTabQueries();
+  usePreloadSiblingTabScreens();
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
-  const { data: overview, isPending, isError } = useTransactionsHomeQuery();
   const now = useMemo(() => new Date(), []);
+  const { data: overview, isPending, isError } = useTransactionsHomeQuery();
   const monthSummaryQuery = useMonthSummaryQuery(
     now.getFullYear(),
     now.getMonth(),
   );
   const { data: budgetResp } = useBudgetQuery();
-  const budget = budgetResp?.budget ?? null;
-  const hasBudget = Boolean(budget);
 
-  const monthlyBudget = budget ? Number.parseFloat(budget.monthly_budget) : NaN;
+  const budget = budgetResp?.budget ?? null;
+
+  const monthlyBudget = budget?.monthly_budget
+    ? Number.parseFloat(budget.monthly_budget)
+    : NaN;
   const spentMonthNum = overview
     ? Math.abs(Number.parseFloat(overview.spent_this_month))
     : NaN;
@@ -88,7 +85,9 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       ? `${formatInrCompact(monthlyLeft)} / ${formatInrCompact(monthlyBudget)}`
       : "";
 
-  const dailyBudget = budget ? Number.parseFloat(budget.daily_budget) : NaN;
+  const dailyBudget = budget?.daily_budget
+    ? Number.parseFloat(budget.daily_budget)
+    : NaN;
   const spentTodayNum = overview
     ? Math.abs(Number.parseFloat(overview.spent_today))
     : NaN;
@@ -112,46 +111,40 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const dayLabel = format(now, "d MMM");
   const monthLabel = format(now, "MMM yyyy");
 
-  const creditedDisplay = monthSummaryQuery.data
-    ? formatSpendMagnitude(monthSummaryQuery.data.credit_total)
+  const monthSummaryData = monthSummaryQuery.data;
+
+  const creditedDisplay = monthSummaryData
+    ? formatSpendMagnitude(monthSummaryData.credit_total)
     : "\u2014";
-  const debitedDisplay = monthSummaryQuery.data
-    ? formatSpendMagnitude(monthSummaryQuery.data.debit_total)
+  const debitedDisplay = monthSummaryData
+    ? formatSpendMagnitude(monthSummaryData.debit_total)
     : "\u2014";
-  const netDisplay = monthSummaryQuery.data
-    ? formatNetDisplay(monthSummaryQuery.data.net)
+  const netDisplay = monthSummaryData
+    ? formatNetDisplay(monthSummaryData.net)
     : "\u2014";
-  const netValue = monthSummaryQuery.data
+  const netValue = monthSummaryData
     ? (() => {
-        const net = Number.parseFloat(monthSummaryQuery.data.net);
+        const net = Number.parseFloat(monthSummaryData.net);
         return Number.isFinite(net) ? net : 0;
       })()
     : 0;
 
-  const topCategories = useMemo((): HomeCategoryBentoItem[] => {
-    if (!overview?.top_categories?.length) {
-      return [];
-    }
-    const monthTotal = Number.parseFloat(overview.spent_this_month);
-    const denom =
-      Number.isFinite(monthTotal) && monthTotal > 0 ? monthTotal : 1;
-    return overview.top_categories
-      .slice(0, HOME_MAX_CATEGORIES)
-      .map((row, index) => {
-        const totalNum = Number.parseFloat(row.total);
-        const progress = Number.isFinite(totalNum)
-          ? Math.min(1, totalNum / denom)
-          : 0;
-        return {
-          id: row.category_id ?? `uncategorized-${index}`,
-          label: row.name,
-          icon_name: row.icon_name ?? "Package",
-          amount: formatSpendMagnitude(row.total),
-          progress,
-          color: row.color ?? colors.categoryDefault,
-        };
-      });
+  const topCategories = useMemo((): CategorySpendRowData[] => {
+    if (!overview?.top_categories?.length) return [];
+    return overview.top_categories.slice(0, HOME_MAX_CATEGORIES).map((row) => {
+      const spent = Number.parseFloat(row.total);
+      return {
+        id: row.category_id ?? UNCATEGORIZED_CATEGORY_KEY,
+        name: row.name,
+        icon_name: row.icon_name ?? "Package",
+        color: row.color ?? colors.categoryDefault,
+        spentMonth: Number.isFinite(spent) ? Math.abs(spent) : 0,
+        is_system: true,
+      };
+    });
   }, [overview]);
+
+  const monthlyBudgetAmount = hasMonthlyBudget ? monthlyBudget : 0;
 
   const last7DaysSpend = useMemo(
     () => buildLast7DaysSpend(overview?.last_7_days_spend),
@@ -165,15 +158,12 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const onNavigateBudgets = useCallback(() => {
     navigation.navigate("Budgets");
   }, [navigation]);
-
   const onAddMonthlyBudget = useCallback(() => {
     navigation.navigate("EditMonthlyBudget", { mode: "create" });
   }, [navigation]);
-
   const onAddDailyBudget = useCallback(() => {
     navigation.navigate("EditMonthlyBudget", { mode: "create" });
   }, [navigation]);
-
   const onNavigateTransactions = useCallback(() => {
     navigation.navigate("Transactions");
   }, [navigation]);
@@ -183,6 +173,19 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       navigation.navigate("TransactionDetail", { transaction: tx });
     },
     [navigation],
+  );
+
+  const onCategoryPress = useCallback(
+    (item: CategorySpendRowData) => {
+      navigation.navigate("TransactionsList", {
+        filter: "category",
+        year: now.getFullYear(),
+        monthIndex0: now.getMonth(),
+        categoryId: item.id,
+        categoryDisplayName: item.name,
+      });
+    },
+    [navigation, now],
   );
 
   return {
@@ -204,13 +207,14 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     onAddDailyBudget,
     onAddMonthlyBudget,
     onManualAdd,
+    onCategoryPress,
     onNavigateBudgets,
     onNavigateTransactions,
     onReceipt,
     onTransactionPress,
     onVoice,
     recentTransactions,
-    showCategoryProgress: hasBudget,
+    monthlyBudgetAmount,
     showRecentEmpty,
     spentMonthDisplay,
     spentTodayDisplay,

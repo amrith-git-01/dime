@@ -3,10 +3,7 @@ import { Platform, StyleSheet, View } from "react-native";
 
 import { bento, radius } from "@/constants";
 
-import {
-  BENTO_GAP,
-  BENTO_SECTION_CARD_PADDING,
-} from "@/components/bento";
+import { BENTO_GAP, BENTO_SECTION_CARD_PADDING } from "@/components/bento";
 
 type BentoSectionCardProps = {
   children: ReactNode;
@@ -31,7 +28,7 @@ const shadowStyle = Platform.select({
 });
 
 /**
- * Soft pastel container wrapping a Home section body (categories grid, recent list).
+ * Soft pastel container wrapping a Home section body (category list, recent list).
  * Matches reference bento-box grouping on light lavender tint.
  */
 export const BentoSectionCard = memo(function BentoSectionCard({

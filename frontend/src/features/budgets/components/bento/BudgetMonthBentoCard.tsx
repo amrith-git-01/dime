@@ -13,14 +13,14 @@ import {
   MonthSummaryUnavailableText,
   type BentoStatCellTone,
 } from "@/components/shared";
-import { Button, ProgressBar } from "@/components/ui";
+import {
+  Button,
+  ProgressBar,
+  SkeletonBlock,
+  SkeletonStrip,
+} from "@/components/ui";
 import { colors, progressBar, radius, spacing, surfaces } from "@/constants";
 import type { MonthOption } from "@/utils/buildMonthOptions";
-
-import {
-  BudgetMonthBodySkeleton,
-  BudgetMonthHeaderSkeleton,
-} from "./BudgetMonthBentoSkeleton";
 
 export type BudgetMonthBentoSummary = {
   budgetDisplay: string;
@@ -45,6 +45,7 @@ export type BudgetMonthBentoCardProps = {
   summaryFailed: boolean;
   onEditBudget: () => void;
   onSetBudget: () => void;
+  onMonthMenuOpenChange?: (open: boolean) => void;
 };
 
 export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
@@ -57,8 +58,10 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   summaryFailed,
   onEditBudget,
   onSetBudget,
+  onMonthMenuOpenChange,
 }: BudgetMonthBentoCardProps) {
-  const remainingLabel = summary?.isOverBudget ? "Over" : "Remaining";
+  const remainingLabel =
+    summaryLoading || !summary?.isOverBudget ? "Remaining" : "Over";
   const remainingValue = summary?.isOverBudget
     ? summary.overageDisplay
     : (summary?.remainingDisplay ?? "—");
@@ -73,21 +76,26 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
       selectedMonth={selectedMonth}
       monthOptions={monthOptions}
       onSelectMonth={onSelectMonth}
-      menuPlacement="inline"
+      onMonthMenuOpenChange={onMonthMenuOpenChange}
       bodyKicker="Budget"
       headerContent={
         summaryFailed ? (
           <MonthSummaryHeaderError>
             Could not load spending for this month.
           </MonthSummaryHeaderError>
-        ) : summaryLoading ? (
-          <BudgetMonthHeaderSkeleton />
         ) : (
           <>
             <MonthSummaryHeaderKicker>This month</MonthSummaryHeaderKicker>
-            <MonthSummaryHeaderTitle>
-              {summary?.usageLabel ?? "No budget set"}
-            </MonthSummaryHeaderTitle>
+            {summaryLoading ? (
+              <SkeletonStrip
+                variant="statValue"
+                style={styles.headerTitleSkeleton}
+              />
+            ) : (
+              <MonthSummaryHeaderTitle>
+                {summary?.usageLabel ?? "No budget set"}
+              </MonthSummaryHeaderTitle>
+            )}
           </>
         )
       }
@@ -109,41 +117,48 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
     >
       {summaryFailed ? (
         <MonthSummaryUnavailableText />
-      ) : summaryLoading ? (
-        <BudgetMonthBodySkeleton />
       ) : (
         <>
           <MonthSummaryStatsRow>
             <BentoStatCell
               label="Budget"
               value={hasMonthlyBudget ? (summary?.budgetDisplay ?? "—") : "—"}
+              isValueLoading={summaryLoading}
             />
             <MonthSummaryStatDivider />
             <BentoStatCell
               label="Spent"
               value={summary?.spentDisplay ?? "—"}
               tone={summary?.isOverBudget ? "debit" : "neutral"}
+              isValueLoading={summaryLoading}
             />
             <MonthSummaryStatDivider />
             <BentoStatCell
               label={remainingLabel}
               value={remainingValue}
               tone={remainingTone}
+              isValueLoading={summaryLoading}
             />
           </MonthSummaryStatsRow>
 
-          {hasMonthlyBudget && summary ? (
+          {summaryLoading && hasMonthlyBudget ? (
+            <View style={styles.progressWrap}>
+              <SkeletonBlock tone="surface" style={styles.progressSkeleton} />
+            </View>
+          ) : hasMonthlyBudget && summary ? (
             <View style={styles.progressWrap}>
               <ProgressBar
                 progress={summary.usagePct}
-                fillColor={summary.isOverBudget ? colors.danger : colors.primary}
+                fillColor={
+                  summary.isOverBudget ? colors.danger : colors.primary
+                }
                 backgroundColor={progressBar.track}
                 height={8}
               />
             </View>
           ) : null}
 
-          {!hasMonthlyBudget ? (
+          {!hasMonthlyBudget && !summaryLoading ? (
             <View style={styles.setBudgetWrap}>
               <Button title="Set budget" onPress={onSetBudget} />
             </View>
@@ -169,8 +184,17 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 0.96 }],
   },
+  headerTitleSkeleton: {
+    width: "50%",
+    marginTop: 2,
+  },
   progressWrap: {
     marginTop: spacing.md,
+  },
+  progressSkeleton: {
+    width: "100%",
+    height: 8,
+    borderRadius: radius.full,
   },
   setBudgetWrap: {
     marginTop: spacing.md,

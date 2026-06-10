@@ -33,13 +33,18 @@ def month_bounds_iso(year: int, month: int, tz_name: str) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
-def today_bounds_iso(tz_name: str) -> tuple[str, str]:
+def day_bounds_iso(day: date, tz_name: str) -> tuple[str, str]:
+    """Inclusive bounds for one calendar day in ``tz_name``."""
     tz = parse_tz(tz_name)
-    now = datetime.now(tz)
-    day = now.date()
     start = datetime.combine(day, time.min, tzinfo=tz)
     end = datetime.combine(day, time.max, tzinfo=tz)
     return start.isoformat(), end.isoformat()
+
+
+def today_bounds_iso(tz_name: str) -> tuple[str, str]:
+    tz = parse_tz(tz_name)
+    now = datetime.now(tz)
+    return day_bounds_iso(now.date(), tz_name)
 
 
 def current_month_bounds_iso(tz_name: str) -> tuple[str, str]:

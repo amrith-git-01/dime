@@ -12,6 +12,7 @@ from supabase import Client
 
 from core.async_utils import run_sync
 from core.security import CurrentUser
+from features.budgets.category_budget_repository import CategoryBudgetRepository
 from features.budgets.repository import BudgetRepository
 from features.notifications.budget_evaluator import BudgetThresholdEvaluator
 from features.notifications.emitter import (
@@ -160,6 +161,10 @@ def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
 class TransactionService:
     def __init__(self, supabase: Client) -> None:
         self._repo = TransactionRepository(supabase)
+
+    def enrich_rows(self, user_id: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Resolve category display fields on raw transaction rows."""
+        return self._enrich_rows(user_id, rows)
 
     def list_mine(self, user: CurrentUser) -> list[TransactionResponse]:
         rows = self._repo.list_for_user(user.id)
@@ -397,26 +402,14 @@ class TransactionService:
         return normalized or None
 
     def _category_exists(self, user_id: str, category_id: str) -> bool:
+        from features.categories.repository import CategoryRepository
+
         db = self._repo._db  # type: ignore[attr-defined]
-        sys_res = (
-            db.table("categories")
-            .select("id")
-            .eq("id", category_id)
-            .limit(1)
-            .execute()
+        return CategoryRepository.category_visible_to_user(
+            db,
+            user_id=user_id,
+            category_id=category_id,
         )
-        if isinstance(sys_res.data, list) and sys_res.data:
-            return True
-        user_res = (
-            db.table("user_categories")
-            .select("id")
-            .eq("id", category_id)
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        rows = user_res.data if isinstance(user_res.data, list) else []
-        return bool(rows)
 
     def _resolve_category(
         self,
@@ -430,20 +423,21 @@ class TransactionService:
             return None, None
 
         db = self._repo._db  # type: ignore[attr-defined]
-        for table in ("categories", "user_categories"):
-            q = db.table(table).select("id,name")
-            if table == "user_categories":
-                q = q.eq("user_id", user_id)
-            res = q.execute()
-            rows = res.data if isinstance(res.data, list) else []
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                name = row.get("name")
-                if isinstance(name, str) and name.strip().lower() == wanted:
-                    cat_id = row.get("id")
-                    if isinstance(cat_id, str):
-                        return cat_id, name.strip()
+        res = (
+            db.table("categories")
+            .select("id,name")
+            .or_(f"is_system.eq.true,user_id.eq.{user_id}")
+            .execute()
+        )
+        rows = res.data if isinstance(res.data, list) else []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            name = row.get("name")
+            if isinstance(name, str) and name.strip().lower() == wanted:
+                cat_id = row.get("id")
+                if isinstance(cat_id, str):
+                    return cat_id, name.strip()
         return None, None
 
     def _enrich_rows(self, user_id: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -517,12 +511,15 @@ class TransactionService:
         if body.type == "debit":
             BudgetThresholdEvaluator(
                 budget_repo=BudgetRepository(db),
+                category_budget_repo=CategoryBudgetRepository(db),
                 transaction_repo=self._repo,
                 emitter=notifier,
+                db_client=db,
             ).evaluate_after_debit(
                 user_id=user.id,
                 timezone=timezone,
                 transaction_at_iso=body.transaction_at.isoformat(),
+                category_id=category_id,
             )
 
         detected = body.detected_via or "manual"

@@ -4,7 +4,6 @@ import { StyleSheet, Text, View } from "react-native";
 import { colors, typography } from "@/constants";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
-import { HomeBentoSkeleton } from "./HomeBentoSkeleton";
 import { HomeCategoriesBento } from "./HomeCategoriesBento";
 import { HomeIncomeExpenseTile } from "./HomeIncomeExpenseTile";
 import { HomeRecentSection } from "./HomeRecentSection";
@@ -13,15 +12,12 @@ import type { HomeBentoContentProps } from "./types";
 
 /**
  * Root composer for Home bento layout.
- * Shows skeleton during load; otherwise renders all four sections.
- * All navigation callbacks and data flow from HomeScreen — this component is display-only.
+ * Each section skeletonizes only its data while labels and chrome stay mounted.
  */
 export const HomeBentoContent = memo(function HomeBentoContent(
   props: HomeBentoContentProps,
 ) {
-  if (props.isPending) {
-    return <HomeBentoSkeleton />;
-  }
+  const overviewLoading = props.isPending;
 
   return (
     <View style={styles.root}>
@@ -29,7 +25,6 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         <Text style={styles.error}>Could not load spending overview.</Text>
       ) : null}
 
-      {/* 1 — Spend row: today (narrow gradient) + month (wide sky + ring) */}
       <HomeSpendRow
         spentTodayDisplay={props.spentTodayDisplay}
         spentMonthDisplay={props.spentMonthDisplay}
@@ -43,9 +38,9 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         last7DaysSpend={props.last7DaysSpend}
         onAddMonthlyBudget={props.onAddMonthlyBudget}
         onAddDailyBudget={props.onAddDailyBudget}
+        isLoading={overviewLoading}
       />
 
-      {/* 2 — Cash flow: credited / debited / net */}
       <HomeIncomeExpenseTile
         creditedDisplay={props.creditedDisplay}
         debitedDisplay={props.debitedDisplay}
@@ -55,20 +50,22 @@ export const HomeBentoContent = memo(function HomeBentoContent(
         onPress={props.onNavigateTransactions}
       />
 
-      {/* 3 — Top categories: 2-col saturated bento grid */}
       <HomeCategoriesBento
         items={props.topCategories}
-        showProgress={props.showCategoryProgress}
+        hasMonthlyBudget={props.hasMonthlyBudget}
+        monthlyBudgetAmount={props.monthlyBudgetAmount}
+        isLoading={overviewLoading}
         onViewAll={props.onNavigateBudgets}
+        onCategoryPress={props.onCategoryPress}
         onManualAdd={props.onManualAdd}
         onReceipt={props.onReceipt}
         onVoice={props.onVoice}
       />
 
-      {/* 4 — Recent: stacked mini-bento rows */}
       <HomeRecentSection
         transactions={props.recentTransactions}
         isEmpty={props.showRecentEmpty}
+        isLoading={overviewLoading}
         onViewAll={props.onNavigateTransactions}
         onTransactionPress={props.onTransactionPress}
         onManualAdd={props.onManualAdd}

@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
@@ -15,6 +16,7 @@ export function useReceiptCameraTransaction() {
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
   const { showToast } = useToast();
+  const qc = useQueryClient();
 
   return useCallback(async () => {
     if (!authReady || !userId) {
@@ -46,7 +48,10 @@ export function useReceiptCameraTransaction() {
 
     const uri = picked.assets?.[0]?.uri;
     if (!uri) {
-      Alert.alert("No photo", "Capture was cancelled or no image was returned.");
+      Alert.alert(
+        "No photo",
+        "Capture was cancelled or no image was returned.",
+      );
       return;
     }
 
@@ -77,6 +82,7 @@ export function useReceiptCameraTransaction() {
         variant: "success",
         message: "Receipt added for processing",
       });
+      void qc.invalidateQueries({ refetchType: "active" });
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
@@ -88,5 +94,5 @@ export function useReceiptCameraTransaction() {
     } finally {
       hideBusy();
     }
-  }, [authReady, hideBusy, showBusy, showToast, userId]);
+  }, [authReady, hideBusy, qc, showBusy, showToast, userId]);
 }

@@ -1,43 +1,127 @@
-import { BarChart3 } from "lucide-react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { ScrollView, StyleSheet } from "react-native";
 
+import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { TwoToneEmptyState } from "@/components/shared";
-import { spacing, typography } from "@/constants";
+import { colors, layout } from "@/constants";
+import {
+  InsightsBurnRateMetricCard,
+  InsightsCounterpartyDonutCard,
+  InsightsDailyCashflowChart,
+  InsightsHeavyChartsPlaceholder,
+  InsightsMonthCompareLauncherCard,
+  InsightsMonthSummaryCard,
+  InsightsTopExpensesCard,
+} from "@/features/analytics/components";
+import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
+import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 
 export default function AnalyticsScreen() {
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
+  const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
+  const {
+    hasInsightsData,
+    monthOptions,
+    selectedMonth,
+    selectedMonthIndex,
+    handleSelectMonth,
+    openInsightsMonthCompare,
+    summary,
+    summaryLoading,
+    summaryFailed,
+    chartLoading,
+    burnRateMetrics,
+    dailyCashflow,
+    chartYear,
+    chartMonthIndex0,
+    counterpartySpend,
+    topExpenses,
+    openTransactionDetail,
+    openTransactionsListForDay,
+    openTransactionsListForPayee,
+    onManualAdd,
+    onReceipt,
+    onVoice,
+  } = useAnalyticsScreenModel();
+  const { chartsReady, focusGeneration } =
+    useDeferredHeavyCharts(hasInsightsData);
+
   return (
     <TabScreenShell>
-      <View style={styles.body}>
-        <Text style={styles.title}>Insights</Text>
-        <Text style={styles.subtitle}>
-          Placeholder - charts and spending breakdown will load here.
-        </Text>
-        <View style={styles.emptySlot}>
-          <TwoToneEmptyState
-            layout="inline"
-            icon={BarChart3}
-            title="No insights data yet"
-            message="Charts and spending breakdown will appear here."
-          />
-        </View>
-      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        scrollEnabled={!monthMenuOpen}
+        showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => {
+          cashflowTooltipDismissRef.current?.();
+          payeeTooltipDismissRef.current?.();
+        }}
+      >
+        <InsightsMonthSummaryCard
+          selectedMonth={selectedMonth.label}
+          monthOptions={monthOptions}
+          onSelectMonth={handleSelectMonth}
+          onMonthMenuOpenChange={setMonthMenuOpen}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryFailed={summaryFailed}
+        />
+
+        {chartsReady ? (
+          <>
+            <InsightsBurnRateMetricCard
+              metrics={burnRateMetrics}
+              loading={chartLoading}
+            />
+            <InsightsDailyCashflowChart
+              dailyCashflow={dailyCashflow}
+              year={chartYear}
+              monthIndex0={chartMonthIndex0}
+              focusGeneration={focusGeneration}
+              loading={chartLoading}
+              tooltipDismissRef={cashflowTooltipDismissRef}
+              onViewDayPress={openTransactionsListForDay}
+            />
+            <InsightsCounterpartyDonutCard
+              counterpartySpend={counterpartySpend}
+              chartYear={chartYear}
+              chartMonthIndex0={chartMonthIndex0}
+              focusGeneration={focusGeneration}
+              loading={chartLoading}
+              tooltipDismissRef={payeeTooltipDismissRef}
+              onViewPayeePress={openTransactionsListForPayee}
+            />
+            <InsightsTopExpensesCard
+              topExpenses={topExpenses}
+              loading={chartLoading}
+              onTransactionPress={openTransactionDetail}
+              onManualAdd={onManualAdd}
+              onReceipt={onReceipt}
+              onVoice={onVoice}
+            />
+          </>
+        ) : (
+          <InsightsHeavyChartsPlaceholder />
+        )}
+        <InsightsMonthCompareLauncherCard
+          monthOptions={monthOptions}
+          insightsSelectedMonthIndex={selectedMonthIndex}
+          onCompare={openInsightsMonthCompare}
+        />
+      </ScrollView>
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  body: {
+  scroll: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    backgroundColor: colors.pageBackground,
   },
-  title: typography.screenTitle,
-  subtitle: {
-    ...typography.screenSubtitle,
-    marginTop: spacing.sm,
-  },
-  emptySlot: {
-    marginTop: spacing.xl,
+  scrollContent: {
+    ...layout.screenContent,
+    gap: BENTO_SECTION_GAP,
   },
 });

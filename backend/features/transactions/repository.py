@@ -12,7 +12,7 @@ from features.transactions.supabase_http import execute_with_http_retry
 
 logger = logging.getLogger(__name__)
 
-# No PostgREST embed: category_id may point at system or user_categories (no single FK).
+# No PostgREST embed: category display resolved via CategoryRepository.fetch_meta_by_ids.
 # TransactionService enriches name/icon/color after fetch.
 _LIST_SELECT = (
     "id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,"
@@ -22,6 +22,7 @@ _LIST_SELECT = (
 _DETAIL_SELECT = "*"
 _AGGREGATE_SELECT = "amount,type,category_id"
 _AGGREGATE_WITH_DATE_SELECT = "amount,type,transaction_at"
+_PAYEE_AGGREGATE_SELECT = "amount,counterparty_name,counterparty_normalized"
 
 
 def _unwrap_rpc_period_payload(data: object) -> dict[str, Any] | None:
@@ -205,6 +206,78 @@ class TransactionRepository:
             offset += page_size
             time.sleep(0.02)
         return all_rows
+
+    def iter_debit_payee_rows(
+        self,
+        user_id: str,
+        *,
+        from_iso: str | None = None,
+        to_iso: str | None = None,
+        page_size: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Load debit rows with payee fields for counterparty aggregation (paged)."""
+        all_rows: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            q = (
+                self._db.table("transactions")
+                .select(_PAYEE_AGGREGATE_SELECT)
+                .eq("user_id", user_id)
+                .eq("type", "debit")
+                .is_("deleted_at", "null")
+            )
+            if from_iso is not None:
+                q = q.gte("transaction_at", from_iso)
+            if to_iso is not None:
+                q = q.lte("transaction_at", to_iso)
+            res = execute_with_http_retry(
+                lambda: q.order("transaction_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            data = res.data
+            if not isinstance(data, list):
+                break
+            chunk = [r for r in data if isinstance(r, dict)]
+            if not chunk:
+                break
+            all_rows.extend(chunk)
+            if len(chunk) < page_size:
+                break
+            offset += page_size
+            time.sleep(0.02)
+        return all_rows
+
+    def list_top_debit_transactions(
+        self,
+        user_id: str,
+        *,
+        from_iso: str | None,
+        to_iso: str | None,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Largest single debit transactions in the period (newest first on ties)."""
+        q = (
+            self._db.table("transactions")
+            .select(_LIST_SELECT)
+            .eq("user_id", user_id)
+            .eq("type", "debit")
+            .is_("deleted_at", "null")
+        )
+        if from_iso is not None:
+            q = q.gte("transaction_at", from_iso)
+        if to_iso is not None:
+            q = q.lte("transaction_at", to_iso)
+        res = execute_with_http_retry(
+            lambda: q.order("amount", desc=True)
+            .order("transaction_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        data = res.data
+        if not isinstance(data, list):
+            return []
+        return [row for row in data if isinstance(row, dict)]
 
     def fetch_categories_by_ids(
         self,

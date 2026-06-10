@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
-import { Spinner } from "@/components/ui";
+import { SkeletonStrip } from "@/components/ui";
 import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
@@ -22,12 +22,10 @@ export const BentoAmountRow = memo(function BentoAmountRow({
 
   if (isLoading) {
     return (
-      <View style={styles.loadingWrap}>
-        <Spinner
-          tone={variant === "onDark" ? "white" : "primary"}
-          size="small"
-        />
-      </View>
+      <SkeletonStrip
+        variant="amountHero"
+        tone={variant === "onDark" ? "onPrimary" : "surface"}
+      />
     );
   }
 
@@ -47,10 +45,5 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 22,
     lineHeight: 28,
-  },
-  loadingWrap: {
-    height: 28,
-    justifyContent: "center",
-    alignItems: "flex-start",
   },
 });

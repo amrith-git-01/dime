@@ -23,6 +23,11 @@ export type TransactionsBentoHeaderProps = {
   canGoNextDay: boolean;
   onPrevDay: () => void;
   onNextDay: () => void;
+  onMonthMenuOpenChange?: (open: boolean) => void;
+  /** Full day-bar placeholder (initial month load). */
+  dayBarLoading?: boolean;
+  /** Skeleton only on transaction count (day pagination). */
+  dayBarCountLoading?: boolean;
 };
 
 export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
@@ -38,6 +43,9 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
   canGoNextDay,
   onPrevDay,
   onNextDay,
+  onMonthMenuOpenChange,
+  dayBarLoading = false,
+  dayBarCountLoading = false,
 }: TransactionsBentoHeaderProps) {
   return (
     <View style={styles.root}>
@@ -48,6 +56,7 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
         summaryFailed={summaryFailed}
         onSelectMonth={onSelectMonth}
         monthOptions={monthOptions}
+        onMonthMenuOpenChange={onMonthMenuOpenChange}
       />
       <View style={styles.dayBarGap}>
         <TransactionsDayBar
@@ -57,6 +66,8 @@ export const TransactionsBentoHeader = memo(function TransactionsBentoHeader({
           canGoNext={canGoNextDay}
           onPrev={onPrevDay}
           onNext={onNextDay}
+          isLoading={dayBarLoading}
+          isCountLoading={dayBarCountLoading}
         />
       </View>
     </View>

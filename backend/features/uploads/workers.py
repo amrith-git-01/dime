@@ -77,45 +77,33 @@ async def load_category_options(
     user_id: str,
 ) -> tuple[list[str], list[dict[str, str]]]:
     def _query() -> tuple[list[str], list[dict[str, str]]]:
-        user_res = (
-            client.table("user_categories")
-            .select("id,name")
-            .eq("user_id", user_id)
-            .order("name", desc=False)
-            .execute()
-        )
-        system_res = (
+        res = (
             client.table("categories")
             .select("id,name")
-            .eq("is_system", True)
+            .or_(f"is_system.eq.true,user_id.eq.{user_id}")
             .order("name", desc=False)
             .execute()
         )
-        user_rows = user_res.data if isinstance(user_res.data, list) else []
-        system_rows = system_res.data if isinstance(system_res.data, list) else []
+        rows = res.data if isinstance(res.data, list) else []
 
         category_options: list[dict[str, str]] = []
         seen_names: set[str] = set()
 
-        def _append_rows(rows: list[object]) -> None:
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                category_id = row.get("id")
-                name_raw = row.get("name")
-                if not isinstance(category_id, str) or not isinstance(name_raw, str):
-                    continue
-                name = name_raw.strip()
-                if not name:
-                    continue
-                key = name.casefold()
-                if key in seen_names:
-                    continue
-                seen_names.add(key)
-                category_options.append({"id": category_id, "name": name})
-
-        _append_rows(user_rows)
-        _append_rows(system_rows)
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            category_id = row.get("id")
+            name_raw = row.get("name")
+            if not isinstance(category_id, str) or not isinstance(name_raw, str):
+                continue
+            name = name_raw.strip()
+            if not name:
+                continue
+            key = name.casefold()
+            if key in seen_names:
+                continue
+            seen_names.add(key)
+            category_options.append({"id": category_id, "name": name})
 
         allowed_categories = [item["name"] for item in category_options]
         if not allowed_categories:

@@ -1,4 +1,4 @@
-import { create, type AxiosInstance } from "axios";
+import { create, type AxiosError, type AxiosInstance } from "axios";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
@@ -54,6 +54,29 @@ export function getDimeApiBaseUrl(): string {
 }
 
 const TOKEN_REFRESH_BUFFER_MS = 60_000;
+
+/** Dev-only artificial latency so loading skeletons are visible on device. */
+function getDevApiDelayMs(): number {
+  if (!__DEV__) {
+    return 0;
+  }
+  const raw = process.env.EXPO_PUBLIC_API_DELAY_MS?.trim();
+  if (!raw) {
+    return 0;
+  }
+  const ms = Number.parseInt(raw, 10);
+  return Number.isFinite(ms) && ms > 0 ? ms : 0;
+}
+
+function maybeDevApiDelay(): Promise<void> {
+  const ms = getDevApiDelayMs();
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
 
@@ -127,9 +150,28 @@ if (__DEV__) {
       "[dimeApi] EXPO_PUBLIC_API_BASE_URL is empty — requests will fail.",
     );
   }
+  const devApiDelayMs = getDevApiDelayMs();
+  if (devApiDelayMs > 0) {
+    console.info(
+      `[dimeApi] EXPO_PUBLIC_API_DELAY_MS=${devApiDelayMs} — all requests delayed (dev only).`,
+    );
+  }
+}
+
+// Augment axios config with a start timestamp for dev latency logging.
+declare module "axios" {
+  interface InternalAxiosRequestConfig {
+    _startMs?: number;
+  }
 }
 
 dimeApi.interceptors.request.use(async (config) => {
+  if (__DEV__) {
+    config._startMs = Date.now();
+  }
+
+  await maybeDevApiDelay();
+
   const auth = await getDimeAuthHeaders();
   if (auth.Authorization) {
     config.headers.set("Authorization", auth.Authorization);
@@ -141,3 +183,25 @@ dimeApi.interceptors.request.use(async (config) => {
 
   return config;
 });
+
+if (__DEV__) {
+  dimeApi.interceptors.response.use(
+    (response) => {
+      const ms = Date.now() - (response.config._startMs ?? Date.now());
+      const serverMs = response.headers["x-process-time-ms"];
+      const serverSuffix = serverMs ? ` (server: ${serverMs}ms)` : "";
+      console.log(
+        `[dimeApi] ${response.config.method?.toUpperCase()} ${response.config.url} → ${response.status} in ${ms}ms${serverSuffix}`,
+      );
+      return response;
+    },
+    (error: AxiosError) => {
+      const ms = Date.now() - (error.config?._startMs ?? Date.now());
+      console.warn(
+        `[dimeApi] ${error.config?.method?.toUpperCase()} ${error.config?.url} → ${error.response?.status ?? "ERR"} in ${ms}ms`,
+        error.message,
+      );
+      return Promise.reject(error);
+    },
+  );
+}

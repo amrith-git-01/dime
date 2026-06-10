@@ -25,6 +25,7 @@ export type AppHeaderProps = {
 const AVATAR_SIZE = 40;
 const BELL_ICON = 20;
 const BELL_CIRCLE = 36;
+const UNREAD_BADGE_SIZE = 8;
 
 function timeOfDayGreeting(): string {
   const hour = new Date().getHours();
@@ -116,6 +117,7 @@ export function AppHeader({
                   source={{ uri: avatarUrl }}
                   style={styles.avatar}
                   accessibilityLabel="Profile avatar"
+                  cachePolicy="memory-disk"
                   onLoadStart={() => {
                     setAvatarImageLoading(true);
                     setAvatarImageError(false);
@@ -294,6 +296,7 @@ const styles = StyleSheet.create({
   },
   bellCircle: {
     position: "relative",
+    overflow: "visible",
     width: BELL_CIRCLE,
     height: BELL_CIRCLE,
     borderRadius: BELL_CIRCLE / 2,
@@ -306,14 +309,12 @@ const styles = StyleSheet.create({
   },
   unreadBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brandPrimary,
-    borderWidth: 1.5,
-    borderColor: colors.headerBellCircleBg,
+    top: 2,
+    right: 2,
+    width: UNREAD_BADGE_SIZE,
+    height: UNREAD_BADGE_SIZE,
+    borderRadius: UNREAD_BADGE_SIZE / 2,
+    backgroundColor: colors.primary,
   },
   headerIconGap: {
     marginRight: spacing.sm,

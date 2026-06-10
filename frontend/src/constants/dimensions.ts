@@ -5,7 +5,6 @@
 
 export const bentoTileMinHeight = {
   homeSpendRow: 168,
-  homeCategory: 112,
   homeIncome: 92,
   homeRecent: 64,
 } as const;

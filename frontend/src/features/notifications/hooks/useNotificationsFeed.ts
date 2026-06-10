@@ -2,12 +2,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 
 import {
+  readPersistedNotifications,
+  writePersistedNotifications,
+} from "@/lib/notifications/notificationsMmkv";
+import {
   deleteNotification,
   fetchNotifications,
   markNotificationRead,
 } from "../api/notificationsApi";
+import {
+  adjustUnreadCountCache,
+  patchInboxNotification,
+  removeInboxNotification,
+} from "../cache/notificationListCache";
 import { notificationQueryKeys } from "../queryKeys";
 import type { AppNotification, NotificationInboxFilter } from "../types";
+import { filterNotificationsByInbox } from "../utils/filterNotificationsByInbox";
 import { groupNotificationsByDate } from "../utils/groupNotificationsByDate";
 
 export function useNotificationsFeed() {
@@ -15,31 +25,90 @@ export function useNotificationsFeed() {
   const [filter, setFilter] = useState<NotificationInboxFilter>("all");
 
   const listQuery = useQuery({
-    queryKey: notificationQueryKeys.list(filter),
-    queryFn: () => fetchNotifications(filter),
+    queryKey: notificationQueryKeys.inboxList(),
+    queryFn: async () => {
+      const items = await fetchNotifications("all");
+      const unreadCount =
+        queryClient.getQueryData<number>(notificationQueryKeys.unreadCount()) ??
+        readPersistedNotifications()?.unreadCount ??
+        items.filter((item) => item.readAt == null).length;
+      writePersistedNotifications({ inbox: items, unreadCount });
+      return items;
+    },
+    placeholderData: () => readPersistedNotifications()?.inbox,
   });
 
-  const items = listQuery.data ?? [];
+  const items = useMemo(() => {
+    const all = listQuery.data ?? [];
+    return filterNotificationsByInbox(all, filter);
+  }, [listQuery.data, filter]);
   const groups = useMemo(() => groupNotificationsByDate(items), [items]);
   const settled = !listQuery.isPending && !listQuery.isError;
+  const isInitialLoading = listQuery.isPending && listQuery.data === undefined;
 
   const isInboxEmpty = settled && filter === "all" && items.length === 0;
   const isFilterEmpty = settled && filter !== "all" && items.length === 0;
 
   const markReadMutation = useMutation({
     mutationFn: markNotificationRead,
-    onSuccess: () => {
+    onMutate: async (id) => {
+      const list =
+        queryClient.getQueryData<AppNotification[]>(
+          notificationQueryKeys.inboxList(),
+        ) ?? [];
+      const prev = list.find((item) => item.id === id);
+      if (prev?.readAt != null) return { prev: undefined };
+      const readAt = new Date().toISOString();
+      patchInboxNotification(queryClient, id, { readAt });
+      adjustUnreadCountCache(queryClient, -1);
+      return { prev };
+    },
+    onError: (_err, id, context) => {
+      if (!context?.prev) return;
+      patchInboxNotification(queryClient, id, {
+        readAt: context.prev.readAt,
+      });
+      adjustUnreadCountCache(queryClient, 1);
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: notificationQueryKeys.all,
+        queryKey: notificationQueryKeys.unreadCount(),
       });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
-    onSuccess: () => {
+    onMutate: async (id) => {
+      const list =
+        queryClient.getQueryData<AppNotification[]>(
+          notificationQueryKeys.inboxList(),
+        ) ?? [];
+      const prev = list.find((item) => item.id === id);
+      removeInboxNotification(queryClient, id);
+      if (prev?.readAt == null) {
+        adjustUnreadCountCache(queryClient, -1);
+      }
+      return { prev };
+    },
+    onError: (_err, id, context) => {
+      const prev = context?.prev;
+      if (!prev) return;
+      queryClient.setQueryData<AppNotification[]>(
+        notificationQueryKeys.inboxList(),
+        (current) => {
+          const next = current ?? [];
+          if (next.some((item) => item.id === id)) return next;
+          return [prev, ...next];
+        },
+      );
+      if (prev.readAt == null) {
+        adjustUnreadCountCache(queryClient, 1);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: notificationQueryKeys.all,
+        queryKey: notificationQueryKeys.unreadCount(),
       });
     },
   });
@@ -72,7 +141,7 @@ export function useNotificationsFeed() {
     markRead,
     deleteNotification: removeNotification,
     isUnread,
-    isLoading: listQuery.isPending,
+    isInitialLoading,
     isError: listQuery.isError,
     refetch: listQuery.refetch,
   };

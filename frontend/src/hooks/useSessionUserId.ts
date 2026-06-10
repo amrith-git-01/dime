@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase/client";
+import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 
 /**
- * Resolves the signed-in Supabase user id (or `undefined` when signed out),
- * and `authReady` once the initial `getSession()` completes.
+ * Resolves the signed-in Supabase user id (or `undefined` when signed out).
+ * Reads the MMKV-persisted session synchronously on first render so query keys
+ * match the React Query cache immediately; `getSession()` reconciles in the background.
  */
 export function useSessionUserId(): {
   userId: string | undefined;
   authReady: boolean;
 } {
-  const [userId, setUserId] = useState<string | undefined>();
-  const [authReady, setAuthReady] = useState(false);
+  const [userId, setUserId] = useState<string | undefined>(
+    () => readStoredAuthSession()?.user.id,
+  );
+  const [authReady, setAuthReady] = useState(true);
 
   useEffect(() => {
     let cancelled = false;

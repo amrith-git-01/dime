@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, surfaces } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { colors, radius, spacing, surfaces } from "@/constants";
+import { formStyles } from "@/constants/formStyles";
 import {
   CUSTOM_CATEGORY_COLOR_OPTIONS,
   CUSTOM_CATEGORY_ICON_OPTIONS,
@@ -28,7 +28,7 @@ export const CustomCategoryChipPickers = memo(
     return (
       <View style={styles.wrap}>
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Icon</Text>
+          <Text style={formStyles.fieldLabel}>Icon</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -67,7 +67,7 @@ export const CustomCategoryChipPickers = memo(
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Color</Text>
+          <Text style={formStyles.fieldLabel}>Color</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -107,15 +107,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   section: {
-    gap: spacing.sm,
-  },
-  sectionLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    gap: 0,
   },
   chipRow: {
     gap: spacing.sm,
