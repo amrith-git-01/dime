@@ -23,6 +23,7 @@ Thumbs.db
 # --- Frontend (Expo / React Native) ---
 node_modules/
 .expo/
+.expo-tmp-bundle/
 .expo-tmp-bundle-test/
 dist/
 web-build/
