@@ -9,7 +9,6 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
-import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
@@ -20,7 +19,6 @@ import type { MainStackParamList, MainTabParamList } from "./types";
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
-  usePreloadSiblingTabScreens();
   const safeInsets = useSafeAreaInsets();
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();

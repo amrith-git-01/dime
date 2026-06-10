@@ -1,13 +1,12 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import { stackScrollGrowShellConfig } from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
-import { insightsMonthCompareStackShellConfig } from "@/screens/analytics/insightsMonthCompareStackShellConfig";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
-import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
@@ -16,7 +15,6 @@ import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellC
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
-import { transactionsListStackShellConfig } from "@/screens/transactions/transactionsListStackShellConfig";
 
 import MainTabNavigator from "./MainTabNavigator";
 import { withStackScreen } from "./stackScreenHosts";
@@ -34,7 +32,7 @@ const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
-  notificationsStackShellConfig,
+  stackScrollGrowShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
@@ -42,11 +40,11 @@ const ManualAddTransactionScreen = withStackScreen(
 const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
-  transactionsListStackShellConfig,
+  stackScrollGrowShellConfig,
 );
 const InsightsMonthCompareScreen = withStackScreen(
   InsightsMonthCompareScreenBase,
-  insightsMonthCompareStackShellConfig,
+  stackScrollGrowShellConfig,
 );
 const CreateCustomCategoryScreen = withStackScreen(
   CreateCustomCategoryScreenBase,

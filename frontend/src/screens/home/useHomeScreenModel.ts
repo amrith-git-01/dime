@@ -19,6 +19,7 @@ import type {
   HomeOverview,
   TransactionRow,
 } from "@/features/transactions/types";
+import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
@@ -49,6 +50,7 @@ function buildLast7DaysSpend(
 
 export function useHomeScreenModel(): HomeBentoContentProps {
   const navigation = useNavigation<HomeScreenNavigation>();
+  usePreloadSiblingTabScreens();
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
