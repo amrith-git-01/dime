@@ -1,14 +1,15 @@
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
   BentoEditorFooter,
-  BentoOptionalHint,
 } from "@/components/bento";
 import { TwoToneCard } from "@/components/shared";
 import { SelectDropdown, TextField } from "@/components/ui";
+import { colors } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import type { CategoryRow } from "@/features/categories/types";
 import {
   COUNTERPARTY_TYPE_OPTIONS,
@@ -80,7 +81,7 @@ export const ManualAddTransactionEditor = memo(
     onSave,
     onClear,
   }: ManualAddTransactionEditorProps) {
-    const optionalTag = <BentoOptionalHint />;
+    const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
 
     return (
       <TwoToneCard
@@ -156,5 +157,10 @@ const styles = StyleSheet.create({
     paddingTop: BENTO_FORM_SECTION_PADDING,
     paddingBottom: BENTO_FORM_SECTION_PADDING,
     gap: BENTO_FORM_BODY_GAP,
+  },
+  optionalHint: {
+    fontFamily: fontFamilies.regular,
+    color: colors.inactive,
+    fontSize: 12,
   },
 });

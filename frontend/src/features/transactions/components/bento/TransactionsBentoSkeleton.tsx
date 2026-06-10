@@ -33,11 +33,6 @@ export const TransactionsListRowsSkeleton = memo(
   },
 );
 
-/** @deprecated Use {@link TransactionsListRowsSkeleton}. */
-export function TransactionsBentoSkeleton() {
-  return <TransactionsListRowsSkeleton />;
-}
-
 const styles = StyleSheet.create({
   root: {
     gap: 0,

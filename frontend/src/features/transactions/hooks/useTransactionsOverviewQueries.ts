@@ -25,7 +25,6 @@ export function useTransactionsHomeQuery(options?: { enabled?: boolean }) {
     queryKey: transactionsQueryKeys.home(userId, timezone),
     queryFn: () => fetchHomeOverview(timezone),
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
-    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }
@@ -48,7 +47,6 @@ export function useMonthSummaryQuery(
     ),
     queryFn: () => fetchMonthSummary({ year, month: calendarMonth, timezone }),
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
-    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }
@@ -73,7 +71,6 @@ export function useMonthDebitTotalsByCategoryQuery(
     queryFn: () => fetchMonthSummary({ year, month: calendarMonth, timezone }),
     select: monthSummaryDebitByCategory,
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
-    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }
@@ -108,6 +105,5 @@ export function useTransactionsMonthInfiniteQuery(
       return lastOffset + lastPage.items.length;
     },
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
-    staleTime: 60_000,
   });
 }

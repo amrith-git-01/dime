@@ -4,6 +4,9 @@ import { createMMKV } from "react-native-mmkv";
 
 const queryMmkv = createMMKV({ id: "rq-cache" });
 
+export const QUERY_CACHE_KEY = "dime:rq-cache";
+export const QUERY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 /** Threshold at which we warn about cache size approaching the 2 MB guard rail. */
 const MMKV_WARN_BYTES = 1_500_000;
 
@@ -36,10 +39,15 @@ const mmkvStorage = {
  */
 export const queryPersister = createSyncStoragePersister({
   storage: mmkvStorage,
-  key: "dime:rq-cache",
+  key: QUERY_CACHE_KEY,
   throttleTime: 1_000,
   retry: removeOldestQuery,
 });
+
+/** Whether a persisted React Query blob exists in MMKV (sync). */
+export function hasPersistedQueryCache(): boolean {
+  return queryMmkv.contains(QUERY_CACHE_KEY);
+}
 
 /** Wipes the persisted React Query cache from MMKV (call on sign-out). */
 export function clearQueryMmkv(): void {
