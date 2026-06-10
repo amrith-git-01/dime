@@ -14,5 +14,4 @@ export {
   skeletonStripPresets,
   type SkeletonStripVariant,
 } from "./skeletonStripPresets";
-export { Spinner } from "./Spinner";
 export { TextField, type TextFieldProps } from "./TextField/TextField";

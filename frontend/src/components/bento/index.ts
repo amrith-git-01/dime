@@ -17,6 +17,5 @@ export {
   BENTO_MONTH_DROPDOWN_VISIBLE,
   BENTO_MONTH_OPTIONS_COUNT,
 } from "./bentoMonthPickerTokens";
-export { BentoOptionalHint } from "./BentoOptionalHint";
 export { useBentoMonthDropdown } from "./useBentoMonthDropdown";
 export { useBentoMonthSelection } from "./useBentoMonthSelection";
