@@ -1,7 +1,6 @@
 export {
   ManualAddTransactionEditor,
   TransactionsBentoHeader,
-  TransactionsBentoSkeleton,
   TransactionsListRowsSkeleton,
   type TransactionsMonthBentoSummary,
 } from "./bento";
@@ -11,7 +10,6 @@ export {
   TransactionReceiptImage,
   TransactionVoicePlayer,
 } from "./TransactionAttachmentMedia";
-export { TransactionDetailBody } from "./TransactionDetailBody";
 export { TransactionListRow } from "./TransactionListRow";
 export { TransactionListRowSkeleton } from "./TransactionListRowSkeleton";
 export { VoiceCaptureBar } from "./VoiceCaptureBar";
