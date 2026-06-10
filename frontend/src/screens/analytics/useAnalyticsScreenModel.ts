@@ -156,6 +156,7 @@ export function useAnalyticsScreenModel() {
   );
 
   return {
+    hasInsightsData: Boolean(insightsData),
     monthOptions,
     selectedMonth,
     selectedMonthIndex,

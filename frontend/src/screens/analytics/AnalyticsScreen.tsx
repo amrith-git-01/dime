@@ -21,6 +21,7 @@ export default function AnalyticsScreen() {
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const {
+    hasInsightsData,
     monthOptions,
     selectedMonth,
     selectedMonthIndex,
@@ -43,7 +44,8 @@ export default function AnalyticsScreen() {
     onReceipt,
     onVoice,
   } = useAnalyticsScreenModel();
-  const chartsReady = useDeferredHeavyCharts();
+  const { chartsReady, focusGeneration } =
+    useDeferredHeavyCharts(hasInsightsData);
 
   return (
     <TabScreenShell>
@@ -77,12 +79,16 @@ export default function AnalyticsScreen() {
               dailyCashflow={dailyCashflow}
               year={chartYear}
               monthIndex0={chartMonthIndex0}
+              focusGeneration={focusGeneration}
               loading={chartLoading}
               tooltipDismissRef={cashflowTooltipDismissRef}
               onViewDayPress={openTransactionsListForDay}
             />
             <InsightsCounterpartyDonutCard
               counterpartySpend={counterpartySpend}
+              chartYear={chartYear}
+              chartMonthIndex0={chartMonthIndex0}
+              focusGeneration={focusGeneration}
               loading={chartLoading}
               tooltipDismissRef={payeeTooltipDismissRef}
               onViewPayeePress={openTransactionsListForPayee}

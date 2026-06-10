@@ -1,9 +1,12 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { SplashBrandedShell } from "@/components/app/SplashBrandedShell";
+import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
+import { splashBackgroundColor } from "@/constants/splash";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
@@ -11,7 +14,6 @@ import { supabase } from "@/lib/supabase/client";
 import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
-import SessionResolvingScreen from "@/screens/onboarding/SessionResolvingScreen";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 
 import MainStackNavigator from "./MainStackNavigator";
@@ -31,7 +33,13 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
+/** Stack placeholder while `/me` resolves — splash overlay covers this. */
+function ResolvingStackPlaceholder() {
+  return <View style={styles.resolvingPlaceholder} />;
+}
+
 export default function RootNavigator() {
+  const { setContentReady } = useSplashReveal();
   const [session, setSession] = useState<Session | null>(() =>
     readStoredAuthSession(),
   );
@@ -102,17 +110,21 @@ export default function RootNavigator() {
   const resolvingProfile = Boolean(session && !profileGateReady);
   const resolvingAfterLogin = resolvingProfile && justLoggedInRef.current;
   const showAuth = !session || resolvingAfterLogin;
-  const showResolvingScreen = resolvingProfile && !justLoggedInRef.current;
+
+  useEffect(() => {
+    const ready = !session || profileGateReady;
+    setContentReady(ready && !resolvingAfterLogin);
+  }, [session, profileGateReady, resolvingAfterLogin, setContentReady]);
 
   return (
     <View style={styles.root}>
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
         {showAuth ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
-        ) : showResolvingScreen ? (
+        ) : resolvingProfile ? (
           <Stack.Screen
             name="SessionResolving"
-            component={SessionResolvingScreen}
+            component={ResolvingStackPlaceholder}
           />
         ) : needsProfileSetup ? (
           <Stack.Screen
@@ -125,9 +137,13 @@ export default function RootNavigator() {
         )}
       </Stack.Navigator>
 
-      {resolvingAfterLogin ? (
-        <View style={styles.resolvingOverlay} accessibilityLabel="Signing in">
-          <ActivityIndicator size="large" color={colors.primary} />
+      {resolvingProfile ? (
+        <View
+          style={styles.resolvingOverlay}
+          accessibilityLabel="Loading"
+          pointerEvents="auto"
+        >
+          <SplashBrandedShell />
         </View>
       ) : null}
     </View>
@@ -139,10 +155,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.pageBackground,
   },
+  resolvingPlaceholder: {
+    flex: 1,
+    backgroundColor: splashBackgroundColor,
+  },
   resolvingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.pageBackground,
   },
 });
