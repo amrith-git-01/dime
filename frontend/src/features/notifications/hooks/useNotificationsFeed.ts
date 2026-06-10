@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 
 import {
+  readPersistedNotifications,
+  writePersistedNotifications,
+} from "@/lib/notifications/notificationsMmkv";
+import {
   deleteNotification,
   fetchNotifications,
   markNotificationRead,
@@ -16,16 +20,22 @@ import type { AppNotification, NotificationInboxFilter } from "../types";
 import { filterNotificationsByInbox } from "../utils/filterNotificationsByInbox";
 import { groupNotificationsByDate } from "../utils/groupNotificationsByDate";
 
-const INBOX_STALE_MS = 60_000;
-
 export function useNotificationsFeed() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<NotificationInboxFilter>("all");
 
   const listQuery = useQuery({
     queryKey: notificationQueryKeys.inboxList(),
-    queryFn: () => fetchNotifications("all"),
-    staleTime: INBOX_STALE_MS,
+    queryFn: async () => {
+      const items = await fetchNotifications("all");
+      const unreadCount =
+        queryClient.getQueryData<number>(notificationQueryKeys.unreadCount()) ??
+        readPersistedNotifications()?.unreadCount ??
+        items.filter((item) => item.readAt == null).length;
+      writePersistedNotifications({ inbox: items, unreadCount });
+      return items;
+    },
+    placeholderData: () => readPersistedNotifications()?.inbox,
   });
 
   const items = useMemo(() => {

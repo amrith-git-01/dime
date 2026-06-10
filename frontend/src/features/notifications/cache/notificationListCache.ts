@@ -2,12 +2,18 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { notificationQueryKeys } from "../queryKeys";
 import type { AppNotification } from "../types";
+import { persistNotificationsMmkvFromQueryClient } from "./syncNotificationsMmkv";
+
+function syncMmkv(queryClient: QueryClient): void {
+  persistNotificationsMmkvFromQueryClient(queryClient);
+}
 
 export function setInboxListCache(
   queryClient: QueryClient,
   items: AppNotification[],
 ): void {
   queryClient.setQueryData(notificationQueryKeys.inboxList(), items);
+  syncMmkv(queryClient);
 }
 
 export function patchInboxNotification(
@@ -24,6 +30,7 @@ export function patchInboxNotification(
       );
     },
   );
+  syncMmkv(queryClient);
 }
 
 export function removeInboxNotification(
@@ -34,6 +41,7 @@ export function removeInboxNotification(
     notificationQueryKeys.inboxList(),
     (prev) => (prev ? prev.filter((item) => item.id !== id) : prev),
   );
+  syncMmkv(queryClient);
 }
 
 export function adjustUnreadCountCache(
@@ -45,4 +53,5 @@ export function adjustUnreadCountCache(
     notificationQueryKeys.unreadCount(),
     (prev) => Math.max(0, (prev ?? 0) + delta),
   );
+  syncMmkv(queryClient);
 }

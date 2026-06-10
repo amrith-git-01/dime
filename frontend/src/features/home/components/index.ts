@@ -4,4 +4,3 @@ export {
   type HomeBentoContentProps,
   type HomeTopCategoryItem,
 } from "./bento";
-export { HeroSummaryCard } from "./HeroSummaryCard";
