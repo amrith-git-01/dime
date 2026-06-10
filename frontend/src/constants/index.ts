@@ -4,6 +4,7 @@
  */
 export { bento, customCategoryColorOptions } from "./bento";
 export {
+  charts,
   colors,
   hero,
   overlays,

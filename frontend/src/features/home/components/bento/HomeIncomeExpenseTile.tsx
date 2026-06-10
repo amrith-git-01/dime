@@ -1,9 +1,13 @@
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text } from "react-native";
 
-import { BentoStatCell, netTone } from "@/components/shared";
-import { Spinner } from "@/components/ui";
-import { bento, radius, spacing, surfaces } from "@/constants";
+import {
+  BentoStatCell,
+  MonthSummaryStatDivider,
+  MonthSummaryStatsRow,
+  netTone,
+} from "@/components/shared";
+import { bento, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { HOME_INCOME_TILE_MIN_HEIGHT } from "./homeBentoTokens";
@@ -18,7 +22,7 @@ export type HomeIncomeExpenseTileProps = {
 };
 
 /**
- * Full-width cashflow tile — soft mint pastel with dark type.
+ * Full-width cashflow tile — soft lavender pastel with dark type.
  */
 export const HomeIncomeExpenseTile = memo(function HomeIncomeExpenseTile({
   creditedDisplay,
@@ -41,27 +45,28 @@ export const HomeIncomeExpenseTile = memo(function HomeIncomeExpenseTile({
     >
       <Text style={styles.title}>Cash flow · this month</Text>
 
-      {isPending ? (
-        <View style={styles.spinnerWrap}>
-          <Spinner tone="primary" size="small" />
-        </View>
-      ) : (
-        <View style={styles.statsRow}>
-          <BentoStatCell
-            label="Credited"
-            value={creditedDisplay}
-            tone="credit"
-          />
-          <View style={styles.divider} />
-          <BentoStatCell label="Debited" value={debitedDisplay} tone="debit" />
-          <View style={styles.divider} />
-          <BentoStatCell
-            label="Net"
-            value={netDisplay}
-            tone={netTone(netValue)}
-          />
-        </View>
-      )}
+      <MonthSummaryStatsRow>
+        <BentoStatCell
+          label="Credited"
+          value={creditedDisplay}
+          tone="credit"
+          isValueLoading={isPending}
+        />
+        <MonthSummaryStatDivider />
+        <BentoStatCell
+          label="Debited"
+          value={debitedDisplay}
+          tone="debit"
+          isValueLoading={isPending}
+        />
+        <MonthSummaryStatDivider />
+        <BentoStatCell
+          label="Net"
+          value={netDisplay}
+          tone={netTone(netValue)}
+          isValueLoading={isPending}
+        />
+      </MonthSummaryStatsRow>
     </Pressable>
   );
 });
@@ -69,7 +74,7 @@ export const HomeIncomeExpenseTile = memo(function HomeIncomeExpenseTile({
 const shadowStyle = Platform.select({
   android: { elevation: 2 },
   default: {
-    shadowColor: bento.surface.mint,
+    shadowColor: bento.surface.lavender,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
@@ -97,20 +102,5 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
-  },
-  spinnerWrap: {
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  divider: {
-    width: 1,
-    height: 28,
-    backgroundColor: surfaces.primaryTint12,
-    marginHorizontal: spacing.xs,
   },
 });

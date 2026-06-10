@@ -1,46 +1,56 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import { stackScrollGrowShellConfig } from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
-import { notificationsStackShellConfig } from "@/screens/notifications/notificationsStackShellConfig";
+import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
+import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
+import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
+import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
+import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
+import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
+import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
+import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
+import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
+import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
+import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
-import { lazyStackScreen, withStackScreen } from "./stackScreenHosts";
+import { withStackScreen } from "./stackScreenHosts";
 import { stackScreenOptions } from "./stackScreenOptions";
 import type { MainStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
-const SettingsScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsScreen"),
+const SettingsScreen = withStackScreen(
+  SettingsScreenBase,
   settingsStackShellConfig,
 );
-const SettingsAccountScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsAccountScreen"),
-);
-const SettingsCaptureScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsCaptureScreen"),
-);
-const SettingsFeedbackScreen = lazyStackScreen(
-  () => import("@/screens/settings/SettingsFeedbackScreen"),
-);
-const NotificationsScreen = lazyStackScreen(
-  () => import("@/screens/notifications/NotificationsScreen"),
-  notificationsStackShellConfig,
+const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
+const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
+const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
+const NotificationsScreen = withStackScreen(
+  NotificationsScreenBase,
+  stackScrollGrowShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
-const TransactionDetailScreen = lazyStackScreen(
-  () => import("@/screens/transactions/TransactionDetailScreen"),
+const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
+const TransactionsListScreen = withStackScreen(
+  TransactionsListScreenBase,
+  stackScrollGrowShellConfig,
 );
-const CreateCustomCategoryScreen = lazyStackScreen(
-  () => import("@/screens/categories/CreateCustomCategoryScreen"),
+const InsightsMonthCompareScreen = withStackScreen(
+  InsightsMonthCompareScreenBase,
+  stackScrollGrowShellConfig,
 );
-const EditMonthlyBudgetScreen = lazyStackScreen(
-  () => import("@/screens/budget/EditMonthlyBudgetScreen"),
+const CreateCustomCategoryScreen = withStackScreen(
+  CreateCustomCategoryScreenBase,
 );
+const EditCategoryScreen = withStackScreen(EditCategoryScreenBase);
+const EditMonthlyBudgetScreen = withStackScreen(EditMonthlyBudgetScreenBase);
 
 export default function MainStackNavigator() {
   return (
@@ -87,9 +97,24 @@ export default function MainStackNavigator() {
         options={{ ...stackScreenOptions, title: "Transaction" }}
       />
       <Stack.Screen
+        name="TransactionsList"
+        component={TransactionsListScreen}
+        options={{ ...stackScreenOptions, title: "Transactions" }}
+      />
+      <Stack.Screen
+        name="InsightsMonthCompare"
+        component={InsightsMonthCompareScreen}
+        options={{ ...stackScreenOptions, title: "Compare months" }}
+      />
+      <Stack.Screen
         name="CreateCustomCategory"
         component={CreateCustomCategoryScreen}
         options={{ ...stackScreenOptions, title: "Custom category" }}
+      />
+      <Stack.Screen
+        name="EditCategory"
+        component={EditCategoryScreen}
+        options={{ ...stackScreenOptions, title: "Edit category" }}
       />
       <Stack.Screen
         name="EditMonthlyBudget"

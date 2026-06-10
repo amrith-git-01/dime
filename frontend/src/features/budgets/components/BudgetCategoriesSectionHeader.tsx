@@ -1,8 +1,10 @@
+import { Plus } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing, typography } from "@/constants";
+import { BENTO_SECTION_HEADER_GAP } from "@/components/bento";
+import { BentoActionPill } from "@/components/shared";
+import { spacing, typography } from "@/constants";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 type BudgetCategoriesSectionHeaderProps = {
@@ -16,67 +18,33 @@ export const BudgetCategoriesSectionHeader = memo(
     addDisabled,
   }: BudgetCategoriesSectionHeaderProps) {
     return (
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>All categories</Text>
-        <Pressable
-          accessibilityRole="button"
+      <View style={styles.row}>
+        <Text style={styles.title}>All categories</Text>
+        <BentoActionPill
+          label="Add"
+          icon={Plus}
           accessibilityLabel="Add custom category"
-          accessibilityState={{ disabled: addDisabled }}
           disabled={addDisabled}
           onPress={() => {
             void triggerLightHaptic();
             onAddPress();
           }}
-          style={({ pressed }) => [
-            styles.addButton,
-            addDisabled && styles.addButtonDisabled,
-            pressed && !addDisabled && styles.addButtonPressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.addButtonText,
-              addDisabled && styles.addButtonTextDisabled,
-            ]}
-          >
-            + Add
-          </Text>
-        </Pressable>
+        />
       </View>
     );
   },
 );
 
 const styles = StyleSheet.create({
-  sectionHeader: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.lg,
+    marginBottom: BENTO_SECTION_HEADER_GAP,
   },
-  sectionTitle: {
+  title: {
     ...typography.sectionTitle,
     flex: 1,
     marginRight: spacing.sm,
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexShrink: 0,
-  },
-  addButtonDisabled: {
-    opacity: 0.45,
-  },
-  addButtonPressed: {
-    opacity: 0.75,
-  },
-  addButtonText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.primary,
-  },
-  addButtonTextDisabled: {
-    color: colors.textSecondary,
   },
 });

@@ -1,15 +1,16 @@
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
-  BentoEditorFooter,
-  BentoOptionalHint,
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
+  BentoEditorFooter,
 } from "@/components/bento";
 import { TwoToneCard } from "@/components/shared";
 import { SelectDropdown, TextField } from "@/components/ui";
-import type { LocalCategory } from "@/features/categories/hooks/useLocalCategories";
+import { colors } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
+import type { CategoryRow } from "@/features/categories/types";
 import {
   COUNTERPARTY_TYPE_OPTIONS,
   type CounterpartyType,
@@ -34,9 +35,9 @@ export type ManualAddTransactionEditorProps = {
   counterpartyName: string;
   onCounterpartyNameChange: (text: string) => void;
   categoriesLoading: boolean;
-  visibleCategories: LocalCategory[];
+  visibleCategories: CategoryRow[];
   categoryId: string | null;
-  onCategoryPress: (category: LocalCategory, selected: boolean) => void;
+  onCategoryPress: (category: CategoryRow, selected: boolean) => void;
   onAddCategory: () => void;
   addCategoryDisabled: boolean;
   note: string;
@@ -78,9 +79,9 @@ export const ManualAddTransactionEditor = memo(
     onIosDateChange,
     saveLoading,
     onSave,
-  onClear,
-}: ManualAddTransactionEditorProps) {
-    const optionalTag = <BentoOptionalHint />;
+    onClear,
+  }: ManualAddTransactionEditorProps) {
+    const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
 
     return (
       <TwoToneCard
@@ -156,5 +157,10 @@ const styles = StyleSheet.create({
     paddingTop: BENTO_FORM_SECTION_PADDING,
     paddingBottom: BENTO_FORM_SECTION_PADDING,
     gap: BENTO_FORM_BODY_GAP,
+  },
+  optionalHint: {
+    fontFamily: fontFamilies.regular,
+    color: colors.inactive,
+    fontSize: 12,
   },
 });

@@ -1,10 +1,23 @@
-import { Trash2 } from "lucide-react-native";
+import { Check, Trash2, type LucideIcon } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
 import { colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { NOTIFICATION_ROW_VISUALS } from "@/features/notifications/notificationBentoTokens";
+import {
+  NOTIFICATION_ACTION_WELL_SIZE,
+  NOTIFICATION_INBOX_TEXT,
+  NOTIFICATION_ROW_ACTIONS,
+  NOTIFICATION_ROW_VISUALS,
+  type NotificationActionAccent,
+} from "@/features/notifications/notificationBentoTokens";
 import type { AppNotification } from "@/features/notifications/types";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatNotificationTime } from "@/utils/dateTime";
@@ -13,22 +26,70 @@ export type NotificationBentoRowProps = {
   notification: AppNotification;
   unread: boolean;
   onPress: (notification: AppNotification) => void;
+  onMarkRead?: (id: string) => void;
   onDelete?: (id: string) => void;
   showSeparator?: boolean;
 };
 
-const ICON_WELL_SIZE = 44;
+const ICON_WELL_SIZE = 34;
+const READ_KIND_ICON_OPACITY = 0.55;
+
+type NotificationActionWellProps = {
+  accessibilityLabel: string;
+  icon: LucideIcon;
+  accent: NotificationActionAccent;
+  onPress: () => void;
+};
+
+const NotificationActionWell = memo(function NotificationActionWell({
+  accessibilityLabel,
+  icon: Icon,
+  accent,
+  onPress,
+}: NotificationActionWellProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={6}
+      onPress={() => {
+        void triggerLightHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => [pressed && styles.rowPressed]}
+    >
+      <View
+        style={[styles.actionWell, { backgroundColor: accent.backgroundColor }]}
+      >
+        <Icon size={15} color={accent.iconColor} strokeWidth={2} />
+      </View>
+    </Pressable>
+  );
+});
 
 export const NotificationBentoRow = memo(function NotificationBentoRow({
   notification,
   unread,
   onPress,
+  onMarkRead,
   onDelete,
   showSeparator = false,
 }: NotificationBentoRowProps) {
+  const showMarkRead = unread && onMarkRead != null;
+  const showActions = showMarkRead || onDelete != null;
   const visual = NOTIFICATION_ROW_VISUALS[notification.kind];
   const Icon = visual.icon;
   const timeLabel = formatNotificationTime(notification.createdAt);
+  const textColors = unread
+    ? NOTIFICATION_INBOX_TEXT.unread
+    : NOTIFICATION_INBOX_TEXT.read;
+
+  let kindIconWellStyle: StyleProp<ViewStyle> = {
+    backgroundColor: visual.backgroundColor,
+  };
+  if (!unread) {
+    kindIconWellStyle = [kindIconWellStyle, styles.kindIconWellRead];
+  }
 
   return (
     <View>
@@ -44,52 +105,52 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
             pressed && styles.rowPressed,
           ]}
         >
-          <View
-            style={[
-              styles.iconWell,
-              { backgroundColor: visual.backgroundColor },
-            ]}
-          >
-            <Icon size={22} color={visual.iconColor} strokeWidth={2} />
+          <View style={[styles.iconWell, kindIconWellStyle]}>
+            <Icon size={16} color={visual.iconColor} strokeWidth={2} />
           </View>
 
           <View style={styles.textCol}>
-            <View style={styles.titleRow}>
-              <Text
-                style={[styles.title, unread && styles.titleUnread]}
-                numberOfLines={2}
-              >
-                {notification.title}
-              </Text>
-              {unread ? <View style={styles.unreadDot} /> : null}
-            </View>
-            <Text style={styles.body} numberOfLines={2}>
+            <Text
+              style={[
+                styles.title,
+                unread ? styles.titleUnread : styles.titleRead,
+                { color: textColors.title },
+              ]}
+              numberOfLines={1}
+            >
+              {notification.title}
+            </Text>
+            <Text
+              style={[styles.body, { color: textColors.body }]}
+              numberOfLines={2}
+            >
               {notification.body}
             </Text>
-            <Text style={styles.time}>{timeLabel}</Text>
+            <Text style={[styles.time, { color: textColors.time }]}>
+              {timeLabel}
+            </Text>
           </View>
         </Pressable>
 
-        {onDelete ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete notification"
-            hitSlop={8}
-            onPress={() => {
-              void triggerLightHaptic();
-              onDelete(notification.id);
-            }}
-            style={({ pressed }) => [
-              styles.deleteButton,
-              pressed && styles.rowPressed,
-            ]}
-          >
-            <Trash2
-              size={18}
-              color={colors.textListSecondary}
-              strokeWidth={1.75}
-            />
-          </Pressable>
+        {showActions ? (
+          <View style={styles.actions}>
+            {showMarkRead ? (
+              <NotificationActionWell
+                accessibilityLabel="Mark as read"
+                icon={Check}
+                accent={NOTIFICATION_ROW_ACTIONS.markRead}
+                onPress={() => onMarkRead!(notification.id)}
+              />
+            ) : null}
+            {onDelete ? (
+              <NotificationActionWell
+                accessibilityLabel="Delete notification"
+                icon={Trash2}
+                accent={NOTIFICATION_ROW_ACTIONS.delete}
+                onPress={() => onDelete(notification.id)}
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
       {showSeparator ? <View style={styles.separator} /> : null}
@@ -100,15 +161,15 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: spacing.md,
-    minHeight: 56,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    minHeight: 44,
   },
   mainPressable: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
+    alignItems: "center",
+    gap: spacing.sm,
     minWidth: 0,
   },
   rowPressed: {
@@ -117,58 +178,54 @@ const styles = StyleSheet.create({
   iconWell: {
     width: ICON_WELL_SIZE,
     height: ICON_WELL_SIZE,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
+  },
+  kindIconWellRead: {
+    opacity: READ_KIND_ICON_OPACITY,
   },
   textCol: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
+    gap: 1,
   },
   title: {
-    flex: 1,
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.textPrimary,
+    fontSize: 13,
+    lineHeight: 17,
   },
   titleUnread: {
-    fontFamily: fontFamilies.semiBold,
+    fontFamily: fontFamilies.medium,
+  },
+  titleRead: {
+    fontFamily: fontFamilies.regular,
   },
   body: {
     fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
   },
   time: {
     fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textListSecondary,
-    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 13,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brandPrimary,
-    marginTop: 6,
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    alignSelf: "center",
   },
-  deleteButton: {
-    padding: spacing.xs,
-    marginTop: spacing.xs,
+  actionWell: {
+    width: NOTIFICATION_ACTION_WELL_SIZE,
+    height: NOTIFICATION_ACTION_WELL_SIZE,
+    borderRadius: NOTIFICATION_ACTION_WELL_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
-    marginLeft: ICON_WELL_SIZE + spacing.md,
-    marginVertical: spacing.xs,
+    marginLeft: ICON_WELL_SIZE + spacing.sm,
   },
 });

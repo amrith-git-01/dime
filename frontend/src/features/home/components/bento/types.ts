@@ -1,7 +1,7 @@
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import type { TransactionRow } from "@/features/transactions/types";
-import type { BentoCategoryItem } from "./BentoCategoryTile";
 
-export type HomeCategoryBentoItem = BentoCategoryItem;
+export type HomeTopCategoryItem = CategorySpendRowData;
 
 export type HomeBentoContentProps = {
   isError: boolean;
@@ -21,10 +21,11 @@ export type HomeBentoContentProps = {
   netDisplay: string;
   netValue: number;
   incomePending: boolean;
-  topCategories: HomeCategoryBentoItem[];
-  showCategoryProgress: boolean;
+  topCategories: HomeTopCategoryItem[];
+  monthlyBudgetAmount: number;
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
+  onCategoryPress: (item: HomeTopCategoryItem) => void;
   onNavigateBudgets: () => void;
   onAddMonthlyBudget: () => void;
   onAddDailyBudget: () => void;

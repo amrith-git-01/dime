@@ -19,11 +19,9 @@ export const HOME_SPEND_CHART_LABEL_HEIGHT = 16;
 export const HOME_SPEND_CHART_BAR_HEIGHT =
   HOME_SPEND_RING_SIZE - HOME_SPEND_CHART_LABEL_HEIGHT;
 
-export const HOME_CATEGORY_TILE_MIN_HEIGHT = bentoTileMinHeight.homeCategory;
-
 export const HOME_INCOME_TILE_MIN_HEIGHT = bentoTileMinHeight.homeIncome;
 
-/** Max categories shown in bento grid (2×2). */
+/** Max categories shown in the home top-categories list. */
 export const HOME_MAX_CATEGORIES = 4;
 
 /** Max recent transactions shown in mini-bento stack. */

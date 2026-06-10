@@ -23,6 +23,7 @@ export type MainStackParamList = {
       }
     | undefined;
   CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  EditCategory: { categoryId: string };
   EditMonthlyBudget:
     | {
         mode?: "create" | "edit";
@@ -31,6 +32,40 @@ export type MainStackParamList = {
       }
     | undefined;
   TransactionDetail: { transaction: TransactionRow };
+  TransactionsList:
+    | {
+        filter: "day";
+        year: number;
+        monthIndex0: number;
+        dayKey: string;
+      }
+    | {
+        filter: "payee";
+        year: number;
+        monthIndex0: number;
+        payeeKey: string;
+        payeeKeysTop: string[];
+        payeeDisplayName: string;
+      }
+    | {
+        filter: "category";
+        year: number;
+        monthIndex0: number;
+        categoryId: string;
+        categoryDisplayName: string;
+      };
+  InsightsMonthCompare: {
+    monthA: {
+      year: number;
+      monthIndex0: number;
+      label: string;
+    };
+    monthB: {
+      year: number;
+      monthIndex0: number;
+      label: string;
+    };
+  };
 };
 
 export type RootStackParamList = {

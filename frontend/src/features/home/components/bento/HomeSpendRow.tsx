@@ -20,6 +20,7 @@ export type HomeSpendRowProps = {
   last7DaysSpend: { date: string; total: number }[];
   onAddMonthlyBudget: () => void;
   onAddDailyBudget: () => void;
+  isLoading?: boolean;
 };
 
 /**
@@ -39,6 +40,7 @@ export const HomeSpendRow = memo(function HomeSpendRow({
   last7DaysSpend,
   onAddMonthlyBudget,
   onAddDailyBudget,
+  isLoading = false,
 }: HomeSpendRowProps) {
   return (
     <View style={styles.row}>
@@ -49,6 +51,7 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         last7DaysSpend={last7DaysSpend}
         hasDailyBudget={hasDailyBudget}
         onAddDailyBudget={onAddDailyBudget}
+        isLoading={isLoading}
       />
 
       <HomeMonthTile
@@ -58,6 +61,7 @@ export const HomeSpendRow = memo(function HomeSpendRow({
         monthlyProgress={monthlyProgress}
         hasMonthlyBudget={hasMonthlyBudget}
         onAddMonthlyBudget={onAddMonthlyBudget}
+        isLoading={isLoading}
       />
     </View>
   );

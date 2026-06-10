@@ -1,7 +1,6 @@
-export { HeroSummaryCard } from "./HeroSummaryCard";
 export {
-  HomeBentoContent,
   HOME_MAX_CATEGORIES,
+  HomeBentoContent,
   type HomeBentoContentProps,
-  type HomeCategoryBentoItem,
+  type HomeTopCategoryItem,
 } from "./bento";

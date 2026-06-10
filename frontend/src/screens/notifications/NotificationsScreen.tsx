@@ -3,13 +3,13 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { BENTO_SECTION_GAP } from "@/components/bento";
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
 import { TwoToneEmptyState } from "@/components/shared";
-import { colors } from "@/constants";
+import { spacing } from "@/constants";
+import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
@@ -36,7 +36,7 @@ export default function NotificationsScreen() {
     markRead,
     deleteNotification,
     isUnread,
-    isLoading,
+    isInitialLoading,
     isError,
   } = useNotificationsFeed();
 
@@ -76,6 +76,13 @@ export default function NotificationsScreen() {
     [markRead, navigation, queryClient, showToast],
   );
 
+  const handleMarkRead = useCallback(
+    (id: string) => {
+      markRead(id);
+    },
+    [markRead],
+  );
+
   const handleDelete = useCallback(
     (id: string) => {
       deleteNotification(id);
@@ -83,12 +90,8 @@ export default function NotificationsScreen() {
     [deleteNotification],
   );
 
-  if (isLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.brandPrimary} />
-      </View>
-    );
+  if (isInitialLoading) {
+    return <NotificationsInboxSkeleton />;
   }
 
   if (isError) {
@@ -127,13 +130,14 @@ export default function NotificationsScreen() {
       ) : (
         <View style={styles.sections}>
           {groups.map((group) => (
-            <SettingsSection key={group.key} title={group.title}>
+            <SettingsSection key={group.key} title={group.title} compact>
               {group.items.map((item, index) => (
                 <NotificationBentoRow
                   key={item.id}
                   notification={item}
                   unread={isUnread(item)}
                   onPress={handlePress}
+                  onMarkRead={handleMarkRead}
                   onDelete={handleDelete}
                   showSeparator={index < group.items.length - 1}
                 />
@@ -149,18 +153,13 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   root: {
     flexGrow: 1,
-    gap: BENTO_SECTION_GAP,
+    gap: spacing.md,
   },
   sections: {
-    gap: BENTO_SECTION_GAP,
+    gap: spacing.md,
   },
   filterEmptyWrap: {
     flexGrow: 1,
-    justifyContent: "center",
-  },
-  centered: {
-    flexGrow: 1,
-    alignItems: "center",
     justifyContent: "center",
   },
 });

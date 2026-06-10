@@ -6,10 +6,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Alert, Keyboard, Platform } from "react-native";
 
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
-import {
-  useLocalCategories,
-  type LocalCategory,
-} from "@/features/categories/hooks/useLocalCategories";
+import { useCategories } from "@/features/categories/hooks/useCategories";
+import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
@@ -48,7 +46,7 @@ export function useManualAddTransactionScreenModel() {
     transactionAt,
     txType,
   } = form;
-  const { data: categories, loading: categoriesLoading } = useLocalCategories();
+  const { categories, isLoading: categoriesLoading } = useCategories();
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
@@ -147,16 +145,8 @@ export function useManualAddTransactionScreenModel() {
       );
       return;
     }
-    const selectedCategory = categories.find((c) => c.id === categoryId);
     try {
-      await submitMutation.mutateAsync({
-        body: payload,
-        categoryMeta: {
-          categoryName: selectedCategory?.name ?? payload.category,
-          categoryIconName: selectedCategory?.icon_name ?? null,
-          categoryColor: selectedCategory?.color ?? null,
-        },
-      });
+      await submitMutation.mutateAsync({ body: payload });
       showToast({
         variant: "success",
         message: "Transaction added",
@@ -176,16 +166,7 @@ export function useManualAddTransactionScreenModel() {
         },
       });
     }
-  }, [
-    authReady,
-    buildPayload,
-    categories,
-    categoryId,
-    navigation,
-    showToast,
-    submitMutation,
-    userId,
-  ]);
+  }, [authReady, buildPayload, navigation, showToast, submitMutation, userId]);
 
   const setExpenseType = useCallback(() => {
     void triggerLightHaptic();
@@ -198,7 +179,7 @@ export function useManualAddTransactionScreenModel() {
   }, [setTxType]);
 
   const handleCategoryPress = useCallback(
-    (category: LocalCategory, selected: boolean) => {
+    (category: CategoryRow, selected: boolean) => {
       void triggerLightHaptic();
       if (selected) {
         clearCategory();

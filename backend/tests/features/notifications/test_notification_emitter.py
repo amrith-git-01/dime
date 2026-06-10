@@ -46,10 +46,26 @@ def test_emit_budget_threshold_dedupe_month() -> None:
     emitter = NotificationEmitter(repo)
     emitter.emit_budget_threshold(
         user_id=_USER,
+        scope="monthly",
+        period_key="2026-05",
         threshold=80,
-        month_key="2026-05",
         title="80% of monthly budget used",
         body="You've spent ₹20,000 of ₹25,000 this month.",
     )
     row = repo.insert_deduped.call_args.args[0]
     assert row["dedupe_key"] == "budget:monthly:80:2026-05"
+
+
+def test_emit_budget_threshold_dedupe_daily() -> None:
+    repo = MagicMock()
+    emitter = NotificationEmitter(repo)
+    emitter.emit_budget_threshold(
+        user_id=_USER,
+        scope="daily",
+        period_key="2026-05-31",
+        threshold=100,
+        title="Daily budget exceeded",
+        body="You're ₹50 over your ₹500 daily budget.",
+    )
+    row = repo.insert_deduped.call_args.args[0]
+    assert row["dedupe_key"] == "budget:daily:100:2026-05-31"

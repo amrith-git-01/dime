@@ -1,16 +1,8 @@
 import { FlashList } from "@shopify/flash-list";
 import { LayoutGrid } from "lucide-react-native";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
-import {
-  BUDGET_ROW_HEIGHT_SPENT_ONLY,
-  BUDGET_ROW_HEIGHT_WITH_PROGRESS,
-  BudgetCategoriesSectionHeader,
-  BudgetCategoryRowsSkeleton,
-  BudgetMonthBentoCard,
-  BudgetMonthBentoSkeleton,
-} from "@/features/budgets/components";
 import {
   CategorySpendBentoRow,
   type CategorySpendRowData,
@@ -18,8 +10,18 @@ import {
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { TwoToneEmptyState } from "@/components/shared";
 import { colors, spacing } from "@/constants";
+import {
+  BUDGET_ROW_HEIGHT_SPENT_ONLY,
+  BUDGET_ROW_HEIGHT_WITH_PROGRESS,
+  BudgetCategoriesSectionHeader,
+  BudgetCategoryRowsSkeleton,
+  BudgetMonthBentoCard,
+} from "@/features/budgets/components";
 
-import { useBudgetScreenModel } from "./useBudgetScreenModel";
+import {
+  UNCATEGORIZED_SPEND_KEY,
+  useBudgetScreenModel,
+} from "./useBudgetScreenModel";
 
 const CategoryListSeparator = memo(function CategoryListSeparator() {
   return <View style={styles.separator} />;
@@ -35,12 +37,21 @@ const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
   default: 240,
 }) as number;
 
+function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
+  return (
+    item.id !== UNCATEGORIZED_SPEND_KEY && item.name !== "Unknown category"
+  );
+}
+
 export default function BudgetScreen() {
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const {
     addCustomCategoryDisabled,
     budgetListKey,
     handleAddCustomCategory,
     handleEditBudget,
+    handleEditCategory,
+    openCategoryTransactions,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
@@ -52,7 +63,6 @@ export default function BudgetScreen() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
-    showSummarySkeleton,
     summaryLoading,
   } = useBudgetScreenModel();
 
@@ -62,17 +72,27 @@ export default function BudgetScreen() {
         item={item}
         hasMonthlyBudget={hasMonthlyBudget}
         monthlyBudgetAmount={monthlyBudgetAmount}
+        onPress={() => openCategoryTransactions(item)}
+        onEditPress={
+          isBudgetCategoryEditable(item)
+            ? () => handleEditCategory(item.id)
+            : undefined
+        }
       />
     ),
-    [hasMonthlyBudget, monthlyBudgetAmount],
+    [
+      handleEditCategory,
+      hasMonthlyBudget,
+      monthlyBudgetAmount,
+      openCategoryTransactions,
+    ],
   );
 
   const overrideItemLayout = useCallback(
-    (
-      layout: { span?: number; size?: number },
-      _item: CategorySpendRowData,
-    ) => {
-      layout.size = hasMonthlyBudget
+    (layout: { span?: number; size?: number }, item: CategorySpendRowData) => {
+      const hasCategoryCap = (item.monthlyCap ?? 0) > 0;
+      const showProgress = hasCategoryCap || hasMonthlyBudget;
+      layout.size = showProgress
         ? BUDGET_ROW_HEIGHT_WITH_PROGRESS
         : BUDGET_ROW_HEIGHT_SPENT_ONLY;
     },
@@ -109,26 +129,24 @@ export default function BudgetScreen() {
     <TabScreenShell>
       <View style={styles.screen}>
         <View style={styles.summarySlot}>
-          {showSummarySkeleton ? (
-            <BudgetMonthBentoSkeleton />
-          ) : (
-            <BudgetMonthBentoCard
-              selectedMonth={selectedMonth.label}
-              monthOptions={monthOptions}
-              onSelectMonth={handleSelectBudgetMonth}
-              hasMonthlyBudget={hasMonthlyBudget}
-              summary={monthSummary}
-              summaryLoading={summaryLoading}
-              summaryFailed={monthSummaryFailed}
-              onEditBudget={handleEditBudget}
-              onSetBudget={handleSetBudget}
-            />
-          )}
+          <BudgetMonthBentoCard
+            selectedMonth={selectedMonth.label}
+            monthOptions={monthOptions}
+            onSelectMonth={handleSelectBudgetMonth}
+            hasMonthlyBudget={hasMonthlyBudget}
+            summary={monthSummary}
+            summaryLoading={summaryLoading}
+            summaryFailed={monthSummaryFailed}
+            onEditBudget={handleEditBudget}
+            onSetBudget={handleSetBudget}
+            onMonthMenuOpenChange={setMonthMenuOpen}
+          />
         </View>
 
         <FlashList
           key={budgetListKey}
           style={styles.list}
+          scrollEnabled={!monthMenuOpen}
           data={listData}
           extraData={listExtraData}
           keyExtractor={(item) => item.id}

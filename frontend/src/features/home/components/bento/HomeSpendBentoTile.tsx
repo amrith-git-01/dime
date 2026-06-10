@@ -12,6 +12,8 @@ import {
 import { bento, colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
+import { SkeletonStrip } from "@/components/ui";
+
 import { BentoAmountRow } from "./BentoAmountRow";
 import { HOME_SPEND_FLEX } from "./homeBentoTokens";
 
@@ -27,6 +29,7 @@ type HomeSpendBentoTileProps = {
   onAddBudget: () => void;
   addBudgetLabel: string;
   addBudgetAccessibilityLabel: string;
+  isLoading?: boolean;
   bodyStyle?: StyleProp<ViewStyle>;
   children: ReactNode;
 };
@@ -84,10 +87,12 @@ export const HomeSpendBentoTile = memo(function HomeSpendBentoTile({
   onAddBudget,
   addBudgetLabel,
   addBudgetAccessibilityLabel,
+  isLoading = false,
   bodyStyle,
   children,
 }: HomeSpendBentoTileProps) {
   const theme = TILE_THEMES[variant];
+  const footerSkeletonTone = variant === "today" ? "onPrimary" : "surface";
 
   return (
     <View
@@ -115,12 +120,18 @@ export const HomeSpendBentoTile = memo(function HomeSpendBentoTile({
         </Text>
       </View>
 
-      <BentoAmountRow amount={amount} variant={theme.amountVariant} />
+      <BentoAmountRow
+        amount={amount}
+        variant={theme.amountVariant}
+        isLoading={isLoading}
+      />
 
       <View style={[styles.body, bodyStyle]}>{children}</View>
 
       <View style={styles.footer}>
-        {subtext.trim().length > 0 ? (
+        {isLoading ? (
+          <SkeletonStrip variant="subtext" tone={footerSkeletonTone} />
+        ) : subtext.trim().length > 0 ? (
           <Text
             style={[styles.subtext, { color: theme.subtextColor }]}
             numberOfLines={2}

@@ -89,6 +89,7 @@ export const surfaces = {
   iconWellDanger: "rgba(220, 38, 38, 0.1)",
   dangerTint06: "rgba(220, 38, 38, 0.06)",
   dangerTint08: "rgba(220, 38, 38, 0.08)",
+  successTint14: "rgba(22, 163, 74, 0.14)",
   onPrimaryChipBg: "rgba(255,255,255,0.1)",
   whiteOverlay55: "rgba(255, 255, 255, 0.55)",
   whiteOverlay92: "rgba(255,255,255,0.92)",
@@ -104,6 +105,23 @@ export const progressBar = {
 export const skeleton = {
   surface: "rgba(99, 85, 232, 0.12)",
   onPrimary: "rgba(255, 255, 255, 0.24)",
+} as const;
+
+/** Insights charts — net bars, tooltips, categorical payee / expense hues. */
+export const charts = {
+  tooltipScrim: "rgba(10, 10, 31, 0.06)",
+  netSurplusBar: "rgba(22, 163, 74, 0.32)",
+  netDeficitBar: "rgba(220, 38, 38, 0.32)",
+  /** Distinct slice / bar colors (not brand primary / indigo). */
+  payeeSliceColors: [
+    "#0D9488",
+    "#EA580C",
+    "#DB2777",
+    "#0284C7",
+    "#CA8A04",
+    "#059669",
+  ] as const,
+  payeeOther: "#9CA3AF",
 } as const;
 
 export type ColorToken = keyof typeof colors;

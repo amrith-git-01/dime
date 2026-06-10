@@ -1,6 +1,34 @@
+import type { Session } from "@supabase/supabase-js";
 import { createMMKV } from "react-native-mmkv";
 
 const authMmkv = createMMKV({ id: "supabase-auth" });
+
+function findAuthTokenStorageKey(): string | undefined {
+  return authMmkv.getAllKeys().find((key) => key.endsWith("-auth-token"));
+}
+
+/** Synchronous read of the persisted Supabase session (no network). */
+export function readStoredAuthSession(): Session | null {
+  const key = findAuthTokenStorageKey();
+  if (!key) {
+    return null;
+  }
+
+  const raw = authMmkv.getString(key);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(raw) as Session;
+    if (!session?.access_token || !session.user?.id) {
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
 
 export const supabaseAuthMmkvStorage = {
   getItem: (key: string): Promise<string | null> => {

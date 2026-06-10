@@ -4,11 +4,12 @@ import { StyleSheet } from "react-native";
 import { spacing } from "@/constants";
 
 import { BentoSevenDayBarChart } from "./BentoSevenDayBarChart";
-import { HomeSpendBentoTile } from "./HomeSpendBentoTile";
+import { BentoSevenDayBarChartSkeleton } from "./BentoSevenDayBarChartSkeleton";
 import {
   HOME_SPEND_CHART_BAR_HEIGHT,
   HOME_SPEND_RING_SIZE,
 } from "./homeBentoTokens";
+import { HomeSpendBentoTile } from "./HomeSpendBentoTile";
 
 type HomeTodayTileProps = {
   dayLabel: string;
@@ -17,6 +18,7 @@ type HomeTodayTileProps = {
   last7DaysSpend: { date: string; total: number }[];
   hasDailyBudget: boolean;
   onAddDailyBudget: () => void;
+  isLoading?: boolean;
 };
 
 /** Spent Today — 7-day chart in shared spend bento shell. */
@@ -27,6 +29,7 @@ export const HomeTodayTile = memo(function HomeTodayTile({
   last7DaysSpend,
   hasDailyBudget,
   onAddDailyBudget,
+  isLoading = false,
 }: HomeTodayTileProps) {
   return (
     <HomeSpendBentoTile
@@ -39,12 +42,17 @@ export const HomeTodayTile = memo(function HomeTodayTile({
       onAddBudget={onAddDailyBudget}
       addBudgetLabel="Add daily budget"
       addBudgetAccessibilityLabel="Add daily budget"
+      isLoading={isLoading}
       bodyStyle={styles.chartWrap}
     >
-      <BentoSevenDayBarChart
-        days={last7DaysSpend}
-        height={HOME_SPEND_CHART_BAR_HEIGHT}
-      />
+      {isLoading ? (
+        <BentoSevenDayBarChartSkeleton />
+      ) : (
+        <BentoSevenDayBarChart
+          days={last7DaysSpend}
+          height={HOME_SPEND_CHART_BAR_HEIGHT}
+        />
+      )}
     </HomeSpendBentoTile>
   );
 });

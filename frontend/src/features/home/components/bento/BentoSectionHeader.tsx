@@ -1,10 +1,9 @@
-import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_HEADER_GAP } from "@/components/bento";
-import { colors, typography } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { BentoActionPill } from "@/components/shared";
+import { typography } from "@/constants";
 
 export type BentoSectionHeaderProps = {
   title: string;
@@ -12,7 +11,7 @@ export type BentoSectionHeaderProps = {
   onViewAll: () => void;
 };
 
-/** Section title + "View all" row for Home bento sections. */
+/** Section title + pill "View all" for Home bento sections. */
 export const BentoSectionHeader = memo(function BentoSectionHeader({
   title,
   viewAllLabel = "View all",
@@ -21,17 +20,11 @@ export const BentoSectionHeader = memo(function BentoSectionHeader({
   return (
     <View style={styles.row}>
       <Text style={styles.title}>{title}</Text>
-      <Pressable
-        accessibilityRole="button"
+      <BentoActionPill
+        label={viewAllLabel}
         onPress={onViewAll}
-        style={({ pressed }) => [
-          styles.viewAll,
-          pressed && styles.viewAllPressed,
-        ]}
-      >
-        <Text style={styles.viewAllText}>{viewAllLabel}</Text>
-        <ChevronRight size={14} color={colors.primary} strokeWidth={2} />
-      </Pressable>
+        accessibilityLabel={`${viewAllLabel} ${title}`}
+      />
     </View>
   );
 });
@@ -45,19 +38,5 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.sectionTitle,
-  },
-  viewAll: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  viewAllPressed: {
-    opacity: 0.65,
-  },
-  viewAllText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.primary,
   },
 });

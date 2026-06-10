@@ -9,6 +9,9 @@ AGENTS.md
 # Superpowers agent specs, plans, and mockups
 docs/superpowers/
 
+# Local / agent design specs (not product docs)
+docs/specs/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -20,6 +23,8 @@ Thumbs.db
 # --- Frontend (Expo / React Native) ---
 node_modules/
 .expo/
+.expo-tmp-bundle/
+.expo-tmp-bundle-test/
 dist/
 web-build/
 .kotlin/

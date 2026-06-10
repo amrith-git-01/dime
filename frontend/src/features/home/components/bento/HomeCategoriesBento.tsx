@@ -1,95 +1,80 @@
 import { LayoutGrid } from "lucide-react-native";
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { BENTO_GAP } from "@/components/bento";
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
+import { CategorySpendList } from "@/components/categories/CategorySpendList";
 import {
   BentoQuickAddPills,
   BentoSectionCard,
   TwoToneEmptyState,
 } from "@/components/shared";
 
-import { BentoCategoryTile } from "./BentoCategoryTile";
-import { BentoSectionHeader } from "./BentoSectionHeader";
+import { BudgetCategoryRowsSkeleton } from "@/features/budgets/components";
 
+import { BentoSectionHeader } from "./BentoSectionHeader";
 import { HOME_MAX_CATEGORIES } from "./homeBentoTokens";
-import type { HomeCategoryBentoItem } from "./types";
 
 type HomeCategoriesBentoProps = {
-  items: HomeCategoryBentoItem[];
-  showProgress: boolean;
+  items: CategorySpendRowData[];
+  hasMonthlyBudget: boolean;
+  monthlyBudgetAmount: number;
+  isLoading?: boolean;
   onViewAll: () => void;
+  onCategoryPress: (item: CategorySpendRowData) => void;
   onManualAdd: () => void;
   onReceipt: () => void;
   onVoice: () => void;
 };
 
 /**
- * 2-column category bento grid inside a soft pastel section box.
+ * Top categories — same row layout as Budget "All categories".
  */
 export const HomeCategoriesBento = memo(function HomeCategoriesBento({
   items,
-  showProgress,
+  hasMonthlyBudget,
+  monthlyBudgetAmount,
   onViewAll,
+  onCategoryPress,
   onManualAdd,
   onReceipt,
   onVoice,
+  isLoading = false,
 }: HomeCategoriesBentoProps) {
-  const visible = items.slice(0, HOME_MAX_CATEGORIES);
-  const rows: HomeCategoryBentoItem[][] = [];
-  for (let i = 0; i < visible.length; i += 2) {
-    rows.push(visible.slice(i, i + 2));
-  }
+  const isEmpty = !isLoading && items.length === 0;
 
   return (
     <View>
       <BentoSectionHeader title="Top categories" onViewAll={onViewAll} />
 
-      <BentoSectionCard>
-        {visible.length === 0 ? (
-          <TwoToneEmptyState
-            layout="inline"
-            icon={LayoutGrid}
-            title="No spending yet this month"
-            message="Your categories will appear here once you add transactions."
-            footer={
-              <BentoQuickAddPills
-                onManualAdd={onManualAdd}
-                onReceipt={onReceipt}
-                onVoice={onVoice}
-              />
-            }
+      {isLoading ? (
+        <BentoSectionCard>
+          <BudgetCategoryRowsSkeleton rowCount={HOME_MAX_CATEGORIES} />
+        </BentoSectionCard>
+      ) : isEmpty ? (
+        <TwoToneEmptyState
+          layout="inline"
+          icon={LayoutGrid}
+          title="No spending yet this month"
+          message="Your categories will appear here once you add transactions."
+          footer={
+            <BentoQuickAddPills
+              onManualAdd={onManualAdd}
+              onReceipt={onReceipt}
+              onVoice={onVoice}
+            />
+          }
+        />
+      ) : (
+        <BentoSectionCard>
+          <CategorySpendList
+            items={items}
+            hasMonthlyBudget={hasMonthlyBudget}
+            monthlyBudgetAmount={monthlyBudgetAmount}
+            onCategoryPress={onCategoryPress}
           />
-        ) : (
-          <View style={styles.grid}>
-            {rows.map((row, rowIdx) => (
-              <View key={rowIdx} style={styles.row}>
-                {row.map((item) => (
-                  <BentoCategoryTile
-                    key={item.id}
-                    item={item}
-                    showProgress={showProgress}
-                  />
-                ))}
-                {row.length === 1 ? <View style={styles.tileSpacer} /> : null}
-              </View>
-            ))}
-          </View>
-        )}
-      </BentoSectionCard>
+        </BentoSectionCard>
+      )}
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  grid: {
-    gap: BENTO_GAP,
-  },
-  row: {
-    flexDirection: "row",
-    gap: BENTO_GAP,
-  },
-  tileSpacer: {
-    flex: 1,
-  },
 });
