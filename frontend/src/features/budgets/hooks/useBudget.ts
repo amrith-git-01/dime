@@ -3,7 +3,12 @@ import {
   upsertBudget,
   type UpsertBudgetInput,
 } from "@/features/budgets/api/budgetsApi";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 export const budgetQueryKey = ["budget"] as const;
 
@@ -12,6 +17,7 @@ export function useBudgetQuery(options?: { enabled?: boolean }) {
     queryKey: budgetQueryKey,
     queryFn: fetchBudget,
     enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
   });
 }
 

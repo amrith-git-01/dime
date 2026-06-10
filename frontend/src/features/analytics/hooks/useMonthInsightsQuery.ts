@@ -5,8 +5,6 @@ import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
-const STALE_MS = 5 * 60 * 1000;
-
 export function useMonthInsightsQuery(
   year: number,
   monthIndex0: number,
@@ -20,7 +18,6 @@ export function useMonthInsightsQuery(
     queryKey: insightsQueryKeys.month(userId, year, calendarMonth, timezone),
     queryFn: () => fetchMonthInsights({ year, month: calendarMonth, timezone }),
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
-    staleTime: STALE_MS,
     placeholderData: keepPreviousData,
   });
 }

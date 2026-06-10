@@ -14,7 +14,6 @@ export function useCategoriesQuery() {
     queryKey: categoriesQueryKeys.list(),
     queryFn: fetchCategories,
     enabled: authReady && Boolean(userId),
-    staleTime: 15 * 60 * 1000,
     select: sortCategories,
   });
 }

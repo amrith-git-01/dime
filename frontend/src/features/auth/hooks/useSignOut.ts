@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { clearDimeAuthTokenCache } from "@/lib/api/dimeApi";
+import { clearPersistedNotifications } from "@/lib/notifications/notificationsMmkv";
 import { clearQueryMmkv } from "@/lib/queryPersister";
 import { supabase } from "@/lib/supabase/client";
 import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
@@ -27,6 +28,7 @@ export function useSignOut() {
       clearSupabaseAuthMmkv();
       clearDimeAuthTokenCache();
       clearQueryMmkv();
+      clearPersistedNotifications();
       useCurrentUserStore.getState().clearProfile();
       queryClient.clear();
     } finally {
