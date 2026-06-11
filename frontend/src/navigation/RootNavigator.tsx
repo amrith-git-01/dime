@@ -1,12 +1,10 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { Session } from "@supabase/supabase-js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { SplashBrandedShell } from "@/components/app/SplashBrandedShell";
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
-import { splashBackgroundColor } from "@/constants/splash";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
@@ -33,9 +31,23 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-/** Stack placeholder while `/me` resolves — splash overlay covers this. */
-function ResolvingStackPlaceholder() {
-  return <View style={styles.resolvingPlaceholder} />;
+type RootAppRoute = "auth" | "bootstrapping" | "setup" | "main";
+
+function resolveRootAppRoute(
+  session: Session | null,
+  profileGateReady: boolean,
+  hasUsername: boolean,
+): RootAppRoute {
+  if (!session) {
+    return "auth";
+  }
+  if (!profileGateReady) {
+    return "bootstrapping";
+  }
+  if (!hasUsername) {
+    return "setup";
+  }
+  return "main";
 }
 
 export default function RootNavigator() {
@@ -43,9 +55,6 @@ export default function RootNavigator() {
   const [session, setSession] = useState<Session | null>(() =>
     readStoredAuthSession(),
   );
-  const justLoggedInRef = useRef(false);
-  const authBootstrappedRef = useRef(false);
-  const previousSessionRef = useRef<Session | null>(null);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data: { session: initial } }) => {
@@ -63,24 +72,6 @@ export default function RootNavigator() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!authBootstrappedRef.current) {
-      authBootstrappedRef.current = true;
-      previousSessionRef.current = session;
-      return;
-    }
-
-    if (previousSessionRef.current === null && session !== null) {
-      justLoggedInRef.current = true;
-    }
-
-    if (session === null) {
-      justLoggedInRef.current = false;
-    }
-
-    previousSessionRef.current = session;
-  }, [session]);
-
   const profileUserId = session?.user.id;
   useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
@@ -90,62 +81,34 @@ export default function RootNavigator() {
   const resolvedProfile = meQuery.data ?? cachedProfile;
   const hasUsername = hasEstablishedUsername(resolvedProfile);
 
-  const { profileGateReady, needsProfileSetup } = useMemo(() => {
-    if (!session) {
-      return { profileGateReady: true, needsProfileSetup: false };
-    }
+  const profileGateReady = !session || meQuery.isFetched || hasUsername;
 
-    const gateReady = meQuery.isFetched || hasUsername;
-    const needsSetup = gateReady && !hasUsername;
-
-    return { profileGateReady: gateReady, needsProfileSetup: needsSetup };
-  }, [session, meQuery.isFetched, hasUsername]);
+  const route = useMemo(
+    () => resolveRootAppRoute(session, profileGateReady, hasUsername),
+    [session, profileGateReady, hasUsername],
+  );
 
   useEffect(() => {
-    if (profileGateReady) {
-      justLoggedInRef.current = false;
-    }
-  }, [profileGateReady]);
-
-  const resolvingProfile = Boolean(session && !profileGateReady);
-  const resolvingAfterLogin = resolvingProfile && justLoggedInRef.current;
-  const showAuth = !session || resolvingAfterLogin;
-
-  useEffect(() => {
-    const ready = !session || profileGateReady;
-    setContentReady(ready && !resolvingAfterLogin);
-  }, [session, profileGateReady, resolvingAfterLogin, setContentReady]);
+    setContentReady(route !== "bootstrapping");
+  }, [route, setContentReady]);
 
   return (
     <View style={styles.root}>
-      <Stack.Navigator screenOptions={rootStackScreenOptions}>
-        {showAuth ? (
-          <Stack.Screen name="Auth" component={AuthScreen} />
-        ) : resolvingProfile ? (
-          <Stack.Screen
-            name="SessionResolving"
-            component={ResolvingStackPlaceholder}
-          />
-        ) : needsProfileSetup ? (
-          <Stack.Screen
-            name="ProfileSetup"
-            component={ProfileSetupScreen}
-            options={{ gestureEnabled: false }}
-          />
-        ) : (
-          <Stack.Screen name="Main" component={MainStackNavigator} />
-        )}
-      </Stack.Navigator>
-
-      {resolvingProfile ? (
-        <View
-          style={styles.resolvingOverlay}
-          accessibilityLabel="Loading"
-          pointerEvents="auto"
-        >
-          <SplashBrandedShell />
-        </View>
-      ) : null}
+      {route === "bootstrapping" ? null : (
+        <Stack.Navigator screenOptions={rootStackScreenOptions}>
+          {route === "auth" ? (
+            <Stack.Screen name="Auth" component={AuthScreen} />
+          ) : route === "setup" ? (
+            <Stack.Screen
+              name="ProfileSetup"
+              component={ProfileSetupScreen}
+              options={{ gestureEnabled: false }}
+            />
+          ) : (
+            <Stack.Screen name="Main" component={MainStackNavigator} />
+          )}
+        </Stack.Navigator>
+      )}
     </View>
   );
 }
@@ -154,12 +117,5 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.pageBackground,
-  },
-  resolvingPlaceholder: {
-    flex: 1,
-    backgroundColor: splashBackgroundColor,
-  },
-  resolvingOverlay: {
-    ...StyleSheet.absoluteFillObject,
   },
 });

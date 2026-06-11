@@ -115,12 +115,9 @@ export default function App() {
       return;
     }
 
-    const applyAndroidNavBarStyle = async () => {
-      await NavigationBar.setButtonStyleAsync("light");
-      await NavigationBar.setBackgroundColorAsync(splashBackgroundColor);
-    };
-
-    void applyAndroidNavBarStyle();
+    // Edge-to-edge: nav bar is transparent; root view bg shows through.
+    // setBackgroundColorAsync is unsupported — only set button contrast.
+    NavigationBar.setStyle("light");
   }, []);
 
   useEffect(() => {
