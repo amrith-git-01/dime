@@ -23,7 +23,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#f9f9ff",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -59,11 +59,17 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
-          "resizeMode": "cover",
+          "image": "./assets/images/splash-wordmark.png",
+          "resizeMode": "contain",
           "backgroundColor": "#f9f9ff",
           "dark": {
             "backgroundColor": "#f9f9ff"
+          },
+          "ios": {
+            "imageWidth": 300
+          },
+          "android": {
+            "imageWidth": 168
           }
         }
       ],
