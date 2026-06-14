@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -18,29 +16,19 @@ class ReflectionResult(BaseModel):
     reason: str
     next_sql_hint: str | None = None
 
-class AgentThreadResponse(BaseModel):
-    id: UUID
-    title: str
-    created_at: datetime
-    updated_at: datetime
-
-class AgentMessageResponse(BaseModel):
-    id: UUID
-    thread_id: UUID
-    role: Literal["user", "assistant", "system"]
-    content: str
-    blocks_json: list[dict[str, Any]] | None = None
-    deep_link_json: dict[str, Any] | None = None
-    created_at: datetime
-
-class CreateThreadRequest(BaseModel):
-    title: str | None = Field(default=None, max_length=120)
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=8000)
 
 class ChatRequest(BaseModel):
-    content: str = Field(..., min_length = 1, max_length=4000)
+    content: str = Field(..., min_length=1, max_length=4000)
     timezone: str | None = Field(
         default=None,
-        description = "IANA timezone from mobile, e.g. Asia/Kolkata"
+        description="IANA timezone from mobile, e.g. Asia/Kolkata",
+    )
+    history: list[ChatHistoryMessage] = Field(
+        default_factory=list,
+        description="Prior user/assistant turns from the client session",
     )
 
 class AgentBlockMetric(BaseModel):
@@ -72,42 +60,29 @@ AgentBlock = (
     | AgentBlockTxPreview
 )
 
-# SSE events
-class SseTokenEvent(BaseModel):
-    event: Literal["token"] = "token"
-    text: str
 
-class SseSqlStartEvent(BaseModel):
-    event: Literal["sql_start"] = "sql_start"
-    round: int
+class DonutSeriesItem(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    value: float = Field(..., gt=0)
 
 
-class SseSqlEndEvent(BaseModel):
-    event: Literal["sql_end"] = "sql_end"
-    round: int
-    row_count: int
-    summary: str
+class CashflowPoint(BaseModel):
+    date: str = Field(..., min_length=8, max_length=32)
+    amount: float = Field(..., ge=0)
 
 
-class SseReflectEvent(BaseModel):
-    event: Literal["reflect"] = "reflect"
-    status: Literal["sufficient", "retry", "give_up"]
-    reason: str
+class MiniChartPayload(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
+    series: list[DonutSeriesItem] | None = None
+    points: list[CashflowPoint] | None = None
 
-class SseBlockEvent(BaseModel):
-    event: Literal["block"] = "block"
-    block: dict[str, Any]
 
-class SseDeepLinkEvent(BaseModel):
-    event: Literal["deep_link"] = "deep_link"
-    screen: str
-    params: dict[str, Any]
+class ChatResponse(BaseModel):
+    answer: str = Field(..., min_length=1, max_length=4000)
+    blocks: list[dict[str, Any]] = Field(default_factory=list)
+    deep_link: dict[str, Any] | None = None
 
-class SseDoneEvent(BaseModel):
-    event: Literal["done"] = "done"
-    message_id: UUID
 
-class SseErrorEvent(BaseModel):
-    event: Literal["error"] = "error"
-    code: str
-    message: str
+class AgentRespondResult(BaseModel):
+    answer: str = Field(..., min_length=1, max_length=4000)
+    blocks: list[AgentBlockMiniChart] = Field(default_factory=list, max_length=1)

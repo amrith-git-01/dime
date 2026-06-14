@@ -69,6 +69,17 @@ SCHEMA_DOC = f"""
     WHERE t.type = 'debit' AND t.deleted_at IS NULL
     GROUP BY c.name
     ORDER BY total DESC;
+    -- Monthly budget vs spend (always join transactions for the spend side):
+    SELECT
+      b.monthly_budget,
+      COALESCE(SUM(t.amount), 0) AS spent
+    FROM budgets b
+    LEFT JOIN transactions t
+      ON t.type = 'debit'
+     AND t.deleted_at IS NULL
+     AND t.transaction_at >= '<month_start_iso>'
+     AND t.transaction_at <= '<month_end_iso>'
+    GROUP BY b.monthly_budget;
     """.strip()
 
 def get_schema_doc() -> str:
