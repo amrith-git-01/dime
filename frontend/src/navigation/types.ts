@@ -70,7 +70,6 @@ export type MainStackParamList = {
 
 export type RootStackParamList = {
   Auth: undefined;
-  SessionResolving: undefined;
   ProfileSetup: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;
 };

@@ -12,7 +12,7 @@ type InsightsChartsPresentation = {
  * Mounts Victory/Skia charts while Insights is focused.
  *
  * - Cached insights (MMKV): paint chart shell immediately — no skeleton flash.
- *   Charts stay mounted on blur; `focusGeneration` remounts them on return.
+ *   Charts stay mounted on blur; `focusGeneration` bumps only on first paint (not stack/tab return).
  * - No cache: defer mount until idle and unmount on blur (placeholder while waiting).
  */
 export function useDeferredHeavyCharts(
@@ -34,7 +34,12 @@ export function useDeferredHeavyCharts(
 
     if (!wasFocusedRef.current) {
       wasFocusedRef.current = true;
-      setFocusGeneration((generation) => generation + 1);
+      // Bump only while charts are still off-screen (first paint). Returning from a
+      // stack screen or tab keeps chartsReady true — remounting replays Victory pie
+      // slice grow from center and briefly fills the donut hole.
+      if (!chartsReady) {
+        setFocusGeneration((generation) => generation + 1);
+      }
     }
 
     if (hasCachedInsights) {

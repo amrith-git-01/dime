@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { Bell, Settings } from "lucide-react-native";
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   LayoutChangeEvent,
@@ -10,10 +10,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { colors, hero, overlays, spacing, typography } from "@/constants";
 import { useUserProfile } from "@/hooks/useUserProfile";
+
+import { HeaderGradientFill } from "./HeaderGradientFill";
 
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
@@ -43,8 +44,6 @@ export function AppHeader({
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
   const greeting = timeOfDayGreeting();
-  const gradientId = `appHeaderGrad_${useId().replace(/:/g, "")}`;
-  const [headerSize, setHeaderSize] = useState({ w: 0, h: 0 });
   const [avatarImageLoading, setAvatarImageLoading] = useState(true);
   const [avatarImageError, setAvatarImageError] = useState(false);
   const headerReadyNotifiedRef = useRef(false);
@@ -52,7 +51,6 @@ export function AppHeader({
   const onHeaderLayout = useCallback(
     (e: LayoutChangeEvent) => {
       const { width, height } = e.nativeEvent.layout;
-      setHeaderSize({ w: width, h: height });
       if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
         headerReadyNotifiedRef.current = true;
         onHeaderReady?.();
@@ -73,34 +71,7 @@ export function AppHeader({
         ]}
         onLayout={onHeaderLayout}
       >
-        {headerSize.w > 0 && headerSize.h > 0 ? (
-          <Svg
-            width={headerSize.w}
-            height={headerSize.h}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          >
-            <Defs>
-              <LinearGradient
-                id={gradientId}
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="100%"
-              >
-                <Stop offset="0%" stopColor={colors.headerGradientStart} />
-                <Stop offset="100%" stopColor={colors.headerGradientEnd} />
-              </LinearGradient>
-            </Defs>
-            <Rect
-              x={0}
-              y={0}
-              width={headerSize.w}
-              height={headerSize.h}
-              fill={`url(#${gradientId})`}
-            />
-          </Svg>
-        ) : null}
+        <HeaderGradientFill />
 
         <View
           style={[

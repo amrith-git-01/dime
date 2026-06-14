@@ -1,31 +1,23 @@
-import { Image, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 
-import { splashBackgroundColor } from "@/constants/splash";
+import {
+  SPLASH_WORDMARK_ASPECT,
+  SPLASH_WORDMARK_WIDTH_DP,
+  splashBackgroundColor,
+} from "@/constants/splash";
 
-const splashImage = require("../../../assets/images/splash.png");
+const splashWordmark = require("../../../assets/images/splash-wordmark.png");
 
-/** Full-screen branded splash — Dime wordmark only. */
-const WORDMARK_WIDTH_RATIO = 0.94;
-const WORDMARK_MAX_WIDTH = 640;
-/** Taller box so `resizeMode="contain"` scales up the centered letters in the PNG. */
-const WORDMARK_HEIGHT_RATIO = 0.32;
-
+/** Full-screen branded splash — matches native splash `imageWidth`. */
 export function SplashBrandedShell() {
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const wordmarkWidth = Math.min(
-    screenWidth * WORDMARK_WIDTH_RATIO,
-    WORDMARK_MAX_WIDTH,
-  );
-  const wordmarkHeight = Math.max(
-    screenHeight * WORDMARK_HEIGHT_RATIO,
-    wordmarkWidth * 0.55,
-  );
+  const wordmarkWidth = SPLASH_WORDMARK_WIDTH_DP;
+  const wordmarkHeight = wordmarkWidth / SPLASH_WORDMARK_ASPECT;
 
   return (
     <View style={styles.root}>
       <View style={styles.content}>
         <Image
-          source={splashImage}
+          source={splashWordmark}
           style={{ width: wordmarkWidth, height: wordmarkHeight }}
           resizeMode="contain"
           accessibilityIgnoresInvertColors
