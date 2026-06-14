@@ -4,11 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { Bar, CartesianChart, Line } from "victory-native";
 
 import { colors } from "@/constants";
-import {
-  INSIGHTS_CHART_BAR_ANIMATION,
-  INSIGHTS_CHART_LINE_ANIMATION,
-} from "@/features/analytics/constants/chartAnimation";
-import { useChartPathAnimation } from "@/features/analytics/hooks/useChartPathAnimation";
+import type { ChartPathAnimationConfig } from "@/features/analytics/constants/chartAnimation";
 
 import {
   NET_DEFICIT_BAR,
@@ -24,7 +20,8 @@ type CashflowChartRow = {
 };
 
 export type CashflowVictoryChartProps = {
-  animationKey: string;
+  /** Victory animates when the path changes — pass during zero → target entry. */
+  animate?: ChartPathAnimationConfig;
   chartData: CashflowChartRow[];
   domain: {
     x: [number, number];
@@ -50,7 +47,7 @@ export type CashflowVictoryChartProps = {
 };
 
 export const CashflowVictoryChart = memo(function CashflowVictoryChart({
-  animationKey,
+  animate,
   chartData,
   domain,
   barPadding,
@@ -61,15 +58,6 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
   chartPadding = { left: 6, right: 10, top: 8, bottom: 4 },
   domainPadding = { left: 10, right: 10, top: 8, bottom: 4 },
 }: CashflowVictoryChartProps) {
-  const barAnimate = useChartPathAnimation(
-    `${animationKey}:bar`,
-    INSIGHTS_CHART_BAR_ANIMATION,
-  );
-  const lineAnimate = useChartPathAnimation(
-    `${animationKey}:line`,
-    INSIGHTS_CHART_LINE_ANIMATION,
-  );
-
   const barCount = chartData.length;
 
   const lineProps = useMemo(
@@ -99,31 +87,6 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
             frame: "transparent",
           },
         }}
-        renderOutside={({ points, chartBounds }) => (
-          <Group
-            clip={rect(
-              chartBounds.left,
-              chartBounds.top,
-              chartBounds.right - chartBounds.left,
-              chartBounds.bottom - chartBounds.top,
-            )}
-          >
-            <Line
-              points={points.expense}
-              color={colors.danger}
-              strokeWidth={expenseStrokeWidth}
-              animate={lineAnimate}
-              {...lineProps}
-            />
-            <Line
-              points={points.income}
-              color={colors.success}
-              strokeWidth={incomeStrokeWidth}
-              animate={lineAnimate}
-              {...lineProps}
-            />
-          </Group>
-        )}
       >
         {({ points, chartBounds }) => (
           <>
@@ -133,7 +96,7 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
               color={NET_SURPLUS_BAR}
               innerPadding={barPadding}
               barCount={barCount}
-              animate={barAnimate}
+              animate={animate}
             />
             <Bar
               points={points.netDeficit}
@@ -141,8 +104,31 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
               color={NET_DEFICIT_BAR}
               innerPadding={barPadding}
               barCount={barCount}
-              animate={barAnimate}
+              animate={animate}
             />
+            <Group
+              clip={rect(
+                chartBounds.left,
+                chartBounds.top,
+                chartBounds.right - chartBounds.left,
+                chartBounds.bottom - chartBounds.top,
+              )}
+            >
+              <Line
+                points={points.expense}
+                color={colors.danger}
+                strokeWidth={expenseStrokeWidth}
+                animate={animate}
+                {...lineProps}
+              />
+              <Line
+                points={points.income}
+                color={colors.success}
+                strokeWidth={incomeStrokeWidth}
+                animate={animate}
+                {...lineProps}
+              />
+            </Group>
           </>
         )}
       </CartesianChart>

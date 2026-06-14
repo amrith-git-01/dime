@@ -104,6 +104,52 @@ class Settings(BaseSettings):
         default=32,
         validation_alias=AliasChoices("WORKER_QUEUE_MAXSIZE"),
     )
+    agent_base_url: str = Field(
+        default = "https://api.deepseek.com",
+        validation_alias=AliasChoices("AGENT_BASE_URL"),
+
+    )
+    agent_model: str = Field(
+        default="deepseek-v4-flash",
+        validation_alias=AliasChoices("AGENT_MODEL"),
+    )
+    agent_model_fallback: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AGENT_MODEL_FALLBACK"),
+    )
+    agent_thinking_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("AGENT_THINKING_ENABLED"),
+    )
+    agent_strict_tools: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("AGENT_STRICT_TOOLS"),
+    )
+    agent_max_tool_rounds: int = Field(
+        default=5,
+        validation_alias=AliasChoices("AGENT_MAX_TOOL_ROUNDS"),
+    )
+    agent_timeout_seconds: float = Field(
+        default=45.0,
+        validation_alias=AliasChoices("AGENT_TIMEOUT_SECONDS"),
+    )
+    agent_context_max_messages: int = Field(
+        default=20,
+        validation_alias=AliasChoices("AGENT_CONTEXT_MAX_MESSAGES"),
+    )
+    database_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL"),
+    )
+    agent_sql_timeout_seconds: float = Field(
+        default=3.0,
+        validation_alias=AliasChoices("AGENT_SQL_TIMEOUT_SECONDS"),
+    )
+    agent_sql_max_rows: int = Field(
+        default=500,
+        validation_alias=AliasChoices("AGENT_SQL_MAX_ROWS"),
+    )
+
 
 
 @lru_cache

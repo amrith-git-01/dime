@@ -36,6 +36,7 @@ import {
   createAppQueryClient,
 } from "@/lib/appBootstrap";
 import RootNavigator from "@/navigation/RootNavigator";
+import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
 
 GoogleSignin.configure({
@@ -87,11 +88,11 @@ function AppSplashCoordinator({
 function AppRoot() {
   return (
     <>
-      <NavigationContainer theme={appNavigationTheme}>
+      <NavigationContainer ref={navigationRef} theme={appNavigationTheme}>
         <RootNavigator />
+        <ReceiptScanBusyOverlay />
+        <VoiceCaptureBar />
       </NavigationContainer>
-      <ReceiptScanBusyOverlay />
-      <VoiceCaptureBar />
       <ToastHost />
     </>
   );
@@ -115,12 +116,9 @@ export default function App() {
       return;
     }
 
-    const applyAndroidNavBarStyle = async () => {
-      await NavigationBar.setButtonStyleAsync("light");
-      await NavigationBar.setBackgroundColorAsync(splashBackgroundColor);
-    };
-
-    void applyAndroidNavBarStyle();
+    // Edge-to-edge: nav bar is transparent; root view bg shows through.
+    // setBackgroundColorAsync is unsupported — only set button contrast.
+    NavigationBar.setStyle("light");
   }, []);
 
   useEffect(() => {

@@ -91,7 +91,7 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
   );
 
   return (
-    <View style={styles.wrap} pointerEvents="none">
+    <View style={styles.wrap}>
       <View style={styles.chartRow}>
         <View
           style={[

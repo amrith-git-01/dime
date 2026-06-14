@@ -40,6 +40,9 @@ export const timings = {
   listEntrance: { duration: 120, easing: Easing.inOut(Easing.ease) },
   tabTravelUp: { duration: 120, easing: Easing.inOut(Easing.ease) },
   tabTravelDown: { duration: 180, easing: Easing.inOut(Easing.ease) },
+  /** Agent FAB → modal (Material-style ease-out expand, ease-in collapse). */
+  agentExpand: { duration: 300, easing: Easing.out(Easing.cubic) },
+  agentCollapse: { duration: 220, easing: Easing.in(Easing.cubic) },
 } as const satisfies Record<string, WithTimingConfig>;
 
 /** Staggered list row entrance (home feed). */
