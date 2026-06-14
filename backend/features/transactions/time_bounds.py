@@ -53,6 +53,23 @@ def current_month_bounds_iso(tz_name: str) -> tuple[str, str]:
     return month_bounds_iso(now.year, now.month, tz_name)
 
 
+def previous_month_bounds_iso(
+    tz_name: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[str, str]:
+    """Calendar month immediately before ``now`` (or today) in ``tz_name``."""
+    tz = parse_tz(tz_name)
+    ref = now.astimezone(tz) if now is not None and now.tzinfo is not None else (
+        now.replace(tzinfo=tz) if now is not None else datetime.now(tz)
+    )
+    if ref.month == 1:
+        year, month = ref.year - 1, 12
+    else:
+        year, month = ref.year, ref.month - 1
+    return month_bounds_iso(year, month, tz_name)
+
+
 def last_n_days_bounds_iso(n: int, tz_name: str) -> tuple[str, str]:
     """Inclusive calendar-day window ending today in ``tz_name`` (``n`` >= 1)."""
     if n < 1:
