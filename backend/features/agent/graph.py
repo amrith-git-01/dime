@@ -5,6 +5,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 
 from core.config import get_settings
+from features.agent.nodes.clarify import clarify
 from features.agent.nodes.execute_sql import execute_sql
 from features.agent.nodes.generate_sql import generate_sql
 from features.agent.nodes.reflect import reflect
@@ -13,6 +14,13 @@ from features.agent.nodes.understand import understand_goal
 from features.agent.state import AgentState
 
 RouteAfterReflect = Literal["generate_sql", "respond"]
+RouteAfterUnderstand = Literal["generate_sql", "clarify"]
+
+
+def route_after_understand(state: AgentState) -> RouteAfterUnderstand:
+    if state.get("clarification"):
+        return "clarify"
+    return "generate_sql"
 
 
 def route_after_reflect(state: AgentState) -> RouteAfterReflect:
@@ -29,13 +37,15 @@ def build_agent_graph():
     graph = StateGraph(AgentState)
 
     graph.add_node("understand_goal", understand_goal)
+    graph.add_node("clarify", clarify)
     graph.add_node("generate_sql", generate_sql)
     graph.add_node("execute_sql", execute_sql)
     graph.add_node("reflect", reflect)
     graph.add_node("respond", respond)
 
     graph.add_edge(START, "understand_goal")
-    graph.add_edge("understand_goal", "generate_sql")
+    graph.add_conditional_edges("understand_goal", route_after_understand)
+    graph.add_edge("clarify", END)
     graph.add_edge("generate_sql", "execute_sql")
     graph.add_edge("execute_sql", "reflect")
     graph.add_conditional_edges("reflect", route_after_reflect)
