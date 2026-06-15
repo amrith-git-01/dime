@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.job_runner import start_workers, stop_workers
+from features.agent.sql_executor import close_sql_pool, init_sql_pool
 from routes import agent, budget, categories, health, me, notifications, profile, transactions
 
 logging.basicConfig(
@@ -18,6 +19,7 @@ logging.basicConfig(
 )
 logging.getLogger("features").setLevel(logging.INFO)
 logging.getLogger("core").setLevel(logging.INFO)
+logging.getLogger("features.agent.trace").setLevel(logging.INFO)
 
 _access_log = logging.getLogger("access")
 
@@ -46,11 +48,13 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await init_sql_pool()
     await start_workers(app)
     try:
         yield
     finally:
         await stop_workers(app)
+        await close_sql_pool()
 
 
 def create_application() -> FastAPI:

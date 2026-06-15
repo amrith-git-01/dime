@@ -149,6 +149,14 @@ class Settings(BaseSettings):
         default=500,
         validation_alias=AliasChoices("AGENT_SQL_MAX_ROWS"),
     )
+    agent_sql_pool_min: int = Field(
+        default=2,
+        validation_alias=AliasChoices("AGENT_SQL_POOL_MIN"),
+    )
+    agent_sql_pool_max: int = Field(
+        default=10,
+        validation_alias=AliasChoices("AGENT_SQL_POOL_MAX"),
+    )
 
 
 
