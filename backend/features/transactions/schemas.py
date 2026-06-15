@@ -185,3 +185,20 @@ class HomeOverviewResponse(BaseModel):
     top_categories: list[TopCategoryRow]
     recent_transactions: list[TransactionResponse]
     last_7_days_spend: list[DailySpendRow]
+
+
+class SmsMessageItem(BaseModel):
+    body: str = Field(..., min_length=1, max_length=2000)
+    received_at: datetime
+
+    @field_validator("body")
+    @classmethod
+    def strip_sms_body(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("body must not be blank")
+        return stripped
+
+
+class SmsBatchRequest(BaseModel):
+    messages: list[SmsMessageItem] = Field(..., min_length=1, max_length=50)

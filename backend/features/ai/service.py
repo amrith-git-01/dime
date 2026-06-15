@@ -88,6 +88,21 @@ class AIOrchestratorService:
             },
         )
 
+    async def parse_sms(
+        self,
+        sms_text: str,
+        allowed_categories: list[str],
+        category_options: list[dict[str, str]],
+    ) -> ParseExpenseResult:
+        return await self._parse_with_deepseek(
+            mode=ParseMode.sms,
+            payload={
+                "sms_text": sms_text,
+                "allowed_categories": allowed_categories,
+                "category_options": category_options,
+            },
+        )
+
     async def _parse_with_deepseek(
         self,
         mode: ParseMode,
@@ -430,4 +445,6 @@ class AIOrchestratorService:
         )
         if mode == ParseMode.receipt:
             return f"Auto-parsed from receipt for {name}."
+        if mode == ParseMode.sms:
+            return f"Auto-parsed from SMS for {name}."
         return f"Auto-parsed from voice input for {name}."

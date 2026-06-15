@@ -13,6 +13,7 @@ CounterpartyType = Literal["merchant", "person", "self_transfer", "unknown"]
 class ParseMode(str, Enum):
     receipt = "receipt"
     voice = "voice"
+    sms = "sms"
 
 class ExpenseType(str, Enum):
     debit = "debit"
