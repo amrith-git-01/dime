@@ -91,6 +91,31 @@ def build_receipt_parse_prompt(
 # ---------------------------------------------------------------------------
 
 
+def build_sms_parse_prompt(
+    context_text: str | None = None,
+    allowed_categories: list[str] | None = None,
+) -> str:
+    sms_text = context_text.strip() if context_text else "N/A"
+    return (
+        "Extract transaction from an Indian bank or UPI SMS below. Return ONLY valid JSON, no markdown.\n"
+        f"Schema: {_SCHEMA}\n"
+        "Rules:\n"
+        + _TYPE_RULES
+        + _DATE_RULES
+        + _COUNTERPARTY_RULES
+        + _category_block(allowed_categories)
+        + _NOTE_RULES
+        + "- Primary source: SMS body. Account numbers may already be masked.\n"
+        + "- Prefer merchant / UPI payee as counterparty_name, not the bank name.\n"
+        + "- Use SMS timestamp only if a calendar date is present; else null.\n"
+        + "- Failed or reversed still extract amount and type when present.\n"
+        + "- Use null for unknown fields. Never invent values.\n"
+        + "SMS text:\n---\n"
+        + sms_text
+        + "\n---"
+    )
+
+
 def build_voice_parse_prompt(
     context_text: str | None = None,
     allowed_categories: list[str] | None = None,

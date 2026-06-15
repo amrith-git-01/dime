@@ -5,6 +5,7 @@ from typing import Any
 from ..schemas import ParseMode
 from .transaction_parse_prompts import (
     build_receipt_parse_prompt,
+    build_sms_parse_prompt,
     build_voice_parse_prompt,
 )
 
@@ -19,6 +20,12 @@ def build_parse_prompt(mode: ParseMode, payload: dict[str, Any]) -> str:
     if mode == ParseMode.receipt:
         context = payload.get("text_context")
         return build_receipt_parse_prompt(
+            context if isinstance(context, str) else None,
+            allowed_categories=allowed_categories,
+        )
+    if mode == ParseMode.sms:
+        context = payload.get("sms_text")
+        return build_sms_parse_prompt(
             context if isinstance(context, str) else None,
             allowed_categories=allowed_categories,
         )
