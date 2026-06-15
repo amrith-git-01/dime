@@ -25,7 +25,17 @@ async def test_chat_returns_json_response(
                 "payload": {"series": []},
             }
         ],
-        "deep_link": {"screen": "transactions", "params": {"category": "food"}},
+        "deep_link": {
+            "screen": "TransactionsList",
+            "label": "View Food transactions",
+            "params": {
+                "filter": "category",
+                "year": 2026,
+                "monthIndex0": 2,
+                "categoryId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "categoryDisplayName": "Food",
+            },
+        },
     }
 
     async def fake_ainvoke(
@@ -57,4 +67,14 @@ async def test_chat_returns_json_response(
     assert isinstance(result, ChatResponse)
     assert result.answer == "You spent ₹3,200 on food."
     assert len(result.blocks) == 1
-    assert result.deep_link == {"screen": "transactions", "params": {"category": "food"}}
+    assert result.deep_link == {
+        "screen": "TransactionsList",
+        "label": "View Food transactions",
+        "params": {
+            "filter": "category",
+            "year": 2026,
+            "monthIndex0": 2,
+            "categoryId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "categoryDisplayName": "Food",
+        },
+    }
