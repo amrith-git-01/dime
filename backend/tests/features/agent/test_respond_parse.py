@@ -60,3 +60,42 @@ def test_parse_respond_json_trims_donut_slices() -> None:
     )
     result = parse_respond_json(raw)
     assert len(result.blocks[0].payload["series"]) == 8
+
+
+def test_parse_respond_json_deep_link() -> None:
+    raw = json.dumps(
+        {
+            "answer": "You had 12 Swiggy orders.",
+            "blocks": [],
+            "deep_link": {
+                "screen": "TransactionsList",
+                "label": "View Swiggy transactions",
+                "params": {
+                    "filter": "payee",
+                    "year": 2026,
+                    "monthIndex0": 5,
+                    "payeeKey": "swiggy",
+                    "payeeDisplayName": "Swiggy",
+                    "payeeKeysTop": [],
+                },
+            },
+        }
+    )
+    result = parse_respond_json(raw)
+    assert result.deep_link is not None
+    assert result.deep_link.params.filter == "payee"
+
+
+def test_parse_respond_json_drops_invalid_deep_link() -> None:
+    raw = json.dumps(
+        {
+            "answer": "Hello",
+            "blocks": [],
+            "deep_link": {
+                "screen": "TransactionsList",
+                "params": {"filter": "payee", "year": 2026, "monthIndex0": 5},
+            },
+        }
+    )
+    result = parse_respond_json(raw)
+    assert result.deep_link is None

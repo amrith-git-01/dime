@@ -53,6 +53,21 @@ def test_previous_month_phrase() -> None:
     assert result["end_date"] == "2026-05-31"
 
 
+def test_this_year_phrase() -> None:
+    fixed = datetime(2026, 6, 12, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+    result = resolve_time_range(
+        "List my uber transactions in this year",
+        timezone="Asia/Kolkata",
+        now=fixed,
+    )
+
+    assert result is not None
+    assert result["kind"] == "calendar_year"
+    assert result["start_date"] == "2026-01-01"
+    assert result["end_date"] == "2026-06-12"
+    assert result["day_count"] == 163
+
+
 def test_no_phrase_returns_none() -> None:
     result = resolve_time_range(
         "How much on groceries?",
