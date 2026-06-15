@@ -54,9 +54,7 @@ def test_prepend_temporal_context_places_now_before_system() -> None:
     assert combined.endswith("SYSTEM BODY")
 
 
-def test_timezone_context_section_alias_delegates() -> None:
-    from features.agent.timezone_context import timezone_context_section
-
-    section = timezone_context_section("Asia/Kolkata")
+def test_temporal_context_section_standalone() -> None:
+    section = temporal_context_section("Asia/Kolkata")
     assert "## NOW" in section
     assert "Asia/Kolkata" in section

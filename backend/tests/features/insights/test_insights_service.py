@@ -49,7 +49,7 @@ def test_build_daily_cashflow_fills_zero_days() -> None:
     assert empty.credit_total == "0"
 
 
-def test_roll_up_counterparty_top_six_plus_other() -> None:
+def test_roll_up_counterparty_top_four_plus_other() -> None:
     rows = []
     for i in range(8):
         rows.append(
@@ -61,11 +61,11 @@ def test_roll_up_counterparty_top_six_plus_other() -> None:
         )
     month_debit = sum(_to_decimal(r["amount"]) for r in rows)
     result = _roll_up_counterparty_spend(rows, month_debit_total=month_debit)
-    assert len(result) == 7
+    assert len(result) == 5
     assert result[0].transaction_count == 1
     assert result[-1].display_name == "Other"
     assert result[-1].payee_key == "__other__"
-    assert result[-1].transaction_count == 2
+    assert result[-1].transaction_count == 4
     shares = sum(r.share for r in result)
     assert 0.99 <= shares <= 1.01
 
