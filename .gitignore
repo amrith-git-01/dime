@@ -15,6 +15,9 @@ docs/superpowers/
 # Local / agent design specs (not product docs)
 docs/specs/
 
+# Local Supabase SQL (applied via DATABASE_URL; not product docs)
+docs/supabase/
+
 # OS
 .DS_Store
 Thumbs.db
