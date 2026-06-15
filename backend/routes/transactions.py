@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from supabase import Client
 
 from core.async_utils import run_sync
-from core.job_runner import enqueue_receipt, enqueue_voice
+from core.job_runner import enqueue_receipt, enqueue_sms, enqueue_voice
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
 from features.insights.schemas import MonthInsightsResponse
@@ -17,11 +17,12 @@ from features.insights.service import InsightsService
 from features.transactions.schemas import (
     HomeOverviewResponse,
     MonthSummaryResponse,
+    SmsBatchRequest,
     TransactionCreate,
     TransactionListResponse,
 )
 from features.transactions.service import TransactionService
-from features.uploads.workers import ReceiptJob, VoiceJob
+from features.uploads.workers import ReceiptJob, SmsJob, VoiceJob
 
 logger = logging.getLogger(__name__)
 
@@ -215,4 +216,34 @@ async def create_transaction_from_voice(
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
             detail="Could not queue voice transaction.",
+        ) from exc
+
+
+@router.post("/sms", status_code=status.HTTP_202_ACCEPTED)
+async def create_transactions_from_sms(
+    request: Request,
+    body: SmsBatchRequest,
+    user: CurrentUser = Depends(get_current_user),
+    _supabase: Client = Depends(get_supabase_service_client),
+    timezone: str = Query(..., min_length=2, max_length=80),
+) -> dict[str, bool]:
+    try:
+        for item in body.messages:
+            enqueue_sms(
+                request.app,
+                SmsJob(
+                    user_id=user.id,
+                    body=item.body,
+                    received_at=item.received_at,
+                    timezone=timezone,
+                ),
+            )
+        return {"accepted": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to enqueue SMS transactions for user id=%s", user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not queue SMS transactions.",
         ) from exc

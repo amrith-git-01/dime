@@ -53,6 +53,14 @@ class VoiceJob:
     timezone: str
 
 
+@dataclass(slots=True, frozen=True)
+class SmsJob:
+    user_id: str
+    body: str
+    received_at: datetime
+    timezone: str
+
+
 def _build_user(user_id: str) -> CurrentUser:
     return CurrentUser(id=user_id)
 
@@ -123,8 +131,9 @@ def _build_transaction_payload(
     detected_via: str,
     receipt_url: str | None = None,
     voice_url: str | None = None,
+    fallback_at: datetime | None = None,
 ) -> TransactionCreate:
-    transaction_at = parsed.date or datetime.now(UTC)
+    transaction_at = parsed.date or fallback_at or datetime.now(UTC)
     return TransactionCreate(
         amount=parsed.amount,
         type=parsed.type.value,
@@ -398,6 +407,60 @@ async def process_voice_job(
     )
 
 
+async def process_sms_job(*, client: Client, job: SmsJob) -> None:
+    try:
+        await _process_sms_job_inner(client=client, job=job)
+    except Exception:
+        settings_snapshot = UserSettingsService(
+            UserSettingsRepository(client)
+        ).get_snapshot(job.user_id)
+        NotificationEmitter(
+            NotificationRepository(client),
+            settings=settings_snapshot,
+            push_tokens_repo=PushTokensRepository(client),
+        ).emit_capture_failed(
+            user_id=job.user_id,
+            source="sms",
+            title="SMS capture failed",
+            body="We couldn't read this bank message. Try again or add manually.",
+            day_key=datetime.now(UTC).date().isoformat(),
+        )
+        raise
+
+
+async def _process_sms_job_inner(*, client: Client, job: SmsJob) -> None:
+    allowed_categories, category_options = await load_category_options(
+        client,
+        job.user_id,
+    )
+
+    async def _parse_and_save() -> None:
+        parsed = await AIOrchestratorService().parse_sms(
+            job.body,
+            allowed_categories,
+            category_options,
+        )
+        payload = _build_transaction_payload(
+            parsed,
+            detected_via="sms",
+            fallback_at=job.received_at,
+        )
+        await process_manual_job(
+            client=client,
+            job=ManualTransactionJob(
+                user_id=job.user_id,
+                payload=payload,
+                timezone=job.timezone,
+            ),
+        )
+
+    await _run_with_retries(
+        label="sms_parse",
+        user_id=job.user_id,
+        step=_parse_and_save,
+    )
+
+
 async def run_manual_worker(
     *,
     worker_name: str,
@@ -444,5 +507,21 @@ async def run_voice_worker(
             await process_voice_job(client=client, bucket=bucket, job=job)
         except Exception:
             logger.exception("%s failed to process voice transaction", worker_name)
+        finally:
+            queue.task_done()
+
+
+async def run_sms_worker(
+    *,
+    worker_name: str,
+    queue: asyncio.Queue[SmsJob],
+    client: Client,
+) -> None:
+    while True:
+        job = await queue.get()
+        try:
+            await process_sms_job(client=client, job=job)
+        except Exception:
+            logger.exception("%s failed to process SMS transaction", worker_name)
         finally:
             queue.task_done()
