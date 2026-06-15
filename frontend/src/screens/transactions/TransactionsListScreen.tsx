@@ -38,6 +38,7 @@ export default function TransactionsListScreen() {
   const {
     listSections,
     filter,
+    usesRange,
     isEmpty,
     isError,
     openTransactionDetail,
@@ -82,8 +83,12 @@ export default function TransactionsListScreen() {
       filter === "day"
         ? "Nothing was recorded for this date in the selected month."
         : filter === "category"
-          ? "No debits were recorded in this category for the selected month."
-          : "No debits matched this payee in the selected month.";
+          ? usesRange
+            ? "No debits were recorded in this category for the selected period."
+            : "No debits were recorded in this category for the selected month."
+          : usesRange
+            ? "No debits matched this payee in the selected period."
+            : "No debits matched this payee in the selected month.";
 
     return (
       <TwoToneEmptyState

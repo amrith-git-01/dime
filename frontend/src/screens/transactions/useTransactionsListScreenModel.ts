@@ -3,23 +3,65 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
-import { useTransactionsMonthInfiniteQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import {
+  useTransactionsMonthInfiniteQuery,
+  useTransactionsRangeInfiniteQuery,
+} from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { TransactionRow } from "@/features/transactions/types";
 import {
   buildTransactionListSections,
   filterTransactionsByCalendarDay,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { filterTransactionsByCategory } from "@/features/transactions/utils/filterTransactionsByCategory";
-import { filterTransactionsByPayee } from "@/features/transactions/utils/payeeKey";
+import {
+  filterTransactionsByPayee,
+  resolvePayeeFilterId,
+} from "@/features/transactions/utils/payeeKey";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
 type TransactionsListRoute = RouteProp<MainStackParamList, "TransactionsList">;
 
+function listParamsUseRange(
+  params: MainStackParamList["TransactionsList"],
+): params is Extract<
+  MainStackParamList["TransactionsList"],
+  { filter: "payee" | "category" }
+> & { fromIso: string; toIso: string } {
+  if (params.filter !== "payee" && params.filter !== "category") {
+    return false;
+  }
+  return (
+    typeof params.fromIso === "string" &&
+    params.fromIso.length > 0 &&
+    typeof params.toIso === "string" &&
+    params.toIso.length > 0
+  );
+}
+
 export function useTransactionsListScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { params } = useRoute<TransactionsListRoute>();
+
+  const usesRange = listParamsUseRange(params);
+
+  const monthQuery = useTransactionsMonthInfiniteQuery(
+    params.year,
+    params.monthIndex0,
+    { enabled: !usesRange },
+  );
+
+  const rangeFromIso = usesRange ? params.fromIso : "";
+  const rangeToIso = usesRange ? params.toIso : "";
+
+  const rangeQuery = useTransactionsRangeInfiniteQuery(
+    rangeFromIso,
+    rangeToIso,
+    { enabled: usesRange },
+  );
+
+  const activeQuery = usesRange ? rangeQuery : monthQuery;
 
   const {
     data: infiniteData,
@@ -28,7 +70,7 @@ export function useTransactionsListScreenModel() {
     isFetchingNextPage,
     isPending,
     isError,
-  } = useTransactionsMonthInfiniteQuery(params.year, params.monthIndex0);
+  } = activeQuery;
 
   const flatRows = useMemo(() => {
     const pages = infiniteData?.pages ?? [];
@@ -48,7 +90,7 @@ export function useTransactionsListScreenModel() {
     }
     return filterTransactionsByPayee(
       flatRows,
-      params.payeeKey,
+      resolvePayeeFilterId(params),
       params.payeeKeysTop,
     );
   }, [flatRows, params]);
@@ -110,6 +152,7 @@ export function useTransactionsListScreenModel() {
   return {
     listSections,
     filter: params.filter,
+    usesRange,
     isEmpty,
     isError,
     openTransactionDetail,
