@@ -80,6 +80,33 @@ SCHEMA_DOC = f"""
      AND t.transaction_at >= '<month_start_iso>'
      AND t.transaction_at <= '<month_end_iso>'
     GROUP BY b.monthly_budget;
+    -- Payee spend (resolve fuzzy name → exact counterparty_normalized id):
+    SELECT
+      t.counterparty_normalized,
+      MAX(t.counterparty_name) AS counterparty_name,
+      COALESCE(SUM(t.amount), 0) AS total_spending
+    FROM transactions t
+    WHERE t.type = 'debit'
+      AND t.deleted_at IS NULL
+      AND t.transaction_at >= '<start_iso>'
+      AND t.transaction_at <= '<end_iso>'
+      AND t.counterparty_normalized = (
+        SELECT counterparty_normalized
+        FROM transactions
+        WHERE type = 'debit'
+          AND deleted_at IS NULL
+          AND counterparty_normalized IS NOT NULL
+          AND transaction_at >= '<start_iso>'
+          AND transaction_at <= '<end_iso>'
+          AND (
+            counterparty_normalized ILIKE '%uber%'
+            OR counterparty_name ILIKE '%uber%'
+          )
+        GROUP BY counterparty_normalized
+        ORDER BY SUM(amount) DESC
+        LIMIT 1
+      )
+    GROUP BY t.counterparty_normalized;
     """.strip()
 
 def get_schema_doc() -> str:
