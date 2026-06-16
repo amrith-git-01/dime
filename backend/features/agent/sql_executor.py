@@ -1,9 +1,10 @@
-from  __future__ import annotations
+from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -12,6 +13,40 @@ import asyncpg
 
 from core.config import get_settings
 from features.agent.sql_validator import validate_select_sql
+
+logger = logging.getLogger(__name__)
+
+# Module-level connection pool — initialised by init_sql_pool() in app lifespan.
+_pool: asyncpg.Pool | None = None
+
+
+async def init_sql_pool() -> None:
+    """Create the asyncpg connection pool. Called once at application startup."""
+    global _pool
+    settings = get_settings()
+    if not settings.database_url:
+        logger.warning("DATABASE_URL not set — agent SQL pool not initialised")
+        return
+    _pool = await asyncpg.create_pool(
+        settings.database_url,
+        min_size=settings.agent_sql_pool_min,
+        max_size=settings.agent_sql_pool_max,
+    )
+    logger.info(
+        "Agent SQL pool ready (min=%d max=%d)",
+        settings.agent_sql_pool_min,
+        settings.agent_sql_pool_max,
+    )
+
+
+async def close_sql_pool() -> None:
+    """Drain and close the pool. Called at application shutdown."""
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+        logger.info("Agent SQL pool closed")
+
 
 @dataclass(frozen=True, slots=True)
 class SQLExecutionResult:
@@ -22,6 +57,7 @@ class SQLExecutionResult:
     error: str | None
     elapsed_ms: int
 
+
 def _json_safe(value: Any) -> Any:
     if isinstance(value, Decimal):
         return float(value)
@@ -31,8 +67,37 @@ def _json_safe(value: Any) -> Any:
         return str(value)
     return value
 
+
 def _row_to_dict(record: asyncpg.Record) -> dict[str, Any]:
     return {key: _json_safe(record[key]) for key in record.keys()}
+
+
+async def _run_query(
+    conn: asyncpg.Connection,
+    sql: str,
+    claims: str,
+    timeout_ms: int,
+    start: float,
+    max_rows: int,
+) -> SQLExecutionResult:
+    """Execute one validated SELECT inside a transaction with RLS applied."""
+    async with conn.transaction():
+        await conn.execute("SELECT set_config('request.jwt.claims', $1, true)", claims)
+        await conn.execute("SET LOCAL role authenticated")
+        await conn.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+        records = await conn.fetch(sql)
+
+    rows = [_row_to_dict(r) for r in records]
+    columns = list(records[0].keys()) if records else []
+    return SQLExecutionResult(
+        rows=rows,
+        row_count=len(rows),
+        columns=columns,
+        truncated=len(rows) >= max_rows,
+        error=None,
+        elapsed_ms=int((time.monotonic() - start) * 1000),
+    )
+
 
 async def execute_readonly_sql(
     raw_sql: str,
@@ -45,67 +110,41 @@ async def execute_readonly_sql(
 
     if not settings.database_url:
         return SQLExecutionResult(
-            rows=[],
-            row_count=0,
-            columns=[],
-            truncated=False,
-            error="DATABASE_URL is not set",
-            elapsed_ms=0,
+            rows=[], row_count=0, columns=[], truncated=False,
+            error="DATABASE_URL is not set", elapsed_ms=0,
         )
-    validation = validate_select_sql(raw_sql, max_rows=settings.agent_sql_max_rows)
 
+    validation = validate_select_sql(raw_sql, max_rows=settings.agent_sql_max_rows)
     if not validation.ok:
         return SQLExecutionResult(
-            rows=[],
-            row_count=0,
-            columns=[],
-            truncated=False,
+            rows=[], row_count=0, columns=[], truncated=False,
             error=validation.error,
             elapsed_ms=int((time.monotonic() - start) * 1000),
         )
 
     timeout_ms = int(settings.agent_sql_timeout_seconds * 1000)
-    claims = json.dumps({
-        "sub": user_id,
-        "role" : "authenticated",
-        "aud": "authenticated",
-    })
+    claims = json.dumps({"sub": user_id, "role": "authenticated", "aud": "authenticated"})
 
-    try: 
-        conn = await asyncpg.connect(settings.database_url)
-        try: 
-            async with conn.transaction():
-                await conn.execute("SELECT set_config('request.jwt.claims', $1, true)", claims)
-
-                await conn.execute("SET LOCAL role authenticated")
-
-                await conn.execute(
-                    f"SET LOCAL statement_timeout = '{timeout_ms}ms'"
+    try:
+        if _pool is not None:
+            async with _pool.acquire() as conn:
+                return await _run_query(
+                    conn, validation.sql, claims, timeout_ms, start,
+                    settings.agent_sql_max_rows,
                 )
-
-                records = await conn.fetch(validation.sql)
-        finally: 
-            await conn.close()
-        
-        rows = [_row_to_dict(r) for r in records]
-        columns = list(records[0].keys()) if records else []
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-
-        return SQLExecutionResult(
-            rows = rows,
-            row_count = len(rows),
-            columns = columns,
-            truncated=len(rows) >= settings.agent_sql_max_rows,
-            error=None,
-            elapsed_ms=elapsed_ms,
-        )
-
+        else:
+            # Fallback: open a single connection if pool wasn't initialised.
+            conn = await asyncpg.connect(settings.database_url)
+            try:
+                return await _run_query(
+                    conn, validation.sql, claims, timeout_ms, start,
+                    settings.agent_sql_max_rows,
+                )
+            finally:
+                await conn.close()
     except Exception as exc:
         return SQLExecutionResult(
-            rows=[],
-            row_count=0,
-            columns=[],
-            truncated=False,
+            rows=[], row_count=0, columns=[], truncated=False,
             error=f"{type(exc).__name__}: {exc}",
             elapsed_ms=int((time.monotonic() - start) * 1000),
         )
