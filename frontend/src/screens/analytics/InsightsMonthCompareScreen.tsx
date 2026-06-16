@@ -7,11 +7,17 @@ import { CompareCashflowSection } from "@/features/analytics/components/compare/
 import { ComparePaceSection } from "@/features/analytics/components/compare/ComparePaceSection";
 import { ComparePayeeSection } from "@/features/analytics/components/compare/ComparePayeeSection";
 import { CompareSummarySection } from "@/features/analytics/components/compare/CompareSummarySection";
+import {
+  InsightsScrollVisibilityProvider,
+  useInsightsScrollVisibility,
+} from "@/features/analytics/hooks/useInsightsScrollVisibility";
+
 import { useInsightsMonthCompareScreenModel } from "./useInsightsMonthCompareScreenModel";
 
-export default function InsightsMonthCompareScreen() {
+function InsightsMonthCompareContent() {
   const { monthA, monthB, spentDelta, bothFailed } =
     useInsightsMonthCompareScreenModel();
+  const { reportScroll } = useInsightsScrollVisibility();
 
   if (bothFailed) {
     return (
@@ -28,6 +34,10 @@ export default function InsightsMonthCompareScreen() {
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
+      onScroll={reportScroll}
+      onScrollBeginDrag={reportScroll}
+      onMomentumScrollEnd={reportScroll}
     >
       <CompareSummarySection
         leftLabel={monthA.label}
@@ -72,12 +82,24 @@ export default function InsightsMonthCompareScreen() {
         rightLabel={monthB.label}
         leftSpend={monthA.counterpartySpend}
         rightSpend={monthB.counterpartySpend}
+        leftYear={monthA.year}
+        leftMonthIndex0={monthA.monthIndex0}
+        rightYear={monthB.year}
+        rightMonthIndex0={monthB.monthIndex0}
         leftLoading={monthA.chartLoading}
         rightLoading={monthB.chartLoading}
         leftFailed={monthA.isError}
         rightFailed={monthB.isError}
       />
     </ScrollView>
+  );
+}
+
+export default function InsightsMonthCompareScreen() {
+  return (
+    <InsightsScrollVisibilityProvider>
+      <InsightsMonthCompareContent />
+    </InsightsScrollVisibilityProvider>
   );
 }
 

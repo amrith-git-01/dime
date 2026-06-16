@@ -55,6 +55,8 @@ export function useAnalyticsScreenModel() {
     insightsLoading || (isBudgetLoading && budgetResp === undefined);
   const summaryFailed = insightsQuery.isError;
   const chartLoading = insightsLoading;
+  const chartsDataSettled =
+    Boolean(insightsData) && !insightsQuery.isPlaceholderData && !chartLoading;
 
   const dailyCashflow = useMemo(
     () => insightsData?.daily_cashflow ?? [],
@@ -140,9 +142,9 @@ export function useAnalyticsScreenModel() {
         filter: "payee",
         year: selectedMonth.year,
         monthIndex0: selectedMonth.monthIndex0,
-        payeeKey: slice.payee_key,
-        payeeKeysTop: topPayeeKeys,
+        payeeId: slice.payee_key,
         payeeDisplayName: slice.display_name,
+        payeeKeysTop: topPayeeKeys,
       });
     },
     [navigation, selectedMonth.monthIndex0, selectedMonth.year, topPayeeKeys],
@@ -157,6 +159,7 @@ export function useAnalyticsScreenModel() {
 
   return {
     hasInsightsData: Boolean(insightsData),
+    chartsDataSettled,
     monthOptions,
     selectedMonth,
     selectedMonthIndex,

@@ -43,9 +43,14 @@ export type MainStackParamList = {
         filter: "payee";
         year: number;
         monthIndex0: number;
-        payeeKey: string;
+        /** Exact counterparty_normalized from the database (preferred). */
+        payeeId: string;
+        /** @deprecated Alias for payeeId — kept for older deep links. */
+        payeeKey?: string;
         payeeKeysTop: string[];
         payeeDisplayName: string;
+        fromIso?: string;
+        toIso?: string;
       }
     | {
         filter: "category";
@@ -53,6 +58,8 @@ export type MainStackParamList = {
         monthIndex0: number;
         categoryId: string;
         categoryDisplayName: string;
+        fromIso?: string;
+        toIso?: string;
       };
   InsightsMonthCompare: {
     monthA: {
