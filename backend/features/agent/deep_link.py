@@ -17,6 +17,20 @@ from features.agent.sql_entities import (
 from features.agent.time_range import spans_multiple_calendar_months
 
 
+def _end_date_from_time_range(time_range: dict[str, Any] | None) -> date | None:
+    """Extract the end date from a time_range dict for deep link params."""
+    if not time_range:
+        return None
+    for key in ("end_date", "end_iso"):
+        raw = time_range.get(key)
+        if isinstance(raw, str) and raw:
+            try:
+                return date.fromisoformat(raw[:10])
+            except ValueError:
+                continue
+    return None
+
+
 def validate_deep_link(raw: object) -> dict[str, Any] | None:
     """Return a sanitized deep_link dict, or None if the LLM output is invalid."""
     if raw is None:
@@ -129,3 +143,64 @@ def resolve_deep_link_ids(
     if category.display_name:
         resolved_params["categoryDisplayName"] = category.display_name
     return validate_deep_link({**enriched, "params": resolved_params})
+
+
+def auto_deep_link(
+    *,
+    last_result: dict[str, Any] | None,
+    time_range: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Build a TransactionsList deep link from SQL entities when the LLM omitted one.
+
+    Fires for exactly-one-payee or exactly-one-category results. Skips multi-entity
+    breakdowns and comparison queries (deep links don't apply there).
+    """
+    if time_range and time_range.get("kind") == "compare":
+        return None
+
+    entities = extract_sql_entities(last_result)
+
+    if not entities.payees and not entities.categories:
+        return None
+
+    end = _end_date_from_time_range(time_range)
+    if end is None:
+        return None
+
+    year = end.year
+    month_index0 = end.month - 1
+
+    if len(entities.payees) == 1:
+        payee = entities.payees[0]
+        raw_link: dict[str, Any] = {
+            "screen": "TransactionsList",
+            "label": f"View {payee.display_name or payee.payee_id} transactions",
+            "params": {
+                "filter": "payee",
+                "year": year,
+                "monthIndex0": month_index0,
+                "payeeId": payee.payee_id,
+                "payeeDisplayName": payee.display_name or payee.payee_id,
+                "payeeKeysTop": [],
+            },
+        }
+        validated = validate_deep_link(raw_link)
+        return enrich_deep_link(validated, time_range)
+
+    if len(entities.categories) == 1:
+        cat = entities.categories[0]
+        raw_link = {
+            "screen": "TransactionsList",
+            "label": f"View {cat.display_name or 'category'} transactions",
+            "params": {
+                "filter": "category",
+                "year": year,
+                "monthIndex0": month_index0,
+                "categoryId": cat.category_id,
+                "categoryDisplayName": cat.display_name or "Category",
+            },
+        }
+        validated = validate_deep_link(raw_link)
+        return enrich_deep_link(validated, time_range)
+
+    return None
