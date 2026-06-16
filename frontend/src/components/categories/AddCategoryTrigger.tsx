@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
 import { colors, spacing } from "@/constants";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type AddCategoryTriggerProps = {
   onPress: () => void;
@@ -20,7 +20,7 @@ export function AddCategoryTrigger({
       accessibilityLabel="Add custom category"
       disabled={disabled}
       onPress={() => {
-        void triggerLightHaptic();
+        void triggerHaptic();
         onPress();
       }}
       style={({ pressed }) => [
