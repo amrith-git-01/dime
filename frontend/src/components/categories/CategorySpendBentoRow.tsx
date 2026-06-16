@@ -14,7 +14,7 @@ import {
   surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
 
 export type CategorySpendRowData = {
@@ -106,7 +106,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
               accessibilityLabel={`Edit ${item.name}`}
               hitSlop={6}
               onPress={() => {
-                void triggerLightHaptic();
+                void triggerHaptic();
                 onEditPress();
               }}
               style={({ pressed }) => [
@@ -162,7 +162,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
       accessibilityRole="button"
       accessibilityLabel={`View transactions for ${item.name}`}
       onPress={() => {
-        void triggerLightHaptic();
+        void triggerHaptic();
         onPress();
       }}
       style={({ pressed }) => [

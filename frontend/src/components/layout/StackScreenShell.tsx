@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -27,17 +27,21 @@ export function StackScreenShell({
   scrollEnabled = true,
 }: StackScreenShellProps) {
   const insets = useSafeAreaInsets();
+  const bodyStyle: StyleProp<ViewStyle> = [
+    styles.scrollContent,
+    { paddingBottom: spacing.xl + insets.bottom },
+    contentContainerStyle,
+  ];
+
+  if (!scrollEnabled) {
+    return <View style={styles.screen}>{children}</View>;
+  }
 
   return (
     <KeyboardAwareScrollView
       style={styles.screen}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingBottom: spacing.xl + insets.bottom },
-        contentContainerStyle,
-      ]}
+      contentContainerStyle={bodyStyle}
       keyboardShouldPersistTaps="handled"
-      scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       bottomOffset={bottomOffset}
     >
