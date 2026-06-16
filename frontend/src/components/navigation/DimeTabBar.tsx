@@ -18,7 +18,7 @@ import { radius } from "@/constants/radius";
 import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
@@ -183,7 +183,7 @@ export function DimeTabBar({
   }));
 
   const toggleAddFab = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     toggleFab();
   }, [toggleFab]);
 
@@ -312,7 +312,7 @@ export function DimeTabBar({
             hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
             onPressIn={bumpFabIdleTimer}
             onPress={() => {
-              void triggerLightHaptic();
+              void triggerHaptic();
               setFabOpen(false);
               onManualAddPress();
             }}
@@ -330,7 +330,7 @@ export function DimeTabBar({
             hitSlop={{ top: 56, bottom: 4, left: 20, right: 20 }}
             onPressIn={bumpFabIdleTimer}
             onPress={() => {
-              void triggerLightHaptic();
+              void triggerHaptic();
               setFabOpen(false);
               void captureReceiptAndCreate();
             }}
@@ -348,7 +348,7 @@ export function DimeTabBar({
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 64 }}
             onPressIn={bumpFabIdleTimer}
             onPress={() => {
-              void triggerLightHaptic();
+              void triggerHaptic();
               setFabOpen(false);
               openVoiceCapture();
             }}

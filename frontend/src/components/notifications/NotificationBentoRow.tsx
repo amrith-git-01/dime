@@ -1,5 +1,5 @@
-import { Check, Trash2, type LucideIcon } from "lucide-react-native";
-import { memo } from "react";
+import { Check, Trash2 } from "lucide-react-native";
+import { memo, useCallback, useRef } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -8,18 +8,29 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 
-import { accent, line, radius, spacing } from "@/constants";
+import {
+  danger,
+  iconSizes,
+  radius,
+  shadows,
+  spacing,
+  success,
+  surface,
+  typography,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
-  NOTIFICATION_ACTION_WELL_SIZE,
+  NOTIFICATION_ICON_WELL_SIZE,
   NOTIFICATION_INBOX_TEXT,
-  NOTIFICATION_ROW_ACTIONS,
   NOTIFICATION_ROW_VISUALS,
-  type NotificationActionAccent,
+  NOTIFICATION_SWIPE_ACTION_WIDTH,
 } from "@/features/notifications/notificationBentoTokens";
 import type { AppNotification } from "@/features/notifications/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatNotificationTime } from "@/utils/dateTime";
 
 export type NotificationBentoRowProps = {
@@ -28,44 +39,10 @@ export type NotificationBentoRowProps = {
   onPress: (notification: AppNotification) => void;
   onMarkRead?: (id: string) => void;
   onDelete?: (id: string) => void;
-  showSeparator?: boolean;
+  onSwipeWillStart?: (methods: SwipeableMethods) => void;
 };
 
-const ICON_WELL_SIZE = 34;
 const READ_KIND_ICON_OPACITY = 0.55;
-
-type NotificationActionWellProps = {
-  accessibilityLabel: string;
-  icon: LucideIcon;
-  accent: NotificationActionAccent;
-  onPress: () => void;
-};
-
-const NotificationActionWell = memo(function NotificationActionWell({
-  accessibilityLabel,
-  icon: Icon,
-  accent,
-  onPress,
-}: NotificationActionWellProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      hitSlop={6}
-      onPress={() => {
-        void triggerLightHaptic();
-        onPress();
-      }}
-      style={({ pressed }) => [pressed && styles.rowPressed]}
-    >
-      <View
-        style={[styles.actionWell, { backgroundColor: accent.backgroundColor }]}
-      >
-        <Icon size={15} color={accent.iconColor} strokeWidth={2} />
-      </View>
-    </Pressable>
-  );
-});
 
 export const NotificationBentoRow = memo(function NotificationBentoRow({
   notification,
@@ -73,10 +50,9 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
   onPress,
   onMarkRead,
   onDelete,
-  showSeparator = false,
+  onSwipeWillStart,
 }: NotificationBentoRowProps) {
-  const showMarkRead = unread && onMarkRead != null;
-  const showActions = showMarkRead || onDelete != null;
+  const swipeableRef = useRef<SwipeableMethods | null>(null);
   const visual = NOTIFICATION_ROW_VISUALS[notification.kind];
   const Icon = visual.icon;
   const timeLabel = formatNotificationTime(notification.createdAt);
@@ -91,101 +67,193 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
     kindIconWellStyle = [kindIconWellStyle, styles.kindIconWellRead];
   }
 
-  return (
-    <View>
-      <View style={styles.row}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            void triggerLightHaptic();
-            onPress(notification);
-          }}
-          style={({ pressed }) => [
-            styles.mainPressable,
-            pressed && styles.rowPressed,
-          ]}
-        >
-          {unread ? (
-            <View style={styles.dot} />
-          ) : (
-            <View style={styles.dotPlaceholder} />
-          )}
-          <View style={[styles.iconWell, kindIconWellStyle]}>
-            <Icon size={16} color={visual.iconColor} strokeWidth={2} />
-          </View>
+  const draggedRef = useRef(false);
 
-          <View style={styles.textCol}>
-            <Text
-              style={[
-                styles.title,
-                unread ? styles.titleUnread : styles.titleRead,
-                { color: textColors.title },
-              ]}
-              numberOfLines={1}
-            >
-              {notification.title}
-            </Text>
-            <Text
-              style={[styles.body, { color: textColors.body }]}
-              numberOfLines={2}
-            >
-              {notification.body}
-            </Text>
-            <Text style={[styles.time, { color: textColors.time }]}>
-              {timeLabel}
-            </Text>
-          </View>
-        </Pressable>
+  const handlePress = useCallback(() => {
+    void triggerHaptic();
+    onPress(notification);
+  }, [notification, onPress]);
 
-        {showActions ? (
-          <View style={styles.actions}>
-            {showMarkRead ? (
-              <NotificationActionWell
-                accessibilityLabel="Mark as read"
-                icon={Check}
-                accent={NOTIFICATION_ROW_ACTIONS.markRead}
-                onPress={() => onMarkRead!(notification.id)}
-              />
-            ) : null}
-            {onDelete ? (
-              <NotificationActionWell
-                accessibilityLabel="Delete notification"
-                icon={Trash2}
-                accent={NOTIFICATION_ROW_ACTIONS.delete}
-                onPress={() => onDelete(notification.id)}
-              />
-            ) : null}
-          </View>
+  const handleCardPress = useCallback(() => {
+    if (draggedRef.current) {
+      return;
+    }
+    handlePress();
+  }, [handlePress]);
+
+  const handleDelete = useCallback(() => {
+    if (onDelete == null) {
+      return;
+    }
+    void triggerHaptic();
+    onDelete(notification.id);
+  }, [notification.id, onDelete]);
+
+  const handleMarkRead = useCallback(() => {
+    if (onMarkRead == null) {
+      return;
+    }
+    void triggerHaptic();
+    onMarkRead(notification.id);
+    swipeableRef.current?.close();
+  }, [notification.id, onMarkRead]);
+
+  const handleOpenStartDrag = useCallback(() => {
+    draggedRef.current = true;
+    const methods = swipeableRef.current;
+    if (methods != null) {
+      onSwipeWillStart?.(methods);
+    }
+  }, [onSwipeWillStart]);
+
+  const handleClosed = useCallback(() => {
+    requestAnimationFrame(() => {
+      draggedRef.current = false;
+    });
+  }, []);
+
+  const renderRightActions = useCallback(
+    () => (
+      <View style={styles.actionsRow}>
+        {unread && onMarkRead != null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mark as read"
+            onPress={handleMarkRead}
+            style={styles.readAction}
+          >
+            <Check size={iconSizes.nav} color={surface} strokeWidth={2} />
+          </Pressable>
+        ) : null}
+        {onDelete != null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete notification"
+            onPress={handleDelete}
+            style={styles.deleteAction}
+          >
+            <Trash2 size={iconSizes.nav} color={surface} strokeWidth={2} />
+          </Pressable>
         ) : null}
       </View>
-      {showSeparator ? <View style={styles.separator} /> : null}
+    ),
+    [handleDelete, handleMarkRead, onDelete, onMarkRead, unread],
+  );
+
+  const accessibilityActions = [
+    ...(onMarkRead != null && unread
+      ? [{ name: "markAsRead" as const, label: "Mark as read" }]
+      : []),
+    ...(onDelete != null ? [{ name: "delete" as const, label: "Delete" }] : []),
+  ];
+
+  const card = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={notification.title}
+      accessibilityHint="Swipe left for mark as read and delete"
+      accessibilityActions={
+        accessibilityActions.length > 0 ? accessibilityActions : undefined
+      }
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === "delete") {
+          handleDelete();
+        }
+        if (event.nativeEvent.actionName === "markAsRead") {
+          handleMarkRead();
+        }
+      }}
+      onPress={handleCardPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+    >
+      <View style={[styles.iconWell, kindIconWellStyle]}>
+        <Icon
+          size={iconSizes.inline}
+          color={visual.iconColor}
+          strokeWidth={2}
+        />
+      </View>
+      <View style={styles.textCol}>
+        <Text
+          style={[
+            styles.title,
+            unread ? styles.titleUnread : styles.titleRead,
+            { color: textColors.title },
+          ]}
+          numberOfLines={2}
+        >
+          {notification.title}
+        </Text>
+        <Text
+          style={[styles.body, { color: textColors.body }]}
+          numberOfLines={2}
+        >
+          {notification.body}
+        </Text>
+        <Text style={[styles.time, { color: textColors.time }]}>
+          {timeLabel}
+        </Text>
+      </View>
+    </Pressable>
+  );
+
+  if (onDelete == null && onMarkRead == null) {
+    return <View style={styles.shadowWrap}>{card}</View>;
+  }
+
+  return (
+    <View style={styles.shadowWrap}>
+      <ReanimatedSwipeable
+        ref={swipeableRef}
+        friction={1}
+        overshootRight={false}
+        rightThreshold={40}
+        activeOffsetX={[-20, 20]}
+        failOffsetY={[-24, 24]}
+        containerStyle={styles.swipeClip}
+        childrenContainerStyle={styles.slideLayer}
+        onSwipeableOpenStartDrag={handleOpenStartDrag}
+        onSwipeableClose={handleClosed}
+        renderRightActions={renderRightActions}
+      >
+        {card}
+      </ReanimatedSwipeable>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  row: {
+  shadowWrap: {
+    borderRadius: radius.md,
+    backgroundColor: surface,
+    ...shadows.card,
+  },
+  swipeClip: {
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: surface,
+  },
+  slideLayer: {
+    backgroundColor: surface,
+  },
+  card: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.sm,
-    minHeight: 44,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: surface,
   },
-  mainPressable: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    minWidth: 0,
-  },
-  rowPressed: {
+  cardPressed: {
     opacity: 0.88,
   },
   iconWell: {
-    width: ICON_WELL_SIZE,
-    height: ICON_WELL_SIZE,
+    width: NOTIFICATION_ICON_WELL_SIZE,
+    height: NOTIFICATION_ICON_WELL_SIZE,
     borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   kindIconWellRead: {
     opacity: READ_KIND_ICON_OPACITY,
@@ -193,56 +261,39 @@ const styles = StyleSheet.create({
   textCol: {
     flex: 1,
     minWidth: 0,
-    gap: 1,
+    gap: spacing.xs,
   },
   title: {
-    fontSize: 13,
-    lineHeight: 17,
+    ...typography.rowPrimary,
   },
   titleUnread: {
-    fontFamily: fontFamilies.medium,
+    fontFamily: fontFamilies.semiBold,
   },
   titleRead: {
     fontFamily: fontFamilies.regular,
   },
   body: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 15,
+    ...typography.rowSecondary,
   },
   time: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 10,
-    lineHeight: 13,
+    ...typography.captionFaint,
   },
-  actions: {
+  actionsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    alignSelf: "center",
+    height: "100%",
   },
-  actionWell: {
-    width: NOTIFICATION_ACTION_WELL_SIZE,
-    height: NOTIFICATION_ACTION_WELL_SIZE,
-    borderRadius: NOTIFICATION_ACTION_WELL_SIZE / 2,
+  deleteAction: {
+    width: NOTIFICATION_SWIPE_ACTION_WIDTH,
+    height: "100%",
+    backgroundColor: danger,
     alignItems: "center",
     justifyContent: "center",
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: accent,
-    alignSelf: "center",
-    marginRight: spacing.xs,
-  },
-  dotPlaceholder: {
-    width: 6,
-    marginRight: spacing.xs,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
-    marginLeft: 6 + spacing.xs + ICON_WELL_SIZE + spacing.sm,
+  readAction: {
+    width: NOTIFICATION_SWIPE_ACTION_WIDTH,
+    height: "100%",
+    backgroundColor: success,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
