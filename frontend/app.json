@@ -93,6 +93,17 @@
         {
           "microphonePermission": "Dime uses the microphone to capture spoken expenses and add them for you."
         }
+      ],
+      [
+        "expo-transaction-sms-reader",
+        {
+          "android": {
+            "permissions": {
+              "read": true,
+              "receive": false
+            }
+          }
+        }
       ]
     ],
     "experiments": {
