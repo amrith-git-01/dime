@@ -113,7 +113,3 @@ def prepend_temporal_context(
     section = temporal_context_section(timezone_from_config(config), now=now)
     return f"{section}\n{system}"
 
-
-def timezone_context_section(timezone: str | None) -> str:
-    """Deprecated alias — use temporal_context_section."""
-    return temporal_context_section(timezone)

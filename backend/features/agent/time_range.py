@@ -1,4 +1,9 @@
-"""Resolve relative date phrases to authoritative inclusive calendar ranges."""
+"""Resolve relative date phrases to authoritative inclusive calendar ranges.
+
+Single-period resolution (today, last N days, this month, etc.) is handled
+deterministically here.  Comparison routing ("june vs may", "YoY") is handled
+by the classify_intent graph node via build_compare_time_range().
+"""
 
 from __future__ import annotations
 
@@ -18,8 +23,10 @@ TimeRangeKind = Literal[
     "last_n_days",
     "current_month",
     "previous_month",
+    "calendar_year",
     "today",
     "yesterday",
+    "compare",
 ]
 
 _LAST_N_DAYS_RE = re.compile(r"\b(?:last|past)\s+(\d+)\s+days?\b", re.IGNORECASE)
@@ -35,6 +42,7 @@ _PREVIOUS_MONTH_RE = re.compile(
     r"\b(?:previous|prior)\s+month\b|\blast\s+month\b",
     re.IGNORECASE,
 )
+_THIS_YEAR_RE = re.compile(r"\b(?:this|current)\s+year\b", re.IGNORECASE)
 _TODAY_RE = re.compile(r"\btoday\b", re.IGNORECASE)
 _YESTERDAY_RE = re.compile(r"\byesterday\b", re.IGNORECASE)
 _DAILY_COMPARISON_RE = re.compile(
@@ -43,11 +51,10 @@ _DAILY_COMPARISON_RE = re.compile(
     re.IGNORECASE,
 )
 
-MAX_DAILY_COMPARISON_DAYS = 30
+MAX_DAILY_COMPARISON_DAYS = 40
 
 
 def is_daily_comparison_text(text: str) -> bool:
-    """True when the user wants a per-day breakdown (bar chart / day-level SQL)."""
     return bool(_DAILY_COMPARISON_RE.search(text))
 
 
@@ -59,12 +66,8 @@ def _format_label(start: date, end: date, day_count: int) -> str:
     if start.year == end.year:
         if start.month == end.month:
             return f"{start.day}–{end.day} {end.strftime('%b %Y')} ({day_count} days)"
-        return (
-            f"{start.strftime('%d %b')} – {end.strftime('%d %b %Y')} ({day_count} days)"
-        )
-    return (
-        f"{start.strftime('%d %b %Y')} – {end.strftime('%d %b %Y')} ({day_count} days)"
-    )
+        return f"{start.strftime('%d %b')} – {end.strftime('%d %b %Y')} ({day_count} days)"
+    return f"{start.strftime('%d %b %Y')} – {end.strftime('%d %b %Y')} ({day_count} days)"
 
 
 def _pack_range(
@@ -95,7 +98,11 @@ def resolve_time_range(
     timezone: str | None,
     now: datetime | None = None,
 ) -> dict[str, Any] | None:
-    """Map common relative phrases in user text to an inclusive local-date window."""
+    """Map common relative phrases to an inclusive local-date window.
+
+    Only handles single-period phrases (today, last N days, this month, etc.).
+    Comparison phrases are detected by the classify_intent graph node.
+    """
     if not text.strip():
         return None
 
@@ -138,17 +145,36 @@ def resolve_time_range(
         start_iso, end_iso = previous_month_bounds_iso(tz_name, now=ref)
         return _pack_range(kind="previous_month", start_iso=start_iso, end_iso=end_iso)
 
+    if _THIS_YEAR_RE.search(text):
+        year_start = date(local_day.year, 1, 1)
+        start_iso, _ = day_bounds_iso(year_start, tz_name)
+        _, end_iso = day_bounds_iso(local_day, tz_name)
+        return _pack_range(kind="calendar_year", start_iso=start_iso, end_iso=end_iso)
+
     return None
 
 
+def spans_multiple_calendar_months(time_range: dict[str, Any] | None) -> bool:
+    if not time_range:
+        return False
+    if time_range.get("kind") == "calendar_year":
+        return True
+    start_raw = time_range.get("start_date")
+    end_raw = time_range.get("end_date")
+    if not isinstance(start_raw, str) or not isinstance(end_raw, str):
+        return False
+    start = _iso_to_date(start_raw)
+    end = _iso_to_date(end_raw)
+    return start.year != end.year or start.month != end.month
+
+
 def build_daily_range_clarification(time_range: dict[str, Any]) -> str:
-    """User-facing message when a day-by-day request exceeds the allowed window."""
     label = str(time_range.get("label") or "that range")
     day_count = int(time_range.get("day_count") or 0)
     return (
         f"I can chart daily spending for up to **{MAX_DAILY_COMPARISON_DAYS} days** at a time. "
         f"You asked for **{label}** ({day_count} days), which is a bit long for a day-by-day view.\n\n"
-        f"Try a shorter window — for example, \"daily spending for the last 30 days\" "
+        f"Try a shorter window — for example, \"daily spending for the last 40 days\" "
         f"or \"show my daily spending this week\". If you want the full **{day_count}-day** total "
         f"without a daily chart, just ask for total spending over that period."
     )
@@ -162,12 +188,7 @@ def resolve_daily_comparison_range(
     timezone: str | None,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """
-    Prepare time_range for per-day requests.
-
-    Returns (time_range, clarification). clarification is set when the resolved
-    window exceeds MAX_DAILY_COMPARISON_DAYS — caller should ask the user to narrow it.
-    """
+    """Tag time_range for per-day requests and enforce the MAX_DAILY_COMPARISON_DAYS cap."""
     is_daily = is_daily_comparison_text(user_text) or is_daily_comparison_text(goal)
     if not is_daily:
         return time_range, None
@@ -252,3 +273,64 @@ def enrich_cashflow_blocks(
             )
             payload["points"] = filled[:MAX_DAILY_COMPARISON_DAYS]
         block.payload = payload
+
+
+def build_compare_time_range(
+    comparison_kind: str,
+    period_a: dict[str, Any],
+    period_b: dict[str, Any],
+    *,
+    tz_name: str,
+    today: date,
+) -> dict[str, Any]:
+    """Convert LLM-classified period dicts to an authoritative compare time_range.
+
+    Called by the classify_intent node — pure date arithmetic, no LLM.
+    """
+    if comparison_kind == "month_pair":
+        year_a, month_a = int(period_a["year"]), int(period_a["month"])
+        year_b, month_b = int(period_b["year"]), int(period_b["month"])
+        a_start, a_end = month_bounds_iso(year_a, month_a, tz_name)
+        b_start, b_end = month_bounds_iso(year_b, month_b, tz_name)
+        label_a = date(year_a, month_a, 1).strftime("%b %Y")
+        label_b = date(year_b, month_b, 1).strftime("%b %Y")
+        return {
+            "kind": "compare",
+            "subkind": "month_pair",
+            "period_a": {"start_iso": a_start, "end_iso": a_end, "label": label_a},
+            "period_b": {"start_iso": b_start, "end_iso": b_end, "label": label_b},
+            "label": f"{label_a} vs {label_b}",
+        }
+
+    if comparison_kind == "year_pair":
+        year_a = int(period_a["year"])
+        ytd_a = bool(period_a.get("ytd", False))
+        year_b = int(period_b["year"])
+        ytd_b = bool(period_b.get("ytd", False))
+
+        a_start, _ = day_bounds_iso(date(year_a, 1, 1), tz_name)
+        if ytd_a:
+            _, a_end = day_bounds_iso(today, tz_name)
+            label_a = f"{year_a} (YTD)"
+        else:
+            _, a_end = day_bounds_iso(date(year_a, 12, 31), tz_name)
+            label_a = str(year_a)
+
+        b_start, _ = day_bounds_iso(date(year_b, 1, 1), tz_name)
+        if ytd_b:
+            _, b_end = day_bounds_iso(today, tz_name)
+            label_b = f"{year_b} (YTD)"
+        else:
+            _, b_end = day_bounds_iso(date(year_b, 12, 31), tz_name)
+            label_b = str(year_b)
+
+        return {
+            "kind": "compare",
+            "subkind": "year_pair",
+            "period_a": {"start_iso": a_start, "end_iso": a_end, "label": label_a},
+            "period_b": {"start_iso": b_start, "end_iso": b_end, "label": label_b},
+            "label": f"{label_a} vs {label_b}",
+        }
+
+    msg = f"Unknown comparison_kind: {comparison_kind!r}"
+    raise ValueError(msg)
