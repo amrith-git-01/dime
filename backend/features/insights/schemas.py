@@ -35,3 +35,22 @@ class MonthInsightsResponse(BaseModel):
     daily_cashflow: list[DailyCashflowRow]
     counterparty_spend: list[CounterpartySpendRow]
     top_expenses: list[TransactionResponse]
+
+
+class MonthlyCashflowRow(BaseModel):
+    """One month's aggregated cashflow — used by YearInsightsResponse."""
+
+    month: int
+    date: str  # "YYYY-MM-01"
+    debit_total: str
+    credit_total: str
+
+
+class YearInsightsResponse(BaseModel):
+    """Year-scoped insights — either a full calendar year or a YTD window."""
+
+    year: int
+    is_ytd: bool
+    summary: InsightsSummary
+    monthly_cashflow: list[MonthlyCashflowRow]
+    top_payees: list[CounterpartySpendRow]
