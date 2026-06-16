@@ -4,16 +4,17 @@ import { MessageSquareText, ScanLine } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
+import { Button } from "@/components/ui";
+import { colors, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
+import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import {
   SETTINGS_ROW_ACCENTS,
   SettingsHubHero,
   SettingsNavRow,
   SettingsSection,
 } from "@/features/settings/components";
-import { Button } from "@/components/ui";
-import { colors, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
+import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -22,8 +23,14 @@ export default function SettingsScreen() {
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { displayName, avatarUrl } = useUserProfile();
   const { confirmSignOut, signOutLoading } = useConfirmSignOut();
+  const { confirmRefreshAppData, loading: refreshLoading } =
+    useRefreshAppData();
 
   const openAccount = () => navigation.navigate("SettingsAccount");
+
+  const handleRefreshPress = () => {
+    confirmRefreshAppData();
+  };
 
   return (
     <View style={styles.root}>
@@ -55,12 +62,26 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
+      <SettingsSection title="Data">
+        <Text style={styles.dataHint}>
+          Clear offline cache and download the latest transactions, insights,
+          and notifications from the server.
+        </Text>
+        <Button
+          title="Refresh from server"
+          variant="secondary"
+          loading={refreshLoading}
+          disabled={refreshLoading || signOutLoading}
+          onPress={handleRefreshPress}
+        />
+      </SettingsSection>
+
       <View style={styles.signOutWrap}>
         <Button
           title="Sign out"
           variant="danger"
           loading={signOutLoading}
-          disabled={signOutLoading}
+          disabled={signOutLoading || refreshLoading}
           onPress={confirmSignOut}
         />
       </View>
@@ -81,5 +102,12 @@ const styles = StyleSheet.create({
   },
   signOutWrap: {
     marginTop: spacing.sm,
+  },
+  dataHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
 });

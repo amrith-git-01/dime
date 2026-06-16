@@ -2,8 +2,9 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { colors } from "@/constants";
@@ -36,16 +37,25 @@ type HomeScreenNavigation = CompositeNavigationProp<
 function buildLast7DaysSpend(
   rows: HomeOverview["last_7_days_spend"] | undefined,
 ): { date: string; total: number }[] {
-  if (rows?.length === 7) {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+
+  // Only trust server rows when the window is complete AND ends on today.
+  // Stale MMKV data (e.g. fetched Sunday) has rows ending on the previous day,
+  // causing the chart to highlight the wrong "active" bar on the next day.
+  if (rows?.length === 7 && rows[rows.length - 1]?.date === todayStr) {
     return rows.map((row) => {
       const n = Number.parseFloat(row.total);
       return { date: row.date, total: Number.isFinite(n) ? Math.abs(n) : 0 };
     });
   }
-  return Array.from({ length: 7 }, (_, index) => {
-    const day = subDays(new Date(), 6 - index);
-    return { date: format(day, "yyyy-MM-dd"), total: 0 };
-  });
+
+  // Data is missing or stale — generate a today-anchored skeleton with zeros.
+  // React Query will refetch fresh data in the background; the chart will
+  // update once the response arrives.
+  return Array.from({ length: 7 }, (_, index) => ({
+    date: format(subDays(new Date(), 6 - index), "yyyy-MM-dd"),
+    total: 0,
+  }));
 }
 
 export function useHomeScreenModel(): HomeBentoContentProps {
@@ -55,7 +65,25 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     useTransactionQuickAddActions(navigation);
 
   const now = useMemo(() => new Date(), []);
+  const queryClient = useQueryClient();
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
+
+  // If the MMKV-cached home data is from a prior calendar day (staleTime=24h
+  // means React Query won't refetch on its own until 24h elapse), force an
+  // immediate refetch. The query persister writes the fresh response back to
+  // MMKV automatically, so the next launch serves today-anchored data.
+  useEffect(() => {
+    const rows = overview?.last_7_days_spend;
+    if (!rows?.length) return;
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const lastDate = rows[rows.length - 1]?.date;
+    if (lastDate !== todayStr) {
+      void queryClient.refetchQueries({
+        queryKey: ["transactions", "home"],
+        type: "active",
+      });
+    }
+  }, [overview?.last_7_days_spend, queryClient]);
   const monthSummaryQuery = useMonthSummaryQuery(
     now.getFullYear(),
     now.getMonth(),
