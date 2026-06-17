@@ -1,10 +1,12 @@
-import { SendHorizontal, Sparkles, X } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RotateCcw, SendHorizontal, Sparkles, X } from "lucide-react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -26,13 +28,12 @@ import { colors, overlays, radius, spacing, timings } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { AGENT_SUGGESTED_PROMPTS } from "@/features/agent/constants/suggestedPrompts";
 import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
-import { useAgentMessagesQuery } from "@/features/agent/hooks/useAgentMessagesQuery";
-import { useAgentThreadsQuery } from "@/features/agent/hooks/useAgentThreadsQuery";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import type { MainStackParamList } from "@/navigation/types";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 
-import type { AgentChatStatus, AgentDeepLink } from "../types";
+import type { AgentDeepLink, ChatMessage } from "../types";
 import { navigateAgentDeepLink } from "../utils/agentDeepLink";
 
 import { AgentMessageRenderer } from "./AgentMessageRenderer";
@@ -40,23 +41,35 @@ import { AgentMessageRenderer } from "./AgentMessageRenderer";
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
 const MODAL_WIDTH_RATIO = 0.92;
 const MODAL_HEIGHT_RATIO = 0.72;
+
+type SuggestionsHeaderProps = { onSelectPrompt: (p: string) => void };
+const SuggestionsHeader = memo(function SuggestionsHeader({
+  onSelectPrompt,
+}: SuggestionsHeaderProps) {
+  return (
+    <View style={suggestionStyles.container}>
+      <Text style={suggestionStyles.title}>Ask about your money</Text>
+      <View style={suggestionStyles.list}>
+        {AGENT_SUGGESTED_PROMPTS.map((prompt) => (
+          <Pressable
+            key={prompt}
+            accessibilityRole="button"
+            accessibilityLabel={prompt}
+            onPress={() => onSelectPrompt(prompt)}
+            style={({ pressed }) => [
+              suggestionStyles.row,
+              pressed && suggestionStyles.rowPressed,
+            ]}
+          >
+            <Text style={suggestionStyles.rowText}>{prompt}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+});
 /** Extra lift above the tab bar (above prior `spacing.sm` gap). */
 const FAB_LIFT = spacing.xl + spacing.md;
-
-function statusLabel(status: AgentChatStatus): string | null {
-  switch (status.phase) {
-    case "sql":
-      return "Looking up your data…";
-    case "reflect":
-      return "Checking the results…";
-    case "responding":
-      return "Writing answer…";
-    case "error":
-      return status.message;
-    default:
-      return null;
-  }
-}
 
 type AgentChatOverlayProps = {
   /** When false, hides the entry FAB (e.g. during tab shell bootstrap). */
@@ -72,7 +85,7 @@ export function AgentChatOverlay({
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const scrollRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const [draft, setDraft] = useState("");
   const [overlayMounted, setOverlayMounted] = useState(false);
 
@@ -97,64 +110,32 @@ export function AgentChatOverlay({
   const collapsedScaleY = FAB_SIZE / panelHeight;
   const collapsedCornerRadius = Math.min(panelWidth, panelHeight) / 2;
 
-  const {
-    threadId,
-    messages,
-    status,
-    isStreaming,
-    sendMessage,
-    resetConversation,
-    loadThreadHistory,
-    isCreatingThread,
-  } = useAgentChat();
+  const { messages, isPending, sendMessage, resetConversation } =
+    useAgentChat();
+  const stackNavigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
-  const threadsQuery = useAgentThreadsQuery({ enabled: visible });
-  const latestThreadId = threadsQuery.data?.[0]?.id ?? null;
-  const historyQuery = useAgentMessagesQuery(latestThreadId, {
-    enabled:
-      visible && !threadId && messages.length === 0 && Boolean(latestThreadId),
-  });
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      if (messages.length === 0) return;
+      flatListRef.current?.scrollToEnd({ animated });
+    },
+    [messages.length],
+  );
 
   useEffect(() => {
-    if (!visible || threadId || messages.length > 0) {
-      return;
-    }
-    const rows = historyQuery.data;
-    if (rows && latestThreadId && rows.length > 0) {
-      loadThreadHistory(rows, latestThreadId);
-    }
-  }, [
-    visible,
-    threadId,
-    messages.length,
-    historyQuery.data,
-    latestThreadId,
-    loadThreadHistory,
-  ]);
-
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, 80);
+    if (!visible) return;
+    const timer = setTimeout(() => scrollToBottom(), 80);
     return () => clearTimeout(timer);
-  }, [visible, messages, status]);
+  }, [visible, messages, scrollToBottom]);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
-      setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, 80);
+    if (!visible) return;
+    const sub = Keyboard.addListener("keyboardDidShow", () => {
+      setTimeout(() => scrollToBottom(), 80);
     });
-    return () => {
-      showSubscription.remove();
-    };
-  }, [visible]);
+    return () => sub.remove();
+  }, [visible, scrollToBottom]);
 
   useEffect(() => {
     return () => {
@@ -192,7 +173,7 @@ export function AgentChatOverlay({
     close();
   }, [close]);
 
-  const handleNewThread = useCallback(() => {
+  const handleResetChat = useCallback(() => {
     void triggerLightHaptic();
     resetConversation();
     setDraft("");
@@ -200,34 +181,48 @@ export function AgentChatOverlay({
 
   const handleSend = useCallback(() => {
     const text = draft.trim();
-    if (!text || isStreaming) {
+    if (!text || isPending) {
       return;
     }
     void triggerLightHaptic();
     setDraft("");
     void sendMessage(text);
-  }, [draft, isStreaming, sendMessage]);
+  }, [draft, isPending, sendMessage]);
 
   const handleSuggestedPrompt = useCallback(
     (prompt: string) => {
-      if (isStreaming) {
+      if (isPending) {
         return;
       }
       void triggerLightHaptic();
       void sendMessage(prompt);
     },
-    [isStreaming, sendMessage],
+    [isPending, sendMessage],
   );
 
   const handleDeepLink = useCallback(
     (link: AgentDeepLink) => {
-      const navigated = navigateAgentDeepLink(link);
-      if (navigated) {
-        close();
-      }
+      void triggerLightHaptic();
+      navigateAgentDeepLink(link, stackNavigation);
     },
-    [close],
+    [stackNavigation],
   );
+
+  const renderMessage = useCallback(
+    ({ item }: { item: ChatMessage }) => (
+      <AgentMessageRenderer
+        role={item.role}
+        content={item.content}
+        blocks={item.blocks}
+        deepLink={item.deepLink}
+        isPending={item.isPending}
+        onDeepLinkPress={handleDeepLink}
+      />
+    ),
+    [handleDeepLink],
+  );
+
+  const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.35, 1], [0, 0.4, 1]),
@@ -305,10 +300,8 @@ export function AgentChatOverlay({
   /** Static circle under the morph during collapse — avoids pill artifact at the end. */
   const showCollapseHandoffFab =
     showEntryFab && overlayMounted && !visible && !fabOpen;
-  const statusText = statusLabel(status);
-  const showSuggestions =
-    messages.length === 0 && !isStreaming && !isCreatingThread;
-  const composerDisabled = isStreaming || isCreatingThread;
+  const showSuggestions = messages.length === 0 && !isPending;
+  const composerDisabled = isPending;
 
   return (
     <>
@@ -380,22 +373,29 @@ export function AgentChatOverlay({
                   <View style={styles.headerActions}>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Start new chat"
-                      onPress={handleNewThread}
-                      hitSlop={8}
+                      accessibilityLabel="Clear chat"
+                      onPress={handleResetChat}
+                      hitSlop={10}
                       style={({ pressed }) => [
-                        styles.newChatButton,
-                        pressed && styles.newChatButtonPressed,
+                        styles.iconButton,
+                        pressed && styles.iconButtonPressed,
                       ]}
                     >
-                      <Text style={styles.newChatButtonText}>New chat</Text>
+                      <RotateCcw
+                        size={20}
+                        color={colors.textSecondary}
+                        strokeWidth={2}
+                      />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Close"
                       onPress={handleClose}
                       hitSlop={10}
-                      style={styles.iconButton}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        pressed && styles.iconButtonPressed,
+                      ]}
                     >
                       <X
                         size={22}
@@ -406,70 +406,27 @@ export function AgentChatOverlay({
                   </View>
                 </View>
 
-                <ScrollView
-                  ref={scrollRef}
+                <FlatList
+                  ref={flatListRef}
+                  data={messages}
+                  keyExtractor={keyExtractor}
+                  renderItem={renderMessage}
                   style={styles.messages}
                   contentContainerStyle={styles.messagesContent}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
-                >
-                  {showSuggestions ? (
-                    <View style={styles.suggestions}>
-                      <Text style={styles.suggestionsTitle}>
-                        Ask about your money
-                      </Text>
-                      <View style={styles.suggestionList}>
-                        {AGENT_SUGGESTED_PROMPTS.map((prompt) => (
-                          <Pressable
-                            key={prompt}
-                            accessibilityRole="button"
-                            accessibilityLabel={prompt}
-                            onPress={() => handleSuggestedPrompt(prompt)}
-                            style={({ pressed }) => [
-                              styles.suggestionRow,
-                              pressed && styles.suggestionRowPressed,
-                            ]}
-                          >
-                            <Text style={styles.suggestionRowText}>
-                              {prompt}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  ) : null}
-
-                  {messages.map((message) => (
-                    <AgentMessageRenderer
-                      key={message.id}
-                      role={message.role}
-                      content={message.content}
-                      blocks={message.blocks}
-                      deepLink={message.deepLink}
-                      isStreaming={message.isStreaming}
-                      onDeepLinkPress={handleDeepLink}
-                    />
-                  ))}
-
-                  {statusText ? (
-                    <View style={styles.statusRow}>
-                      {status.phase !== "error" ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.headerGradientStart}
-                        />
-                      ) : null}
-                      <Text
-                        style={[
-                          styles.statusText,
-                          status.phase === "error" && styles.statusError,
-                        ]}
-                      >
-                        {statusText}
-                      </Text>
-                    </View>
-                  ) : null}
-                </ScrollView>
+                  removeClippedSubviews
+                  windowSize={5}
+                  maxToRenderPerBatch={4}
+                  initialNumToRender={10}
+                  ListHeaderComponent={
+                    showSuggestions ? (
+                      <SuggestionsHeader
+                        onSelectPrompt={handleSuggestedPrompt}
+                      />
+                    ) : null
+                  }
+                />
 
                 <View style={styles.composer}>
                   <TextInput
@@ -496,7 +453,7 @@ export function AgentChatOverlay({
                       pressed && !composerDisabled && styles.sendButtonPressed,
                     ]}
                   >
-                    {isStreaming ? (
+                    {isPending ? (
                       <ActivityIndicator
                         size="small"
                         color={colors.barBackground}
@@ -602,24 +559,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  newChatButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-  },
-  newChatButtonPressed: {
-    opacity: 0.7,
-  },
-  newChatButtonText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    color: colors.headerGradientStart,
-  },
   iconButton: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconButtonPressed: {
+    opacity: 0.7,
   },
   messages: {
     flex: 1,
@@ -628,52 +575,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexGrow: 1,
-  },
-  suggestions: {
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  suggestionsTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    color: colors.textSecondary,
-  },
-  suggestionList: {
-    gap: spacing.sm,
-  },
-  suggestionRow: {
-    width: "100%",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  suggestionRowPressed: {
-    opacity: 0.85,
-    backgroundColor: colors.surfaceTint,
-  },
-  suggestionRowText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    color: colors.textPrimary,
-    lineHeight: 22,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  statusText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  statusError: {
-    color: colors.danger,
   },
   composer: {
     flexDirection: "row",
@@ -713,5 +614,39 @@ const styles = StyleSheet.create({
   },
   sendButtonPressed: {
     opacity: 0.85,
+  },
+});
+
+const suggestionStyles = StyleSheet.create({
+  container: {
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  title: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+  list: {
+    gap: spacing.sm,
+  },
+  row: {
+    width: "100%",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.barBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  rowPressed: {
+    opacity: 0.85,
+    backgroundColor: colors.surfaceTint,
+  },
+  rowText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 22,
   },
 });
