@@ -23,6 +23,8 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
   errorMessage?: string | null;
   showClear?: boolean;
   showPasswordToggle?: boolean;
+  /** Multiline shell min height (textarea). Defaults to 132 when multiline. */
+  minInputHeight?: number;
 };
 
 export function TextField({
@@ -38,6 +40,8 @@ export function TextField({
   editable = true,
   onFocus,
   onBlur,
+  multiline,
+  minInputHeight,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -46,6 +50,8 @@ export function TextField({
   const effectiveSecure = isPassword ? hidden : secureTextEntry;
   const hasValue = Boolean(value && String(value).length > 0);
   const showClearButton = showClear && hasValue && editable !== false;
+  const isMultiline = Boolean(multiline);
+  const textareaMinHeight = minInputHeight ?? (isMultiline ? 132 : undefined);
   return (
     <View>
       {!hideLabel ? (
@@ -63,17 +69,26 @@ export function TextField({
       <View
         style={[
           formStyles.fieldShell,
+          isMultiline && styles.textareaShell,
+          textareaMinHeight != null && { minHeight: textareaMinHeight },
           focused && formStyles.fieldShellFocused,
           Boolean(errorMessage) && formStyles.fieldShellError,
         ]}
       >
         <TextInput
-          style={formStyles.fieldInput}
+          style={[
+            formStyles.fieldInput,
+            isMultiline && styles.textareaInput,
+            textareaMinHeight != null && {
+              minHeight: textareaMinHeight - spacing.md,
+            },
+          ]}
           placeholderTextColor={colors.inactive}
           value={value}
           onChangeText={onChangeText}
           editable={editable}
           secureTextEntry={effectiveSecure}
+          multiline={multiline}
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
@@ -83,7 +98,13 @@ export function TextField({
             onBlur?.(e);
           }}
           underlineColorAndroid="transparent"
-          textAlignVertical={Platform.OS === "android" ? "center" : undefined}
+          textAlignVertical={
+            isMultiline
+              ? "top"
+              : Platform.OS === "android"
+                ? "center"
+                : undefined
+          }
           {...rest}
         />
         {isPassword ? (
@@ -104,7 +125,7 @@ export function TextField({
           <Pressable
             accessibilityLabel="Clear text"
             hitSlop={12}
-            style={formStyles.iconButton}
+            style={[formStyles.iconButton, isMultiline && styles.textareaClear]}
             onPress={() => onChangeText?.("")}
           >
             <X size={18} color={colors.inactive} />
@@ -129,5 +150,17 @@ const styles = StyleSheet.create({
   labelInRow: {
     flex: 1,
     marginBottom: 0,
+  },
+  textareaShell: {
+    alignItems: "flex-start",
+    paddingVertical: spacing.sm,
+  },
+  textareaInput: {
+    height: undefined,
+    paddingTop: Platform.OS === "android" ? spacing.xs : undefined,
+    textAlignVertical: "top",
+  },
+  textareaClear: {
+    marginTop: spacing.xs,
   },
 });

@@ -4,9 +4,9 @@ import {
   BUTTON_LOADER_SIZE,
   InfinityButtonLoader,
 } from "@/components/ui/InfinityButtonLoader";
-import { colors, spacing, surfaces } from "@/constants";
+import { colors, danger, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ButtonVariant =
   | "primary"
@@ -41,20 +41,21 @@ export function Button({
       : colors.primary
     : isDanger
       ? isDisabled
-        ? surfaces.dangerTint06
-        : surfaces.dangerTint08
+        ? `${danger}99`
+        : danger
       : "transparent";
 
-  const borderWidth = isPrimary ? 0 : StyleSheet.hairlineWidth;
-  const borderColor = isDanger || isGhostDanger ? colors.danger : colors.border;
+  const borderWidth = isPrimary || isDanger ? 0 : StyleSheet.hairlineWidth;
+  const borderColor = isGhostDanger ? colors.danger : colors.border;
 
-  const labelColor = isPrimary
-    ? colors.barBackground
-    : isDanger || isGhostDanger
-      ? colors.danger
-      : isGhost
-        ? colors.textPrimary
-        : colors.primary;
+  const labelColor =
+    isPrimary || isDanger
+      ? surface
+      : isGhostDanger
+        ? colors.danger
+        : isGhost
+          ? colors.textPrimary
+          : colors.primary;
 
   const loaderColor = labelColor;
 
@@ -63,7 +64,7 @@ export function Button({
       accessibilityRole="button"
       disabled={isDisabled}
       onPress={(e) => {
-        void triggerLightHaptic();
+        void triggerHaptic();
         onPress?.(e);
       }}
       style={({ pressed }) => ({
