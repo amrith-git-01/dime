@@ -7,7 +7,7 @@ import Animated from "react-native-reanimated";
 import { fontFamilies } from "@/constants/fonts";
 import { bento, colors, spacing } from "@/constants";
 import { useAvatarRefreshAnimation } from "@/features/profile/hooks/useAvatarRefreshAnimation";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 const DEFAULT_AVATAR_SIZE = 96;
 
@@ -58,7 +58,7 @@ export const ProfileAvatarEditor = memo(function ProfileAvatarEditor({
   const stageSize = avatarSize + fabBleed;
 
   const handleRefresh = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     onRefreshRandom();
     runRefreshFeedback();
   }, [onRefreshRandom, runRefreshFeedback]);

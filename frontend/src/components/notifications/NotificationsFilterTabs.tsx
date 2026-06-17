@@ -15,7 +15,7 @@ import Animated, {
 import { fontFamilies } from "@/constants/fonts";
 import { ink, inkSoft, radius, shadow, spacing, surface, surfaceSunken } from "@/constants";
 import type { NotificationInboxFilter } from "@/features/notifications/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 const TABS: { id: NotificationInboxFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -67,7 +67,7 @@ export const NotificationsFilterTabs = memo(function NotificationsFilterTabs({
 
   const handlePress = (filter: NotificationInboxFilter) => {
     if (filter === value) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     onChange(filter);
   };
 

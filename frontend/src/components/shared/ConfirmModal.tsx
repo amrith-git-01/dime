@@ -24,7 +24,7 @@ import {
   typography,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 export type ConfirmModalProps = {
   visible: boolean;
@@ -73,7 +73,7 @@ function ModalActionButton({
       accessibilityRole="button"
       disabled={isDisabled}
       onPress={() => {
-        void triggerLightHaptic();
+        void triggerHaptic();
         onPress();
       }}
       style={({ pressed }) => [
