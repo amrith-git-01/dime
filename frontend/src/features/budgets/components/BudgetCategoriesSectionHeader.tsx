@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { ScreenSectionHeader } from "@/components/shared";
 import { accent, accentTint, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type BudgetCategoriesSectionHeaderProps = {
   onAddPress: () => void;
@@ -23,7 +23,7 @@ export const BudgetCategoriesSectionHeader = memo(
         action={
           <Pressable
             onPress={() => {
-              void triggerLightHaptic();
+              void triggerHaptic();
               onAddPress();
             }}
             disabled={addDisabled}

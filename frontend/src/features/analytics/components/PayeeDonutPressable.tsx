@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { ChartTooltipAnchor } from "@/components/shared";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { hitTestPayeeDonutSlice } from "@/features/analytics/utils/hitTestPayeeDonutSlice";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 const TOUCH_ANCHOR_SIZE = 32;
 
@@ -53,7 +53,7 @@ export const PayeeDonutPressable = memo(function PayeeDonutPressable({
             if (!slice) {
               return;
             }
-            void triggerLightHaptic();
+            void triggerHaptic();
             wrapRef.current?.measureInWindow((chartX, chartY) => {
               const half = TOUCH_ANCHOR_SIZE / 2;
               onSlicePress(slice, {

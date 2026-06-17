@@ -6,7 +6,7 @@ import {
 import { accent, colors, inkSoft, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
 import { useIsFocused } from "@react-navigation/native";
 import { format, parseISO } from "date-fns";
@@ -108,7 +108,7 @@ const CashflowDayHitCell = memo(function CashflowDayHitCell({
         selected && styles.dayHitCellSelected,
       ]}
       onPress={() => {
-        void triggerLightHaptic();
+        void triggerHaptic();
         cellRef.current?.measureInWindow((x, y, w, h) => {
           onPress({ x, y, width: w, height: h });
         });
