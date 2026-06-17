@@ -19,6 +19,8 @@ export const colors = {
   barBackground: "#FFFFFF",
   surfaceTint: "#FAFAFF",
   pageBackground: "#f9f9ff",
+  /** Onboarding illustration mat — Stitch cream accent. */
+  onboardingIllustrationBg: "#F7EFE1",
   textPrimary: "#151c27",
   textSecondary: "#464555",
   textListPrimary: "#0A0A1F",

@@ -22,14 +22,26 @@ const cardElevatedIos: ViewStyle = {
   shadowRadius: 12,
 };
 
+/** Stitch auth postcard — soft violet ambient lift. */
+const postcardIos: ViewStyle = {
+  shadowColor: colors.brandPrimary,
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.08,
+  shadowRadius: 24,
+};
+
 export const shadows = {
   card: Platform.select({
     android: cardAndroid,
     default: cardIos,
   }) as ViewStyle,
   cardElevated: Platform.select({
-    android: cardAndroid,
+    android: { elevation: 4 },
     default: cardElevatedIos,
+  }) as ViewStyle,
+  postcard: Platform.select({
+    android: { elevation: 6 },
+    default: postcardIos,
   }) as ViewStyle,
   hero: Platform.select({
     android: { elevation: 8 },

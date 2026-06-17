@@ -12,6 +12,8 @@ export type StackScreenShellProps = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   bottomOffset?: number;
   showsVerticalScrollIndicator?: boolean;
+  /** Disable when the screen has no keyboard fields (e.g. Auth carousel). */
+  scrollEnabled?: boolean;
 };
 
 /**
@@ -22,6 +24,7 @@ export function StackScreenShell({
   contentContainerStyle,
   bottomOffset = DEFAULT_BOTTOM_OFFSET,
   showsVerticalScrollIndicator = false,
+  scrollEnabled = true,
 }: StackScreenShellProps) {
   const insets = useSafeAreaInsets();
 
@@ -34,6 +37,7 @@ export function StackScreenShell({
         contentContainerStyle,
       ]}
       keyboardShouldPersistTaps="handled"
+      scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       bottomOffset={bottomOffset}
     >
