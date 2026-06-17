@@ -48,7 +48,7 @@ import {
 import { fontFamilies } from "@/constants/fonts";
 import { AGENT_SUGGESTED_PROMPT_META } from "@/features/agent/constants/suggestedPrompts";
 import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
@@ -197,7 +197,7 @@ export function AgentChatOverlay({
   }, [visible, overlayMounted]);
 
   const handleOpen = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setOverlayMounted(true);
     progress.value = 0;
     open();
@@ -208,7 +208,7 @@ export function AgentChatOverlay({
   }, [close]);
 
   const handleResetChat = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     resetConversation();
     setDraft("");
   }, [resetConversation]);
@@ -218,7 +218,7 @@ export function AgentChatOverlay({
     if (!text || isPending) {
       return;
     }
-    void triggerLightHaptic();
+    void triggerHaptic();
     setDraft("");
     void sendMessage(text);
   }, [draft, isPending, sendMessage]);
@@ -228,7 +228,7 @@ export function AgentChatOverlay({
       if (isPending) {
         return;
       }
-      void triggerLightHaptic();
+      void triggerHaptic();
       void sendMessage(prompt);
     },
     [isPending, sendMessage],
@@ -236,7 +236,7 @@ export function AgentChatOverlay({
 
   const handleDeepLink = useCallback(
     (link: AgentDeepLink) => {
-      void triggerLightHaptic();
+      void triggerHaptic();
       navigateAgentDeepLink(link, stackNavigation);
     },
     [stackNavigation],

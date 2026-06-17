@@ -6,6 +6,12 @@ export {
   InfinityButtonLoader,
   type InfinityButtonLoaderProps,
 } from "./InfinityButtonLoader";
+export {
+  LOTTIE_TOGGLE_HEIGHT,
+  LOTTIE_TOGGLE_WIDTH,
+  LottieToggle,
+  type LottieToggleProps,
+} from "./LottieToggle/LottieToggle";
 export { ProgressBar } from "./ProgressBar";
 export { SegmentChip } from "./SegmentChip/SegmentChip";
 export {
