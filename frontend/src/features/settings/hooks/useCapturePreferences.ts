@@ -3,18 +3,20 @@ import { useCallback } from "react";
 import { useCapturePreferencesStore } from "@/stores/capturePreferencesStore";
 
 export function useCapturePreferences() {
-  const upiEnabled = useCapturePreferencesStore((s) => s.upiEnabled);
-  const setUpiEnabled = useCapturePreferencesStore((s) => s.setUpiEnabled);
+  const smsScanEnabled = useCapturePreferencesStore((s) => s.smsScanEnabled);
+  const setSmsScanEnabled = useCapturePreferencesStore(
+    (s) => s.setSmsScanEnabled,
+  );
 
-  const setUpi = useCallback(
+  const setSmsScan = useCallback(
     (enabled: boolean) => {
-      setUpiEnabled(enabled);
+      setSmsScanEnabled(enabled);
     },
-    [setUpiEnabled],
+    [setSmsScanEnabled],
   );
 
   return {
-    upiEnabled,
-    setUpi,
+    smsScanEnabled,
+    setSmsScan,
   };
 }

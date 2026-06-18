@@ -3,16 +3,20 @@ import { createMMKV } from "react-native-mmkv";
 const settingsMmkv = createMMKV({ id: "dime-settings" });
 
 const KEYS = {
-  upiDetection: "capture.upi_enabled",
+  smsScan: "capture.sms_scan_enabled",
+  upiDetectionLegacy: "capture.upi_enabled",
 } as const;
 
-export function getUpiDetectionEnabled(): boolean {
-  if (!settingsMmkv.contains(KEYS.upiDetection)) {
-    return true;
+export function getSmsScanEnabled(): boolean {
+  if (settingsMmkv.contains(KEYS.smsScan)) {
+    return settingsMmkv.getBoolean(KEYS.smsScan) ?? true;
   }
-  return settingsMmkv.getBoolean(KEYS.upiDetection) ?? true;
+  if (settingsMmkv.contains(KEYS.upiDetectionLegacy)) {
+    return settingsMmkv.getBoolean(KEYS.upiDetectionLegacy) ?? true;
+  }
+  return true;
 }
 
-export function setUpiDetectionEnabled(enabled: boolean): void {
-  settingsMmkv.set(KEYS.upiDetection, enabled);
+export function setSmsScanEnabled(enabled: boolean): void {
+  settingsMmkv.set(KEYS.smsScan, enabled);
 }

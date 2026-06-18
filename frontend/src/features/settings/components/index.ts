@@ -7,6 +7,7 @@ export { SettingsCaptureEditor } from "./SettingsCaptureEditor";
 export { SettingsEditorFooter } from "./SettingsEditorFooter";
 export { SettingsFeedbackEditor } from "./SettingsFeedbackEditor";
 export { SettingsFormCard } from "./SettingsFormCard";
+export { SettingsGlossaryEditor } from "./SettingsGlossaryEditor";
 export { SettingsHapticEditor } from "./SettingsHapticEditor";
 export { SettingsHubHero } from "./SettingsHubHero";
 export { SettingsNavRow } from "./SettingsNavRow";
