@@ -8,8 +8,6 @@ import {
   ink,
   inkFaint,
   inkSoft,
-  success,
-  successTint,
   surfaces,
   warning,
   warningTint,
@@ -17,7 +15,7 @@ import {
 
 import type { NotificationKind } from "./types";
 
-/** Inbox row copy — unread vs read (no dot indicator). */
+/** Inbox row copy — unread vs read. */
 export const NOTIFICATION_INBOX_TEXT = {
   unread: {
     title: ink,
@@ -37,24 +35,8 @@ export type NotificationRowVisual = {
   iconColor: string;
 };
 
-export type NotificationActionAccent = {
-  iconColor: string;
-  backgroundColor: string;
-};
-
-/** Circular tinted wells for row actions (mark read / delete). */
-export const NOTIFICATION_ROW_ACTIONS = {
-  markRead: {
-    iconColor: success,
-    backgroundColor: successTint,
-  },
-  delete: {
-    iconColor: danger,
-    backgroundColor: dangerTint,
-  },
-} as const satisfies Record<string, NotificationActionAccent>;
-
-export const NOTIFICATION_ACTION_WELL_SIZE = 28;
+export const NOTIFICATION_ICON_WELL_SIZE = 36;
+export const NOTIFICATION_SWIPE_ACTION_WIDTH = 64;
 
 export const NOTIFICATION_ROW_VISUALS: Record<
   NotificationKind,

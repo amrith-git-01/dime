@@ -19,10 +19,8 @@ export type AppNotification = {
   action: NotificationAction;
 };
 
-export type NotificationDateGroupKey = "today" | "yesterday" | "earlier";
-
 export type NotificationDateGroup = {
-  key: NotificationDateGroupKey;
+  key: string;
   title: string;
   items: AppNotification[];
 };

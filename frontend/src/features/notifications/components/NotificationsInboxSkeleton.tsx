@@ -1,16 +1,14 @@
 import { StyleSheet, View } from "react-native";
 
-import { BENTO_SECTION_HEADER_GAP } from "@/components/bento";
 import { NotificationBentoRowSkeleton } from "@/components/notifications/NotificationBentoRowSkeleton";
-import { BentoSectionCard } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 
 const FILTER_TAB_COUNT = 3;
-const ROW_COUNT = 4;
+const ROW_COUNT = 3;
 
 /**
- * Shape-matched loading skeleton for the notifications inbox (tabs + section list).
+ * Shape-matched loading skeleton for the notifications inbox (tabs + card list).
  */
 export function NotificationsInboxSkeleton() {
   return (
@@ -23,14 +21,9 @@ export function NotificationsInboxSkeleton() {
 
       <View style={styles.section}>
         <SkeletonBlock tone="surface" style={styles.sectionTitle} />
-        <BentoSectionCard>
-          {Array.from({ length: ROW_COUNT }, (_, index) => (
-            <NotificationBentoRowSkeleton
-              key={index}
-              showSeparator={index < ROW_COUNT - 1}
-            />
-          ))}
-        </BentoSectionCard>
+        {Array.from({ length: ROW_COUNT }, (_, index) => (
+          <NotificationBentoRowSkeleton key={index} />
+        ))}
       </View>
     </View>
   );
@@ -51,11 +44,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   section: {
-    gap: BENTO_SECTION_HEADER_GAP,
+    gap: spacing.md,
   },
   sectionTitle: {
     width: 56,
-    height: 11,
+    height: 12,
     borderRadius: radius.sm,
   },
 });
