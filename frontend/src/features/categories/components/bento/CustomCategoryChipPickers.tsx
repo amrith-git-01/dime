@@ -16,7 +16,7 @@ import {
   CUSTOM_CATEGORY_ICON_OPTIONS,
   type CustomCategoryIconName,
 } from "@/features/categories/constants/customCategoryPresets";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type CustomCategoryChipPickersProps = {
   selectedIcon: CustomCategoryIconName;
@@ -56,7 +56,7 @@ export const CustomCategoryChipPickers = memo(
                     accessibilityState={{ selected }}
                     accessibilityLabel={option}
                     onPress={() => {
-                      void triggerLightHaptic();
+                      void triggerHaptic();
                       onSelectIcon(option);
                     }}
                     style={[
@@ -93,7 +93,7 @@ export const CustomCategoryChipPickers = memo(
                     accessibilityState={{ selected }}
                     accessibilityLabel={`Color ${option}`}
                     onPress={() => {
-                      void triggerLightHaptic();
+                      void triggerHaptic();
                       onSelectColor(option);
                     }}
                     style={[
