@@ -1,0 +1,110 @@
+import { QueryClient } from "@tanstack/react-query";
+
+import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights";
+import { insightsQueryKeys } from "@/features/analytics/queryKeys";
+import { fetchBudget } from "@/features/budgets/api/budgetsApi";
+import { fetchCategoryBudgets } from "@/features/budgets/api/categoryBudgetsApi";
+import { budgetQueryKey } from "@/features/budgets/hooks/useBudget";
+import { categoryBudgetsQueryKey } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { fetchCategories } from "@/features/categories/api/categoriesApi";
+import { categoriesQueryKeys } from "@/features/categories/queryKeys";
+import {
+  fetchNotifications,
+  fetchUnreadNotificationCount,
+} from "@/features/notifications/api/notificationsApi";
+import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { fetchMe } from "@/features/profile/api/meApi";
+import { profileQueryKeys } from "@/features/profile/queryKeys";
+import {
+  fetchHomeOverview,
+  fetchTransactionsPage,
+  monthRangeIso,
+  TX_PAGE_LIMIT,
+} from "@/features/transactions/api/transactionsApi";
+import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import {
+  clearPersistedNotifications,
+  writePersistedNotifications,
+} from "@/lib/notifications/notificationsMmkv";
+import { clearQueryMmkv } from "@/lib/queryPersister";
+import { useCurrentUserStore } from "@/stores/currentUserStore";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+
+/**
+ * Clears API-derived MMKV (React Query cache blob, notifications, profile).
+ * Does not touch auth, capture preferences, or other device settings.
+ */
+export function clearAppDataMmkv(): void {
+  clearQueryMmkv();
+  clearPersistedNotifications();
+  useCurrentUserStore.getState().clearProfile();
+}
+
+/** Wipe local API cache and pull fresh data from the backend. */
+export async function refreshAppDataFromServer(
+  queryClient: QueryClient,
+  userId: string,
+): Promise<void> {
+  clearAppDataMmkv();
+
+  await queryClient.cancelQueries();
+  queryClient.clear();
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const monthIndex0 = now.getMonth();
+  const timezone = getDeviceIanaTimezone();
+  const { from, to } = monthRangeIso(year, monthIndex0);
+
+  const [inbox, unreadCount] = await Promise.all([
+    fetchNotifications("all"),
+    fetchUnreadNotificationCount(),
+  ]);
+
+  queryClient.setQueryData(notificationQueryKeys.inboxList(), inbox);
+  queryClient.setQueryData(notificationQueryKeys.unreadCount(), unreadCount);
+  writePersistedNotifications({ inbox, unreadCount });
+
+  await Promise.all([
+    queryClient.fetchQuery({
+      queryKey: profileQueryKeys.current(userId),
+      queryFn: async () => {
+        const me = await fetchMe();
+        useCurrentUserStore.getState().setProfile(me);
+        return me;
+      },
+    }),
+    queryClient.fetchQuery({
+      queryKey: transactionsQueryKeys.home(userId, timezone),
+      queryFn: () => fetchHomeOverview(timezone),
+    }),
+    queryClient.fetchQuery({
+      queryKey: insightsQueryKeys.month(userId, year, month, timezone),
+      queryFn: () => fetchMonthInsights({ year, month, timezone }),
+    }),
+    queryClient.fetchQuery({
+      queryKey: categoriesQueryKeys.list(),
+      queryFn: fetchCategories,
+    }),
+    queryClient.fetchQuery({
+      queryKey: budgetQueryKey,
+      queryFn: fetchBudget,
+    }),
+    queryClient.fetchQuery({
+      queryKey: categoryBudgetsQueryKey,
+      queryFn: fetchCategoryBudgets,
+    }),
+    queryClient.fetchInfiniteQuery({
+      queryKey: transactionsQueryKeys.monthPages(userId, year, month, timezone),
+      queryFn: ({ pageParam }) =>
+        fetchTransactionsPage({
+          from,
+          to,
+          limit: TX_PAGE_LIMIT,
+          offset: pageParam as number,
+        }),
+      initialPageParam: 0,
+    }),
+  ]);
+}
