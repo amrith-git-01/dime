@@ -17,7 +17,7 @@ export const AUTH_FEATURE_SLIDES: AuthFeatureSlideData[] = [
     id: "auto-tracking",
     image: slide1Image,
     description:
-      "UPI and bank alerts turn into categorised expenses — automatically, on your device.",
+      "Bank SMS can become expenses — you review them when you open Dime.",
   },
   {
     id: "capture-methods",
