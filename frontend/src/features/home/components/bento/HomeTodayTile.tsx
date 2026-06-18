@@ -3,7 +3,8 @@ import { StyleSheet } from "react-native";
 
 import { spacing } from "@/constants";
 
-import { BentoSevenDayBarChart } from "./BentoSevenDayBarChart";
+import { VictorySparkBarChart } from "@/features/charts";
+
 import { BentoSevenDayBarChartSkeleton } from "./BentoSevenDayBarChartSkeleton";
 import {
   HOME_SPEND_CHART_BAR_HEIGHT,
@@ -48,9 +49,11 @@ export const HomeTodayTile = memo(function HomeTodayTile({
       {isLoading ? (
         <BentoSevenDayBarChartSkeleton />
       ) : (
-        <BentoSevenDayBarChart
+        <VictorySparkBarChart
           days={last7DaysSpend}
           height={HOME_SPEND_CHART_BAR_HEIGHT}
+          revealIdentity={`home-bars-${last7DaysSpend.at(-1)?.date ?? "empty"}`}
+          revealEnabled
         />
       )}
     </HomeSpendBentoTile>

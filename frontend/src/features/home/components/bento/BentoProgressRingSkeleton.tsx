@@ -10,7 +10,7 @@ type BentoProgressRingSkeletonProps = {
   strokeWidth?: number;
 };
 
-/** Track-only ring placeholder matching {@link BentoProgressRing} layout. */
+/** Track-only ring placeholder matching {@link SkiaProgressRing} layout. */
 export const BentoProgressRingSkeleton = memo(
   function BentoProgressRingSkeleton({
     size = HOME_SPEND_RING_SIZE,

@@ -3,7 +3,8 @@ import { StyleSheet, View } from "react-native";
 
 import { spacing } from "@/constants";
 
-import { BentoProgressRing } from "./BentoProgressRing";
+import { SkiaProgressRing } from "@/features/charts";
+
 import { BentoProgressRingSkeleton } from "./BentoProgressRingSkeleton";
 import { HOME_SPEND_RING_SIZE } from "./homeBentoTokens";
 import { HomeSpendBentoTile } from "./HomeSpendBentoTile";
@@ -48,12 +49,14 @@ export const HomeMonthTile = memo(function HomeMonthTile({
         <BentoProgressRingSkeleton strokeWidth={MONTH_RING_STROKE} />
       ) : (
         <View pointerEvents="none">
-          <BentoProgressRing
+          <SkiaProgressRing
             progress={monthlyProgress}
             size={HOME_SPEND_RING_SIZE}
             strokeWidth={MONTH_RING_STROKE}
             showLabel
             variant="light"
+            revealIdentity={`home-ring-${monthLabel}`}
+            revealEnabled
           />
         </View>
       )}

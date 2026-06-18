@@ -13,7 +13,7 @@ type BentoSevenDayBarChartSkeletonProps = {
   barHeight?: number;
 };
 
-/** Bar plot placeholder matching {@link BentoSevenDayBarChart} slot. */
+/** Bar plot placeholder matching {@link VictorySparkBarChart} slot. */
 export const BentoSevenDayBarChartSkeleton = memo(
   function BentoSevenDayBarChartSkeleton({
     barHeight = HOME_SPEND_CHART_BAR_HEIGHT,
