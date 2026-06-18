@@ -3,6 +3,7 @@ import {
   MutationCache,
   QueryCache,
   QueryClient,
+  type Query,
   type QueryKey,
 } from "@tanstack/react-query";
 import type { PersistedClient } from "@tanstack/react-query-persist-client";
@@ -31,27 +32,37 @@ export const appQueryPersistOptions = {
   persister: queryPersister,
   maxAge: QUERY_CACHE_MAX_AGE_MS,
   dehydrateOptions: {
-    shouldDehydrateQuery: (query: { queryKey: QueryKey }) =>
+    shouldDehydrateQuery: (query: Query) =>
+      query.state.status === "success" &&
       query.queryKey[0] !== notificationQueryKeys.all[0],
   },
 } as const;
 
 function restoreQueryCache(queryClient: QueryClient): boolean {
-  const persisted = queryPersister.restoreClient() as
-    | PersistedClient
-    | undefined;
+  try {
+    const persisted = queryPersister.restoreClient() as
+      | PersistedClient
+      | undefined;
 
-  if (!persisted?.timestamp) {
-    return false;
-  }
+    if (!persisted?.timestamp) {
+      return false;
+    }
 
-  if (Date.now() - persisted.timestamp > QUERY_CACHE_MAX_AGE_MS) {
+    if (Date.now() - persisted.timestamp > QUERY_CACHE_MAX_AGE_MS) {
+      queryPersister.removeClient();
+      return false;
+    }
+
+    hydrate(queryClient, persisted.clientState);
+    return true;
+  } catch (error) {
+    console.error(
+      "[appBootstrap] corrupt or incompatible query cache — clearing MMKV",
+      error,
+    );
     queryPersister.removeClient();
     return false;
   }
-
-  hydrate(queryClient, persisted.clientState);
-  return true;
 }
 
 /** Sync MMKV → React Query (main cache blob + notifications). Runs once at launch. */

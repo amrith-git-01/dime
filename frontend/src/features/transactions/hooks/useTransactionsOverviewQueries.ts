@@ -107,3 +107,28 @@ export function useTransactionsMonthInfiniteQuery(
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
   });
 }
+
+export function useTransactionsRangeInfiniteQuery(
+  fromIso: string,
+  toIso: string,
+  options?: { enabled?: boolean },
+) {
+  const { userId, authReady } = useSessionUserId();
+
+  return useInfiniteQuery({
+    queryKey: transactionsQueryKeys.rangePages(userId, fromIso, toIso),
+    queryFn: ({ pageParam }) =>
+      fetchTransactionsPage({
+        from: fromIso,
+        to: toIso,
+        limit: TX_PAGE_LIMIT,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _pages, lastOffset) => {
+      if (!lastPage.has_more) return undefined;
+      return lastOffset + lastPage.items.length;
+    },
+    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+  });
+}

@@ -21,6 +21,14 @@ export function transactionPayeeKey(transaction: TransactionRow): string {
   return "unknown";
 }
 
+export function resolvePayeeFilterId(input: {
+  payeeId?: string;
+  payeeKey?: string;
+}): string {
+  const id = input.payeeId?.trim() || input.payeeKey?.trim();
+  return id ?? "";
+}
+
 export function filterTransactionsByPayee(
   transactions: TransactionRow[],
   payeeKey: string,

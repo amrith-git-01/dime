@@ -32,4 +32,12 @@ export const transactionsQueryKeys = {
       month,
       timezone,
     ] as const,
+  rangePages: (userId: string | undefined, fromIso: string, toIso: string) =>
+    [
+      ...transactionsQueryKeys.all,
+      "rangePages",
+      userId ?? "none",
+      fromIso,
+      toIso,
+    ] as const,
 };
