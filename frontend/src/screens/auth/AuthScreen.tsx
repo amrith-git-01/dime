@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -7,96 +8,105 @@ import {
   View,
 } from "react-native";
 
-import {
-  BENTO_FORM_BODY_GAP,
-  BENTO_FORM_SECTION_PADDING,
-} from "@/components/bento";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { TwoToneCard } from "@/components/shared";
-import { bento, colors, spacing } from "@/constants";
+import { bento, colors, radius, shadows, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import {
+  AuthFeatureCarousel,
+  AuthPostcardDots,
+} from "@/features/onboarding/components";
+import { AUTH_FEATURE_SLIDES } from "@/features/onboarding/constants/authFeatureSlides";
+import {
+  ONBOARDING_CTA_TOP_GAP,
+  ONBOARDING_DOT_PAGER_GAP,
+} from "@/features/onboarding/constants/onboardingTokens";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 
 export default function AuthScreen() {
   const model = useAuthScreenModel();
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const handleActiveIndexChange = useCallback((index: number) => {
+    setActiveSlideIndex(index);
+  }, []);
 
   return (
-    <StackScreenShell contentContainerStyle={styles.shellContent}>
-      <TwoToneCard
-        header={
-          <View style={styles.headerInner}>
-            <Text style={styles.headerTitle}>Welcome to Dime</Text>
-            <Text style={styles.headerSubtitle}>
-              Sign in to track spending and stay on budget.
-            </Text>
-          </View>
-        }
-        body={
-          <View style={styles.bodyInner}>
-            {model.googleError ? (
-              <Text style={styles.errorText}>{model.googleError}</Text>
-            ) : null}
+    <StackScreenShell
+      scrollEnabled={false}
+      contentContainerStyle={styles.shellContent}
+    >
+      <View style={styles.screen}>
+        <View style={styles.postcardRegion}>
+          <AuthFeatureCarousel onActiveIndexChange={handleActiveIndexChange} />
+        </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Continue with Google"
-              disabled={model.busy}
-              onPress={model.submitGoogle}
-              style={({ pressed }) => [
-                styles.googleButton,
-                pressed && !model.busy && styles.googleButtonPressed,
-                model.busy && styles.googleButtonDisabled,
-              ]}
-            >
-              {model.googleLoading ? (
-                <ActivityIndicator size="small" color={colors.oauthGoogle} />
-              ) : (
-                <MaterialCommunityIcons
-                  name="google"
-                  size={22}
-                  color={colors.oauthGoogle}
-                />
-              )}
-              <Text style={styles.googleLabel}>
-                {model.googleLoading ? "Signing in…" : "Continue with Google"}
-              </Text>
-            </Pressable>
+        <View style={styles.dotsRegion}>
+          <AuthPostcardDots
+            count={AUTH_FEATURE_SLIDES.length}
+            activeIndex={activeSlideIndex}
+          />
+        </View>
 
-            <Text style={styles.legal}>
-              By continuing you agree to our Terms and Privacy Policy.
+        <View style={styles.ctaRegion}>
+          {model.googleError ? (
+            <Text style={styles.errorText}>{model.googleError}</Text>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            disabled={model.busy}
+            onPress={model.submitGoogle}
+            style={({ pressed }) => [
+              styles.googleButton,
+              pressed && !model.busy && styles.googleButtonPressed,
+              model.busy && styles.googleButtonDisabled,
+            ]}
+          >
+            {model.googleLoading ? (
+              <ActivityIndicator size="small" color={colors.oauthGoogle} />
+            ) : (
+              <MaterialCommunityIcons
+                name="google"
+                size={22}
+                color={colors.oauthGoogle}
+              />
+            )}
+            <Text style={styles.googleLabel}>
+              {model.googleLoading ? "Signing in…" : "Continue with Google"}
             </Text>
-          </View>
-        }
-      />
+          </Pressable>
+        </View>
+      </View>
     </StackScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
   shellContent: {
-    flexGrow: 1,
+    flex: 1,
+  },
+  screen: {
+    flex: 1,
+  },
+  postcardRegion: {
+    flex: 1,
+    minHeight: 0,
     justifyContent: "center",
+    marginHorizontal: -spacing.lg,
   },
-  headerInner: {
-    padding: BENTO_FORM_SECTION_PADDING,
-    gap: spacing.sm,
+  dotsRegion: {
+    marginTop: ONBOARDING_DOT_PAGER_GAP,
+    paddingBottom: ONBOARDING_CTA_TOP_GAP,
   },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 18,
-    lineHeight: 24,
-    color: bento.onPastel.primary,
-  },
-  headerSubtitle: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: bento.onPastel.muted,
-  },
-  bodyInner: {
-    padding: BENTO_FORM_SECTION_PADDING,
-    gap: BENTO_FORM_BODY_GAP,
+  ctaRegion: {
+    backgroundColor: bento.twoToneBodySurface,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.cardBorder,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadows.card,
   },
   googleButton: {
     flexDirection: "row",
@@ -104,7 +114,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     minHeight: 48,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.barBackground,
     borderWidth: StyleSheet.hairlineWidth,
@@ -127,13 +137,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.error,
-    textAlign: "center",
-  },
-  legal: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
     textAlign: "center",
   },
 });

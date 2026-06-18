@@ -13,6 +13,7 @@ import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
+import { useGoogleAuthGate } from "@/stores/googleAuthGate";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -72,11 +73,15 @@ export default function RootNavigator() {
     };
   }, []);
 
+  const googleAuthPending = useGoogleAuthGate((s) => s.isPending);
   const profileUserId = session?.user.id;
+
   useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
   const cachedProfile = useCurrentUserStore((s) => s.profile);
-  const meQuery = useCurrentUserProfileQuery(profileUserId);
+  const meQuery = useCurrentUserProfileQuery(
+    googleAuthPending ? undefined : profileUserId,
+  );
 
   const resolvedProfile = meQuery.data ?? cachedProfile;
   const hasUsername = hasEstablishedUsername(resolvedProfile);
@@ -84,8 +89,11 @@ export default function RootNavigator() {
   const profileGateReady = !session || meQuery.isFetched || hasUsername;
 
   const route = useMemo(
-    () => resolveRootAppRoute(session, profileGateReady, hasUsername),
-    [session, profileGateReady, hasUsername],
+    () =>
+      googleAuthPending
+        ? "auth"
+        : resolveRootAppRoute(session, profileGateReady, hasUsername),
+    [googleAuthPending, session, profileGateReady, hasUsername],
   );
 
   useEffect(() => {
@@ -94,21 +102,19 @@ export default function RootNavigator() {
 
   return (
     <View style={styles.root}>
-      {route === "bootstrapping" ? null : (
-        <Stack.Navigator screenOptions={rootStackScreenOptions}>
-          {route === "auth" ? (
-            <Stack.Screen name="Auth" component={AuthScreen} />
-          ) : route === "setup" ? (
-            <Stack.Screen
-              name="ProfileSetup"
-              component={ProfileSetupScreen}
-              options={{ gestureEnabled: false }}
-            />
-          ) : (
-            <Stack.Screen name="Main" component={MainStackNavigator} />
-          )}
-        </Stack.Navigator>
-      )}
+      <Stack.Navigator screenOptions={rootStackScreenOptions}>
+        {route === "auth" || route === "bootstrapping" ? (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : route === "setup" ? (
+          <Stack.Screen
+            name="ProfileSetup"
+            component={ProfileSetupScreen}
+            options={{ gestureEnabled: false }}
+          />
+        ) : (
+          <Stack.Screen name="Main" component={MainStackNavigator} />
+        )}
+      </Stack.Navigator>
     </View>
   );
 }

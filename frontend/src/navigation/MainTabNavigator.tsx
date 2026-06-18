@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
+import { AgentChatOverlay } from "@/features/agent/components";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
@@ -111,6 +112,7 @@ export default function MainTabNavigator() {
           </View>
         ) : null}
       </View>
+      <AgentChatOverlay showEntryFab={shellReady} />
     </View>
   );
 }
