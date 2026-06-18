@@ -9,6 +9,7 @@ import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
+import { useIsFocused } from "@react-navigation/native";
 import { format, parseISO } from "date-fns";
 import {
   memo,
@@ -21,18 +22,22 @@ import {
 } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { INSIGHTS_CHART_BAR_ANIMATION } from "@/features/analytics/constants/chartAnimation";
+import { useChartInViewport } from "@/features/analytics/hooks/useChartInViewport";
+import { useVictoryChartEntry } from "@/features/analytics/hooks/useVictoryChartEntry";
+import { zeroCashflowChartRows } from "@/features/analytics/utils/chartEntryData";
 import {
   buildCashflowChartScale,
   buildFullMonthCashflowDays,
   CASHFLOW_DAY_SLOT_WIDTH,
   cashflowChartScrollWidth,
+  cashflowScrollOffsetForToday,
   CHART_LEADING_ANCHOR_DAY,
   chartTrailingAnchorDay,
   formatCashflowXLabel,
   maxCashflowChartY,
 } from "../utils/buildCashflowWindow";
 import { CashflowVictoryChart } from "./CashflowVictoryChart";
-import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
 import {
   NET_DEFICIT_BAR,
   NET_SURPLUS_BAR,
@@ -136,9 +141,8 @@ export type InsightsDailyCashflowChartProps = {
   dailyCashflow: DailyCashflowRow[];
   year: number;
   monthIndex0: number;
-  /** Tab-focus generation — forces Victory remount so cached MMKV data still animates. */
-  focusGeneration: number;
-  loading?: boolean;
+  chartsDataSettled: boolean;
+  chartLoading?: boolean;
   /** Parent scroll views can call this ref to dismiss an open day tooltip. */
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
   /** Fired when the user taps View in the day tooltip (navigation wired later). */
@@ -150,11 +154,14 @@ export const InsightsDailyCashflowChart = memo(
     dailyCashflow,
     year,
     monthIndex0,
-    focusGeneration,
-    loading = false,
+    chartsDataSettled,
+    chartLoading = false,
     tooltipDismissRef,
     onViewDayPress,
   }: InsightsDailyCashflowChartProps) {
+    const { containerRef, onChartLayout, isFullyVisible } =
+      useChartInViewport();
+
     const { monthDays, lastDay, todayDay } = useMemo(
       () => buildFullMonthCashflowDays(dailyCashflow, year, monthIndex0),
       [dailyCashflow, monthIndex0, year],
@@ -199,11 +206,56 @@ export const InsightsDailyCashflowChart = memo(
       [trailingAnchorDay, yMax],
     );
 
+    const zeroChartData = useMemo(
+      () => zeroCashflowChartRows(chartData),
+      [chartData],
+    );
+
+    const { data: entryChartData, animate: chartAnimate } =
+      useVictoryChartEntry({
+        identity: `cashflow-${year}-${monthIndex0}`,
+        zeroData: zeroChartData,
+        targetData: chartData,
+        enabled: chartsDataSettled && !chartLoading,
+        isFullyVisible,
+        animateConfig: INSIGHTS_CHART_BAR_ANIMATION,
+      });
+
+    const victoryChartData = chartLoading ? zeroChartData : entryChartData;
+    const victoryAnimate = chartLoading ? undefined : chartAnimate;
+
     const [selected, setSelected] = useState<SelectedDay | null>(null);
+    const scrollRef = useRef<ScrollView>(null);
+    const [viewportWidth, setViewportWidth] = useState(0);
+    const isFocused = useIsFocused();
 
     const dismissTooltip = useCallback(() => {
       setSelected(null);
     }, []);
+
+    useEffect(() => {
+      if (
+        !isFocused ||
+        chartLoading ||
+        todayDay == null ||
+        viewportWidth <= 0
+      ) {
+        return;
+      }
+      scrollRef.current?.scrollTo({
+        x: cashflowScrollOffsetForToday(todayDay, viewportWidth, scrollWidth),
+        animated: false,
+      });
+    }, [
+      chartLoading,
+      entryChartData,
+      isFocused,
+      scrollWidth,
+      todayDay,
+      viewportWidth,
+      year,
+      monthIndex0,
+    ]);
 
     useEffect(() => {
       if (!tooltipDismissRef) {
@@ -272,20 +324,18 @@ export const InsightsDailyCashflowChart = memo(
 
     return (
       <>
-        <TwoToneCard
-          header={
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Daily cash flow</Text>
-              <Text style={styles.headerSubtitle}>
-                Income, spending, and net each day
-              </Text>
-            </View>
-          }
-          body={
-            <View style={styles.body}>
-              {loading ? (
-                <InsightsCashflowChartSkeleton />
-              ) : (
+        <View ref={containerRef} collapsable={false} onLayout={onChartLayout}>
+          <TwoToneCard
+            header={
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>Daily cash flow</Text>
+                <Text style={styles.headerSubtitle}>
+                  Income, spending, and net each day
+                </Text>
+              </View>
+            }
+            body={
+              <View style={styles.body}>
                 <>
                   <View style={styles.chartRow}>
                     <View
@@ -304,20 +354,23 @@ export const InsightsDailyCashflowChart = memo(
                     </View>
 
                     <ScrollView
+                      ref={scrollRef}
                       horizontal
                       nestedScrollEnabled
                       showsHorizontalScrollIndicator
                       style={styles.chartScroll}
                       contentContainerStyle={styles.chartScrollContent}
+                      onLayout={(e) =>
+                        setViewportWidth(e.nativeEvent.layout.width)
+                      }
                       onScrollBeginDrag={dismissTooltip}
                       onMomentumScrollBegin={dismissTooltip}
                     >
                       <View style={{ width: scrollWidth }}>
                         <View style={styles.chartPlot}>
                           <CashflowVictoryChart
-                            key={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
-                            animationKey={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
-                            chartData={chartData}
+                            animate={victoryAnimate}
+                            chartData={victoryChartData}
                             domain={domain}
                             barPadding={barPadding}
                             plotHeight={CHART_PLOT_HEIGHT}
@@ -449,10 +502,10 @@ export const InsightsDailyCashflowChart = memo(
                     </View>
                   </View>
                 </>
-              )}
-            </View>
-          }
-        />
+              </View>
+            }
+          />
+        </View>
         <ChartTooltipOverlay
           visible={selected != null && tooltipRows != null}
           onDismiss={dismissTooltip}

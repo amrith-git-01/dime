@@ -1,10 +1,14 @@
-import { memo, useMemo } from "react";
+import { useIsFocused } from "@react-navigation/native";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { INSIGHTS_CHART_BAR_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import { COMPARE_CASHFLOW_PLOT_HEIGHT } from "@/features/analytics/constants/compare";
+import { useVictoryChartEntry } from "@/features/analytics/hooks/useVictoryChartEntry";
 import type { DailyCashflowRow } from "@/features/analytics/types";
+import { zeroCashflowChartRows } from "@/features/analytics/utils/chartEntryData";
 import { formatInrChartAxis } from "@/utils/currency";
 
 import {
@@ -12,6 +16,7 @@ import {
   buildFullMonthCashflowDays,
   CASHFLOW_DAY_SLOT_WIDTH,
   cashflowChartScrollWidth,
+  cashflowScrollOffsetForToday,
   CHART_LEADING_ANCHOR_DAY,
   chartTrailingAnchorDay,
   formatCashflowXLabel,
@@ -46,6 +51,8 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
   year,
   monthIndex0,
 }: CompareCashflowColumnProps) {
+  const isFocused = useIsFocused();
+
   const { monthDays, lastDay, todayDay } = useMemo(
     () => buildFullMonthCashflowDays(dailyCashflow, year, monthIndex0),
     [dailyCashflow, monthIndex0, year],
@@ -90,6 +97,33 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
     [trailingAnchorDay, yMax],
   );
 
+  const zeroChartData = useMemo(
+    () => zeroCashflowChartRows(chartData),
+    [chartData],
+  );
+
+  const { data: entryChartData, animate: chartAnimate } = useVictoryChartEntry({
+    identity: `compare-cashflow-${year}-${monthIndex0}`,
+    zeroData: zeroChartData,
+    targetData: chartData,
+    enabled: true,
+    isFullyVisible: isFocused,
+    animateConfig: INSIGHTS_CHART_BAR_ANIMATION,
+  });
+
+  const scrollRef = useRef<ScrollView>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+
+  useEffect(() => {
+    if (!isFocused || todayDay == null || viewportWidth <= 0) {
+      return;
+    }
+    scrollRef.current?.scrollTo({
+      x: cashflowScrollOffsetForToday(todayDay, viewportWidth, scrollWidth),
+      animated: false,
+    });
+  }, [isFocused, scrollWidth, todayDay, viewportWidth]);
+
   return (
     <View style={styles.wrap}>
       <View style={styles.chartRow}>
@@ -108,18 +142,19 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
         </View>
 
         <ScrollView
+          ref={scrollRef}
           horizontal
           nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           style={styles.chartScroll}
           contentContainerStyle={styles.chartScrollContent}
+          onLayout={(e) => setViewportWidth(e.nativeEvent.layout.width)}
         >
           <View style={{ width: scrollWidth }}>
             <View style={styles.chartPlot}>
               <CashflowVictoryChart
-                key={`compare-cashflow-${year}-${monthIndex0}`}
-                animationKey={`compare-cashflow-${year}-${monthIndex0}`}
-                chartData={chartData}
+                animate={chartAnimate}
+                chartData={entryChartData}
                 domain={domain}
                 barPadding={barPadding}
                 plotHeight={COMPARE_CASHFLOW_PLOT_HEIGHT}

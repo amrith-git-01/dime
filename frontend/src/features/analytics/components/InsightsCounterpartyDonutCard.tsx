@@ -3,9 +3,9 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MutableRefObject,
-  type ReactNode,
 } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -17,27 +17,38 @@ import {
 } from "@/components/shared";
 import { bento, colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { INSIGHTS_CHART_DONUT_ANIMATION } from "@/features/analytics/constants/chartAnimation";
+import {
+  COUNTERPARTY_DONUT_INNER_RADIUS_RATIO,
+  INSIGHTS_COUNTERPARTY_DONUT_SIZE,
+} from "@/features/analytics/constants/counterpartyDonut";
+import { COUNTERPARTY_DONUT_OTHER_KEY } from "@/features/analytics/constants/counterpartyDonutColors";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
 import {
   buildCounterpartyDonutData,
   type CounterpartyDonutDatum,
 } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import { formatPayeeShare } from "@/features/analytics/utils/formatPayeeShare";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
 
-import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
-import { PayeeDonutChart, PayeeDonutEmptyChart } from "./PayeeDonutChart";
+import { useChartInViewport } from "@/features/analytics/hooks/useChartInViewport";
+import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 
-const CHART_SIZE = 192;
+import { ClockwiseAnimatedPie } from "./ClockwiseAnimatedPie";
+import { PayeeDonutEmptyChart } from "./PayeeDonutChart";
+import { PayeeDonutPressable } from "./PayeeDonutPressable";
+
 const LEGEND_MAX_WIDTH = 168;
 const CONTENT_MIN_HEIGHT = 228;
 const TOOLTIP_WIDTH = 168;
+
 export type InsightsCounterpartyDonutCardProps = {
   counterpartySpend: CounterpartySpendRow[];
   chartYear: number;
   chartMonthIndex0: number;
-  focusGeneration: number;
-  loading?: boolean;
+  chartsDataSettled: boolean;
+  chartLoading?: boolean;
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
   /** Fired when the user taps View in the payee tooltip (navigation wired later). */
   onViewPayeePress?: (slice: CounterpartyDonutDatum) => void;
@@ -47,18 +58,6 @@ type PayeeTooltipState = {
   slice: CounterpartyDonutDatum;
   anchor: ChartTooltipAnchor;
 };
-
-/** Share is 0–1 from API; one decimal avoids rounded labels summing past 100%. */
-export function formatPayeeShare(share: number): string {
-  const pct = share * 100;
-  if (!Number.isFinite(pct) || pct <= 0) {
-    return "0%";
-  }
-  if (pct < 0.05) {
-    return "<0.1%";
-  }
-  return `${pct.toFixed(1)}%`;
-}
 
 function buildPayeeTooltipRows(
   slice: CounterpartyDonutDatum,
@@ -77,36 +76,12 @@ function buildPayeeTooltipRows(
   ];
 }
 
-type DonutChartStageProps = {
-  chart: ReactNode;
-  center: ReactNode;
-};
-
-/** Fixed-size stage so the ring and center label share one coordinate space. */
-const DonutChartStage = memo(function DonutChartStage({
-  chart,
-  center,
-}: DonutChartStageProps) {
-  return (
-    <View style={styles.chartStage}>
-      {chart}
-      <View style={styles.chartCenter} pointerEvents="none">
-        {center}
-      </View>
-    </View>
-  );
-});
-
 const EmptyDonutLayout = memo(function EmptyDonutLayout() {
   return (
     <View style={styles.emptyContent}>
-      <DonutChartStage
-        chart={
-          <PayeeDonutEmptyChart size={CHART_SIZE} innerRadiusRatio={0.56} />
-        }
-        center={
-          <Text style={styles.emptyCenterPercent}>{formatPayeeShare(0)}</Text>
-        }
+      <PayeeDonutEmptyChart
+        size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
+        innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
       />
     </View>
   );
@@ -117,8 +92,8 @@ export const InsightsCounterpartyDonutCard = memo(
     counterpartySpend,
     chartYear,
     chartMonthIndex0,
-    focusGeneration,
-    loading = false,
+    chartsDataSettled,
+    chartLoading = false,
     tooltipDismissRef,
     onViewPayeePress,
   }: InsightsCounterpartyDonutCardProps) {
@@ -127,6 +102,15 @@ export const InsightsCounterpartyDonutCard = memo(
       [counterpartySpend],
     );
     const hasSpend = chartData.length > 0;
+    const { containerRef, onChartLayout, isFullyVisible } =
+      useChartInViewport("center");
+
+    const donutEntryProgress = usePieClockwiseEntry({
+      identity: `donut-${chartYear}-${chartMonthIndex0}`,
+      enabled: chartsDataSettled && !chartLoading && hasSpend,
+      isVisible: isFullyVisible,
+      animateConfig: INSIGHTS_CHART_DONUT_ANIMATION,
+    });
 
     const [tooltipPayee, setTooltipPayee] = useState<PayeeTooltipState | null>(
       null,
@@ -176,21 +160,25 @@ export const InsightsCounterpartyDonutCard = memo(
       onViewPayeePress?.(payee);
     }, [dismissTooltip, onViewPayeePress, tooltipPayee]);
 
-    const tooltipViewAction = useMemo(
-      () => ({ onPress: handleTooltipViewPress }),
-      [handleTooltipViewPress],
-    );
-
-    const topSlice = chartData[0];
-    const donutAnimationKey = `payee-donut-${chartYear}-${chartMonthIndex0}-${focusGeneration}`;
+    const tooltipViewAction = useMemo(() => {
+      if (!tooltipPayee) {
+        return undefined;
+      }
+      return {
+        label:
+          tooltipPayee.slice.payee_key === COUNTERPARTY_DONUT_OTHER_KEY
+            ? "View other payees"
+            : undefined,
+        onPress: handleTooltipViewPress,
+      };
+    }, [handleTooltipViewPress, tooltipPayee]);
 
     const handleLegendPress = useCallback(
-      (slice: CounterpartyDonutDatum) => {
+      (slice: CounterpartyDonutDatum, anchor: ChartTooltipAnchor) => {
         void triggerLightHaptic();
-        dismissTooltip();
-        onViewPayeePress?.(slice);
+        openTooltip(slice, anchor);
       },
-      [dismissTooltip, onViewPayeePress],
+      [openTooltip],
     );
 
     return (
@@ -206,44 +194,36 @@ export const InsightsCounterpartyDonutCard = memo(
           }
           body={
             <View style={styles.body}>
-              {loading ? (
-                <InsightsDonutCardSkeleton />
-              ) : !hasSpend ? (
+              {chartLoading || !hasSpend ? (
                 <EmptyDonutLayout />
               ) : (
-                <View style={styles.contentRow}>
+                <View
+                  ref={containerRef}
+                  collapsable={false}
+                  onLayout={onChartLayout}
+                  style={styles.contentRow}
+                >
                   <View style={styles.donutLegendCluster}>
-                    <DonutChartStage
-                      chart={
-                        <PayeeDonutChart
-                          key={donutAnimationKey}
-                          data={chartData}
-                          size={CHART_SIZE}
-                          innerRadiusRatio={0.56}
-                          animationKey={donutAnimationKey}
-                          onSlicePress={handleDonutSlicePress}
-                        />
-                      }
-                      center={
-                        topSlice ? (
-                          <>
-                            <Text style={styles.centerLabel} numberOfLines={1}>
-                              {topSlice.display_name}
-                            </Text>
-                            <Text style={styles.centerMeta}>
-                              {formatPayeeShare(topSlice.share)}
-                            </Text>
-                          </>
-                        ) : null
-                      }
-                    />
+                    <PayeeDonutPressable
+                      data={chartData}
+                      size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
+                      innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
+                      onSlicePress={handleDonutSlicePress}
+                    >
+                      <ClockwiseAnimatedPie
+                        data={chartData}
+                        size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
+                        innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
+                        progress={donutEntryProgress}
+                      />
+                    </PayeeDonutPressable>
 
                     <View style={styles.legend}>
                       {chartData.map((slice) => (
                         <LegendRow
                           key={slice.payee_key}
                           slice={slice}
-                          onPress={() => handleLegendPress(slice)}
+                          onPress={handleLegendPress}
                         />
                       ))}
                     </View>
@@ -270,29 +250,39 @@ export const InsightsCounterpartyDonutCard = memo(
 
 type LegendRowProps = {
   slice: CounterpartyDonutDatum;
-  onPress: () => void;
+  onPress: (slice: CounterpartyDonutDatum, anchor: ChartTooltipAnchor) => void;
 };
 
 const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
+  const rowRef = useRef<View>(null);
+
+  const handlePress = useCallback(() => {
+    rowRef.current?.measureInWindow((x, y, width, height) => {
+      onPress(slice, { x, y, width, height });
+    });
+  }, [onPress, slice]);
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View transactions for ${slice.display_name}`}
-      onPress={onPress}
+      accessibilityLabel={`View details for ${slice.display_name}`}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.legendRow,
         pressed && styles.legendRowPressed,
       ]}
     >
-      <View style={[styles.legendSwatch, { backgroundColor: slice.color }]} />
-      <View style={styles.legendTextCol}>
-        <Text style={styles.legendName} numberOfLines={1}>
-          {slice.display_name}
-        </Text>
-        <Text style={styles.legendMeta}>
-          {formatPayeeShare(slice.share)} ·{" "}
-          {formatInrCompact(slice.debit_total)}
-        </Text>
+      <View ref={rowRef} collapsable={false} style={styles.legendRowInner}>
+        <View style={[styles.legendSwatch, { backgroundColor: slice.color }]} />
+        <View style={styles.legendTextCol}>
+          <Text style={styles.legendName} numberOfLines={1}>
+            {slice.display_name}
+          </Text>
+          <Text style={styles.legendMeta}>
+            {formatPayeeShare(slice.share)} ·{" "}
+            {formatInrCompact(slice.debit_total)}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -338,44 +328,11 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     maxWidth: "100%",
   },
-  chartStage: {
-    width: CHART_SIZE,
-    height: CHART_SIZE,
-    flexShrink: 0,
-  },
   emptyContent: {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
     minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
-  },
-  chartCenter: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-  },
-  centerLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.textPrimary,
-    textAlign: "center",
-  },
-  centerMeta: {
-    marginTop: 2,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 10,
-    lineHeight: 13,
-    color: colors.primary,
-    textAlign: "center",
-  },
-  emptyCenterPercent: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.primary,
-    textAlign: "center",
   },
   legend: {
     flexShrink: 1,
@@ -383,12 +340,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   legendRow: {
+    borderRadius: 8,
+  },
+  legendRowInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
     paddingVertical: 5,
     paddingHorizontal: spacing.xs,
-    borderRadius: 8,
   },
   legendRowPressed: {
     opacity: 0.88,

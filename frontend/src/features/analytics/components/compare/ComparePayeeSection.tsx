@@ -1,17 +1,19 @@
+import { useIsFocused } from "@react-navigation/native";
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui";
 import { bento, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { formatPayeeShare } from "@/features/analytics/components/InsightsCounterpartyDonutCard";
-import {
-  PayeeDonutChart,
-  PayeeDonutEmptyChart,
-} from "@/features/analytics/components/PayeeDonutChart";
+import { ClockwiseAnimatedPie } from "@/features/analytics/components/ClockwiseAnimatedPie";
+import { PayeeDonutEmptyChart } from "@/features/analytics/components/PayeeDonutChart";
+import { INSIGHTS_CHART_DONUT_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import { COMPARE_DONUT_SIZE } from "@/features/analytics/constants/compare";
+import { COUNTERPARTY_DONUT_INNER_RADIUS_RATIO } from "@/features/analytics/constants/counterpartyDonut";
+import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
 import { buildCounterpartyDonutData } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import { formatPayeeShare } from "@/features/analytics/utils/formatPayeeShare";
 import { formatInrCompact } from "@/utils/currency";
 
 import {
@@ -28,6 +30,10 @@ export type ComparePayeeSectionProps = {
   rightLabel: string;
   leftSpend: CounterpartySpendRow[];
   rightSpend: CounterpartySpendRow[];
+  leftYear: number;
+  leftMonthIndex0: number;
+  rightYear: number;
+  rightMonthIndex0: number;
   leftLoading: boolean;
   rightLoading: boolean;
   leftFailed: boolean;
@@ -52,10 +58,14 @@ function PayeeColumnSkeleton() {
 
 function PayeeColumn({
   counterpartySpend,
+  year,
+  monthIndex0,
   loading,
   failed,
 }: {
   counterpartySpend: CounterpartySpendRow[];
+  year: number;
+  monthIndex0: number;
   loading: boolean;
   failed: boolean;
 }) {
@@ -68,6 +78,14 @@ function PayeeColumn({
       donutData.filter((slice) => slice.value > 0).slice(0, TOP_PAYEE_COUNT),
     [donutData],
   );
+  const hasData = donutData.some((slice) => slice.value > 0);
+  const isFocused = useIsFocused();
+  const donutEntryProgress = usePieClockwiseEntry({
+    identity: `compare-donut-${year}-${monthIndex0}`,
+    enabled: !loading && hasData,
+    isVisible: isFocused,
+    animateConfig: INSIGHTS_CHART_DONUT_ANIMATION,
+  });
 
   if (failed) {
     return <CompareColumnError />;
@@ -76,13 +94,16 @@ function PayeeColumn({
     return <PayeeColumnSkeleton />;
   }
 
-  const hasData = donutData.some((slice) => slice.value > 0);
-
   return (
     <View style={styles.column} pointerEvents="none">
       <View style={styles.donutWrap}>
         {hasData ? (
-          <PayeeDonutChart data={donutData} size={COMPARE_DONUT_SIZE} />
+          <ClockwiseAnimatedPie
+            data={donutData}
+            size={COMPARE_DONUT_SIZE}
+            innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
+            progress={donutEntryProgress}
+          />
         ) : (
           <PayeeDonutEmptyChart size={COMPARE_DONUT_SIZE} />
         )}
@@ -113,6 +134,10 @@ export const ComparePayeeSection = memo(function ComparePayeeSection({
   rightLabel,
   leftSpend,
   rightSpend,
+  leftYear,
+  leftMonthIndex0,
+  rightYear,
+  rightMonthIndex0,
   leftLoading,
   rightLoading,
   leftFailed,
@@ -129,6 +154,8 @@ export const ComparePayeeSection = memo(function ComparePayeeSection({
         left={
           <PayeeColumn
             counterpartySpend={leftSpend}
+            year={leftYear}
+            monthIndex0={leftMonthIndex0}
             loading={leftLoading}
             failed={leftFailed}
           />
@@ -136,6 +163,8 @@ export const ComparePayeeSection = memo(function ComparePayeeSection({
         right={
           <PayeeColumn
             counterpartySpend={rightSpend}
+            year={rightYear}
+            monthIndex0={rightMonthIndex0}
             loading={rightLoading}
             failed={rightFailed}
           />
