@@ -1,6 +1,6 @@
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -78,7 +78,7 @@ export function useVoiceCaptureSession() {
   }, [cleanupRecording, close]);
 
   const requestDismiss = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (isRecordingRef.current) {
       Alert.alert("Discard recording?", "Your voice note will not be saved.", [
         { text: "Keep", style: "cancel" },
@@ -188,7 +188,7 @@ export function useVoiceCaptureSession() {
   }, [visible, authReady, userId, cleanupRecording, hardClose, recorder]);
 
   const stopAndSubmit = useCallback(async () => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (!isRecordingRef.current) {
       return;
     }

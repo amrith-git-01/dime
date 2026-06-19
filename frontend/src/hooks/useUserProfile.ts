@@ -8,6 +8,7 @@ import { useSessionUserId } from "./useSessionUserId";
 
 export type UseUserProfileResult = {
   username: string | null;
+  email: string | null;
   avatarUrl: string;
   loading: boolean;
   fetchError: boolean;
@@ -37,6 +38,7 @@ export function useUserProfile(): UseUserProfileResult {
 
   return {
     username,
+    email: profile?.email ?? null,
     avatarUrl,
     loading,
     fetchError,
