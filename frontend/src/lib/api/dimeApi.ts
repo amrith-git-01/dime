@@ -158,11 +158,38 @@ if (__DEV__) {
   }
 }
 
-// Augment axios config with a start timestamp for dev latency logging.
+// Augment axios config with internal fields.
 declare module "axios" {
   interface InternalAxiosRequestConfig {
     _startMs?: number;
+    /** Set to true after a 401-triggered token refresh so we don't retry twice. */
+    _authRetried?: boolean;
   }
+}
+
+/**
+ * Singleton refresh promise — ensures multiple concurrent 401s share a single
+ * `refreshSession()` call instead of hammering Supabase with parallel requests.
+ */
+let pendingTokenRefresh: Promise<string | null> | null = null;
+
+async function forceRefreshAccessToken(): Promise<string | null> {
+  if (pendingTokenRefresh) {
+    return pendingTokenRefresh;
+  }
+  pendingTokenRefresh = (async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data.session?.access_token) {
+        clearDimeAuthTokenCache();
+        return null;
+      }
+      return cacheSessionAccessToken(data.session);
+    } finally {
+      pendingTokenRefresh = null;
+    }
+  })();
+  return pendingTokenRefresh;
 }
 
 dimeApi.interceptors.request.use(async (config) => {
@@ -184,24 +211,47 @@ dimeApi.interceptors.request.use(async (config) => {
   return config;
 });
 
-if (__DEV__) {
-  dimeApi.interceptors.response.use(
-    (response) => {
+// 401 → refresh token → retry interceptor (always-on, not just dev).
+// Handles the race where a stale/expired JWT is sent before Supabase has a
+// chance to proactively refresh it (e.g. token expired while the app was not
+// running during a Gradle rebuild, hot-reload gap, or background suspend).
+dimeApi.interceptors.response.use(
+  (response) => {
+    if (__DEV__) {
       const ms = Date.now() - (response.config._startMs ?? Date.now());
       const serverMs = response.headers["x-process-time-ms"];
       const serverSuffix = serverMs ? ` (server: ${serverMs}ms)` : "";
       console.log(
         `[dimeApi] ${response.config.method?.toUpperCase()} ${response.config.url} → ${response.status} in ${ms}ms${serverSuffix}`,
       );
-      return response;
-    },
-    (error: AxiosError) => {
+    }
+    return response;
+  },
+  async (error: AxiosError) => {
+    if (__DEV__) {
       const ms = Date.now() - (error.config?._startMs ?? Date.now());
       console.warn(
         `[dimeApi] ${error.config?.method?.toUpperCase()} ${error.config?.url} → ${error.response?.status ?? "ERR"} in ${ms}ms`,
         error.message,
       );
+    }
+
+    const config = error.config;
+    // Only intercept 401s that haven't already been retried.
+    if (error.response?.status !== 401 || !config || config._authRetried) {
       return Promise.reject(error);
-    },
-  );
-}
+    }
+
+    config._authRetried = true;
+    clearDimeAuthTokenCache();
+
+    const freshToken = await forceRefreshAccessToken();
+    if (!freshToken) {
+      // Refresh failed — propagate original 401 so callers handle sign-out.
+      return Promise.reject(error);
+    }
+
+    config.headers.set("Authorization", `Bearer ${freshToken}`);
+    return dimeApi(config);
+  },
+);
