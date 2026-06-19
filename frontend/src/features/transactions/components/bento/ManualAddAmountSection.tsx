@@ -27,7 +27,7 @@ import {
   surface,
 } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ManualAddAmountSectionProps = {
   amountText: string;
@@ -83,13 +83,13 @@ export function ManualAddAmountSection({
 
   const handleExpensePress = () => {
     if (txType === "debit") return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     onSetExpense();
   };
 
   const handleIncomePress = () => {
     if (txType === "credit") return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     onSetIncome();
   };
 
