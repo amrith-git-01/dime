@@ -10,7 +10,7 @@ import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
@@ -32,11 +32,11 @@ export default function MainTabNavigator() {
     [headerReady, tabBarReady],
   );
   const onNotificationsPress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     stackNavigation.navigate("Notifications");
   }, [stackNavigation]);
   const onSettingsPress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     stackNavigation.navigate("Settings");
   }, [stackNavigation]);
 
@@ -67,7 +67,7 @@ export default function MainTabNavigator() {
           )}
           screenListeners={{
             tabPress: () => {
-              void triggerLightHaptic();
+              void triggerHaptic();
             },
           }}
           screenOptions={{

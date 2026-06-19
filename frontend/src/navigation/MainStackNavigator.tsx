@@ -1,6 +1,9 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import { stackScrollGrowShellConfig } from "@/components/layout/stackScrollGrowShellConfig";
+import {
+  notificationsInboxShellConfig,
+  stackScrollGrowShellConfig,
+} from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
@@ -10,6 +13,9 @@ import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
+import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
+import SettingsHapticScreenBase from "@/screens/settings/SettingsHapticScreen";
+import SettingsNotificationsScreenBase from "@/screens/settings/SettingsNotificationsScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
@@ -30,9 +36,17 @@ const SettingsScreen = withStackScreen(
 const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
 const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
+const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
+const SettingsGlossaryScreen = withStackScreen(
+  SettingsGlossaryScreenBase,
+  settingsStackShellConfig,
+);
+const SettingsNotificationsScreen = withStackScreen(
+  SettingsNotificationsScreenBase,
+);
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
-  stackScrollGrowShellConfig,
+  notificationsInboxShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
@@ -80,6 +94,21 @@ export default function MainStackNavigator() {
         name="SettingsFeedback"
         component={SettingsFeedbackScreen}
         options={{ ...stackScreenOptions, title: "Feedback" }}
+      />
+      <Stack.Screen
+        name="SettingsHaptic"
+        component={SettingsHapticScreen}
+        options={{ ...stackScreenOptions, title: "Haptic feedback" }}
+      />
+      <Stack.Screen
+        name="SettingsGlossary"
+        component={SettingsGlossaryScreen}
+        options={{ ...stackScreenOptions, title: "Words we use" }}
+      />
+      <Stack.Screen
+        name="SettingsNotifications"
+        component={SettingsNotificationsScreen}
+        options={{ ...stackScreenOptions, title: "Notifications & alerts" }}
       />
       <Stack.Screen
         name="Notifications"
