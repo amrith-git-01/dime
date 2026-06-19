@@ -6,6 +6,7 @@ import { APP_QUERY_GC_MS } from "@/lib/queryDefaults";
 const notificationsMmkv = createMMKV({ id: "notifications" });
 
 export const NOTIFICATIONS_MMKV_KEY = "dime:notifications";
+const LAST_RESPONSE_STAMP_KEY = "dime:last-notification-response-stamp";
 
 export type NotificationsMmkvSnapshot = {
   timestamp: number;
@@ -55,4 +56,12 @@ export function writePersistedNotifications(
 
 export function clearPersistedNotifications(): void {
   notificationsMmkv.remove(NOTIFICATIONS_MMKV_KEY);
+}
+
+export function readLastHandledNotificationResponseStamp(): string | null {
+  return notificationsMmkv.getString(LAST_RESPONSE_STAMP_KEY) ?? null;
+}
+
+export function writeLastHandledNotificationResponseStamp(stamp: string): void {
+  notificationsMmkv.set(LAST_RESPONSE_STAMP_KEY, stamp);
 }

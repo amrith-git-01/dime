@@ -3,6 +3,14 @@ import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
 
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
+import {
+  isUnhandledNotificationResponseStamp,
+  notificationResponseStamp,
+} from "@/lib/notifications/notificationResponseStamp";
+import {
+  readLastHandledNotificationResponseStamp,
+  writeLastHandledNotificationResponseStamp,
+} from "@/lib/notifications/notificationsMmkv";
 import { navigationRef } from "@/navigation/navigationRef";
 
 type NotificationActionData = {
@@ -75,6 +83,17 @@ export function useNotificationOpenHandler(): {
   const maybeHandleOrQueueResponse = useCallback(
     (response: Notifications.NotificationResponse) => {
       const id = response.notification.request.identifier;
+      const stamp = notificationResponseStamp(id, response.notification.date);
+
+      if (
+        !isUnhandledNotificationResponseStamp(
+          stamp,
+          readLastHandledNotificationResponseStamp(),
+        )
+      ) {
+        handledNotificationIdsRef.current.add(id);
+        return;
+      }
 
       if (handledNotificationIdsRef.current.has(id)) {
         return;
@@ -96,6 +115,7 @@ export function useNotificationOpenHandler(): {
 
         if (handled) {
           handledNotificationIdsRef.current.add(id);
+          writeLastHandledNotificationResponseStamp(stamp);
         }
 
         return;
@@ -130,6 +150,19 @@ export function useNotificationOpenHandler(): {
         return;
       }
 
+      const stamp = notificationResponseStamp(id, response.notification.date);
+
+      if (
+        !isUnhandledNotificationResponseStamp(
+          stamp,
+          readLastHandledNotificationResponseStamp(),
+        )
+      ) {
+        handledNotificationIdsRef.current.add(id);
+        pendingResponsesRef.current.delete(id);
+        return;
+      }
+
       const handled = handleNotificationAction(
         id,
         data ?? undefined,
@@ -138,6 +171,7 @@ export function useNotificationOpenHandler(): {
 
       if (handled) {
         handledNotificationIdsRef.current.add(id);
+        writeLastHandledNotificationResponseStamp(stamp);
         pendingResponsesRef.current.delete(id);
       }
     });
@@ -152,14 +186,6 @@ export function useNotificationOpenHandler(): {
 
     const subscription =
       Notifications.addNotificationResponseReceivedListener(handleResponse);
-
-    void Notifications.getLastNotificationResponseAsync().then(
-      (lastResponse) => {
-        if (lastResponse) {
-          handleResponse(lastResponse);
-        }
-      },
-    );
 
     return () => {
       subscription.remove();
@@ -182,4 +208,3 @@ export function useNotificationOpenHandler(): {
     handleNavigationReady,
   };
 }
-

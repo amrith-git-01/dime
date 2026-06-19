@@ -15,6 +15,8 @@ import {
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { fetchMe } from "@/features/profile/api/meApi";
 import { profileQueryKeys } from "@/features/profile/queryKeys";
+import { fetchUserSettings } from "@/features/settings/api/settingsApi";
+import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import {
   fetchHomeOverview,
   fetchTransactionsPage,
@@ -27,6 +29,10 @@ import {
   writePersistedNotifications,
 } from "@/lib/notifications/notificationsMmkv";
 import { clearQueryMmkv } from "@/lib/queryPersister";
+import {
+  clearPersistedUserSettings,
+  writePersistedUserSettings,
+} from "@/lib/settings/userSettingsMmkv";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
@@ -37,6 +43,7 @@ import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 export function clearAppDataMmkv(): void {
   clearQueryMmkv();
   clearPersistedNotifications();
+  clearPersistedUserSettings();
   useCurrentUserStore.getState().clearProfile();
 }
 
@@ -57,14 +64,17 @@ export async function refreshAppDataFromServer(
   const timezone = getDeviceIanaTimezone();
   const { from, to } = monthRangeIso(year, monthIndex0);
 
-  const [inbox, unreadCount] = await Promise.all([
+  const [inbox, unreadCount, userSettings] = await Promise.all([
     fetchNotifications("all"),
     fetchUnreadNotificationCount(),
+    fetchUserSettings(),
   ]);
 
   queryClient.setQueryData(notificationQueryKeys.inboxList(), inbox);
   queryClient.setQueryData(notificationQueryKeys.unreadCount(), unreadCount);
   writePersistedNotifications({ inbox, unreadCount });
+  queryClient.setQueryData(settingsQueryKeys.user(), userSettings);
+  writePersistedUserSettings(userSettings);
 
   await Promise.all([
     queryClient.fetchQuery({
