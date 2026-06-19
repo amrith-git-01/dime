@@ -1,93 +1,53 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
-import {
-  createAgentThread,
-  streamAgentChat,
-} from "@/features/agent/api/agentApi";
-import { agentQueryKeys } from "@/features/agent/queryKeys";
+import { postAgentChat } from "@/features/agent/api/agentApi";
 import type {
   AgentBlock,
-  AgentChatStatus,
+  AgentChatHistoryMessage,
   AgentDeepLink,
-  ChatStreamMessage,
+  ChatMessage,
 } from "@/features/agent/types";
-import { useSessionUserId } from "@/hooks/useSessionUserId";
 
 function newLocalId(): string {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function historyToChatMessages(
-  rows: {
-    id: string;
-    role: string;
-    content: string;
-    blocks_json: AgentBlock[] | null;
-    deep_link_json: AgentDeepLink | null;
-  }[],
-): ChatStreamMessage[] {
-  return rows
-    .filter((row) => row.role === "user" || row.role === "assistant")
-    .map((row) => ({
-      id: row.id,
-      role: row.role as "user" | "assistant",
-      content: row.content,
-      blocks: row.blocks_json ?? [],
-      deepLink: row.deep_link_json,
+function toApiHistory(messages: ChatMessage[]): AgentChatHistoryMessage[] {
+  return messages
+    .filter((msg) => !msg.isPending && msg.content.trim().length > 0)
+    .map((msg) => ({
+      role: msg.role,
+      content: msg.content.trim(),
     }));
 }
 
 export function useAgentChat() {
-  const queryClient = useQueryClient();
-  const { userId } = useSessionUserId();
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatStreamMessage[]>([]);
-  const [status, setStatus] = useState<AgentChatStatus>({ phase: "idle" });
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isPending, setIsPending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const threadIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    threadIdRef.current = threadId;
-  }, [threadId]);
-
-  const createThreadMutation = useMutation({
-    mutationFn: () => createAgentThread(),
-    onSuccess: (thread) => {
-      setThreadId(thread.id);
-      void queryClient.invalidateQueries({
-        queryKey: agentQueryKeys.threads(userId),
-      });
-    },
-  });
+  // Always-current refs so sendMessage stays stable (no [messages, isPending] dep).
+  const messagesRef = useRef(messages);
+  const isPendingRef = useRef(isPending);
+  messagesRef.current = messages;
+  isPendingRef.current = isPending;
 
   const resetConversation = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    setThreadId(null);
     setMessages([]);
-    setStatus({ phase: "idle" });
-    setIsStreaming(false);
+    setIsPending(false);
   }, []);
-
-  const ensureThread = useCallback(async (): Promise<string> => {
-    if (threadIdRef.current) {
-      return threadIdRef.current;
-    }
-    const thread = await createThreadMutation.mutateAsync();
-    setThreadId(thread.id);
-    return thread.id;
-  }, [createThreadMutation]);
 
   const sendMessage = useCallback(
     async (rawContent: string) => {
       const content = rawContent.trim();
-      if (!content || isStreaming) {
+      if (!content || isPendingRef.current) {
         return;
       }
 
-      const userMessage: ChatStreamMessage = {
+      const history = toApiHistory(messagesRef.current);
+
+      const userMessage: ChatMessage = {
         id: newLocalId(),
         role: "user",
         content,
@@ -95,162 +55,76 @@ export function useAgentChat() {
         deepLink: null,
       };
       const assistantId = newLocalId();
-      const assistantMessage: ChatStreamMessage = {
+      const assistantMessage: ChatMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
         blocks: [],
         deepLink: null,
-        isStreaming: true,
+        isPending: true,
       };
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
-      setIsStreaming(true);
-      setStatus({ phase: "sql", round: 1 });
+      setIsPending(true);
 
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
-        const activeThreadId = await ensureThread();
-        let answerText = "";
-        let blocks: AgentBlock[] = [];
-        let deepLink: AgentDeepLink | null = null;
-
-        await streamAgentChat({
-          threadId: activeThreadId,
+        const response = await postAgentChat({
           content,
+          history,
           signal: controller.signal,
-          onEvent: (event) => {
-            switch (event.event) {
-              case "sql_start":
-                setStatus({ phase: "sql", round: event.round });
-                break;
-              case "sql_end":
-                setStatus({ phase: "sql", round: event.round });
-                break;
-              case "reflect":
-                if (event.status === "retry") {
-                  setStatus({ phase: "reflect", reason: event.reason });
-                }
-                break;
-              case "token":
-                answerText = event.text;
-                setStatus({ phase: "responding" });
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId
-                      ? { ...msg, content: answerText }
-                      : msg,
-                  ),
-                );
-                break;
-              case "block":
-                blocks = [...blocks, event.block];
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId ? { ...msg, blocks } : msg,
-                  ),
-                );
-                break;
-              case "deep_link":
-                deepLink = {
-                  screen: event.screen,
-                  params: event.params,
-                };
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId ? { ...msg, deepLink } : msg,
-                  ),
-                );
-                break;
-              case "error":
-                setStatus({ phase: "error", message: event.message });
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId
-                      ? {
-                          ...msg,
-                          content: event.message,
-                          isStreaming: false,
-                        }
-                      : msg,
-                  ),
-                );
-                break;
-              case "done":
-                setStatus({ phase: "idle" });
-                break;
-              default:
-                break;
-            }
-          },
         });
+
+        const blocks = (response.blocks ?? []) as AgentBlock[];
+        const deepLink = (response.deep_link as AgentDeepLink | null) ?? null;
 
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantId
               ? {
                   ...msg,
-                  content: answerText || msg.content,
+                  content: response.answer,
                   blocks,
                   deepLink,
-                  isStreaming: false,
+                  isPending: false,
                 }
               : msg,
           ),
         );
-        setStatus({ phase: "idle" });
-
-        void queryClient.invalidateQueries({
-          queryKey: agentQueryKeys.threads(userId),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: agentQueryKeys.messages(userId, activeThreadId),
-        });
       } catch (error) {
+        if (controller.signal.aborted) {
+          setMessages((prev) => prev.filter((msg) => msg.id !== assistantId));
+          return;
+        }
         const message =
           error instanceof Error ? error.message : "Failed to send message";
-        if (message !== "Chat cancelled") {
-          setStatus({ phase: "error", message });
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantId
-                ? { ...msg, content: message, isStreaming: false }
-                : msg,
-            ),
-          );
-        }
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId
+              ? { ...msg, content: message, isPending: false }
+              : msg,
+          ),
+        );
       } finally {
-        setIsStreaming(false);
+        setIsPending(false);
         abortRef.current = null;
       }
     },
-    [ensureThread, isStreaming, queryClient, userId],
-  );
-
-  const loadThreadHistory = useCallback(
-    (rows: Parameters<typeof historyToChatMessages>[0], id: string) => {
-      setThreadId(id);
-      setMessages(historyToChatMessages(rows));
-      setStatus({ phase: "idle" });
-    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads via refs
     [],
   );
 
-  const cancelStream = useCallback(() => {
+  const cancelRequest = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
   return {
-    threadId,
     messages,
-    status,
-    isStreaming,
+    isPending,
     sendMessage,
     resetConversation,
-    loadThreadHistory,
-    cancelStream,
-    isCreatingThread: createThreadMutation.isPending,
+    cancelRequest,
   };
 }
