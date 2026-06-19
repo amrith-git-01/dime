@@ -8,7 +8,7 @@ import Animated, {
 
 import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { buildCashflowChartScale } from "@/features/analytics/utils/buildCashflowWindow";
+import { buildClusteredCashflowScale } from "@/features/analytics/utils/cashflowClusterScale";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
 
 import {
@@ -91,13 +91,9 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
   revealKey,
 }: AgentCashflowBarChartProps) {
   const days = useMemo(() => parseAgentCashflowPoints(points), [points]);
-  const maxAmount = useMemo(
-    () => Math.max(0, ...days.map((day) => day.amount)),
+  const yScale = useMemo(
+    () => buildClusteredCashflowScale(days.map((day) => day.amount)),
     [days],
-  );
-  const { yDomainMax, yTickValues } = useMemo(
-    () => buildCashflowChartScale(maxAmount, 4),
-    [maxAmount],
   );
   const scrollWidth = Math.max(days.length * BAR_SLOT_WIDTH, BAR_SLOT_WIDTH);
 
@@ -114,10 +110,10 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
           style={[
             styles.yAxisColumn,
             { height: CHART_HEIGHT },
-            yTickValues.length === 1 && styles.yAxisColumnOriginOnly,
+            yScale.yTickLabels.length === 1 && styles.yAxisColumnOriginOnly,
           ]}
         >
-          {[...yTickValues].reverse().map((tick) => (
+          {[...yScale.yTickLabels].reverse().map((tick) => (
             <Text key={`y-${tick}`} style={styles.yAxisLabel}>
               {formatInrChartAxis(tick)}
             </Text>
@@ -138,11 +134,12 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
           >
             <View style={[styles.scrollInner, { width: scrollWidth }]}>
               <View style={[styles.barsRow, { height: CHART_HEIGHT }]}>
-                {yTickValues.map((tick) => {
-                  if (tick <= 0) {
+                {yScale.yTickLabels.map((tick, tickIndex) => {
+                  if (tickIndex <= 0) {
                     return null;
                   }
-                  const fromBottom = (tick / yDomainMax) * CHART_HEIGHT;
+                  const fromBottom =
+                    (tickIndex / yScale.yDomainMax) * CHART_HEIGHT;
                   return (
                     <View
                       key={`grid-${tick}`}
@@ -156,12 +153,15 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
                 })}
 
                 {days.map((day, index) => {
+                  const scaled = yScale.toScaleValue(day.amount);
                   const barHeight =
                     day.amount <= 0
                       ? 2
                       : Math.max(
                           4,
-                          Math.round((day.amount / yDomainMax) * CHART_HEIGHT),
+                          Math.round(
+                            (scaled / yScale.yDomainMax) * CHART_HEIGHT,
+                          ),
                         );
                   return (
                     <View key={day.date} style={styles.barCol}>
@@ -192,7 +192,7 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
       </View>
 
       <Text style={styles.meta}>
-        {days.length} days · peak {formatInrCompact(maxAmount)}
+        {days.length} days · peak {formatInrCompact(yScale.rawMax)}
       </Text>
     </View>
   );

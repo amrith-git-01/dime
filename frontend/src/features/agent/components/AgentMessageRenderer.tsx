@@ -9,12 +9,17 @@ import { fontFamilies } from "@/constants/fonts";
 
 import type { AgentBlock, AgentDeepLink } from "../types";
 
+import { AgentCompareMonthsBlock } from "./AgentCompareMonthsBlock";
+import { AgentMessageProse } from "./AgentMessageProse";
+import { AgentMiniChartBlock } from "./AgentMiniChartBlock";
+import { AgentThinkingBubble } from "./AgentThinkingBubble";
+
 type AgentMessageRendererProps = {
   role: "user" | "assistant";
   content: string;
   blocks: AgentBlock[];
   deepLink: AgentDeepLink | null;
-  isStreaming?: boolean;
+  isPending?: boolean;
   onDeepLinkPress?: (link: AgentDeepLink) => void;
 };
 
@@ -92,29 +97,6 @@ function TxPreviewBlock({
   );
 }
 
-function MiniChartBlock({
-  block,
-}: {
-  block: Extract<AgentBlock, { type: "mini_chart" }>;
-}) {
-  const label =
-    block.chart_kind === "donut" ? "Spending breakdown" : "Daily cashflow";
-  const pointCount = Array.isArray(block.payload?.points)
-    ? block.payload.points.length
-    : Array.isArray(block.payload?.series)
-      ? block.payload.series.length
-      : 0;
-
-  return (
-    <View style={styles.chartPlaceholder}>
-      <Text style={styles.chartTitle}>{label}</Text>
-      <Text style={styles.chartMeta}>
-        {pointCount > 0 ? `${pointCount} data points` : "Chart data"}
-      </Text>
-    </View>
-  );
-}
-
 function BlockView({ block }: { block: AgentBlock }) {
   switch (block.type) {
     case "metric":
@@ -124,7 +106,11 @@ function BlockView({ block }: { block: AgentBlock }) {
     case "tx_preview":
       return <TxPreviewBlock block={block} />;
     case "mini_chart":
-      return <MiniChartBlock block={block} />;
+      return <AgentMiniChartBlock block={block} />;
+    case "compare_months": {
+      const revealKey = `compare_months|${block.period_a_label}|${block.period_b_label}`;
+      return <AgentCompareMonthsBlock {...block} revealKey={revealKey} />;
+    }
     default:
       return null;
   }
@@ -135,10 +121,16 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
   content,
   blocks,
   deepLink,
-  isStreaming,
+  isPending,
   onDeepLinkPress,
 }: AgentMessageRendererProps) {
   const isUser = role === "user";
+  const hasContent =
+    content.length > 0 || blocks.length > 0 || Boolean(deepLink?.screen);
+
+  if (!isUser && isPending && !hasContent) {
+    return <AgentThinkingBubble active />;
+  }
 
   return (
     <View
@@ -153,19 +145,18 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
           isUser ? styles.bubbleUser : styles.bubbleAssistant,
         ]}
       >
-        {content.length > 0 ? (
-          <Text style={[styles.prose, isUser && styles.proseUser]}>
-            {content}
-            {isStreaming ? "▍" : ""}
-          </Text>
-        ) : null}
-
         {blocks.length > 0 ? (
           <View style={styles.blocks}>
             {blocks.map((block, index) => (
               <BlockView key={`${block.type}-${index}`} block={block} />
             ))}
           </View>
+        ) : null}
+        {content.length > 0 ? (
+          <AgentMessageProse
+            content={content}
+            variant={isUser ? "user" : "assistant"}
+          />
         ) : null}
 
         {deepLink?.screen ? (
@@ -174,7 +165,9 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
             onPress={() => onDeepLinkPress?.(deepLink)}
             style={styles.deepLink}
           >
-            <Text style={styles.deepLinkText}>View details →</Text>
+            <Text style={styles.deepLinkText}>
+              {deepLink.label ?? "View details →"}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -206,15 +199,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.barBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-  },
-  prose: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  proseUser: {
-    color: colors.barBackground,
   },
   blocks: {
     gap: BENTO_GAP,
@@ -283,22 +267,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-  },
-  chartPlaceholder: {
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.pageBackground,
-    gap: spacing.xs,
-  },
-  chartTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  chartMeta: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   deepLink: {
     alignSelf: "flex-start",

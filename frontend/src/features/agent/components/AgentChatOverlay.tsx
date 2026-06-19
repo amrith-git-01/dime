@@ -18,6 +18,7 @@ import Animated, {
   interpolate,
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
@@ -109,6 +110,16 @@ export function AgentChatOverlay({
   const collapsedScaleX = FAB_SIZE / panelWidth;
   const collapsedScaleY = FAB_SIZE / panelHeight;
   const collapsedCornerRadius = Math.min(panelWidth, panelHeight) / 2;
+
+  /** Shared worklet value — panel's bottom anchor as keyboard animates in/out. */
+  const anchorBottom = useDerivedValue(() =>
+    interpolate(
+      keyboardProgress.value,
+      [0, 1],
+      [fabBottom, spacing.md],
+      "clamp",
+    ),
+  );
 
   const { messages, isPending, sendMessage, resetConversation } =
     useAgentChat();
@@ -233,18 +244,10 @@ export function AgentChatOverlay({
   // As the keyboard opens we animate `bottom` from `fabBottom` → `spacing.md` so the
   // panel ends up sitting just above the keyboard with a small gap. Without this,
   // `bottom` stays at `fabBottom` and the visible gap equals `fabBottom` (~150 pt).
-  const panelAnchorStyle = useAnimatedStyle(() => {
-    const anchorBottom = interpolate(
-      keyboardProgress.value,
-      [0, 1],
-      [fabBottom, spacing.md],
-      "clamp",
-    );
-    return {
-      bottom: anchorBottom,
-      transform: [{ translateY: keyboardHeight.value }],
-    };
-  });
+  const panelAnchorStyle = useAnimatedStyle(() => ({
+    bottom: anchorBottom.value,
+    transform: [{ translateY: keyboardHeight.value }],
+  }));
 
   /**
    * Morph from bottom-right: scaleX/scaleY independently so collapsed state is a
@@ -253,19 +256,15 @@ export function AgentChatOverlay({
   const panelStyle = useAnimatedStyle(() => {
     const p = progress.value;
     const keyboardInset = Math.abs(keyboardHeight.value);
-    // anchorBottom mirrors the value computed in panelAnchorStyle so the max height
-    // stays consistent with the panel's actual bottom position.
-    const anchorBottom = interpolate(
-      keyboardProgress.value,
-      [0, 1],
-      [fabBottom, spacing.md],
-      "clamp",
-    );
     const expandedHeight = Math.min(
       panelHeight,
       Math.max(
         FAB_SIZE,
-        screenHeight - insets.top - spacing.md - anchorBottom - keyboardInset,
+        screenHeight -
+          insets.top -
+          spacing.md -
+          anchorBottom.value -
+          keyboardInset,
       ),
     );
     const scaleX = interpolate(p, [0, 1], [collapsedScaleX, 1], "clamp");
