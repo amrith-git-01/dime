@@ -12,33 +12,19 @@ import { zeroCashflowChartRows } from "@/features/analytics/utils/chartEntryData
 import { formatInrChartAxis } from "@/utils/currency";
 
 import {
-  buildCashflowChartScale,
   buildFullMonthCashflowDays,
+  buildMonthlyCashflowChartModel,
   CASHFLOW_DAY_SLOT_WIDTH,
   cashflowChartScrollWidth,
   cashflowScrollOffsetForToday,
   CHART_LEADING_ANCHOR_DAY,
   chartTrailingAnchorDay,
   formatCashflowXLabel,
-  maxCashflowChartY,
 } from "../../utils/buildCashflowWindow";
 import { CashflowVictoryChart } from "../CashflowVictoryChart";
 
 const X_LABEL_ROW_HEIGHT = 18;
 const Y_AXIS_GUTTER = 34;
-
-const ZERO_CHART_ROW = {
-  expense: 0,
-  income: 0,
-  netSurplus: 0,
-  netDeficit: 0,
-} as const;
-
-function netBarInnerPadding(dayCount: number): number {
-  if (dayCount <= 10) return 0.22;
-  if (dayCount <= 20) return 0.14;
-  return 0.2;
-}
 
 export type CompareCashflowColumnProps = {
   dailyCashflow: DailyCashflowRow[];
@@ -65,29 +51,10 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
 
   const trailingAnchorDay = chartTrailingAnchorDay(lastDay);
 
-  const { chartData, yMax, barPadding, yTickValues } = useMemo(() => {
-    const monthRows = monthDays.map((d) => ({
-      day: d.day,
-      expense: d.expense,
-      income: d.income,
-      netSurplus: d.net > 0 ? d.net : 0,
-      netDeficit: d.net < 0 ? Math.abs(d.net) : 0,
-    }));
-    const data = [
-      { day: CHART_LEADING_ANCHOR_DAY, ...ZERO_CHART_ROW },
-      ...monthRows,
-      { day: trailingAnchorDay, ...ZERO_CHART_ROW },
-    ];
-    const { yDomainMax, yTickValues } = buildCashflowChartScale(
-      maxCashflowChartY(data),
-    );
-    return {
-      chartData: data,
-      yMax: yDomainMax,
-      barPadding: netBarInnerPadding(monthRows.length),
-      yTickValues,
-    };
-  }, [monthDays, trailingAnchorDay]);
+  const { chartData, yMax, barPadding, yTickValues } = useMemo(
+    () => buildMonthlyCashflowChartModel(monthDays, trailingAnchorDay),
+    [monthDays, trailingAnchorDay],
+  );
 
   const domain = useMemo(
     () => ({
