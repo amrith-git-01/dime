@@ -6,7 +6,10 @@ import {
 } from "react-native-reanimated";
 
 import type { ChartPathAnimationConfig } from "@/features/analytics/constants/chartAnimation";
-import { useChartRevealOnce } from "@/features/analytics/hooks/useChartRevealOnce";
+import {
+  hasChartRevealPlayed,
+  useChartRevealOnce,
+} from "@/features/analytics/hooks/useChartRevealOnce";
 import { chartAnimationTiming } from "@/features/analytics/utils/chartAnimationTiming";
 
 /**
@@ -28,8 +31,11 @@ export function usePieClockwiseEntry({
   const progress = useSharedValue(0);
 
   const resetProgress = useCallback(() => {
+    if (hasChartRevealPlayed(identity)) {
+      return;
+    }
     progress.value = 0;
-  }, [progress]);
+  }, [identity, progress]);
 
   const startReveal = useCallback(() => {
     progress.value = withTiming(1, timing);

@@ -9,6 +9,7 @@ import { useCallback, useState } from "react";
 
 import { supabase } from "@/lib/supabase/client";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
+import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 function isSignInCancelled(error: unknown): boolean {
   return isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED;
@@ -69,13 +70,16 @@ export function useGoogleSignIn() {
       }
 
       if (data.session?.access_token) {
+        usePermissionsPromptStore.getState().markPendingAfterGoogleSignIn();
         return;
       }
 
       const hasToken = await waitForAccessToken();
       if (!hasToken) {
         setError("Couldn't complete sign-in. Try again.");
+        return;
       }
+      usePermissionsPromptStore.getState().markPendingAfterGoogleSignIn();
     } catch (e: unknown) {
       if (!isSignInCancelled(e)) {
         setError(googleSignInErrorMessage(e));

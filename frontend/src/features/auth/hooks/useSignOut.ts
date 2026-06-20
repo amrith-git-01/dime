@@ -8,6 +8,7 @@ import { clearQueryMmkv } from "@/lib/queryPersister";
 import { supabase } from "@/lib/supabase/client";
 import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
+import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 export function useSignOut() {
   const [loading, setLoading] = useState(false);
@@ -30,6 +31,7 @@ export function useSignOut() {
       clearQueryMmkv();
       clearPersistedNotifications();
       useCurrentUserStore.getState().clearProfile();
+      usePermissionsPromptStore.getState().clearPendingAfterGoogleSignIn();
       queryClient.clear();
     } finally {
       setLoading(false);

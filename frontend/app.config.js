@@ -1,17 +1,13 @@
 /**
  * Merges static `app.json` with dynamic Android options.
  *
- * Google Play Protect often hard-blocks sideloaded APKs that declare SMS access
- * (READ_SMS / RECEIVE_SMS) with “financial fraud” messaging. For day-to-day dev
- * installs, omit those unless you explicitly opt in.
- *
- * Opt-in for a native rebuild: set EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS=true in `.env`
- * (or your shell) before `expo prebuild` / `expo run:android` / EAS build.
+ * SMS permissions are injected via `plugins/withAndroidSmsPermissions.js` at prebuild.
+ * Set EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS=false only for Play Store builds that must omit SMS.
  */
 module.exports = ({ config }) => {
   const includeSensitiveSms =
-    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS === "true" ||
-    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS === "1";
+    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS !== "false" &&
+    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS !== "0";
 
   const previous = config.android?.permissions;
   const baseList = Array.isArray(previous) ? previous : [];
@@ -27,8 +23,22 @@ module.exports = ({ config }) => {
     permissions.add("RECEIVE_SMS");
   }
 
+  const plugins = [...(config.plugins ?? [])];
+  if (
+    includeSensitiveSms &&
+    !plugins.some(
+      (entry) =>
+        entry === "./plugins/withAndroidSmsPermissions.js" ||
+        (Array.isArray(entry) &&
+          entry[0] === "./plugins/withAndroidSmsPermissions.js"),
+    )
+  ) {
+    plugins.push("./plugins/withAndroidSmsPermissions.js");
+  }
+
   return {
     ...config,
+    plugins,
     android: {
       ...config.android,
       permissions: Array.from(permissions),

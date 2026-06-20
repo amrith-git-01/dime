@@ -6,16 +6,17 @@ import { StyleSheet, View } from "react-native";
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
 import { SmsCaptureBootstrap } from "@/features/capture/components/SmsCaptureBootstrap";
-import { SmsPermissionBanner } from "@/features/capture/components/SmsPermissionBanner";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import { supabase } from "@/lib/supabase/client";
 import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
+import PermissionsSetupScreen from "@/screens/onboarding/PermissionsSetupScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
+import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -34,12 +35,18 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-type RootAppRoute = "auth" | "bootstrapping" | "setup" | "main";
+type RootAppRoute =
+  | "auth"
+  | "bootstrapping"
+  | "setup"
+  | "permissions"
+  | "main";
 
 function resolveRootAppRoute(
   session: Session | null,
   profileGateReady: boolean,
   hasUsername: boolean,
+  permissionsPromptPending: boolean,
 ): RootAppRoute {
   if (!session) {
     return "auth";
@@ -49,6 +56,9 @@ function resolveRootAppRoute(
   }
   if (!hasUsername) {
     return "setup";
+  }
+  if (permissionsPromptPending) {
+    return "permissions";
   }
   return "main";
 }
@@ -76,6 +86,9 @@ export default function RootNavigator() {
   }, []);
 
   const googleAuthPending = useGoogleAuthGate((s) => s.isPending);
+  const permissionsPromptPending = usePermissionsPromptStore(
+    (s) => s.pendingAfterGoogleSignIn,
+  );
   const profileUserId = session?.user.id;
 
   useCategoriesRealtimeSync(profileUserId ?? null);
@@ -94,8 +107,19 @@ export default function RootNavigator() {
     () =>
       googleAuthPending
         ? "auth"
-        : resolveRootAppRoute(session, profileGateReady, hasUsername),
-    [googleAuthPending, session, profileGateReady, hasUsername],
+        : resolveRootAppRoute(
+            session,
+            profileGateReady,
+            hasUsername,
+            permissionsPromptPending,
+          ),
+    [
+      googleAuthPending,
+      session,
+      profileGateReady,
+      hasUsername,
+      permissionsPromptPending,
+    ],
   );
 
   useEffect(() => {
@@ -105,7 +129,6 @@ export default function RootNavigator() {
   return (
     <View style={styles.root}>
       <SmsCaptureBootstrap active={route === "main"} />
-      <SmsPermissionBanner visible={route === "main"} />
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
         {route === "auth" || route === "bootstrapping" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
@@ -113,6 +136,12 @@ export default function RootNavigator() {
           <Stack.Screen
             name="ProfileSetup"
             component={ProfileSetupScreen}
+            options={{ gestureEnabled: false }}
+          />
+        ) : route === "permissions" ? (
+          <Stack.Screen
+            name="PermissionsSetup"
+            component={PermissionsSetupScreen}
             options={{ gestureEnabled: false }}
           />
         ) : (

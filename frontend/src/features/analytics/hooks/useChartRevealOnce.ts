@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 
+/** Survives tab blur and component remounts (e.g. skeleton → chart). Clears on app restart. */
+const sessionPlayedChartIdentities = new Set<string>();
+
 type UseChartRevealOnceOptions = {
   identity: string;
   enabled: boolean;
   isVisible: boolean;
+  /** Retained for callers; reveal is marked played when it starts, not after this delay. */
   completeAfterMs: number;
   /** Arm the chart at its zero/baseline state before reveal starts. */
   onArm?: () => void;
   /** Run the reveal transition (Victory phase flip, Reanimated timing, etc.). */
   onStartReveal: () => void;
-  /** Reset to baseline when identity changes or the chart leaves the viewport. */
+  /** Reset to baseline when identity changes or an in-progress reveal is interrupted. */
   onReset?: () => void;
 };
 
@@ -20,12 +24,11 @@ export function useChartRevealOnce({
   identity,
   enabled,
   isVisible,
-  completeAfterMs,
+  completeAfterMs: _completeAfterMs,
   onArm,
   onStartReveal,
   onReset,
 }: UseChartRevealOnceOptions): { hasPlayed: boolean } {
-  const playedRef = useRef(new Set<string>());
   const revealStartedRef = useRef(false);
   const onArmRef = useRef(onArm);
   const onStartRevealRef = useRef(onStartReveal);
@@ -36,11 +39,11 @@ export function useChartRevealOnce({
   onStartRevealRef.current = onStartReveal;
   onResetRef.current = onReset;
 
-  const hasPlayed = playedRef.current.has(identity);
+  const hasPlayed = sessionPlayedChartIdentities.has(identity);
 
   useEffect(() => {
     revealStartedRef.current = false;
-    if (playedRef.current.has(identity)) {
+    if (sessionPlayedChartIdentities.has(identity)) {
       return;
     }
     onResetRef.current?.();
@@ -51,13 +54,15 @@ export function useChartRevealOnce({
       return;
     }
 
-    if (playedRef.current.has(identity)) {
+    if (sessionPlayedChartIdentities.has(identity)) {
       return;
     }
 
     if (!isVisible) {
-      revealStartedRef.current = false;
-      onResetRef.current?.();
+      if (revealStartedRef.current) {
+        revealStartedRef.current = false;
+        onResetRef.current?.();
+      }
       return;
     }
 
@@ -66,30 +71,33 @@ export function useChartRevealOnce({
     }
 
     revealStartedRef.current = true;
+    sessionPlayedChartIdentities.add(identity);
+    setPlayedTick((tick) => tick + 1);
     onArmRef.current?.();
 
     let outerFrame = 0;
     let innerFrame = 0;
-    let completeTimer: ReturnType<typeof setTimeout> | undefined;
 
     outerFrame = requestAnimationFrame(() => {
       innerFrame = requestAnimationFrame(() => {
         onStartRevealRef.current();
-        completeTimer = setTimeout(() => {
-          playedRef.current.add(identity);
-          setPlayedTick((tick) => tick + 1);
-        }, completeAfterMs + 80);
       });
     });
 
     return () => {
       cancelAnimationFrame(outerFrame);
       cancelAnimationFrame(innerFrame);
-      if (completeTimer != null) {
-        clearTimeout(completeTimer);
-      }
     };
-  }, [completeAfterMs, enabled, identity, isVisible]);
+  }, [enabled, identity, isVisible]);
 
   return { hasPlayed };
+}
+
+/** Test-only helper to reset session reveal state. */
+export function resetChartRevealSessionForTests(): void {
+  sessionPlayedChartIdentities.clear();
+}
+
+export function hasChartRevealPlayed(identity: string): boolean {
+  return sessionPlayedChartIdentities.has(identity);
 }
