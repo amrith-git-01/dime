@@ -1,0 +1,104 @@
+import {
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+} from "expo-audio";
+import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
+
+import {
+  getSmsPermissionStatus,
+  requestSmsPermissions,
+} from "@/features/capture/hooks/smsPermission";
+
+import type { AppPermissionId } from "../constants/appPermissionItems";
+
+export type AppPermissionState = {
+  id: AppPermissionId;
+  granted: boolean;
+  available: boolean;
+};
+
+function isNotificationGranted(
+  status: Notifications.NotificationPermissionsStatus,
+): boolean {
+  return (
+    status.granted ||
+    status.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+  );
+}
+
+export async function getAppPermissionState(
+  id: AppPermissionId,
+): Promise<AppPermissionState> {
+  switch (id) {
+    case "sms": {
+      if (Platform.OS !== "android") {
+        return { id, granted: false, available: false };
+      }
+      const sms = await getSmsPermissionStatus();
+      return { id, granted: sms.granted, available: true };
+    }
+    case "notifications": {
+      const status = await Notifications.getPermissionsAsync();
+      return {
+        id,
+        granted: isNotificationGranted(status),
+        available: true,
+      };
+    }
+    case "camera": {
+      const status = await ImagePicker.getCameraPermissionsAsync();
+      return {
+        id,
+        granted: status.granted,
+        available: true,
+      };
+    }
+    case "microphone": {
+      const status = await getRecordingPermissionsAsync();
+      return {
+        id,
+        granted: status.granted,
+        available: true,
+      };
+    }
+    default:
+      return { id, granted: false, available: false };
+  }
+}
+
+export async function requestAppPermission(
+  id: AppPermissionId,
+): Promise<boolean> {
+  switch (id) {
+    case "sms":
+      return requestSmsPermissions();
+    case "notifications": {
+      const status = await Notifications.requestPermissionsAsync();
+      return isNotificationGranted(status);
+    }
+    case "camera": {
+      const status = await ImagePicker.requestCameraPermissionsAsync();
+      return status.granted;
+    }
+    case "microphone": {
+      const status = await requestRecordingPermissionsAsync();
+      return status.granted;
+    }
+    default:
+      return false;
+  }
+}
+
+export async function getAllAppPermissionStates(): Promise<
+  AppPermissionState[]
+> {
+  const ids: AppPermissionId[] = [
+    "sms",
+    "notifications",
+    "camera",
+    "microphone",
+  ];
+  return Promise.all(ids.map((id) => getAppPermissionState(id)));
+}
