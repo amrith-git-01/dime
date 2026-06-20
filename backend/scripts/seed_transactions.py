@@ -30,6 +30,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from core.db import create_supabase_service_client
+from features.transactions.dedupe import build_payment_hash
 
 SEED_NOTE = "__SEED__|transactions|v2"
 DEFAULT_USER_ID = "a02925b4-a065-40ee-be3b-f78132de72a1"
@@ -237,6 +238,8 @@ def _make_row(
     counterparty_type: CounterpartyType = "merchant",
     detected_via: DetectedVia = "notification",
 ) -> dict[str, Any]:
+    counterparty_normalized = _normalize_counterparty(counterparty_name)
+    transaction_at_dt = datetime.fromisoformat(transaction_at)
     return {
         "id": str(uuid.uuid4()),
         "user_id": user_id,
@@ -244,13 +247,20 @@ def _make_row(
         "type": tx_type,
         "counterparty_name": counterparty_name,
         "counterparty_type": counterparty_type,
-        "counterparty_normalized": _normalize_counterparty(counterparty_name),
+        "counterparty_normalized": counterparty_normalized,
         "category_id": category_id,
         "note": SEED_NOTE,
         "detected_via": detected_via,
         "receipt_url": None,
         "voice_url": None,
         "transaction_at": transaction_at,
+        "payment_hash": build_payment_hash(
+            amount=amount,
+            tx_type=tx_type,
+            counterparty_normalized=counterparty_normalized,
+            counterparty_name=counterparty_name,
+            transaction_at=transaction_at_dt,
+        ),
     }
 
 
