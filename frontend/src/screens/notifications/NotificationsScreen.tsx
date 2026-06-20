@@ -1,20 +1,16 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import {
-  inkSoft,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { colors, spacing, typography } from "@/constants";
 import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
@@ -81,13 +77,6 @@ export default function NotificationsScreen() {
     [markRead, navigation, queryClient, showToast],
   );
 
-  const handleMarkRead = useCallback(
-    (id: string) => {
-      markRead(id);
-    },
-    [markRead],
-  );
-
   const handleDelete = useCallback(
     (id: string) => {
       deleteNotification(id);
@@ -95,32 +84,59 @@ export default function NotificationsScreen() {
     [deleteNotification],
   );
 
+  const insets = useSafeAreaInsets();
+  const openSwipeRef = useRef<SwipeableMethods | null>(null);
+  const handleSwipeWillStart = useCallback((methods: SwipeableMethods) => {
+    if (openSwipeRef.current != null && openSwipeRef.current !== methods) {
+      openSwipeRef.current.close();
+    }
+    openSwipeRef.current = methods;
+  }, []);
+
   if (isInitialLoading) {
-    return <NotificationsInboxSkeleton />;
+    return (
+      <View style={styles.paddedFill}>
+        <NotificationsInboxSkeleton />
+      </View>
+    );
   }
 
   if (isError) {
     return (
-      <EmptyState
-        layout="centered"
-        headline={emptyStateCopy.notificationsError.headline}
-        subtext={emptyStateCopy.notificationsError.subtext}
-      />
+      <View style={styles.paddedFill}>
+        <EmptyState
+          layout="centered"
+          headline={emptyStateCopy.notificationsError.headline}
+          subtext={emptyStateCopy.notificationsError.subtext}
+        />
+      </View>
     );
   }
 
   if (isInboxEmpty) {
     return (
-      <EmptyState
-        layout="centered"
-        headline={NOTIFICATION_INBOX_EMPTY.title}
-        subtext={NOTIFICATION_INBOX_EMPTY.message}
-      />
+      <View style={styles.paddedFill}>
+        <EmptyState
+          layout="centered"
+          headline={NOTIFICATION_INBOX_EMPTY.title}
+          subtext={NOTIFICATION_INBOX_EMPTY.message}
+        />
+      </View>
     );
   }
 
   return (
-    <View style={styles.root}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[
+        styles.root,
+        { paddingBottom: spacing.xl + insets.bottom },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      overScrollMode="never"
+      bounces={false}
+    >
       <NotificationsFilterTabs value={filter} onChange={setFilter} />
 
       {isFilterEmpty ? (
@@ -136,54 +152,53 @@ export default function NotificationsScreen() {
           {groups.map((group) => (
             <View key={group.key} style={styles.groupWrap}>
               <Text style={styles.groupHeader}>{group.title}</Text>
-              <View style={styles.groupCard}>
-                {group.items.map((item, index) => (
-                  <NotificationBentoRow
-                    key={item.id}
-                    notification={item}
-                    unread={isUnread(item)}
-                    onPress={handlePress}
-                    onMarkRead={handleMarkRead}
-                    onDelete={handleDelete}
-                    showSeparator={index < group.items.length - 1}
-                  />
-                ))}
-              </View>
+              {group.items.map((item) => (
+                <NotificationBentoRow
+                  key={item.id}
+                  notification={item}
+                  unread={isUnread(item)}
+                  onPress={handlePress}
+                  onMarkRead={markRead}
+                  onDelete={handleDelete}
+                  onSwipeWillStart={handleSwipeWillStart}
+                />
+              ))}
             </View>
           ))}
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.pageBackground,
+  },
+  paddedFill: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    backgroundColor: colors.pageBackground,
+  },
   root: {
     flexGrow: 1,
     gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
   },
   sections: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   filterEmptyWrap: {
     flexGrow: 1,
     justifyContent: "center",
   },
   groupWrap: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   groupHeader: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 11,
-    lineHeight: 15,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    color: inkSoft,
-  },
-  groupCard: {
-    backgroundColor: surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    ...shadows.card,
+    ...typography.eyebrow,
   },
 });

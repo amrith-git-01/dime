@@ -22,7 +22,7 @@ import {
   AuthPostcardDots,
 } from "@/features/onboarding/components";
 import { AUTH_FEATURE_SLIDES } from "@/features/onboarding/constants/authFeatureSlides";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 export default function WelcomeTourScreen() {
@@ -31,7 +31,7 @@ export default function WelcomeTourScreen() {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   const finishTour = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     completeWelcomeTour();
   }, [completeWelcomeTour]);
 
@@ -40,12 +40,12 @@ export default function WelcomeTourScreen() {
 
   const handleBackPress = useCallback(() => {
     if (isFirstSlide) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     setActiveSlideIndex((index) => Math.max(index - 1, 0));
   }, [isFirstSlide]);
 
   const handlePrimaryPress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (isLastSlide) {
       completeWelcomeTour();
       return;

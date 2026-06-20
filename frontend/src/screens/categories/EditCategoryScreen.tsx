@@ -23,7 +23,7 @@ import {
 } from "@/features/categories/hooks/useCategoryMutations";
 import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
 type EditRoute = RouteProp<MainStackParamList, "EditCategory">;
@@ -155,7 +155,7 @@ export default function EditCategoryScreen() {
   ]);
 
   const onSavePress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     void handleSave();
   }, [handleSave]);
 
@@ -185,12 +185,12 @@ export default function EditCategoryScreen() {
     if (!category || category.is_system) {
       return;
     }
-    void triggerLightHaptic();
+    void triggerHaptic();
     setDeleteSheetVisible(true);
   }, [category]);
 
   const handleClear = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     Keyboard.dismiss();
     if (!fieldsDisabled) {
       setName(savedBaseline.name);
