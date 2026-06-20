@@ -1,19 +1,24 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MessageSquareText, ScanLine } from "lucide-react-native";
+import {
+  Bell,
+  BookOpen,
+  MessageSquareText,
+  ScanLine,
+  Vibrate,
+} from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 
-import { BENTO_SECTION_GAP } from "@/components/bento";
 import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { fontFamilies, inkSoft, spacing } from "@/constants";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import {
-  SETTINGS_ROW_ACCENTS,
   SettingsHubHero,
   SettingsNavRow,
   SettingsSection,
 } from "@/features/settings/components";
+import { SETTINGS_SECTION_GAP } from "@/features/settings/constants/settingsTokens";
 import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
@@ -21,7 +26,7 @@ import type { MainStackParamList } from "@/navigation/types";
 export default function SettingsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { displayName, avatarUrl } = useUserProfile();
+  const { displayName, email, avatarUrl } = useUserProfile();
   const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
     useConfirmSignOut();
   const { confirmRefreshAppData, loading: refreshLoading } =
@@ -35,52 +40,84 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.lede}>
-        Profile, capture, and feedback — tuned for how you use Dime.
-      </Text>
-
-      <SettingsHubHero
-        displayName={displayName}
-        avatarUrl={avatarUrl}
-        onPress={openAccount}
-      />
+      <SettingsSection title="Account">
+        <View style={styles.accountInner}>
+          <SettingsHubHero
+            displayName={displayName}
+            email={email}
+            avatarUrl={avatarUrl}
+            onPress={openAccount}
+          />
+        </View>
+      </SettingsSection>
 
       <SettingsSection title="Preferences">
-        <SettingsNavRow
-          icon={ScanLine}
-          iconAccent={SETTINGS_ROW_ACCENTS.capture}
-          label="Automatic capture"
-          subtitle="UPI detection on this device"
-          onPress={() => navigation.navigate("SettingsCapture")}
-          showSeparator
-        />
-        <SettingsNavRow
-          icon={MessageSquareText}
-          iconAccent={SETTINGS_ROW_ACCENTS.feedback}
-          label="Send feedback"
-          subtitle="Ideas, bugs, and product thoughts"
-          onPress={() => navigation.navigate("SettingsFeedback")}
-        />
+        <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={Vibrate}
+            label="Haptic feedback"
+            subtitle="Tap feedback on buttons and actions"
+            onPress={() => navigation.navigate("SettingsHaptic")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Bell}
+            label="Notifications & alerts"
+            subtitle="Device permission, budget limits, and capture alerts"
+            onPress={() => navigation.navigate("SettingsNotifications")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={ScanLine}
+            label="Automatic capture"
+            subtitle="Bank SMS review on this device"
+            onPress={() => navigation.navigate("SettingsCapture")}
+          />
+        </View>
+      </SettingsSection>
+
+      <SettingsSection title="Help">
+        <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={BookOpen}
+            label="Words we use"
+            subtitle="What Debit, Payee, and other labels mean"
+            onPress={() => navigation.navigate("SettingsGlossary")}
+          />
+        </View>
+      </SettingsSection>
+
+      <SettingsSection title="Feedback">
+        <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={MessageSquareText}
+            label="Send feedback"
+            subtitle="Bugs, ideas, and enhancements"
+            onPress={() => navigation.navigate("SettingsFeedback")}
+          />
+        </View>
       </SettingsSection>
 
       <SettingsSection title="Data">
-        <Text style={styles.dataHint}>
-          Clear offline cache and download the latest transactions, insights,
-          and notifications from the server.
-        </Text>
-        <Button
-          title="Refresh from server"
-          variant="ghost"
-          loading={refreshLoading}
-          disabled={refreshLoading || signOutLoading}
-          onPress={handleRefreshPress}
-        />
+        <View style={styles.dataInner}>
+          <Text style={styles.dataHint}>
+            Clear offline cache and download the latest transactions, insights,
+            and notifications from the server.
+          </Text>
+          <Button
+            title="Refresh from server"
+            variant="ghost"
+            loading={refreshLoading}
+            disabled={refreshLoading || signOutLoading}
+            onPress={handleRefreshPress}
+          />
+        </View>
       </SettingsSection>
 
       <View style={styles.signOutWrap}>
         <Button
           title="Sign out"
-          variant="ghostDanger"
+          variant="danger"
           loading={signOutLoading}
           disabled={signOutLoading || refreshLoading}
           onPress={confirmSignOut}
@@ -101,14 +138,19 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: {
-    gap: BENTO_SECTION_GAP,
+    gap: SETTINGS_SECTION_GAP,
   },
-  lede: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    lineHeight: 22,
-    color: inkSoft,
-    marginBottom: -spacing.sm,
+  accountInner: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
+  },
+  dataInner: {
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  preferencesInner: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
   },
   signOutWrap: {
     marginTop: spacing.sm,
@@ -118,6 +160,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: inkSoft,
-    marginBottom: spacing.sm,
   },
 });

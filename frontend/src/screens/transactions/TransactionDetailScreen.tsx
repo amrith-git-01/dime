@@ -29,7 +29,7 @@ import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
 type TransactionDetailRoute = RouteProp<
@@ -103,7 +103,7 @@ export default function TransactionDetailScreen() {
   }));
 
   const handleDismiss = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     navigation.goBack();
   }, [navigation]);
 

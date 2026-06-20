@@ -15,7 +15,7 @@ import { useManualAddTransactionForm } from "@/features/transactions/hooks/useMa
 import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
 import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 import { mergeDateWithTime } from "@/utils/dateTime";
 
@@ -106,7 +106,7 @@ export function useManualAddTransactionScreenModel() {
   ]);
 
   const handleClear = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     Keyboard.dismiss();
     reset();
     resetUiState();
@@ -114,7 +114,7 @@ export function useManualAddTransactionScreenModel() {
   }, [reset, resetUiState, submitMutation]);
 
   const openAndroidDatePicker = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     DateTimePickerAndroid.open({
       value: transactionAt,
       mode: "date",
@@ -127,7 +127,7 @@ export function useManualAddTransactionScreenModel() {
   }, [setTransactionAt, transactionAt]);
 
   const openAndroidTimePicker = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     DateTimePickerAndroid.open({
       value: transactionAt,
       mode: "time",
@@ -143,7 +143,7 @@ export function useManualAddTransactionScreenModel() {
     if (Platform.OS === "android") {
       openAndroidDatePicker();
     } else {
-      void triggerLightHaptic();
+      void triggerHaptic();
       setIosPickerMode((current) => (current === "date" ? null : "date"));
     }
   }, [openAndroidDatePicker]);
@@ -152,7 +152,7 @@ export function useManualAddTransactionScreenModel() {
     if (Platform.OS === "android") {
       openAndroidTimePicker();
     } else {
-      void triggerLightHaptic();
+      void triggerHaptic();
       setIosPickerMode((current) => (current === "time" ? null : "time"));
     }
   }, [openAndroidTimePicker]);
@@ -194,18 +194,18 @@ export function useManualAddTransactionScreenModel() {
   }, [authReady, buildPayload, navigation, showToast, submitMutation, userId]);
 
   const setExpenseType = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setTxType("debit");
   }, [setTxType]);
 
   const setIncomeType = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setTxType("credit");
   }, [setTxType]);
 
   const handleCategoryPress = useCallback(
     (category: CategoryRow, selected: boolean) => {
-      void triggerLightHaptic();
+      void triggerHaptic();
       if (selected) {
         clearCategory();
         return;
