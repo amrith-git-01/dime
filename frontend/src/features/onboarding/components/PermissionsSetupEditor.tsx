@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
   BENTO_FORM_BODY_GAP,
@@ -30,9 +30,7 @@ export const PermissionsSetupEditor = memo(function PermissionsSetupEditor({
   onContinue,
 }: PermissionsSetupEditorProps) {
   const stateById = new Map(permissionStates.map((item) => [item.id, item]));
-  const visibleItems = APP_PERMISSION_ITEMS.filter(
-    (item) => !item.androidOnly || Platform.OS === "android",
-  );
+  const visibleItems = APP_PERMISSION_ITEMS;
 
   return (
     <View style={styles.root}>

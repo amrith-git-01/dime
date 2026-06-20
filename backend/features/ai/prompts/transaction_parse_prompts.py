@@ -58,29 +58,6 @@ def _category_block(allowed_categories: list[str] | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# SMS / Notification prompt
-# ---------------------------------------------------------------------------
-
-
-def build_sms_parse_prompt(
-    sms_text: str,
-    allowed_categories: list[str] | None = None,
-) -> str:
-    return (
-        "Extract transaction from SMS. Return ONLY valid JSON, no markdown.\n"
-        f"Schema: {_SCHEMA}\n"
-        "Rules:\n"
-        + _TYPE_RULES
-        + _DATE_RULES
-        + _COUNTERPARTY_RULES
-        + _category_block(allowed_categories)
-        + _NOTE_RULES
-        + "- Use null for unknown fields. Never invent values.\n"
-        + f"SMS: {sms_text.strip()}"
-    )
-
-
-# ---------------------------------------------------------------------------
 # Receipt / Image prompt
 # ---------------------------------------------------------------------------
 

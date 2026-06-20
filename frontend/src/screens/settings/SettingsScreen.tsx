@@ -49,7 +49,7 @@ export default function SettingsScreen() {
           icon={ScanLine}
           iconAccent={SETTINGS_ROW_ACCENTS.capture}
           label="Automatic capture"
-          subtitle="SMS and UPI detection on this device"
+          subtitle="UPI detection on this device"
           onPress={() => navigation.navigate("SettingsCapture")}
           showSeparator
         />

@@ -11,7 +11,6 @@ CounterpartyType = Literal["merchant", "person", "self_transfer", "unknown"]
 
 
 class ParseMode(str, Enum):
-    sms = "sms"
     receipt = "receipt"
     voice = "voice"
 

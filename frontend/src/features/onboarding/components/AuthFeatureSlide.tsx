@@ -26,10 +26,7 @@ export function AuthFeatureSlide({
   pageWidth,
   layout,
 }: AuthFeatureSlideProps) {
-  const subtext =
-    Platform.OS === "ios" && slide.subtextIos
-      ? slide.subtextIos
-      : slide.subtext;
+  const subtext = slide.subtext;
 
   const {
     postcardWidth,

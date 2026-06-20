@@ -1,13 +1,6 @@
+import { Bell, Camera, Check, Mic, type LucideIcon } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import {
-  Bell,
-  Camera,
-  Check,
-  MessageSquare,
-  Mic,
-  type LucideIcon,
-} from "lucide-react-native";
 
 import { colors, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -15,7 +8,6 @@ import { fontFamilies } from "@/constants/fonts";
 import type { AppPermissionId } from "../constants/appPermissionItems";
 
 const ICONS: Record<AppPermissionId, LucideIcon> = {
-  sms: MessageSquare,
   notifications: Bell,
   camera: Camera,
   microphone: Mic,

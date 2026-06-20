@@ -173,26 +173,3 @@ class HomeOverviewResponse(BaseModel):
     top_categories: list[TopCategoryRow]
     recent_transactions: list[TransactionResponse]
     last_7_days_spend: list[DailySpendRow]
-
-
-class SmsCaptureBody(BaseModel):
-    """Raw bank SMS text submitted by the mobile listener for AI parse."""
-
-    text: str = Field(..., min_length=10, max_length=2000)
-    received_at: datetime | None = None
-    sender: str | None = Field(default=None, max_length=64)
-
-    @field_validator("text")
-    @classmethod
-    def strip_text(cls, value: str) -> str:
-        return value.strip()
-
-    @field_validator("sender", mode="before")
-    @classmethod
-    def strip_sender(cls, value: object) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            stripped = value.strip()
-            return stripped if stripped else None
-        return None

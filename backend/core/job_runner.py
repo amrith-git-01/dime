@@ -13,11 +13,9 @@ from core.db import create_supabase_service_client
 from features.uploads.workers import (
     ManualTransactionJob,
     ReceiptJob,
-    SmsCaptureJob,
     VoiceJob,
     run_manual_worker,
     run_receipt_worker,
-    run_sms_worker,
     run_voice_worker,
 )
 
@@ -26,7 +24,6 @@ from features.uploads.workers import (
 class WorkerRuntime:
     receipt_queue: asyncio.Queue[ReceiptJob]
     voice_queue: asyncio.Queue[VoiceJob]
-    sms_queue: asyncio.Queue[SmsCaptureJob]
     manual_queue: asyncio.Queue[ManualTransactionJob]
     tasks: list[asyncio.Task[None]]
 
@@ -69,14 +66,6 @@ def enqueue_voice(app: FastAPI, job: VoiceJob) -> None:
         raise _queue_full_error("voice") from exc
 
 
-def enqueue_sms(app: FastAPI, job: SmsCaptureJob) -> None:
-    queue = _runtime_from_app(app).sms_queue
-    try:
-        queue.put_nowait(job)
-    except asyncio.QueueFull as exc:
-        raise _queue_full_error("sms") from exc
-
-
 async def start_workers(app: FastAPI) -> None:
     settings = get_settings()
     maxsize = max(1, int(settings.worker_queue_maxsize))
@@ -84,7 +73,6 @@ async def start_workers(app: FastAPI) -> None:
     runtime = WorkerRuntime(
         receipt_queue=asyncio.Queue(maxsize=maxsize),
         voice_queue=asyncio.Queue(maxsize=maxsize),
-        sms_queue=asyncio.Queue(maxsize=maxsize),
         manual_queue=asyncio.Queue(maxsize=maxsize),
         tasks=[],
     )
@@ -112,17 +100,6 @@ async def start_workers(app: FastAPI) -> None:
                     queue=runtime.voice_queue,
                     client=client,
                     bucket=bucket,
-                ),
-            )
-        )
-
-    for i in range(max(1, int(settings.sms_worker_count))):
-        runtime.tasks.append(
-            asyncio.create_task(
-                run_sms_worker(
-                    worker_name=f"sms-worker-{i + 1}",
-                    queue=runtime.sms_queue,
-                    client=client,
                 ),
             )
         )

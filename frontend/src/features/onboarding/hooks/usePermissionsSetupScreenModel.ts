@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 
-import { useCapturePreferencesStore } from "@/stores/capturePreferencesStore";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 import type { AppPermissionId } from "../constants/appPermissionItems";
@@ -15,7 +14,6 @@ export function usePermissionsSetupScreenModel() {
   const clearPending = usePermissionsPromptStore(
     (s) => s.clearPendingAfterGoogleSignIn,
   );
-  const setSmsEnabled = useCapturePreferencesStore((s) => s.setSmsEnabled);
 
   const [permissionStates, setPermissionStates] = useState<
     AppPermissionState[]
@@ -46,16 +44,13 @@ export function usePermissionsSetupScreenModel() {
     async (id: AppPermissionId) => {
       setRequestingId(id);
       try {
-        const granted = await requestAppPermission(id);
-        if (granted && id === "sms") {
-          setSmsEnabled(true);
-        }
+        await requestAppPermission(id);
         await refresh();
       } finally {
         setRequestingId(null);
       }
     },
-    [refresh, setSmsEnabled],
+    [refresh],
   );
 
   const handleContinue = useCallback(() => {

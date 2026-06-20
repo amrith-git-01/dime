@@ -40,21 +40,6 @@ class AIOrchestratorService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def parse_sms(
-        self,
-        text: str,
-        allowed_categories: list[str],
-        category_options: list[dict[str, str]],
-    ) -> ParseExpenseResult:
-        return await self._parse_with_deepseek(
-            mode=ParseMode.sms,
-            payload={
-                "text": text,
-                "allowed_categories": allowed_categories,
-                "category_options": category_options,
-            },
-        )
-
     async def parse_receipt(
         self,
         image_bytes: bytes,
@@ -152,6 +137,7 @@ class AIOrchestratorService:
                     mode=mode,
                     allowed_categories=payload.get("allowed_categories"),
                     category_options=payload.get("category_options"),
+                    source_text=self._payload_source_text(mode, payload),
                 )
                 logger.info(
                     "[ai] parse-validated mode=%s model=%s amount=%s type=%s "
@@ -292,6 +278,10 @@ class AIOrchestratorService:
                 text = text[:-3]
         return text.strip()
 
+    @staticmethod
+    def _payload_source_text(_mode: ParseMode, _payload: dict[str, Any]) -> str | None:
+        return None
+
     def _parse_and_validate(
         self,
         raw_text: str,
@@ -299,6 +289,7 @@ class AIOrchestratorService:
         mode: ParseMode,
         allowed_categories: object,
         category_options: object,
+        source_text: str | None = None,
     ) -> ParseExpenseResult:
         cleaned = self._strip_json_fences(raw_text)
         try:
@@ -308,8 +299,8 @@ class AIOrchestratorService:
 
         if not data.get("date"):
             data["date"] = datetime.now(UTC).isoformat()
-        if not data.get("raw_model"):
-            data["raw_model"] = model_name
+        data["raw_model"] = model_name
+        self._coerce_counterparty_name(data, mode=mode, source_text=source_text)
         if not data.get("note"):
             data["note"] = self._build_default_note(
                 mode=mode,
@@ -347,6 +338,20 @@ class AIOrchestratorService:
             )
         except (KeyError, ValueError, ValidationError) as exc:
             raise AIParseError(f"Parsed payload validation failed: {data}") from exc
+
+    def _coerce_counterparty_name(
+        self,
+        data: dict[str, Any],
+        *,
+        mode: ParseMode,
+        source_text: str | None,
+    ) -> None:
+        del mode, source_text
+        raw_name = data.get("counterparty_name")
+        if isinstance(raw_name, str) and raw_name.strip():
+            data["counterparty_name"] = raw_name.strip()
+            return
+        data["counterparty_name"] = "Unknown"
 
     def _normalize_category(self, raw_value: object, allowed: object) -> str:
         categories = (
@@ -423,8 +428,6 @@ class AIOrchestratorService:
             if isinstance(counterparty_name, str) and counterparty_name.strip()
             else "counterparty"
         )
-        if mode == ParseMode.sms:
-            return f"Auto-parsed from SMS/notification for {name}."
         if mode == ParseMode.receipt:
             return f"Auto-parsed from receipt for {name}."
         return f"Auto-parsed from voice input for {name}."

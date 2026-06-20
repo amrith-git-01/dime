@@ -4,12 +4,6 @@ import {
 } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
-
-import {
-  getSmsPermissionStatus,
-  requestSmsPermissions,
-} from "@/features/capture/hooks/smsPermission";
 
 import type { AppPermissionId } from "../constants/appPermissionItems";
 
@@ -32,13 +26,6 @@ export async function getAppPermissionState(
   id: AppPermissionId,
 ): Promise<AppPermissionState> {
   switch (id) {
-    case "sms": {
-      if (Platform.OS !== "android") {
-        return { id, granted: false, available: false };
-      }
-      const sms = await getSmsPermissionStatus();
-      return { id, granted: sms.granted, available: true };
-    }
     case "notifications": {
       const status = await Notifications.getPermissionsAsync();
       return {
@@ -72,8 +59,6 @@ export async function requestAppPermission(
   id: AppPermissionId,
 ): Promise<boolean> {
   switch (id) {
-    case "sms":
-      return requestSmsPermissions();
     case "notifications": {
       const status = await Notifications.requestPermissionsAsync();
       return isNotificationGranted(status);
@@ -94,11 +79,6 @@ export async function requestAppPermission(
 export async function getAllAppPermissionStates(): Promise<
   AppPermissionState[]
 > {
-  const ids: AppPermissionId[] = [
-    "sms",
-    "notifications",
-    "camera",
-    "microphone",
-  ];
+  const ids: AppPermissionId[] = ["notifications", "camera", "microphone"];
   return Promise.all(ids.map((id) => getAppPermissionState(id)));
 }

@@ -1,24 +1,12 @@
-export type AppPermissionId =
-  | "sms"
-  | "notifications"
-  | "camera"
-  | "microphone";
+export type AppPermissionId = "notifications" | "camera" | "microphone";
 
 export type AppPermissionItem = {
   id: AppPermissionId;
   title: string;
   description: string;
-  androidOnly?: boolean;
 };
 
 export const APP_PERMISSION_ITEMS: AppPermissionItem[] = [
-  {
-    id: "sms",
-    title: "Bank SMS",
-    description:
-      "Detect debit and credit alerts automatically. OTPs and promos are filtered out.",
-    androidOnly: true,
-  },
   {
     id: "notifications",
     title: "Notifications",

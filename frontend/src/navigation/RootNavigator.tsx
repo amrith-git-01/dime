@@ -5,7 +5,6 @@ import { StyleSheet, View } from "react-native";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
-import { SmsCaptureBootstrap } from "@/features/capture/components/SmsCaptureBootstrap";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
@@ -35,12 +34,7 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-type RootAppRoute =
-  | "auth"
-  | "bootstrapping"
-  | "setup"
-  | "permissions"
-  | "main";
+type RootAppRoute = "auth" | "bootstrapping" | "setup" | "permissions" | "main";
 
 function resolveRootAppRoute(
   session: Session | null,
@@ -128,7 +122,6 @@ export default function RootNavigator() {
 
   return (
     <View style={styles.root}>
-      <SmsCaptureBootstrap active={route === "main"} />
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
         {route === "auth" || route === "bootstrapping" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />

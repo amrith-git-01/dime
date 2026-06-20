@@ -11,8 +11,6 @@ export interface AuthFeatureSlideData {
   image: ImageSourcePropType;
   headline: string;
   subtext: string;
-  /** iOS-specific subtext when SMS wording must differ. */
-  subtextIos?: string;
 }
 
 export const AUTH_FEATURE_SLIDES: AuthFeatureSlideData[] = [
@@ -21,9 +19,7 @@ export const AUTH_FEATURE_SLIDES: AuthFeatureSlideData[] = [
     image: slide1Image,
     headline: "Zero effort tracking",
     subtext:
-      "Every UPI payment and SMS alert becomes a clean, categorised expense — automatically and privately on your device.",
-    subtextIos:
-      "Every notification becomes a clean, categorised expense — automatically and privately on your device.",
+      "Every UPI payment and notification becomes a clean, categorised expense — automatically and privately on your device.",
   },
   {
     id: "capture-methods",
