@@ -5,6 +5,8 @@ import { StyleSheet, View } from "react-native";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
+import { SmsCaptureBootstrap } from "@/features/capture/components/SmsCaptureBootstrap";
+import { SmsPermissionBanner } from "@/features/capture/components/SmsPermissionBanner";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
@@ -102,6 +104,8 @@ export default function RootNavigator() {
 
   return (
     <View style={styles.root}>
+      <SmsCaptureBootstrap active={route === "main"} />
+      <SmsPermissionBanner visible={route === "main"} />
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
         {route === "auth" || route === "bootstrapping" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />

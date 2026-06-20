@@ -29,8 +29,9 @@ export default function ManualAddTransactionScreen() {
       onNoteChange={model.setNote}
       transactionAt={model.transactionAt}
       onDatePress={model.onDateRowPress}
-      iosPickerVisible={model.iosPickerVisible}
-      onIosDateChange={model.handleIosDateChange}
+      onTimePress={model.onTimeRowPress}
+      iosPickerMode={model.iosPickerMode}
+      onIosPickerChange={model.handleIosPickerChange}
       saveLoading={model.saveLoading}
       onSave={() => {
         void model.onSave();

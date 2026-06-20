@@ -44,8 +44,9 @@ export type ManualAddTransactionEditorProps = {
   onNoteChange: (text: string) => void;
   transactionAt: Date;
   onDatePress: () => void;
-  iosPickerVisible: boolean;
-  onIosDateChange: (date: Date | undefined) => void;
+  onTimePress: () => void;
+  iosPickerMode: "date" | "time" | null;
+  onIosPickerChange: (mode: "date" | "time", date: Date | undefined) => void;
   saveLoading: boolean;
   onSave: () => void;
   onClear: () => void;
@@ -75,8 +76,9 @@ export const ManualAddTransactionEditor = memo(
     onNoteChange,
     transactionAt,
     onDatePress,
-    iosPickerVisible,
-    onIosDateChange,
+    onTimePress,
+    iosPickerMode,
+    onIosPickerChange,
     saveLoading,
     onSave,
     onClear,
@@ -135,8 +137,9 @@ export const ManualAddTransactionEditor = memo(
             <ManualAddDateField
               transactionAt={transactionAt}
               onDatePress={onDatePress}
-              iosPickerVisible={iosPickerVisible}
-              onIosDateChange={onIosDateChange}
+              onTimePress={onTimePress}
+              iosPickerMode={iosPickerMode}
+              onIosPickerChange={onIosPickerChange}
             />
 
             <BentoEditorFooter

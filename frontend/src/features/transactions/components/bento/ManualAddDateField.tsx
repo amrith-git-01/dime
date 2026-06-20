@@ -7,46 +7,88 @@ import { colors, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { formStyles } from "@/constants/formStyles";
 
+export type ManualAddDateTimePickerMode = "date" | "time" | null;
+
 type ManualAddDateFieldProps = {
   transactionAt: Date;
   onDatePress: () => void;
-  iosPickerVisible: boolean;
-  onIosDateChange: (date: Date | undefined) => void;
+  onTimePress: () => void;
+  iosPickerMode: ManualAddDateTimePickerMode;
+  onIosPickerChange: (
+    mode: Exclude<ManualAddDateTimePickerMode, null>,
+    date: Date | undefined,
+  ) => void;
 };
+
+function DateTimeRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  onPress: () => void;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={formStyles.fieldLabel}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.dateRow,
+          pressed && styles.dateRowPressed,
+        ]}
+      >
+        <Text style={styles.dateValue}>{value}</Text>
+        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+      </Pressable>
+    </View>
+  );
+}
 
 export function ManualAddDateField({
   transactionAt,
   onDatePress,
-  iosPickerVisible,
-  onIosDateChange,
+  onTimePress,
+  iosPickerMode,
+  onIosPickerChange,
 }: ManualAddDateFieldProps) {
   return (
     <>
-      <View>
-        <Text style={formStyles.fieldLabel}>Date</Text>
-        <Pressable
-          accessibilityRole="button"
+      <View style={styles.row}>
+        <DateTimeRow
+          label="Date"
+          value={format(transactionAt, "MMM d, yyyy")}
           onPress={onDatePress}
-          style={({ pressed }) => [
-            styles.dateRow,
-            pressed && styles.dateRowPressed,
-          ]}
-        >
-          <Text style={styles.dateValue}>
-            {format(transactionAt, "MMM d, yyyy")}
-          </Text>
-          <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
-        </Pressable>
+        />
+        <DateTimeRow
+          label="Time"
+          value={format(transactionAt, "h:mm a")}
+          onPress={onTimePress}
+        />
       </View>
 
-      {iosPickerVisible ? (
+      {iosPickerMode === "date" ? (
         <View style={styles.iosPickerWrap}>
           <DateTimePicker
             value={transactionAt}
             mode="date"
             display="compact"
             themeVariant="light"
-            onChange={(_e, date) => onIosDateChange(date)}
+            onChange={(_e, date) => onIosPickerChange("date", date)}
+          />
+        </View>
+      ) : null}
+
+      {iosPickerMode === "time" ? (
+        <View style={styles.iosPickerWrap}>
+          <DateTimePicker
+            value={transactionAt}
+            mode="time"
+            display="compact"
+            themeVariant="light"
+            onChange={(_e, date) => onIosPickerChange("time", date)}
           />
         </View>
       ) : null}
@@ -55,6 +97,13 @@ export function ManualAddDateField({
 }
 
 const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  field: {
+    flex: 1,
+  },
   dateRow: {
     minHeight: 52,
     borderWidth: 1,
