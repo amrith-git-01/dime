@@ -15,6 +15,9 @@ export type MainStackParamList = {
   SettingsAccount: undefined;
   SettingsCapture: undefined;
   SettingsFeedback: undefined;
+  SettingsHaptic: undefined;
+  SettingsGlossary: undefined;
+  SettingsNotifications: undefined;
   Notifications: undefined;
   ManualAddTransaction:
     | {
@@ -79,6 +82,7 @@ export type RootStackParamList = {
   WelcomeTour: undefined;
   Auth: undefined;
   ProfileSetup: undefined;
+  SmsInboxReview: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;
 };
 

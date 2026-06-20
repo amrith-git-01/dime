@@ -15,7 +15,7 @@ import {
   surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 
@@ -59,7 +59,7 @@ export default function AuthScreen() {
             accessibilityLabel="Continue with Google"
             disabled={model.busy}
             onPress={() => {
-              void triggerLightHaptic();
+              void triggerHaptic();
               model.submitGoogle();
             }}
             style={({ pressed }) => [

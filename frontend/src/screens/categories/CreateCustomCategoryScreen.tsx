@@ -16,7 +16,7 @@ import { useCategories } from "@/features/categories/hooks/useCategories";
 import { useCreateCategoryMutation } from "@/features/categories/hooks/useCategoryMutations";
 import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
 type CreateRoute = RouteProp<MainStackParamList, "CreateCustomCategory">;
@@ -106,12 +106,12 @@ export default function CreateCustomCategoryScreen() {
   ]);
 
   const onSavePress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     void handleSave();
   }, [handleSave]);
 
   const handleClear = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     Keyboard.dismiss();
     setName("");
     setIconName(DEFAULT_CUSTOM_CATEGORY_ICON);
