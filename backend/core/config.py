@@ -100,6 +100,10 @@ class Settings(BaseSettings):
         default=2,
         validation_alias=AliasChoices("MANUAL_WORKER_COUNT"),
     )
+    sms_worker_count: int = Field(
+        default=2,
+        validation_alias=AliasChoices("SMS_WORKER_COUNT"),
+    )
     worker_queue_maxsize: int = Field(
         default=32,
         validation_alias=AliasChoices("WORKER_QUEUE_MAXSIZE"),

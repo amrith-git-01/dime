@@ -9,8 +9,6 @@ from features.notifications.repository import NotificationRepository
 
 AUTO_DETECTED = frozenset({"sms", "notification", "scan", "voice"})
 
-# T2: emit from future POST /transactions/sms worker when SMS ingest ships.
-
 
 def format_inr(amount: Decimal) -> str:
     quantized = amount.quantize(Decimal("0.01"))

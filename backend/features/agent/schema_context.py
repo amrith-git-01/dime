@@ -25,6 +25,7 @@ SCHEMA_DOC = f"""
     - category_id (uuid FK → categories.id, nullable)
     - note (text, nullable)
     - detected_via (text, nullable)          -- manual | sms | voice | scan | notification
+    - payment_hash (text, nullable)          -- sha256 dedupe fingerprint (amount+type+counterparty+minute)
     - transaction_at (timestamptz)           -- when the spend happened
     - created_at, updated_at (timestamptz)
     - deleted_at (timestamptz, nullable)     -- soft delete; filter IS NULL
