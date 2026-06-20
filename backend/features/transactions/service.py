@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -23,6 +24,7 @@ from features.notifications.emitter import (
 )
 from features.notifications.repository import NotificationRepository
 from features.transactions.repository import TransactionRepository
+from features.transactions.dedupe import build_payment_hash, build_sparse_merge_patch
 from features.transactions.schemas import (
     DailySpendRow,
     HomeOverviewResponse,
@@ -39,6 +41,9 @@ from features.transactions.time_bounds import (
     parse_tz,
     today_bounds_iso,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _to_decimal(value: object) -> Decimal:
@@ -485,10 +490,18 @@ class TransactionService:
 
         name_stripped = body.counterparty_name.strip()
         counterparty_normalized = self._normalize_counterparty(name_stripped)
+        amount_str = format(body.amount, "f")
+        payment_hash = build_payment_hash(
+            amount=body.amount,
+            tx_type=body.type,
+            counterparty_normalized=counterparty_normalized,
+            counterparty_name=name_stripped,
+            transaction_at=body.transaction_at,
+        )
 
         row: dict[str, Any] = {
             "user_id": user.id,
-            "amount": format(body.amount, "f"),
+            "amount": amount_str,
             "type": body.type,
             "note": body.note,
             "detected_via": body.detected_via or "manual",
@@ -498,11 +511,83 @@ class TransactionService:
             "voice_url": body.voice_url,
             "counterparty_name": name_stripped,
             "counterparty_normalized": counterparty_normalized,
+            "payment_hash": payment_hash,
         }
         if body.counterparty_type is not None:
             row["counterparty_type"] = body.counterparty_type
 
-        raw = self._repo.insert(row)
+        existing = self._find_existing_duplicate(
+            user_id=user.id,
+            payment_hash=payment_hash,
+            row=row,
+        )
+        if existing is not None:
+            return self._response_from_existing(user.id, existing)
+
+        try:
+            raw = self._repo.insert(row)
+        except Exception as exc:
+            raced = self._repo.find_by_payment_hash(user.id, payment_hash)
+            if raced is not None and self._is_unique_violation(exc):
+                logger.info(
+                    "transaction_dedupe_race payment_hash=%s user_id=%s id=%s",
+                    payment_hash,
+                    user.id,
+                    raced.get("id"),
+                )
+                return self._response_from_existing(user.id, raced)
+            raise
+        return self._response_from_new(user, body, raw, timezone, category_id)
+
+    @staticmethod
+    def _is_unique_violation(exc: BaseException) -> bool:
+        message = str(exc).lower()
+        return "duplicate key" in message or "unique constraint" in message
+
+    def _find_existing_duplicate(
+        self,
+        *,
+        user_id: str,
+        payment_hash: str,
+        row: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        existing = self._repo.find_by_payment_hash(user_id, payment_hash)
+        if existing is None:
+            return None
+        patch = build_sparse_merge_patch(existing, row)
+        if patch:
+            logger.info(
+                "transaction_dedupe_merge payment_hash=%s user_id=%s id=%s",
+                payment_hash,
+                user_id,
+                existing.get("id"),
+            )
+            updated = self._repo.update(str(existing["id"]), patch)
+            return updated or existing
+        logger.info(
+            "transaction_dedupe_skip payment_hash=%s user_id=%s id=%s",
+            payment_hash,
+            user_id,
+            existing.get("id"),
+        )
+        return existing
+
+    def _response_from_existing(
+        self,
+        user_id: str,
+        raw: dict[str, Any],
+    ) -> TransactionResponse:
+        enriched = self._enrich_rows(user_id, [raw])
+        return TransactionResponse.model_validate(enriched[0])
+
+    def _response_from_new(
+        self,
+        user: CurrentUser,
+        body: TransactionCreate,
+        raw: dict[str, Any],
+        timezone: str,
+        category_id: str | None,
+    ) -> TransactionResponse:
         enriched = self._enrich_rows(user.id, [raw])
         enriched_row = enriched[0]
         db = self._repo._db  # type: ignore[attr-defined]

@@ -301,6 +301,39 @@ class TransactionRepository:
             raise RuntimeError(msg)
         return self.fetch_by_id(first["id"]) or first
 
+    def update(self, transaction_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+        if not patch:
+            return self.fetch_by_id(transaction_id)
+        res = (
+            self._db.table("transactions")
+            .update(patch)
+            .eq("id", transaction_id)
+            .execute()
+        )
+        data = res.data
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return self.fetch_by_id(transaction_id) or data[0]
+        return self.fetch_by_id(transaction_id)
+
+    def find_by_payment_hash(
+        self,
+        user_id: str,
+        payment_hash: str,
+    ) -> dict[str, Any] | None:
+        res = (
+            self._db.table("transactions")
+            .select(_DETAIL_SELECT)
+            .eq("user_id", user_id)
+            .eq("payment_hash", payment_hash)
+            .is_("deleted_at", "null")
+            .limit(1)
+            .execute()
+        )
+        data = res.data
+        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+            return None
+        return data[0]
+
     def fetch_by_id(self, transaction_id: str) -> dict[str, Any] | None:
         res = (
             self._db.table("transactions")
