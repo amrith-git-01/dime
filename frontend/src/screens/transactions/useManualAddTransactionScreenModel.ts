@@ -9,6 +9,7 @@ import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
+import type { ManualAddDateTimePickerMode } from "@/features/transactions/components/bento/ManualAddDateField";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
@@ -16,6 +17,7 @@ import { findIncomeCategory } from "@/features/transactions/utils/manualAddCateg
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
+import { mergeDateWithTime } from "@/utils/dateTime";
 
 type ManualAddRoute = RouteProp<MainStackParamList, "ManualAddTransaction">;
 
@@ -49,10 +51,11 @@ export function useManualAddTransactionScreenModel() {
   const { categories, isLoading: categoriesLoading } = useCategories();
 
   const [amountFocused, setAmountFocused] = useState(false);
-  const [iosPickerVisible, setIosPickerVisible] = useState(false);
+  const [iosPickerMode, setIosPickerMode] =
+    useState<ManualAddDateTimePickerMode>(null);
 
   const resetUiState = useCallback(() => {
-    setIosPickerVisible(false);
+    setIosPickerMode(null);
     setAmountFocused(false);
   }, []);
 
@@ -117,7 +120,20 @@ export function useManualAddTransactionScreenModel() {
       mode: "date",
       onChange: (_event, date) => {
         if (date) {
-          setTransactionAt(date);
+          setTransactionAt((prev) => mergeDateWithTime(date, prev));
+        }
+      },
+    });
+  }, [setTransactionAt, transactionAt]);
+
+  const openAndroidTimePicker = useCallback(() => {
+    void triggerLightHaptic();
+    DateTimePickerAndroid.open({
+      value: transactionAt,
+      mode: "time",
+      onChange: (_event, date) => {
+        if (date) {
+          setTransactionAt((prev) => mergeDateWithTime(prev, date));
         }
       },
     });
@@ -128,9 +144,18 @@ export function useManualAddTransactionScreenModel() {
       openAndroidDatePicker();
     } else {
       void triggerLightHaptic();
-      setIosPickerVisible(true);
+      setIosPickerMode((current) => (current === "date" ? null : "date"));
     }
   }, [openAndroidDatePicker]);
+
+  const onTimeRowPress = useCallback(() => {
+    if (Platform.OS === "android") {
+      openAndroidTimePicker();
+    } else {
+      void triggerLightHaptic();
+      setIosPickerMode((current) => (current === "time" ? null : "time"));
+    }
+  }, [openAndroidTimePicker]);
 
   const onSave = useCallback(async () => {
     if (!authReady || !userId) {
@@ -190,12 +215,17 @@ export function useManualAddTransactionScreenModel() {
     [clearCategory, selectCategory],
   );
 
-  const handleIosDateChange = useCallback(
-    (date: Date | undefined) => {
-      setIosPickerVisible(false);
-      if (date) {
-        setTransactionAt(date);
+  const handleIosPickerChange = useCallback(
+    (mode: "date" | "time", date: Date | undefined) => {
+      setIosPickerMode(null);
+      if (!date) {
+        return;
       }
+      if (mode === "date") {
+        setTransactionAt((prev) => mergeDateWithTime(date, prev));
+        return;
+      }
+      setTransactionAt((prev) => mergeDateWithTime(prev, date));
     },
     [setTransactionAt],
   );
@@ -222,8 +252,9 @@ export function useManualAddTransactionScreenModel() {
     setNote,
     transactionAt,
     onDateRowPress,
-    iosPickerVisible,
-    handleIosDateChange,
+    onTimeRowPress,
+    iosPickerMode,
+    handleIosPickerChange,
     saveLoading: submitMutation.isPending,
     onSave,
     handleClear,

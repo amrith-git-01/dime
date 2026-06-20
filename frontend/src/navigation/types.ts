@@ -78,6 +78,7 @@ export type MainStackParamList = {
 export type RootStackParamList = {
   Auth: undefined;
   ProfileSetup: undefined;
+  PermissionsSetup: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;
 };
 

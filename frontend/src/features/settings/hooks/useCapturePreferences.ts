@@ -1,25 +1,26 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
-import {
-  getSmsDetectionEnabled,
-  getUpiDetectionEnabled,
-  setSmsDetectionEnabled,
-  setUpiDetectionEnabled,
-} from "../settingsPreferencesStorage";
+import { useCapturePreferencesStore } from "@/stores/capturePreferencesStore";
 
 export function useCapturePreferences() {
-  const [smsEnabled, setSmsEnabled] = useState(getSmsDetectionEnabled);
-  const [upiEnabled, setUpiEnabled] = useState(getUpiDetectionEnabled);
+  const smsEnabled = useCapturePreferencesStore((s) => s.smsEnabled);
+  const upiEnabled = useCapturePreferencesStore((s) => s.upiEnabled);
+  const setSmsEnabled = useCapturePreferencesStore((s) => s.setSmsEnabled);
+  const setUpiEnabled = useCapturePreferencesStore((s) => s.setUpiEnabled);
 
-  const setSms = useCallback((enabled: boolean) => {
-    setSmsDetectionEnabled(enabled);
-    setSmsEnabled(enabled);
-  }, []);
+  const setSms = useCallback(
+    (enabled: boolean) => {
+      setSmsEnabled(enabled);
+    },
+    [setSmsEnabled],
+  );
 
-  const setUpi = useCallback((enabled: boolean) => {
-    setUpiDetectionEnabled(enabled);
-    setUpiEnabled(enabled);
-  }, []);
+  const setUpi = useCallback(
+    (enabled: boolean) => {
+      setUpiEnabled(enabled);
+    },
+    [setUpiEnabled],
+  );
 
   return {
     smsEnabled,
