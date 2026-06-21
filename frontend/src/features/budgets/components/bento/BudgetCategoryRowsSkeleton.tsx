@@ -1,33 +1,36 @@
 import { StyleSheet, View } from "react-native";
 
-import { SkeletonListRow } from "@/components/shared";
-import { spacing } from "@/constants";
+import {
+  CATEGORY_SPEND_ROW_DIVIDER_INSET,
+  CategorySpendRowSkeleton,
+} from "@/components/shared";
+import { line } from "@/constants";
 
-import { BUDGET_ROW_HEIGHT_WITH_PROGRESS } from "./budgetBentoTokens";
-
-const DEFAULT_ROW_COUNT = 10;
+const DEFAULT_ROW_COUNT = 5;
 
 type BudgetCategoryRowsSkeletonProps = {
   rowCount?: number;
+  showProgress?: boolean;
 };
 
-/** Shape-matched skeleton rows for the Budget category list. */
+/** Shape-matched skeleton rows for the Budget category list card. */
 export function BudgetCategoryRowsSkeleton({
   rowCount = DEFAULT_ROW_COUNT,
+  showProgress = true,
 }: BudgetCategoryRowsSkeletonProps) {
   return (
-    <View style={styles.root}>
+    <View>
       {Array.from({ length: rowCount }, (_, index) => (
-        <View
-          key={index}
-          style={index > 0 && styles.rowSkelGap}
-        >
-          <SkeletonListRow
-            minHeight={BUDGET_ROW_HEIGHT_WITH_PROGRESS}
-            iconSize={46}
-            iconRadius={12}
-            gap={spacing.md}
-          />
+        <View key={index}>
+          {index > 0 && (
+            <View
+              style={[
+                styles.divider,
+                { marginLeft: CATEGORY_SPEND_ROW_DIVIDER_INSET },
+              ]}
+            />
+          )}
+          <CategorySpendRowSkeleton showProgress={showProgress} />
         </View>
       ))}
     </View>
@@ -35,10 +38,8 @@ export function BudgetCategoryRowsSkeleton({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    paddingTop: spacing.xs,
-  },
-  rowSkelGap: {
-    marginTop: spacing.md,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: line,
   },
 });

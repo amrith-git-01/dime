@@ -1,15 +1,16 @@
 import { forwardRef, memo } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import {
+  ink,
+  inkFaint,
+  inkSoft,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants";
 
 import { BudgetLimitAmountInput } from "./BudgetLimitAmountInput";
 import { BUDGET_EDITOR_FLEX } from "./budgetEditorBentoTokens";
@@ -28,46 +29,17 @@ type BudgetLimitBentoTileProps = {
 
 const TILE_CONFIG: Record<
   BudgetLimitTileKind,
-  {
-    flex: number;
-    backgroundColor: string;
-    variant: "onDark" | "onPastel";
-    title: string;
-    hint: string;
-    shadowStyle: object | undefined;
-  }
+  { flex: number; title: string; hint: string }
 > = {
   daily: {
     flex: BUDGET_EDITOR_FLEX.daily,
-    backgroundColor: colors.headerGradientStart,
-    variant: "onDark",
     title: "Daily cap",
     hint: "Warns when today exceeds this",
-    shadowStyle: Platform.select({
-      android: { elevation: 5 },
-      default: {
-        shadowColor: colors.headerGradientStart,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.28,
-        shadowRadius: 14,
-      },
-    }),
   },
   monthly: {
     flex: BUDGET_EDITOR_FLEX.monthly,
-    backgroundColor: bento.monthSpendSurface,
-    variant: "onPastel",
     title: "Monthly cap",
     hint: "Applies to every calendar month",
-    shadowStyle: Platform.select({
-      android: { elevation: 3 },
-      default: {
-        shadowColor: colors.brandPrimary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-    }),
   },
 };
 
@@ -86,30 +58,10 @@ export const BudgetLimitBentoTile = memo(
       ref,
     ) {
       const config = TILE_CONFIG[kind];
-      const labelColor =
-        config.variant === "onDark"
-          ? bento.onSurface.muted
-          : bento.onPastel.muted;
-      const hintColor =
-        config.variant === "onDark"
-          ? bento.onSurface.secondary
-          : bento.onPastel.secondary;
-      const amountColor =
-        config.variant === "onDark"
-          ? bento.onSurface.primary
-          : bento.onPastel.primary;
 
       return (
-        <View
-          style={[
-            styles.tile,
-            { flex: config.flex, backgroundColor: config.backgroundColor },
-            config.shadowStyle,
-          ]}
-        >
-          <Text style={[styles.title, { color: labelColor }]}>
-            {config.title}
-          </Text>
+        <View style={[styles.tile, { flex: config.flex }]}>
+          <Text style={styles.title}>{config.title}</Text>
 
           <Pressable
             style={styles.amountSlot}
@@ -118,7 +70,7 @@ export const BudgetLimitBentoTile = memo(
           >
             {!isCustom ? (
               <Text
-                style={[styles.presetAmount, { color: amountColor }]}
+                style={styles.presetAmount}
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
@@ -134,14 +86,13 @@ export const BudgetLimitBentoTile = memo(
                 ref={ref}
                 value={value}
                 onChangeText={onChangeText}
-                variant={config.variant}
                 showSoftInputOnFocus={isCustom}
                 onSubmitEditing={onSubmitEditing}
               />
             </View>
           </Pressable>
 
-          <Text style={[styles.hint, { color: hintColor }]} numberOfLines={2}>
+          <Text style={styles.hint} numberOfLines={2}>
             {config.hint}
           </Text>
         </View>
@@ -152,10 +103,12 @@ export const BudgetLimitBentoTile = memo(
 
 const styles = StyleSheet.create({
   tile: {
+    backgroundColor: surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     justifyContent: "space-between",
     minHeight: 148,
+    ...shadows.card,
   },
   title: {
     fontFamily: fontFamilies.medium,
@@ -163,6 +116,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     textTransform: "uppercase",
     letterSpacing: 0.6,
+    color: inkSoft,
     marginBottom: spacing.sm,
   },
   amountSlot: {
@@ -173,6 +127,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 24,
     lineHeight: 30,
+    color: ink,
   },
   inputHidden: {
     opacity: 0,
@@ -186,5 +141,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     marginTop: spacing.sm,
+    color: inkFaint,
   },
 });

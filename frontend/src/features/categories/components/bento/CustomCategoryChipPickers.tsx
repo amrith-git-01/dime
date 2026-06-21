@@ -2,8 +2,17 @@ import { memo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
-import { colors, radius, spacing, surfaces } from "@/constants";
-import { formStyles } from "@/constants/formStyles";
+import {
+  accent,
+  accentTint,
+  inkFaint,
+  inkSoft,
+  line,
+  radius,
+  spacing,
+  surface,
+} from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import {
   CUSTOM_CATEGORY_COLOR_OPTIONS,
   CUSTOM_CATEGORY_ICON_OPTIONS,
@@ -28,7 +37,7 @@ export const CustomCategoryChipPickers = memo(
     return (
       <View style={styles.wrap}>
         <View style={styles.section}>
-          <Text style={formStyles.fieldLabel}>Icon</Text>
+          <Text style={styles.fieldLabel}>Icon</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -46,17 +55,11 @@ export const CustomCategoryChipPickers = memo(
                     void triggerLightHaptic();
                     onSelectIcon(option);
                   }}
-                  style={[
-                    styles.iconChip,
-                    {
-                      borderColor: selected ? colors.primary : colors.border,
-                    },
-                    selected && styles.iconChipSelected,
-                  ]}
+                  style={[styles.iconChip, selected && styles.iconChipSelected]}
                 >
                   <CategoryLucideIcon
                     iconName={option}
-                    color={selected ? colors.primary : colors.textSecondary}
+                    color={selected ? accent : inkFaint}
                     size={20}
                     strokeWidth={1.5}
                   />
@@ -67,7 +70,7 @@ export const CustomCategoryChipPickers = memo(
         </View>
 
         <View style={styles.section}>
-          <Text style={formStyles.fieldLabel}>Color</Text>
+          <Text style={styles.fieldLabel}>Color</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -86,13 +89,14 @@ export const CustomCategoryChipPickers = memo(
                     onSelectColor(option);
                   }}
                   style={[
-                    styles.colorChip,
-                    { backgroundColor: option },
-                    {
-                      borderColor: selected ? colors.primary : colors.border,
-                    },
+                    styles.colorChipOuter,
+                    selected && styles.colorChipOuterSelected,
                   ]}
-                />
+                >
+                  <View
+                    style={[styles.colorChip, { backgroundColor: option }]}
+                  />
+                </Pressable>
               );
             })}
           </ScrollView>
@@ -107,7 +111,13 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   section: {
-    gap: 0,
+    gap: spacing.xs,
+  },
+  fieldLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
   },
   chipRow: {
     gap: spacing.sm,
@@ -119,17 +129,31 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    backgroundColor: colors.barBackground,
+    borderColor: line,
+    backgroundColor: surface,
     alignItems: "center",
     justifyContent: "center",
   },
   iconChipSelected: {
-    backgroundColor: surfaces.primaryTint08,
+    backgroundColor: accentTint,
+    borderColor: accent,
   },
-  colorChip: {
+  colorChipOuter: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
+    borderColor: "transparent",
+  },
+  colorChipOuterSelected: {
+    borderColor: accent,
+    padding: 3,
+  },
+  colorChip: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
   },
 });
