@@ -138,9 +138,21 @@ class TransactionResponse(BaseModel):
         return "merchant"
 
 
+class DayTransactionSummary(BaseModel):
+    """Credit, debit, net, and count for one calendar day (YYYY-MM-DD, user timezone)."""
+
+    date: str
+    credit_total: str
+    debit_total: str
+    net: str
+    transaction_count: int = Field(ge=0)
+
+
 class TransactionListResponse(BaseModel):
     items: list[TransactionResponse]
     has_more: bool
+    """Per-day totals for the requested range; populated on the first page only."""
+    day_summaries: dict[str, DayTransactionSummary] = Field(default_factory=dict)
 
 
 class MonthSummaryResponse(BaseModel):

@@ -108,6 +108,7 @@ async def list_transactions(
     to: datetime | None = Query(None, alias="to"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    timezone: str | None = Query(None, min_length=2, max_length=80),
 ) -> TransactionListResponse:
     try:
         from_iso = from_.isoformat() if from_ is not None else None
@@ -120,6 +121,7 @@ async def list_transactions(
             to_iso=to_iso,
             limit=limit,
             offset=offset,
+            timezone=timezone,
         )
     except Exception as exc:
         logger.exception("Failed to list transactions for user id=%s", user.id)

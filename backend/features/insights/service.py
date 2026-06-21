@@ -13,6 +13,7 @@ from supabase import Client
 
 from core.security import CurrentUser
 from features.insights.schemas import (
+    CounterpartyIncomeRow,
     CounterpartySpendRow,
     DailyCashflowRow,
     InsightsSummary,
@@ -27,6 +28,7 @@ from features.transactions.time_bounds import month_bounds_iso, parse_tz
 
 _TOP_PAYEES = 4
 _TOP_EXPENSES = 5
+_TOP_INCOME_SOURCES = 5
 
 
 def _normalize_payee_key(raw: str) -> str:
@@ -192,6 +194,47 @@ def _roll_up_counterparty_spend(
     return result
 
 
+def _roll_up_counterparty_income(
+    rows: list[dict[str, Any]],
+    *,
+    month_credit_total: Decimal,
+) -> list[CounterpartyIncomeRow]:
+    """Aggregate credit rows by payee, returning top income sources by amount."""
+    if month_credit_total <= 0:
+        return []
+
+    buckets: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = _payee_key_from_row(row)
+        amt = _to_decimal(row.get("amount", "0"))
+        bucket = buckets.setdefault(
+            key,
+            {"total": Decimal("0"), "display": "Unknown", "count": 0},
+        )
+        bucket["total"] += amt
+        bucket["count"] += 1
+        name = row.get("counterparty_name")
+        if isinstance(name, str) and name.strip():
+            bucket["display"] = name.strip()
+
+    ranked = sorted(buckets.items(), key=lambda item: item[1]["total"], reverse=True)
+    top = ranked[:_TOP_INCOME_SOURCES]
+
+    result: list[CounterpartyIncomeRow] = []
+    for key, data in top:
+        total: Decimal = data["total"]
+        result.append(
+            CounterpartyIncomeRow(
+                payee_key=key,
+                display_name=str(data["display"]),
+                credit_total=format(total, "f"),
+                share=float((total / month_credit_total).quantize(Decimal("0.0001"))),
+                transaction_count=int(data["count"]),
+            )
+        )
+    return result
+
+
 class InsightsService:
     def __init__(self, supabase: Client) -> None:
         self._repo = TransactionRepository(supabase)
@@ -262,6 +305,16 @@ class InsightsService:
             month_debit_total=debit_total,
         )
 
+        income_rows = self._repo.iter_credit_payee_rows(
+            user.id,
+            from_iso=start,
+            to_iso=end,
+        )
+        counterparty_income = _roll_up_counterparty_income(
+            income_rows,
+            month_credit_total=credit_total,
+        )
+
         top_raw = self._repo.list_top_debit_transactions(
             user.id,
             from_iso=start,
@@ -277,6 +330,7 @@ class InsightsService:
             summary=summary,
             daily_cashflow=daily_cashflow,
             counterparty_spend=counterparty_spend,
+            counterparty_income=counterparty_income,
             top_expenses=top_expenses,
         )
 

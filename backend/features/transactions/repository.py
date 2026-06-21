@@ -248,6 +248,47 @@ class TransactionRepository:
             time.sleep(0.02)
         return all_rows
 
+    def iter_credit_payee_rows(
+        self,
+        user_id: str,
+        *,
+        from_iso: str | None = None,
+        to_iso: str | None = None,
+        page_size: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Load credit rows with payee fields for income-source aggregation (paged)."""
+        all_rows: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            q = (
+                self._db.table("transactions")
+                .select(_PAYEE_AGGREGATE_SELECT)
+                .eq("user_id", user_id)
+                .eq("type", "credit")
+                .is_("deleted_at", "null")
+            )
+            if from_iso is not None:
+                q = q.gte("transaction_at", from_iso)
+            if to_iso is not None:
+                q = q.lte("transaction_at", to_iso)
+            res = execute_with_http_retry(
+                lambda: q.order("transaction_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            data = res.data
+            if not isinstance(data, list):
+                break
+            chunk = [r for r in data if isinstance(r, dict)]
+            if not chunk:
+                break
+            all_rows.extend(chunk)
+            if len(chunk) < page_size:
+                break
+            offset += page_size
+            time.sleep(0.02)
+        return all_rows
+
     def list_top_debit_transactions(
         self,
         user_id: str,

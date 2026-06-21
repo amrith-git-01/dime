@@ -27,6 +27,7 @@ from features.transactions.repository import TransactionRepository
 from features.transactions.dedupe import build_payment_hash, build_sparse_merge_patch
 from features.transactions.schemas import (
     DailySpendRow,
+    DayTransactionSummary,
     HomeOverviewResponse,
     MonthSummaryResponse,
     TopCategoryRow,
@@ -124,6 +125,54 @@ def _bucket_daily_debits(
     return result
 
 
+def _build_day_summaries(
+    rows: list[dict[str, Any]],
+    *,
+    tz_name: str,
+) -> dict[str, DayTransactionSummary]:
+    """Aggregate amount/type rows into sparse per-day summaries."""
+    tz = parse_tz(tz_name)
+    credit_by_day: dict[str, Decimal] = {}
+    debit_by_day: dict[str, Decimal] = {}
+    count_by_day: dict[str, int] = {}
+
+    for row in rows:
+        raw_at = row.get("transaction_at")
+        if not isinstance(raw_at, str) or not raw_at.strip():
+            continue
+        try:
+            tx_dt = datetime.fromisoformat(raw_at.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if tx_dt.tzinfo is None:
+            tx_dt = tx_dt.replace(tzinfo=tz)
+        day_key = tx_dt.astimezone(tz).date().isoformat()
+        amt = _to_decimal(row.get("amount", "0"))
+        tx_type = row.get("type")
+        if tx_type == "credit":
+            credit_by_day[day_key] = credit_by_day.get(day_key, Decimal("0")) + amt
+        elif tx_type == "debit":
+            debit_by_day[day_key] = debit_by_day.get(day_key, Decimal("0")) + amt
+        else:
+            continue
+        count_by_day[day_key] = count_by_day.get(day_key, 0) + 1
+
+    all_days = set(credit_by_day) | set(debit_by_day) | set(count_by_day)
+    summaries: dict[str, DayTransactionSummary] = {}
+    for day_key in sorted(all_days):
+        credit = credit_by_day.get(day_key, Decimal("0"))
+        debit = debit_by_day.get(day_key, Decimal("0"))
+        net = credit - debit
+        summaries[day_key] = DayTransactionSummary(
+            date=day_key,
+            credit_total=format(credit, "f"),
+            debit_total=format(debit, "f"),
+            net=format(net, "f"),
+            transaction_count=count_by_day.get(day_key, 0),
+        )
+    return summaries
+
+
 def _flatten_embed(row: dict[str, Any]) -> dict[str, Any]:
     """Lift PostgREST ``categories`` embed; set legacy ``merchant`` from counterparty."""
     flat = dict(row)
@@ -186,6 +235,7 @@ class TransactionService:
         to_iso: str | None,
         limit: int = 50,
         offset: int = 0,
+        timezone: str | None = None,
     ) -> TransactionListResponse:
         rows, has_more = self._repo.list_for_user_paginated(
             user.id,
@@ -198,7 +248,24 @@ class TransactionService:
             TransactionResponse.model_validate(row)
             for row in self._enrich_rows(user.id, rows)
         ]
-        return TransactionListResponse(items=items, has_more=has_more)
+        day_summaries: dict[str, DayTransactionSummary] = {}
+        if (
+            offset == 0
+            and from_iso is not None
+            and to_iso is not None
+            and timezone is not None
+        ):
+            summary_rows = self._repo.iter_amount_type_at(
+                user.id,
+                from_iso=from_iso,
+                to_iso=to_iso,
+            )
+            day_summaries = _build_day_summaries(summary_rows, tz_name=timezone)
+        return TransactionListResponse(
+            items=items,
+            has_more=has_more,
+            day_summaries=day_summaries,
+        )
 
     def month_summary(
         self,
