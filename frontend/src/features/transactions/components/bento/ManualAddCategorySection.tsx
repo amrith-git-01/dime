@@ -1,17 +1,14 @@
-import type { ReactNode } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { AddCategoryTrigger } from "@/components/categories/AddCategoryTrigger";
 import { CategoryPill } from "@/components/categories/CategoryPill";
 import { colors, radius, spacing } from "@/constants";
-import { formStyles } from "@/constants/formStyles";
 import type { CategoryRow } from "@/features/categories/types";
 
 type ManualAddCategorySectionProps = {
   categoriesLoading: boolean;
   visibleCategories: CategoryRow[];
   categoryId: string | null;
-  optionalTag: ReactNode;
   onCategoryPress: (category: CategoryRow, selected: boolean) => void;
   onAddCategory: () => void;
   addCategoryDisabled: boolean;
@@ -21,17 +18,12 @@ export function ManualAddCategorySection({
   categoriesLoading,
   visibleCategories,
   categoryId,
-  optionalTag,
   onCategoryPress,
   onAddCategory,
   addCategoryDisabled,
 }: ManualAddCategorySectionProps) {
   return (
     <View>
-      <View style={styles.labelRow}>
-        <Text style={formStyles.fieldLabel}>Category</Text>
-        {optionalTag}
-      </View>
       {categoriesLoading ? (
         <View style={styles.categoriesLoading}>
           <ActivityIndicator color={colors.primary} />
@@ -62,13 +54,6 @@ export function ManualAddCategorySection({
 }
 
 const styles = StyleSheet.create({
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
   categoriesLoading: {
     minHeight: 44,
     borderRadius: radius.sm,

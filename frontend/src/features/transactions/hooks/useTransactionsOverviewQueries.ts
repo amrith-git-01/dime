@@ -98,6 +98,7 @@ export function useTransactionsMonthInfiniteQuery(
         to,
         limit: TX_PAGE_LIMIT,
         offset: pageParam,
+        timezone,
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, _pages, lastOffset) => {

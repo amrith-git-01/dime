@@ -1,11 +1,9 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
-import { ChevronRight } from "lucide-react-native";
+import { Calendar, Clock } from "lucide-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import { formStyles } from "@/constants/formStyles";
+import { fontFamilies, ink, inkSoft, line, radius, spacing } from "@/constants";
 
 export type ManualAddDateTimePickerMode = "date" | "time" | null;
 
@@ -21,29 +19,27 @@ type ManualAddDateFieldProps = {
 };
 
 function DateTimeRow({
-  label,
+  iconType,
   value,
   onPress,
 }: {
-  label: string;
+  iconType: "date" | "time";
   value: string;
   onPress: () => void;
 }) {
+  const Icon = iconType === "date" ? Calendar : Clock;
   return (
-    <View style={styles.field}>
-      <Text style={formStyles.fieldLabel}>{label}</Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.dateRow,
-          pressed && styles.dateRowPressed,
-        ]}
-      >
-        <Text style={styles.dateValue}>{value}</Text>
-        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
-      </Pressable>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.ghostPill,
+        pressed && styles.ghostPillPressed,
+      ]}
+    >
+      <Icon size={16} color={inkSoft} strokeWidth={1.5} />
+      <Text style={styles.dateValue}>{value}</Text>
+    </Pressable>
   );
 }
 
@@ -58,12 +54,12 @@ export function ManualAddDateField({
     <>
       <View style={styles.row}>
         <DateTimeRow
-          label="Date"
+          iconType="date"
           value={format(transactionAt, "MMM d, yyyy")}
           onPress={onDatePress}
         />
         <DateTimeRow
-          label="Time"
+          iconType="time"
           value={format(transactionAt, "h:mm a")}
           onPress={onTimePress}
         />
@@ -101,30 +97,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
   },
-  field: {
+  ghostPill: {
     flex: 1,
-  },
-  dateRow: {
-    minHeight: 52,
+    minHeight: 44,
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
+    borderColor: line,
+    paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.pageBackground,
+    gap: spacing.sm,
   },
-  dateRowPressed: {
-    backgroundColor: colors.barBackground,
+  ghostPillPressed: {
+    opacity: 0.8,
   },
   dateValue: {
     fontFamily: fontFamilies.regular,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.textPrimary,
+    fontSize: 15,
+    lineHeight: 20,
+    color: ink,
   },
   iosPickerWrap: {
     alignItems: "flex-start",
+    marginTop: spacing.sm,
   },
 });

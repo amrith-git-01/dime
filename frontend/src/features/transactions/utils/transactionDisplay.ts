@@ -56,6 +56,13 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
   };
 }
 
+/** Parse API decimal string totals for display math. */
+export function parseTransactionAmount(value: string | undefined): number {
+  if (value === undefined) return 0;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** List and section totals: signed whole rupees with +/- prefix. */
 export function formatTransactionListAmount(amount: number): string {
   const absolute = Math.abs(amount).toLocaleString("en-IN", {

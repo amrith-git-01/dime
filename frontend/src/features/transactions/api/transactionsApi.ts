@@ -32,6 +32,7 @@ export async function fetchTransactionsPage(input: {
   to?: string | null;
   limit?: number;
   offset?: number;
+  timezone?: string;
 }): Promise<TransactionListPage> {
   const { data } = await dimeApi.get<TransactionListPage>(
     "/api/v1/transactions",
@@ -41,6 +42,7 @@ export async function fetchTransactionsPage(input: {
         to: input.to ?? undefined,
         limit: input.limit ?? TX_PAGE_LIMIT,
         offset: input.offset ?? 0,
+        timezone: input.timezone ?? undefined,
       },
     },
   );
