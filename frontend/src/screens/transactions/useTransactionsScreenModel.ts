@@ -19,7 +19,7 @@ import {
 } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { formatNetDisplay, formatSpendMagnitude } from "@/utils/currency";
 
@@ -149,7 +149,7 @@ export function useTransactionsScreenModel() {
 
   const openTransactionDetail = useCallback(
     (transaction: TransactionRow) => {
-      void triggerLightHaptic();
+      void triggerHaptic();
       navigation.navigate("TransactionDetail", { transaction });
     },
     [navigation],
@@ -161,7 +161,7 @@ export function useTransactionsScreenModel() {
 
   const selectDay = useCallback(
     (dayKey: string) => {
-      void triggerLightHaptic();
+      void triggerHaptic();
       calendarSelectDay(dayKey);
     },
     [calendarSelectDay],
@@ -176,25 +176,25 @@ export function useTransactionsScreenModel() {
 
   const goPrevMonth = useCallback(() => {
     if (!canGoPrevMonth) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     calendarGoPrevMonth();
   }, [calendarGoPrevMonth, canGoPrevMonth]);
 
   const goNextMonth = useCallback(() => {
     if (!canGoNextMonth) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     calendarGoNextMonth();
   }, [calendarGoNextMonth, canGoNextMonth]);
 
   const goPrevDay = useCallback(() => {
     if (!canGoPrevDay) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     calendarGoPrevDay();
   }, [calendarGoPrevDay, canGoPrevDay]);
 
   const goNextDay = useCallback(() => {
     if (!canGoNextDay) return;
-    void triggerLightHaptic();
+    void triggerHaptic();
     calendarGoNextDay();
   }, [calendarGoNextDay, canGoNextDay]);
 

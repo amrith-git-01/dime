@@ -19,7 +19,7 @@ import {
   resolvePayeeFilterId,
 } from "@/features/transactions/utils/payeeKey";
 import { signedAmount } from "@/features/transactions/utils/transactionDisplay";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
 type TransactionsListRoute = RouteProp<MainStackParamList, "TransactionsList">;
@@ -140,7 +140,7 @@ export function useTransactionsListScreenModel() {
 
   const openTransactionDetail = useCallback(
     (transaction: TransactionRow) => {
-      void triggerLightHaptic();
+      void triggerHaptic();
       navigation.navigate("TransactionDetail", { transaction });
     },
     [navigation],
