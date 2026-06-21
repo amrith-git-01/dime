@@ -1,120 +1,122 @@
 /**
- * Color tokens — design system §2.
- * @see docs/core/design-system.md
+ * Color tokens — Dime Monochrome Design System.
+ *
+ * Rule: if you're not showing money or an alert, you don't get color.
+ * Everything else is ink, gray, and white. The indigo accent is earned.
+ *
+ * @see docs/design-system.md
  */
 
-export const colors = {
-  primary: "#4F46E5",
-  /** Design-system primary (`#6355E8`) — hero, FAB, accents. */
-  brandPrimary: "#6355E8",
-  primaryMuted: "#EEEDFB",
-  success: "#16A34A",
-  danger: "#DC2626",
-  error: "#BA1A1A",
-  inactive: "#6B7280",
-  border: "#E5E7EB",
-  cardBorder: "#E0DFFA",
-  borderLight: "#E5E7EB",
-  borderList: "#EEEEFF",
-  barBackground: "#FFFFFF",
-  surfaceTint: "#FAFAFF",
-  pageBackground: "#f9f9ff",
-  /** Onboarding illustration mat — Stitch cream accent. */
-  onboardingIllustrationBg: "#F7EFE1",
-  textPrimary: "#151c27",
-  textSecondary: "#464555",
-  textListPrimary: "#0A0A1F",
-  textListSecondary: "#6B6B80",
-  textOnPrimary: "#FFFFFF",
-  textOnPrimaryMuted: "rgba(255,255,255,0.88)",
-  onPrimaryHairline: "rgba(255,255,255,0.22)",
-  headerGradientStart: "#6355E8",
-  headerGradientEnd: "#8B7FF5",
-  headerGreetingForeground: "rgba(255,255,255,0.75)",
-  headerAvatarRingBorder: "rgba(255,255,255,0.4)",
-  headerBellCircleBg: "rgba(255,255,255,0.15)",
-  tabBarOnPrimaryInactive: "rgba(255,255,255,0.62)",
-  /** Uncategorized / fallback category (design system Slate). */
-  categoryDefault: "#94A3B8",
-  categoryDefaultMuted: "rgba(148,163,184,0.14)",
-  shadow: "#000000",
-  shadowBrand: "#2a2740",
-  /** Settings / notification bento icon accents. */
-  iconAccentSky: "#0284C7",
-  iconAccentOrange: "#EA580C",
-  /** Toast severity accents. */
-  toastErrorAccent: "#B42318",
-  toastWarningAccent: "#B54708",
-  toastShadow: "#1F2937",
-  /** OAuth brand (Google sign-in). */
-  oauthGoogle: "#4285F4",
-} as const;
+// ─── Core Palette ────────────────────────────────────────────────────────────
 
-/** Translucent surfaces on violet hero / header gradients. */
-export const hero = {
-  orbLarge: "rgba(255,255,255,0.09)",
-  orbSmall: "rgba(255,255,255,0.06)",
-  progressTrack: "rgba(255,255,255,0.24)",
-  statBg: "rgba(255,255,255,0.12)",
-  statBorder: "rgba(255,255,255,0.18)",
-  chipBorder: "rgba(255,255,255,0.35)",
-  chipBg: "rgba(255,255,255,0.16)",
-  avatarRing: "rgba(255,255,255,0.12)",
-  skeletonShort: "rgba(255,255,255,0.32)",
-  skeletonLong: "rgba(255,255,255,0.38)",
-  sparkBar: "rgba(255,255,255,0.8)",
-} as const;
+/** App background — true near-white, no tint. */
+export const paper = "#FAFAFA";
 
-/** Modal / overlay scrims. */
+/** Cards, sheets, inputs — pure white, elevated via shadow only. */
+export const surface = "#FFFFFF";
+
+/** Track backgrounds, skeleton base, pressed states. */
+export const surfaceSunken = "#F1F1F3";
+
+/** The only border color in the system — hairline dividers only, never card outlines. */
+export const line = "#EAEAEC";
+
+/** All primary text, headings, default icon color. */
+export const ink = "#14151A";
+
+/** Secondary text, captions, timestamps, inactive labels. */
+export const inkSoft = "#5B5D68";
+
+/** Placeholder text, disabled states. */
+export const inkFaint = "#A0A2AD";
+
+// ─── Accent (Earned — use sparingly) ─────────────────────────────────────────
+
+/**
+ * The single accent color. Reserved strictly for:
+ *  1. Monetary amounts / debits
+ *  2. Primary CTA buttons / FAB
+ *  3. Selected/active states (calendar days, active tab indicator)
+ *  4. Progress bar fills
+ */
+export const accent = "#2B3FE0";
+
+/** Pale accent tint for chip/pill backgrounds, "View all" pills, etc. */
+export const accentTint = "rgba(43, 63, 224, 0.08)";
+
+/** Accent at 12% — low-spend heatmap cells. */
+export const accentHeat1 = "rgba(43, 63, 224, 0.12)";
+
+/** Accent at 28% — medium-spend heatmap cells. */
+export const accentHeat2 = "rgba(43, 63, 224, 0.28)";
+
+/** Accent at 60% — high-spend heatmap cells (white text required). */
+export const accentHeat3 = "rgba(43, 63, 224, 0.60)";
+
+// ─── Semantic (Functional Indicators Only) ───────────────────────────────────
+
+/** Credit amounts, positive net — text/small badge only. */
+export const success = "#1A8754";
+
+/** Overspend amounts, destructive actions — text/small badge only. */
+export const danger = "#D6394A";
+
+/** 80% threshold warning — text/small badge only. */
+export const warning = "#B5790A";
+
+/** Danger tint for swipe-delete backgrounds, destructive state surfaces. */
+export const dangerTint = "rgba(214, 57, 74, 0.08)";
+
+/** Success tint for credit row surfaces. */
+export const successTint = "rgba(26, 135, 84, 0.08)";
+
+/** Warning tint for near-budget surfaces. */
+export const warningTint = "rgba(181, 121, 10, 0.08)";
+
+// ─── Overlays & Scrims ────────────────────────────────────────────────────────
+
 export const overlays = {
   scrim: "rgba(0,0,0,0.35)",
   scrimHeavy: "rgba(0,0,0,0.55)",
-  scrimLight: "rgba(21, 28, 39, 0.22)",
-  backdrop: "rgba(15, 23, 42, 0.14)",
-  avatarFallback: "rgba(99,85,232,0.2)",
-  avatarError: "rgba(0,0,0,0.14)",
+  scrimLight: "rgba(20, 21, 26, 0.22)",
+  backdrop: "rgba(20, 21, 26, 0.12)",
+  avatarFallback: "rgba(43, 63, 224, 0.12)",
+  avatarError: "rgba(0,0,0,0.10)",
+  /** @deprecated use skeleton.surface */
   avatarSkeleton: "rgba(255,255,255,0.28)",
 } as const;
 
-/** Tinted fills on light surfaces. */
-export const surfaces = {
-  primaryTint08: "rgba(99, 85, 232, 0.08)",
-  primaryTint10: "rgba(99, 85, 232, 0.10)",
-  primaryTint12: "rgba(99, 85, 232, 0.12)",
-  primaryTint14: "rgba(99, 85, 232, 0.14)",
-  primaryBorder28: "rgba(99, 85, 232, 0.28)",
-  selectHighlight: "rgba(99, 85, 232, 0.08)",
-  selectOnPrimaryBorder: "rgba(255,255,255,0.24)",
-  selectOnPrimaryBg: "rgba(255,255,255,0.16)",
-  iconWellSky: "rgba(56, 189, 248, 0.18)",
-  iconWellOrange: "rgba(251, 146, 60, 0.2)",
-  iconWellDanger: "rgba(220, 38, 38, 0.1)",
-  dangerTint06: "rgba(220, 38, 38, 0.06)",
-  dangerTint08: "rgba(220, 38, 38, 0.08)",
-  successTint14: "rgba(22, 163, 74, 0.14)",
-  onPrimaryChipBg: "rgba(255,255,255,0.1)",
-  whiteOverlay55: "rgba(255, 255, 255, 0.55)",
-  whiteOverlay92: "rgba(255,255,255,0.92)",
-} as const;
+// ─── Category Icon Tiles ──────────────────────────────────────────────────────
 
-/** Progress meters (hero, budget, category rail). */
-export const progressBar = {
-  track: "#F2F0FF",
-  fillDefault: "#FF6B6B",
-} as const;
+/** Uncategorized / fallback category mark. */
+export const categoryDefault = "#94A3B8";
 
-/** Loading skeleton surfaces. */
+/** Helper: produces an 8%-tint background for a category icon tile. */
+export const categoryTile = (hex: string) =>
+  hex.startsWith("#")
+    ? `${hex}14` // appends 08 in hex = ~5%, 14 = ~8%
+    : hex;
+
+// ─── Skeleton Loading ─────────────────────────────────────────────────────────
+
 export const skeleton = {
-  surface: "rgba(99, 85, 232, 0.12)",
-  onPrimary: "rgba(255, 255, 255, 0.24)",
+  /** Base surface — neutral gray, not a purple tint. */
+  surface: "#EAEAEC",
+  /** Highlight during pulse animation. */
+  onSurface: "#D4D4D8",
+  /** @deprecated use onSurface */
+  onPrimary: "#D4D4D8",
 } as const;
 
-/** Insights charts — net bars, tooltips, categorical payee / expense hues. */
+// ─── Chart Tokens ─────────────────────────────────────────────────────────────
+
 export const charts = {
-  tooltipScrim: "rgba(10, 10, 31, 0.06)",
-  netSurplusBar: "rgba(22, 163, 74, 0.32)",
-  netDeficitBar: "rgba(220, 38, 38, 0.32)",
-  /** Distinct slice / bar colors (not brand primary / indigo). */
+  tooltipScrim: "rgba(20, 21, 26, 0.06)",
+  /** Surplus (cash-flow bar): success at low opacity. */
+  netSurplusBar: "rgba(26, 135, 84, 0.32)",
+  /** Deficit (cash-flow bar): danger at low opacity. */
+  netDeficitBar: "rgba(214, 57, 74, 0.32)",
+  /** Category slice/bar palette — retained for recognition. */
   payeeSliceColors: [
     "#0D9488",
     "#EA580C",
@@ -126,4 +128,131 @@ export const charts = {
   payeeOther: "#9CA3AF",
 } as const;
 
-export type ColorToken = keyof typeof colors;
+// ─── Utility / Misc ───────────────────────────────────────────────────────────
+
+export const shadow = "#000000";
+
+/** Settings / notification bento icon accents — functional only. */
+export const iconAccentSky = "#0284C7";
+export const iconAccentOrange = "#EA580C";
+
+/** OAuth brand (Google sign-in). */
+export const oauthGoogle = "#4285F4";
+
+// ─── Convenience Object (for components that spread all tokens) ───────────────
+
+export const color = {
+  paper,
+  surface,
+  surfaceSunken,
+  line,
+  ink,
+  inkSoft,
+  inkFaint,
+  accent,
+  accentTint,
+  accentHeat1,
+  accentHeat2,
+  accentHeat3,
+  success,
+  danger,
+  warning,
+  dangerTint,
+  successTint,
+  warningTint,
+  shadow,
+  categoryDefault,
+  skeleton,
+  charts,
+  overlays,
+} as const;
+
+// ─── Legacy Aliases (kept for backward-compat during migration) ───────────────
+// These will be removed once all components are migrated.
+
+/** @deprecated use `accent` */
+export const colors = {
+  primary: accent,
+  brandPrimary: accent,
+  primaryMuted: accentTint,
+  success,
+  danger,
+  error: danger,
+  inactive: inkFaint,
+  border: line,
+  cardBorder: line,
+  borderLight: line,
+  borderList: surfaceSunken,
+  barBackground: surface,
+  surfaceTint: surfaceSunken,
+  pageBackground: paper,
+  onboardingIllustrationBg: "#F7EFE1",
+  textPrimary: ink,
+  textSecondary: inkSoft,
+  textListPrimary: ink,
+  textListSecondary: inkSoft,
+  textOnPrimary: "#FFFFFF",
+  textOnPrimaryMuted: "rgba(255,255,255,0.88)",
+  onPrimaryHairline: "rgba(255,255,255,0.22)",
+  // Gradient tokens removed — no more purple header gradient
+  headerGradientStart: surface,
+  headerGradientEnd: surface,
+  headerGreetingForeground: inkSoft,
+  headerAvatarRingBorder: line,
+  headerBellCircleBg: surfaceSunken,
+  tabBarOnPrimaryInactive: inkFaint,
+  categoryDefault,
+  categoryDefaultMuted: "rgba(148,163,184,0.14)",
+  shadow,
+  shadowBrand: shadow,
+  iconAccentSky,
+  iconAccentOrange,
+  toastErrorAccent: "#B42318",
+  toastWarningAccent: "#B54708",
+  toastShadow: ink,
+  oauthGoogle,
+} as const;
+
+/** @deprecated use `overlays` */
+export const hero = {
+  orbLarge: "rgba(255,255,255,0.09)",
+  orbSmall: "rgba(255,255,255,0.06)",
+  progressTrack: surfaceSunken,
+  statBg: surfaceSunken,
+  statBorder: line,
+  chipBorder: line,
+  chipBg: surfaceSunken,
+  avatarRing: line,
+  skeletonShort: skeleton.surface,
+  skeletonLong: skeleton.surface,
+  sparkBar: inkSoft,
+} as const;
+
+/** @deprecated */
+export const surfaces = {
+  primaryTint08: accentTint,
+  primaryTint10: "rgba(43, 63, 224, 0.10)",
+  primaryTint12: "rgba(43, 63, 224, 0.12)",
+  primaryTint14: "rgba(43, 63, 224, 0.14)",
+  primaryBorder28: "rgba(43, 63, 224, 0.28)",
+  selectHighlight: accentTint,
+  selectOnPrimaryBorder: "rgba(255,255,255,0.24)",
+  selectOnPrimaryBg: "rgba(255,255,255,0.16)",
+  iconWellSky: "rgba(56, 189, 248, 0.18)",
+  iconWellOrange: "rgba(251, 146, 60, 0.2)",
+  iconWellDanger: dangerTint,
+  dangerTint06: "rgba(214, 57, 74, 0.06)",
+  dangerTint08: dangerTint,
+  successTint14: successTint,
+  onPrimaryChipBg: "rgba(255, 255, 255, 0.1)",
+  whiteOverlay55: "rgba(255, 255, 255, 0.55)",
+  whiteOverlay92: "rgba(255, 255, 255, 0.92)",
+} as const;
+
+/** @deprecated use `skeleton` */
+export const progressBar = {
+  track: surfaceSunken,
+  fillDefault: accent,
+} as const;
+
+export type ColorToken = keyof typeof color;

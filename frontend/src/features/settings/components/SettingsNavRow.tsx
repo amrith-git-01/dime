@@ -2,8 +2,8 @@ import { ChevronRight, type LucideIcon } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ink, inkFaint, inkSoft, line, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants";
 
 export type SettingsNavRowIconAccent = {
   backgroundColor: string;
@@ -52,7 +52,7 @@ export const SettingsNavRow = memo(function SettingsNavRow({
             </Text>
           ) : null}
         </View>
-        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+        <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
       </Pressable>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>
@@ -86,17 +86,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+    backgroundColor: line,
     marginLeft: ICON_WELL_SIZE + spacing.md,
     marginVertical: spacing.xs,
   },

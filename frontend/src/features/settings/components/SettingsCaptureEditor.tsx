@@ -5,9 +5,7 @@ import {
   BENTO_FORM_BODY_GAP,
   BENTO_FORM_SECTION_PADDING,
 } from "@/components/bento";
-import { TwoToneCard } from "@/components/shared";
-import { bento } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { fontFamilies, ink, inkSoft, radius, shadows, surface } from "@/constants";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 
 export type SettingsCaptureEditorProps = {
@@ -20,31 +18,33 @@ export const SettingsCaptureEditor = memo(function SettingsCaptureEditor({
   onUpiChange,
 }: SettingsCaptureEditorProps) {
   return (
-    <TwoToneCard
-      header={
-        <View style={styles.headerInner}>
-          <Text style={styles.kicker}>Automatic capture</Text>
-          <Text style={styles.subtitle}>
-            Use UPI notifications to suggest amounts and payees when adding
-            expenses.
-          </Text>
-        </View>
-      }
-      body={
-        <View style={styles.bodyInner}>
-          <SettingsToggleRow
-            label="UPI app hints"
-            subtitle="Use UPI notifications to suggest amounts and payees."
-            value={upiEnabled}
-            onValueChange={onUpiChange}
-          />
-        </View>
-      }
-    />
+    <View style={styles.card}>
+      <View style={styles.headerInner}>
+        <Text style={styles.kicker}>Automatic capture</Text>
+        <Text style={styles.subtitle}>
+          Use UPI notifications to suggest amounts and payees when adding
+          expenses.
+        </Text>
+      </View>
+      <View style={styles.bodyInner}>
+        <SettingsToggleRow
+          label="UPI app hints"
+          subtitle="Use UPI notifications to suggest amounts and payees."
+          value={upiEnabled}
+          onValueChange={onUpiChange}
+        />
+      </View>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
+  card: {
+    backgroundColor: surface,
+    borderRadius: radius.lg,
+    overflow: "visible",
+    ...shadows.card,
+  },
   headerInner: {
     padding: BENTO_FORM_SECTION_PADDING,
     gap: BENTO_FORM_BODY_GAP / 2,
@@ -53,13 +53,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    color: bento.onPastel.primary,
+    color: ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: bento.onPastel.muted,
+    color: inkSoft,
   },
   bodyInner: {
     paddingHorizontal: BENTO_FORM_SECTION_PADDING,

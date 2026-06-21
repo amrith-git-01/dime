@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_HEADER_GAP } from "@/components/bento";
 import { BentoSectionCard } from "@/components/shared";
-import { typography } from "@/constants";
+import { fontFamilies, inkSoft } from "@/constants";
 
 type SettingsSectionProps = {
   title: string;
@@ -32,7 +32,12 @@ const styles = StyleSheet.create({
     gap: BENTO_SECTION_HEADER_GAP,
   },
   title: {
-    ...typography.sectionTitle,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: inkSoft,
   },
   titleCompact: {
     fontSize: 11,

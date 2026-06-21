@@ -1,21 +1,33 @@
 import type { LucideIcon } from "lucide-react-native";
 import { AlertTriangle, ScanLine } from "lucide-react-native";
 
-import { colors, surfaces } from "@/constants";
+import {
+  danger,
+  dangerTint,
+  iconAccentSky,
+  ink,
+  inkFaint,
+  inkSoft,
+  success,
+  successTint,
+  surfaces,
+  warning,
+  warningTint,
+} from "@/constants";
 
 import type { NotificationKind } from "./types";
 
 /** Inbox row copy — unread vs read (no dot indicator). */
 export const NOTIFICATION_INBOX_TEXT = {
   unread: {
-    title: colors.textListPrimary,
-    body: colors.textSecondary,
-    time: colors.textListSecondary,
+    title: ink,
+    body: inkSoft,
+    time: inkFaint,
   },
   read: {
-    title: colors.textListSecondary,
-    body: colors.inactive,
-    time: colors.inactive,
+    title: inkSoft,
+    body: inkFaint,
+    time: inkFaint,
   },
 } as const;
 
@@ -33,12 +45,12 @@ export type NotificationActionAccent = {
 /** Circular tinted wells for row actions (mark read / delete). */
 export const NOTIFICATION_ROW_ACTIONS = {
   markRead: {
-    iconColor: colors.success,
-    backgroundColor: surfaces.successTint14,
+    iconColor: success,
+    backgroundColor: successTint,
   },
   delete: {
-    iconColor: colors.danger,
-    backgroundColor: surfaces.dangerTint08,
+    iconColor: danger,
+    backgroundColor: dangerTint,
   },
 } as const satisfies Record<string, NotificationActionAccent>;
 
@@ -51,16 +63,16 @@ export const NOTIFICATION_ROW_VISUALS: Record<
   transaction_auto: {
     icon: ScanLine,
     backgroundColor: surfaces.iconWellSky,
-    iconColor: colors.iconAccentSky,
+    iconColor: iconAccentSky,
   },
   budget_threshold: {
     icon: AlertTriangle,
-    backgroundColor: surfaces.iconWellOrange,
-    iconColor: colors.iconAccentOrange,
+    backgroundColor: warningTint,
+    iconColor: warning,
   },
   capture_failed: {
     icon: AlertTriangle,
-    backgroundColor: surfaces.iconWellDanger,
-    iconColor: colors.danger,
+    backgroundColor: dangerTint,
+    iconColor: danger,
   },
 };

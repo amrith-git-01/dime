@@ -1,22 +1,12 @@
 import { Image } from "expo-image";
 import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { bento, colors, radius, spacing, surfaces } from "@/constants";
+import { ink, inkFaint, inkSoft, line, radius, shadows, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { SETTINGS_HERO_AVATAR_SIZE } from "./settingsBentoTokens";
-
-const cardShadowStyle = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: bento.surface.lavender,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-  },
-});
 
 export type SettingsHubHeroProps = {
   displayName: string;
@@ -36,7 +26,7 @@ export const SettingsHubHero = memo(function SettingsHubHero({
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        cardShadowStyle,
+        shadows.card,
         pressed && styles.pressed,
       ]}
     >
@@ -58,13 +48,7 @@ export const SettingsHubHero = memo(function SettingsHubHero({
         </Text>
       </View>
 
-      <View style={styles.chevronWrap}>
-        <ChevronRight
-          size={22}
-          color={colors.brandPrimary}
-          strokeWidth={2.25}
-        />
-      </View>
+      <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
     </Pressable>
   );
 });
@@ -76,9 +60,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     padding: spacing.lg,
     borderRadius: radius.lg,
-    backgroundColor: bento.twoToneHeaderSurface,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    backgroundColor: surface,
     overflow: "visible",
   },
   pressed: {
@@ -87,15 +69,13 @@ const styles = StyleSheet.create({
   avatarRing: {
     padding: 3,
     borderRadius: radius.full,
-    backgroundColor: colors.barBackground,
     borderWidth: 2,
-    borderColor: surfaces.primaryBorder28,
+    borderColor: line,
   },
   avatar: {
     width: SETTINGS_HERO_AVATAR_SIZE,
     height: SETTINGS_HERO_AVATAR_SIZE,
     borderRadius: SETTINGS_HERO_AVATAR_SIZE / 2,
-    backgroundColor: bento.twoToneBodySurface,
   },
   textCol: {
     flex: 1,
@@ -108,26 +88,18 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     letterSpacing: 0.4,
     textTransform: "uppercase",
-    color: colors.brandPrimary,
+    color: inkSoft,
   },
   name: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 20,
     lineHeight: 26,
-    color: bento.onPastel.primary,
+    color: ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: bento.onPastel.muted,
-  },
-  chevronWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: surfaces.primaryTint10,
+    color: inkSoft,
   },
 });

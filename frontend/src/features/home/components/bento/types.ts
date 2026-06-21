@@ -6,33 +6,50 @@ export type HomeTopCategoryItem = CategorySpendRowData;
 export type HomeBentoContentProps = {
   isError: boolean;
   isPending: boolean;
-  spentTodayDisplay: string;
-  spentMonthDisplay: string;
-  dayLabel: string;
+
+  // Month hero card
   monthLabel: string;
-  dailySubtext: string;
-  monthlySubtext: string;
+  /** Formatted remaining budget (e.g. "₹24,996") — shown as hero if budget set. */
+  monthlyRemainingDisplay: string;
+  /** Formatted total spent (e.g. "₹4") — hero when no budget. */
+  spentMonthDisplay: string;
   monthlyProgress: number;
   hasMonthlyBudget: boolean;
+  /** "₹1.2k / ₹5k" compact remaining/total — used as hero subtitle. */
+  monthlySubtext: string;
+
+  // Daily cap strip
+  spentTodayDisplay: string;
+  dayLabel: string;
+  dailySubtext: string;
   hasDailyBudget: boolean;
-  last7DaysSpend: { date: string; total: number }[];
-  creditedDisplay: string;
-  debitedDisplay: string;
+  /** 0–1 ratio of today's spend vs daily budget. */
+  dailyProgress: number;
+
+  // Stat row
   netDisplay: string;
   netValue: number;
-  incomePending: boolean;
+
+  // Sections
   topCategories: HomeTopCategoryItem[];
   monthlyBudgetAmount: number;
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
-  onCategoryPress: (item: HomeTopCategoryItem) => void;
+  incomePending: boolean;
+
+  // Navigation
   onNavigateBudgets: () => void;
+  onNavigateTransactions: () => void;
   onAddMonthlyBudget: () => void;
   onAddDailyBudget: () => void;
-  onNavigateTransactions: () => void;
+  onCategoryPress: (item: HomeTopCategoryItem) => void;
   onTransactionPress: (tx: TransactionRow) => void;
-  /** Quick-add actions for section action bars */
   onManualAdd: () => void;
   onReceipt: () => void;
   onVoice: () => void;
+
+  // Unused in new design (kept for compat during migration)
+  creditedDisplay: string;
+  debitedDisplay: string;
+  last7DaysSpend: { date: string; total: number }[];
 };
