@@ -1,4 +1,4 @@
-import { format, isToday, isYesterday, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 /** Keep calendar day from `datePart` and clock from `timePart`. */
 export function mergeDateWithTime(datePart: Date, timePart: Date): Date {
@@ -12,14 +12,7 @@ export function mergeDateWithTime(datePart: Date, timePart: Date): Date {
   return merged;
 }
 
-/** Compact time label for notification rows. */
+/** Clock time for notification rows (date lives on the section header). */
 export function formatNotificationTime(iso: string): string {
-  const date = parseISO(iso);
-  if (isToday(date)) {
-    return format(date, "h:mm a");
-  }
-  if (isYesterday(date)) {
-    return `Yesterday · ${format(date, "h:mm a")}`;
-  }
-  return format(date, "d MMM · h:mm a");
+  return format(parseISO(iso), "h:mm a");
 }
