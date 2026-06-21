@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
@@ -9,6 +9,7 @@ import {
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsHeavyChartsPlaceholder,
+  InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
   InsightsMonthSummaryCard,
   InsightsTopExpensesCard,
@@ -21,7 +22,6 @@ import {
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 
 function AnalyticsInsightsScroll() {
-  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
@@ -31,24 +31,27 @@ function AnalyticsInsightsScroll() {
     monthOptions,
     selectedMonth,
     selectedMonthIndex,
-    handleSelectMonth,
     openInsightsMonthCompare,
     summary,
     summaryLoading,
     summaryFailed,
+    hasMonthlyBudget,
     chartLoading,
     burnRateMetrics,
     dailyCashflow,
     chartYear,
     chartMonthIndex0,
     counterpartySpend,
+    counterpartyIncome,
     topExpenses,
     openTransactionDetail,
     openTransactionsListForDay,
     openTransactionsListForPayee,
     onManualAdd,
-    onReceipt,
-    onVoice,
+    canGoPrevMonth,
+    canGoNextMonth,
+    goPrevMonth,
+    goNextMonth,
   } = useAnalyticsScreenModel();
   const { chartsReady } = useDeferredHeavyCharts(hasInsightsData);
 
@@ -56,7 +59,6 @@ function AnalyticsInsightsScroll() {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
-      scrollEnabled={!monthMenuOpen}
       showsVerticalScrollIndicator={false}
       scrollEventThrottle={16}
       onScroll={reportScroll}
@@ -69,12 +71,14 @@ function AnalyticsInsightsScroll() {
     >
       <InsightsMonthSummaryCard
         selectedMonth={selectedMonth.label}
-        monthOptions={monthOptions}
-        onSelectMonth={handleSelectMonth}
-        onMonthMenuOpenChange={setMonthMenuOpen}
+        canGoPrevMonth={canGoPrevMonth}
+        canGoNextMonth={canGoNextMonth}
+        onPrevMonth={goPrevMonth}
+        onNextMonth={goNextMonth}
         summary={summary}
         summaryLoading={summaryLoading}
         summaryFailed={summaryFailed}
+        hasMonthlyBudget={hasMonthlyBudget}
       />
 
       {chartsReady ? (
@@ -82,6 +86,8 @@ function AnalyticsInsightsScroll() {
           <InsightsBurnRateMetricCard
             metrics={burnRateMetrics}
             loading={chartLoading}
+            year={chartYear}
+            monthIndex0={chartMonthIndex0}
           />
           <InsightsDailyCashflowChart
             dailyCashflow={dailyCashflow}
@@ -101,13 +107,15 @@ function AnalyticsInsightsScroll() {
             tooltipDismissRef={payeeTooltipDismissRef}
             onViewPayeePress={openTransactionsListForPayee}
           />
+          <InsightsIncomeSourcesCard
+            counterpartyIncome={counterpartyIncome}
+            loading={chartLoading}
+          />
           <InsightsTopExpensesCard
             topExpenses={topExpenses}
             loading={chartLoading}
             onTransactionPress={openTransactionDetail}
             onManualAdd={onManualAdd}
-            onReceipt={onReceipt}
-            onVoice={onVoice}
           />
         </>
       ) : (

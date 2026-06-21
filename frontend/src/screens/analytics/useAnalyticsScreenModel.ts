@@ -8,6 +8,7 @@ import { useBentoMonthSelection } from "@/components/bento";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 import type { InsightsCashflowDaySelection } from "@/features/analytics/components/InsightsDailyCashflowChart";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
+import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
 import {
   topPayeeKeysFromSpend,
   type CounterpartyDonutDatum,
@@ -33,9 +34,21 @@ export function useAnalyticsScreenModel() {
   const {
     monthOptions,
     selectedMonth,
-    selectedMonthIndex,
     selectMonth: handleSelectMonth,
   } = useBentoMonthSelection();
+
+  const selectedMonthIndex = useMemo(
+    () => monthOptions.findIndex((m) => m.label === selectedMonth.label),
+    [monthOptions, selectedMonth.label],
+  );
+  const canGoPrevMonth = selectedMonthIndex < monthOptions.length - 1;
+  const canGoNextMonth = selectedMonthIndex > 0;
+  const goPrevMonth = useCallback(() => {
+    if (canGoPrevMonth) handleSelectMonth(selectedMonthIndex + 1);
+  }, [canGoPrevMonth, handleSelectMonth, selectedMonthIndex]);
+  const goNextMonth = useCallback(() => {
+    if (canGoNextMonth) handleSelectMonth(selectedMonthIndex - 1);
+  }, [canGoNextMonth, handleSelectMonth, selectedMonthIndex]);
 
   const insightsQuery = useMonthInsightsQuery(
     selectedMonth.year,
@@ -51,10 +64,15 @@ export function useAnalyticsScreenModel() {
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
 
   const insightsLoading = insightsQuery.isPending && !insightsQuery.data;
+  // isPlaceholderData is true while keepPreviousData serves the old month's
+  // data during a month switch — treat it the same as a first-load spinner.
+  const isTransitioning = insightsQuery.isPlaceholderData;
   const summaryLoading =
-    insightsLoading || (isBudgetLoading && budgetResp === undefined);
+    insightsLoading ||
+    isTransitioning ||
+    (isBudgetLoading && budgetResp === undefined);
   const summaryFailed = insightsQuery.isError;
-  const chartLoading = insightsLoading;
+  const chartLoading = insightsLoading || isTransitioning;
   const chartsDataSettled =
     Boolean(insightsData) && !insightsQuery.isPlaceholderData && !chartLoading;
 
@@ -66,6 +84,10 @@ export function useAnalyticsScreenModel() {
     () => insightsData?.counterparty_spend ?? [],
     [insightsData?.counterparty_spend],
   );
+  const counterpartyIncome = useMemo(
+    () => insightsData?.counterparty_income ?? [],
+    [insightsData?.counterparty_income],
+  );
   const topPayeeKeys = useMemo(
     () => topPayeeKeysFromSpend(counterpartySpend),
     [counterpartySpend],
@@ -74,15 +96,19 @@ export function useAnalyticsScreenModel() {
 
   const summary = useMemo((): InsightsMonthSummary | null => {
     if (summaryLoading || summaryFailed) return null;
+    const isPast = isPastMonth(selectedMonth.year, selectedMonth.monthIndex0);
     return buildInsightsMonthSummary(
       insightsData?.summary,
       hasMonthlyBudget,
       monthlyBudgetAmount,
+      isPast,
     );
   }, [
     hasMonthlyBudget,
     insightsData?.summary,
     monthlyBudgetAmount,
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
     summaryFailed,
     summaryLoading,
   ]);
@@ -164,6 +190,10 @@ export function useAnalyticsScreenModel() {
     selectedMonth,
     selectedMonthIndex,
     handleSelectMonth,
+    canGoPrevMonth,
+    canGoNextMonth,
+    goPrevMonth,
+    goNextMonth,
     openInsightsMonthCompare,
     openTransactionDetail,
     openTransactionsListForDay,
@@ -178,6 +208,7 @@ export function useAnalyticsScreenModel() {
     chartYear: selectedMonth.year,
     chartMonthIndex0: selectedMonth.monthIndex0,
     counterpartySpend,
+    counterpartyIncome,
     topExpenses,
     onManualAdd,
     onReceipt,

@@ -2,12 +2,11 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { addDays, endOfMonth, format, parseISO, subDays } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
-import { useBentoMonthSelection } from "@/components/bento";
 import type { TransactionsMonthBentoSummary } from "@/features/transactions/components";
 import { usePrefetchTransactionsForSelectedDay } from "@/features/transactions/hooks/usePrefetchTransactionsForSelectedDay";
+import { useTransactionsCalendarSelection } from "@/features/transactions/hooks/useTransactionsCalendarSelection";
 import {
   useMonthSummaryQuery,
   useTransactionsMonthInfiniteQuery,
@@ -15,8 +14,10 @@ import {
 import type { TransactionRow } from "@/features/transactions/types";
 import {
   buildTransactionFlashListItemsForSingleDay,
+  filterTransactionsByCalendarDay,
   transactionCalendarDayKey,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
@@ -35,15 +36,23 @@ export type TransactionsEmptyVariant =
 
 export function useTransactionsScreenModel() {
   const navigation = useNavigation<TransactionsScreenNavigation>();
+  const calendar = useTransactionsCalendarSelection();
   const {
+    canGoNextDay,
+    canGoNextMonth,
+    canGoPrevDay,
+    canGoPrevMonth,
+    goNextDay: calendarGoNextDay,
+    goNextMonth: calendarGoNextMonth,
+    goPrevDay: calendarGoPrevDay,
+    goPrevMonth: calendarGoPrevMonth,
     monthOptions,
+    selectDay: calendarSelectDay,
+    selectMonth: calendarSelectMonth,
+    selectedDayKey,
     selectedMonth,
     selectedMonthIndex,
-    selectMonth: handleSelectMonth,
-  } = useBentoMonthSelection();
-  const [selectedDayKey, setSelectedDayKey] = useState(() =>
-    format(new Date(), "yyyy-MM-dd"),
-  );
+  } = calendar;
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
@@ -83,25 +92,21 @@ export function useTransactionsScreenModel() {
     return pages.flatMap((p) => p.items);
   }, [infiniteData]);
 
-  const monthDayBounds = useMemo(() => {
-    const anchor = new Date(selectedMonth.year, selectedMonth.monthIndex0, 1);
-    return {
-      startKey: format(anchor, "yyyy-MM-dd"),
-      endKey: format(endOfMonth(anchor), "yyyy-MM-dd"),
-    };
-  }, [selectedMonth.year, selectedMonth.monthIndex0]);
+  const daySummaries = useMemo(
+    () => infiniteData?.pages[0]?.day_summaries ?? {},
+    [infiniteData],
+  );
 
-  useEffect(() => {
-    const now = new Date();
-    if (
-      now.getFullYear() === selectedMonth.year &&
-      now.getMonth() === selectedMonth.monthIndex0
-    ) {
-      setSelectedDayKey(format(now, "yyyy-MM-dd"));
-      return;
-    }
-    setSelectedDayKey(monthDayBounds.endKey);
-  }, [selectedMonth.year, selectedMonth.monthIndex0, monthDayBounds.endKey]);
+  const selectedDaySummary = daySummaries[selectedDayKey];
+  const dayNetTotal = parseTransactionAmount(selectedDaySummary?.net);
+  const dayIncomeTotal = parseTransactionAmount(
+    selectedDaySummary?.credit_total,
+  );
+  const dayExpenseTotal = parseTransactionAmount(
+    selectedDaySummary?.debit_total,
+  );
+  const selectedDayTransactionCount =
+    selectedDaySummary?.transaction_count ?? 0;
 
   usePrefetchTransactionsForSelectedDay({
     selectedDayKey,
@@ -118,6 +123,22 @@ export function useTransactionsScreenModel() {
 
   const dayRowCount = useMemo(() => flashListData.length, [flashListData]);
   const lastRowIndex = dayRowCount > 0 ? dayRowCount - 1 : -1;
+
+  const dayTransactions = useMemo(
+    () => filterTransactionsByCalendarDay(flatRows, selectedDayKey),
+    [flatRows, selectedDayKey],
+  );
+
+  const spendByDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const summary of Object.values(daySummaries)) {
+      const debit = parseTransactionAmount(summary.debit_total);
+      if (debit > 0) {
+        map[summary.date] = debit;
+      }
+    }
+    return map;
+  }, [daySummaries]);
 
   const oldestLoadedDayKey = useMemo(() => {
     if (flatRows.length === 0) return null;
@@ -138,40 +159,63 @@ export function useTransactionsScreenModel() {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-  const canGoPrevDay = selectedDayKey > monthDayBounds.startKey;
-  const canGoNextDay = selectedDayKey < monthDayBounds.endKey;
+  const selectDay = useCallback(
+    (dayKey: string) => {
+      void triggerLightHaptic();
+      calendarSelectDay(dayKey);
+    },
+    [calendarSelectDay],
+  );
+
+  const handleSelectMonth = useCallback(
+    (monthIndex: number) => {
+      calendarSelectMonth(monthIndex);
+    },
+    [calendarSelectMonth],
+  );
+
+  const goPrevMonth = useCallback(() => {
+    if (!canGoPrevMonth) return;
+    void triggerLightHaptic();
+    calendarGoPrevMonth();
+  }, [calendarGoPrevMonth, canGoPrevMonth]);
+
+  const goNextMonth = useCallback(() => {
+    if (!canGoNextMonth) return;
+    void triggerLightHaptic();
+    calendarGoNextMonth();
+  }, [calendarGoNextMonth, canGoNextMonth]);
 
   const goPrevDay = useCallback(() => {
     if (!canGoPrevDay) return;
     void triggerLightHaptic();
-    setSelectedDayKey((current) =>
-      format(subDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
-    );
-  }, [canGoPrevDay]);
+    calendarGoPrevDay();
+  }, [calendarGoPrevDay, canGoPrevDay]);
 
   const goNextDay = useCallback(() => {
     if (!canGoNextDay) return;
     void triggerLightHaptic();
-    setSelectedDayKey((current) =>
-      format(addDays(parseISO(`${current}T12:00:00`), 1), "yyyy-MM-dd"),
-    );
-  }, [canGoNextDay]);
+    calendarGoNextDay();
+  }, [calendarGoNextDay, canGoNextDay]);
 
   const waitingForOlderPages =
+    selectedDayTransactionCount > 0 &&
     dayRowCount === 0 &&
     Boolean(hasNextPage) &&
     oldestLoadedDayKey !== null &&
     selectedDayKey < oldestLoadedDayKey;
-  const showDayLoading = dayRowCount === 0 && waitingForOlderPages;
-  const listEmpty = !infinitePending && dayRowCount === 0 && !showDayLoading;
+  const showDayLoading = waitingForOlderPages;
+  const showMonthLoading = infinitePending && flatRows.length === 0;
+  const summariesReady =
+    infiniteData?.pages[0] !== undefined && !infinitePending;
+  const listEmpty =
+    summariesReady && selectedDayTransactionCount === 0 && !showDayLoading;
 
   const monthHasNoTransactions =
     !summaryQuery.isPending &&
     !summaryQuery.isError &&
     summary !== null &&
     summary.transactionCount === 0;
-
-  const showMonthLoading = infinitePending && flatRows.length === 0;
 
   const emptyVariant = useMemo((): TransactionsEmptyVariant => {
     if (showMonthLoading) return "month-loading";
@@ -194,11 +238,20 @@ export function useTransactionsScreenModel() {
   return {
     canGoNextDay,
     canGoPrevDay,
+    canGoPrevMonth,
+    canGoNextMonth,
+    dayNetTotal,
+    dayIncomeTotal,
+    dayExpenseTotal,
+    selectedDayTransactionCount,
     dayRowCount,
+    dayTransactions,
     emptyVariant,
     flashListData,
     goNextDay,
     goPrevDay,
+    goPrevMonth,
+    goNextMonth,
     handleLoadMore,
     handleSelectMonth,
     lastRowIndex,
@@ -212,8 +265,10 @@ export function useTransactionsScreenModel() {
     selectedDayKey,
     selectedMonth,
     selectedMonthIndex,
+    selectDay,
     showListFooter,
     showMonthLoading,
+    spendByDay,
     summary,
     summaryFailed: summaryQuery.isError,
     summaryLoading: summaryQuery.isPending,

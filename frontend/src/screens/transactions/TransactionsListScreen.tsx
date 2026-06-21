@@ -1,42 +1,88 @@
-import { Calendar, LayoutGrid, Receipt } from "lucide-react-native";
 import { memo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { BENTO_GAP, BENTO_SECTION_HEADER_GAP } from "@/components/bento";
-import { BentoTransactionTile, TwoToneEmptyState } from "@/components/shared";
-import { bento, colors, spacing, typography } from "@/constants";
+import { EmptyState, emptyStateCopy } from "@/components/shared";
+import {
+  accent,
+  danger,
+  inkSoft,
+  line,
+  paper,
+  radius,
+  shadows,
+  spacing,
+  success,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import type { TransactionRow } from "@/features/transactions/types";
+import { TransactionRow } from "@/features/transactions/components";
+import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
 import type { TransactionListSection } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
 
-const TransactionsListSection = memo(function TransactionsListSection({
-  section,
-  onTransactionPress,
-}: {
+type SectionCardProps = {
   section: TransactionListSection;
-  onTransactionPress: (transaction: TransactionRow) => void;
-}) {
+  netTotal: number;
+  onTransactionPress: (transaction: TransactionRowType) => void;
+};
+
+const SectionCard = memo(function SectionCard({
+  section,
+  netTotal,
+  onTransactionPress,
+}: SectionCardProps) {
+  const netColor = netTotal < 0 ? danger : netTotal > 0 ? success : inkSoft;
+  const formatted = formatTransactionListAmount(netTotal);
+
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{section.title}</Text>
-      <View style={styles.tileStack}>
-        {section.data.map((transaction) => (
-          <BentoTransactionTile
-            key={transaction.id}
-            transaction={transaction}
-            onPress={onTransactionPress}
-          />
+    <View style={styles.sectionGroup}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{section.title}</Text>
+        <Text style={[styles.sectionTotal, { color: netColor }]}>
+          {formatted}
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        {section.data.map((transaction, index) => (
+          <View key={transaction.id}>
+            <TransactionRow
+              transaction={transaction}
+              onPress={onTransactionPress}
+            />
+            {index < section.data.length - 1 && (
+              <View style={styles.rowDivider} />
+            )}
+          </View>
         ))}
       </View>
     </View>
   );
 });
 
+function resolveListEmptyCopy(
+  filter: "day" | "category" | "payee",
+  usesRange: boolean,
+) {
+  if (filter === "day") {
+    return emptyStateCopy.transactionsListDay;
+  }
+  if (filter === "category") {
+    return usesRange
+      ? emptyStateCopy.transactionsListCategoryRange
+      : emptyStateCopy.transactionsListCategory;
+  }
+  return usesRange
+    ? emptyStateCopy.transactionsListPayeeRange
+    : emptyStateCopy.transactionsListPayee;
+}
+
 export default function TransactionsListScreen() {
   const {
     listSections,
+    sectionNetTotals,
     filter,
     usesRange,
     isEmpty,
@@ -44,113 +90,129 @@ export default function TransactionsListScreen() {
     openTransactionDetail,
     showInitialLoading,
     showLoadingMore,
+    transactionCount,
+    monthLabel,
   } = useTransactionsListScreenModel();
 
   if (showInitialLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={styles.loadingText}>Loading transactions...</Text>
+        <ActivityIndicator color={accent} size="large" />
       </View>
     );
   }
 
   if (isError) {
     return (
-      <TwoToneEmptyState
+      <EmptyState
         layout="centered"
-        icon={Receipt}
-        title="Could not load transactions"
-        message="Check your connection and try again."
+        headline={emptyStateCopy.transactionsListError.headline}
+        subtext={emptyStateCopy.transactionsListError.subtext}
       />
     );
   }
 
   if (isEmpty) {
-    const emptyIcon =
-      filter === "day"
-        ? Calendar
-        : filter === "category"
-          ? LayoutGrid
-          : Receipt;
-    const emptyTitle =
-      filter === "day"
-        ? "No transactions on this day"
-        : filter === "category"
-          ? "No transactions in this category"
-          : "No transactions for this payee";
-    const emptyMessage =
-      filter === "day"
-        ? "Nothing was recorded for this date in the selected month."
-        : filter === "category"
-          ? usesRange
-            ? "No debits were recorded in this category for the selected period."
-            : "No debits were recorded in this category for the selected month."
-          : usesRange
-            ? "No debits matched this payee in the selected period."
-            : "No debits matched this payee in the selected month.";
-
+    const copy = resolveListEmptyCopy(filter, usesRange);
     return (
-      <TwoToneEmptyState
+      <EmptyState
         layout="centered"
-        icon={emptyIcon}
-        title={emptyTitle}
-        message={emptyMessage}
+        headline={copy.headline}
+        subtext={copy.subtext}
       />
     );
   }
 
   return (
     <View style={styles.root}>
+      <View style={styles.subtitleRow}>
+        <Text style={styles.subtitle}>
+          {`${transactionCount} transaction${transactionCount !== 1 ? "s" : ""} · ${monthLabel}`}
+        </Text>
+      </View>
+
       {listSections.map((section) => (
-        <TransactionsListSection
+        <SectionCard
           key={section.key}
           section={section}
+          netTotal={sectionNetTotals[section.key] ?? 0}
           onTransactionPress={openTransactionDetail}
         />
       ))}
+
       {showLoadingMore ? (
-        <View style={styles.footer}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={styles.loadingMore}>
+          <ActivityIndicator color={accent} />
         </View>
       ) : null}
+
+      <View style={styles.footer} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flexGrow: 1,
+    flex: 1,
+    backgroundColor: paper,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     gap: spacing.lg,
   },
-  section: {
-    gap: BENTO_SECTION_HEADER_GAP,
+  subtitleRow: {
+    paddingBottom: spacing.xs,
   },
-  sectionTitle: {
-    ...typography.sectionTitle,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: bento.onPastel.muted,
-  },
-  tileStack: {
-    gap: BENTO_GAP,
-  },
-  centered: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.md,
-  },
-  loadingText: {
+  subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
-  footer: {
+  sectionGroup: {
+    gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xs,
+  },
+  sectionTitle: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  sectionTotal: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    fontVariant: ["tabular-nums"],
+  },
+  card: {
+    backgroundColor: surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    ...shadows.card,
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: line,
+    marginLeft: spacing.lg + 40 + spacing.sm,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingMore: {
     paddingVertical: spacing.lg,
     alignItems: "center",
+  },
+  footer: {
+    height: spacing.xl * 2,
   },
 });

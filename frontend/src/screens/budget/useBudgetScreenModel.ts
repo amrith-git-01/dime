@@ -39,6 +39,19 @@ export function useBudgetScreenModel() {
     selectMonth: handleSelectBudgetMonth,
   } = useBentoMonthSelection();
 
+  const selectedMonthIndex = useMemo(
+    () => monthOptions.findIndex((m) => m.label === selectedMonth.label),
+    [monthOptions, selectedMonth.label],
+  );
+  const canGoPrevMonth = selectedMonthIndex < monthOptions.length - 1;
+  const canGoNextMonth = selectedMonthIndex > 0;
+  const goPrevMonth = useCallback(() => {
+    if (canGoPrevMonth) handleSelectBudgetMonth(selectedMonthIndex + 1);
+  }, [canGoPrevMonth, handleSelectBudgetMonth, selectedMonthIndex]);
+  const goNextMonth = useCallback(() => {
+    if (canGoNextMonth) handleSelectBudgetMonth(selectedMonthIndex - 1);
+  }, [canGoNextMonth, handleSelectBudgetMonth, selectedMonthIndex]);
+
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
   const monthSummaryQuery = useMonthSummaryQuery(
@@ -177,10 +190,17 @@ export function useBudgetScreenModel() {
     monthlyBudgetAmount > 0
       ? Math.min(1, spentMonthNum / monthlyBudgetAmount)
       : 0;
+  const usagePercentUsed =
+    hasMonthlyBudget &&
+    hasSpentMonth &&
+    !monthSummaryFailed &&
+    monthlyBudgetAmount > 0
+      ? Math.round((spentMonthNum / monthlyBudgetAmount) * 100)
+      : 0;
   const usageLabel = isOverBudget
     ? "Over budget"
     : hasMonthlyBudget && hasSpentMonth
-      ? `${Math.round(usagePct * 100)}% used`
+      ? `${usagePercentUsed}% used`
       : hasMonthlyBudget
         ? "0% used"
         : "No budget set";
@@ -204,6 +224,7 @@ export function useBudgetScreenModel() {
           isOverBudget,
           overageDisplay: formatInrCompact(overageValue),
           usagePct,
+          usagePercentUsed,
           usageLabel,
         };
 
@@ -245,6 +266,10 @@ export function useBudgetScreenModel() {
   return {
     addCustomCategoryDisabled,
     budgetListKey,
+    canGoPrevMonth,
+    canGoNextMonth,
+    goPrevMonth,
+    goNextMonth,
     handleAddCustomCategory,
     handleEditBudget,
     handleEditCategory,

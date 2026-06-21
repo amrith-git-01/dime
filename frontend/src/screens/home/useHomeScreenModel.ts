@@ -174,6 +174,16 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   const monthlyBudgetAmount = hasMonthlyBudget ? monthlyBudget : 0;
 
+  const monthlyRemainingDisplay =
+    hasMonthlyBudget && Number.isFinite(monthlyLeft)
+      ? formatSpendMagnitude(monthlyLeft)
+      : spentMonthDisplay;
+
+  const dailyProgress =
+    hasDailyBudget && hasSpentToday && dailyBudget > 0
+      ? Math.min(1, spentTodayNum / dailyBudget)
+      : 0;
+
   const last7DaysSpend = useMemo(
     () => buildLast7DaysSpend(overview?.last_7_days_spend),
     [overview?.last_7_days_spend],
@@ -218,6 +228,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   return {
     creditedDisplay,
+    dailyProgress,
     dailySubtext,
     dayLabel,
     debitedDisplay,
@@ -228,21 +239,22 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     isPending,
     last7DaysSpend,
     monthLabel,
+    monthlyBudgetAmount,
     monthlyProgress,
+    monthlyRemainingDisplay,
     monthlySubtext,
     netDisplay,
     netValue,
     onAddDailyBudget,
     onAddMonthlyBudget,
-    onManualAdd,
     onCategoryPress,
+    onManualAdd,
     onNavigateBudgets,
     onNavigateTransactions,
     onReceipt,
     onTransactionPress,
     onVoice,
     recentTransactions,
-    monthlyBudgetAmount,
     showRecentEmpty,
     spentMonthDisplay,
     spentTodayDisplay,

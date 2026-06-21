@@ -1,19 +1,24 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react-native";
 import { useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
 import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
-import { TwoToneEmptyState } from "@/components/shared";
-import { spacing } from "@/constants";
+import { EmptyState, emptyStateCopy } from "@/components/shared";
+import {
+  inkSoft,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
 import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
 import type { AppNotification } from "@/features/notifications/types";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
-import { SettingsSection } from "@/features/settings/components";
 import { useToast } from "@/features/toast/useToast";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -96,21 +101,20 @@ export default function NotificationsScreen() {
 
   if (isError) {
     return (
-      <TwoToneEmptyState
+      <EmptyState
         layout="centered"
-        icon={Bell}
-        title="Could not load notifications"
-        message="Check your connection and pull to refresh from the tab bar."
+        headline={emptyStateCopy.notificationsError.headline}
+        subtext={emptyStateCopy.notificationsError.subtext}
       />
     );
   }
 
   if (isInboxEmpty) {
     return (
-      <TwoToneEmptyState
+      <EmptyState
         layout="centered"
-        icon={Bell}
-        {...NOTIFICATION_INBOX_EMPTY}
+        headline={NOTIFICATION_INBOX_EMPTY.title}
+        subtext={NOTIFICATION_INBOX_EMPTY.message}
       />
     );
   }
@@ -121,28 +125,31 @@ export default function NotificationsScreen() {
 
       {isFilterEmpty ? (
         <View style={styles.filterEmptyWrap}>
-          <TwoToneEmptyState
+          <EmptyState
             layout="centered"
-            icon={Bell}
-            {...NOTIFICATION_FILTER_EMPTY[filter]}
+            headline={NOTIFICATION_FILTER_EMPTY[filter].title}
+            subtext={NOTIFICATION_FILTER_EMPTY[filter].message}
           />
         </View>
       ) : (
         <View style={styles.sections}>
           {groups.map((group) => (
-            <SettingsSection key={group.key} title={group.title} compact>
-              {group.items.map((item, index) => (
-                <NotificationBentoRow
-                  key={item.id}
-                  notification={item}
-                  unread={isUnread(item)}
-                  onPress={handlePress}
-                  onMarkRead={handleMarkRead}
-                  onDelete={handleDelete}
-                  showSeparator={index < group.items.length - 1}
-                />
-              ))}
-            </SettingsSection>
+            <View key={group.key} style={styles.groupWrap}>
+              <Text style={styles.groupHeader}>{group.title}</Text>
+              <View style={styles.groupCard}>
+                {group.items.map((item, index) => (
+                  <NotificationBentoRow
+                    key={item.id}
+                    notification={item}
+                    unread={isUnread(item)}
+                    onPress={handlePress}
+                    onMarkRead={handleMarkRead}
+                    onDelete={handleDelete}
+                    showSeparator={index < group.items.length - 1}
+                  />
+                ))}
+              </View>
+            </View>
           ))}
         </View>
       )}
@@ -161,5 +168,22 @@ const styles = StyleSheet.create({
   filterEmptyWrap: {
     flexGrow: 1,
     justifyContent: "center",
+  },
+  groupWrap: {
+    gap: spacing.sm,
+  },
+  groupHeader: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: inkSoft,
+  },
+  groupCard: {
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    ...shadows.card,
   },
 });

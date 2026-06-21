@@ -1,11 +1,21 @@
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
-import { TwoToneEmptyState } from "@/components/shared";
-import { colors, layout } from "@/constants";
+import {
+  colors,
+  danger,
+  inkSoft,
+  layout,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import { CompareCashflowSection } from "@/features/analytics/components/compare/CompareCashflowSection";
 import { ComparePaceSection } from "@/features/analytics/components/compare/ComparePaceSection";
 import { ComparePayeeSection } from "@/features/analytics/components/compare/ComparePayeeSection";
+import { CompareSnapshotCard } from "@/features/analytics/components/compare/CompareSnapshotCard";
 import { CompareSummarySection } from "@/features/analytics/components/compare/CompareSummarySection";
 import {
   InsightsScrollVisibilityProvider,
@@ -15,17 +25,27 @@ import {
 import { useInsightsMonthCompareScreenModel } from "./useInsightsMonthCompareScreenModel";
 
 function InsightsMonthCompareContent() {
-  const { monthA, monthB, spentDelta, bothFailed } =
-    useInsightsMonthCompareScreenModel();
+  const {
+    monthA,
+    monthB,
+    spentDelta,
+    bothFailed,
+    monthASpent,
+    monthBSpent,
+    isDeltaPositive,
+  } = useInsightsMonthCompareScreenModel();
   const { reportScroll } = useInsightsScrollVisibility();
 
   if (bothFailed) {
     return (
-      <TwoToneEmptyState
-        layout="centered"
-        title="Could not load comparison"
-        message="Check your connection and try again from Insights."
-      />
+      <View style={styles.errorContainer}>
+        <View style={styles.errorCard}>
+          <Text style={styles.errorTitle}>Could not load comparison</Text>
+          <Text style={styles.errorMessage}>
+            Check your connection and try again from Insights.
+          </Text>
+        </View>
+      </View>
     );
   }
 
@@ -39,6 +59,15 @@ function InsightsMonthCompareContent() {
       onScrollBeginDrag={reportScroll}
       onMomentumScrollEnd={reportScroll}
     >
+      <CompareSnapshotCard
+        leftLabel={monthB.label}
+        rightLabel={monthA.label}
+        leftAmount={monthBSpent}
+        rightAmount={monthASpent}
+        spentDelta={spentDelta}
+        isDeltaPositive={isDeltaPositive}
+      />
+
       <CompareSummarySection
         leftLabel={monthA.label}
         rightLabel={monthB.label}
@@ -111,6 +140,38 @@ const styles = StyleSheet.create({
   scrollContent: {
     ...layout.screenContent,
     gap: BENTO_SECTION_GAP,
+    paddingTop: spacing.md,
     paddingBottom: BENTO_SECTION_GAP,
+  },
+  errorContainer: {
+    flex: 1,
+    padding: spacing.md,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.pageBackground,
+  },
+  errorCard: {
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    ...shadows.card,
+    padding: spacing.lg,
+    alignItems: "center",
+    maxWidth: 320,
+    width: "100%",
+  },
+  errorTitle: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: danger,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
+  errorMessage: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+    textAlign: "center",
   },
 });

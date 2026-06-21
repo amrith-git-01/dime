@@ -1,6 +1,7 @@
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { format } from "date-fns";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import {
@@ -17,6 +18,7 @@ import {
   filterTransactionsByPayee,
   resolvePayeeFilterId,
 } from "@/features/transactions/utils/payeeKey";
+import { signedAmount } from "@/features/transactions/utils/transactionDisplay";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -125,9 +127,12 @@ export function useTransactionsListScreenModel() {
   }, [fetchNextPage, shouldLoadMorePages, flatRows.length]);
 
   const screenTitle = useMemo(() => {
+    if (params.filter === "category" && params.categoryDisplayName) {
+      return params.categoryDisplayName;
+    }
     const label = transactionCount === 1 ? "Transaction" : "Transactions";
     return `${transactionCount} ${label}`;
-  }, [transactionCount]);
+  }, [transactionCount, params]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: screenTitle });
@@ -141,6 +146,19 @@ export function useTransactionsListScreenModel() {
     [navigation],
   );
 
+  const monthLabel = useMemo(() => {
+    return format(new Date(params.year, params.monthIndex0, 1), "MMM yyyy");
+  }, [params.year, params.monthIndex0]);
+
+  const sectionNetTotals = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const section of listSections) {
+      const total = section.data.reduce((sum, tx) => sum + signedAmount(tx), 0);
+      result[section.key] = total;
+    }
+    return result;
+  }, [listSections]);
+
   const showInitialLoading = isPending && flatRows.length === 0;
   const showLoadingMore =
     Boolean(hasNextPage) &&
@@ -151,6 +169,7 @@ export function useTransactionsListScreenModel() {
 
   return {
     listSections,
+    sectionNetTotals,
     filter: params.filter,
     usesRange,
     isEmpty,
@@ -159,5 +178,6 @@ export function useTransactionsListScreenModel() {
     showInitialLoading,
     showLoadingMore,
     transactionCount,
+    monthLabel,
   };
 }

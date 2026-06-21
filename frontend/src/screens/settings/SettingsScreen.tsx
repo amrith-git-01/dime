@@ -5,8 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { Button } from "@/components/ui";
-import { colors, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { fontFamilies, inkSoft, spacing } from "@/constants";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import {
   SETTINGS_ROW_ACCENTS,
@@ -69,7 +68,7 @@ export default function SettingsScreen() {
         </Text>
         <Button
           title="Refresh from server"
-          variant="secondary"
+          variant="ghost"
           loading={refreshLoading}
           disabled={refreshLoading || signOutLoading}
           onPress={handleRefreshPress}
@@ -79,7 +78,7 @@ export default function SettingsScreen() {
       <View style={styles.signOutWrap}>
         <Button
           title="Sign out"
-          variant="danger"
+          variant="ghostDanger"
           loading={signOutLoading}
           disabled={signOutLoading || refreshLoading}
           onPress={confirmSignOut}
@@ -97,7 +96,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 22,
-    color: colors.textSecondary,
+    color: inkSoft,
     marginBottom: -spacing.sm,
   },
   signOutWrap: {
@@ -107,7 +106,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: inkSoft,
     marginBottom: spacing.sm,
   },
 });

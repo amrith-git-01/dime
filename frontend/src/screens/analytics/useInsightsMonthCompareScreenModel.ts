@@ -5,6 +5,7 @@ import { useLayoutEffect, useMemo } from "react";
 
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
+import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import { formatSpentDelta } from "@/features/analytics/utils/compareMonths";
 import {
@@ -40,6 +41,7 @@ function useCompareMonthSide(
       query.data?.summary,
       hasMonthlyBudget,
       monthlyBudgetAmount,
+      isPastMonth(year, monthIndex0),
     );
   }, [
     hasMonthlyBudget,
@@ -146,6 +148,29 @@ export function useInsightsMonthCompareScreenModel() {
     [monthA.rawSummary, monthB.rawSummary],
   );
 
+  const monthASpent = useMemo(
+    () =>
+      monthA.rawSummary
+        ? Math.abs(Number.parseFloat(monthA.rawSummary.debit_total ?? "0"))
+        : 0,
+    [monthA.rawSummary],
+  );
+
+  const monthBSpent = useMemo(
+    () =>
+      monthB.rawSummary
+        ? Math.abs(Number.parseFloat(monthB.rawSummary.debit_total ?? "0"))
+        : 0,
+    [monthB.rawSummary],
+  );
+
+  const isDeltaPositive = useMemo((): boolean | null => {
+    if (!monthA.rawSummary || !monthB.rawSummary) return null;
+    if (monthASpent < monthBSpent) return true;
+    if (monthASpent > monthBSpent) return false;
+    return null;
+  }, [monthA.rawSummary, monthB.rawSummary, monthASpent, monthBSpent]);
+
   const bothFailed = monthA.isError && monthB.isError;
 
   return {
@@ -153,5 +178,8 @@ export function useInsightsMonthCompareScreenModel() {
     monthB,
     spentDelta,
     bothFailed,
+    monthASpent,
+    monthBSpent,
+    isDeltaPositive,
   };
 }

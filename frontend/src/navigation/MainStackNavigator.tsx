@@ -37,7 +37,7 @@ const NotificationsScreen = withStackScreen(
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
-const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
+// TransactionDetail renders its own overlay — no shell wrapper
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
   stackScrollGrowShellConfig,
@@ -93,8 +93,13 @@ export default function MainStackNavigator() {
       />
       <Stack.Screen
         name="TransactionDetail"
-        component={TransactionDetailScreen}
-        options={{ ...stackScreenOptions, title: "Transaction" }}
+        component={TransactionDetailScreenBase}
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          animation: "fade",
+          contentStyle: { backgroundColor: "transparent" },
+        }}
       />
       <Stack.Screen
         name="TransactionsList"
