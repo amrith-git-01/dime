@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
+import { accent, inkSoft, radius, shadow, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   AGENT_SPINNER_INTERVAL_MS,
@@ -29,7 +29,7 @@ export const AgentThinkingBubble = memo(function AgentThinkingBubble({
   return (
     <View style={styles.bubbleWrap}>
       <View style={styles.bubble} accessibilityLiveRegion="polite">
-        <ActivityIndicator size="small" color={colors.headerGradientStart} />
+        <ActivityIndicator size="small" color={accent} />
         <Text style={styles.word}>{word}</Text>
       </View>
     </View>
@@ -49,16 +49,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    backgroundColor: surface,
+    ...Platform.select({
+      android: { elevation: 2 },
+      default: {
+        shadowColor: shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+    }),
     minHeight: 44,
   },
   word: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: colors.headerGradientStart,
+    color: inkSoft,
     letterSpacing: 0.2,
   },
 });

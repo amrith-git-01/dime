@@ -1,6 +1,12 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RotateCcw, SendHorizontal, Sparkles, X } from "lucide-react-native";
+import {
+  ArrowUpRight,
+  RotateCcw,
+  SendHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,9 +31,22 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
-import { colors, overlays, radius, spacing, timings } from "@/constants";
+import {
+  accent,
+  accentTint,
+  ink,
+  inkFaint,
+  inkSoft,
+  overlays,
+  radius,
+  shadow,
+  spacing,
+  surface,
+  surfaceSunken,
+  timings,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { AGENT_SUGGESTED_PROMPTS } from "@/features/agent/constants/suggestedPrompts";
+import { AGENT_SUGGESTED_PROMPT_META } from "@/features/agent/constants/suggestedPrompts";
 import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
@@ -49,9 +68,9 @@ const SuggestionsHeader = memo(function SuggestionsHeader({
 }: SuggestionsHeaderProps) {
   return (
     <View style={suggestionStyles.container}>
-      <Text style={suggestionStyles.title}>Ask about your money</Text>
+      <Text style={suggestionStyles.title}>TRY ASKING</Text>
       <View style={suggestionStyles.list}>
-        {AGENT_SUGGESTED_PROMPTS.map((prompt) => (
+        {AGENT_SUGGESTED_PROMPT_META.map(({ prompt, icon: Icon }) => (
           <Pressable
             key={prompt}
             accessibilityRole="button"
@@ -62,7 +81,11 @@ const SuggestionsHeader = memo(function SuggestionsHeader({
               pressed && suggestionStyles.rowPressed,
             ]}
           >
+            <View style={suggestionStyles.iconWell}>
+              <Icon size={16} color={accent} strokeWidth={1.5} />
+            </View>
             <Text style={suggestionStyles.rowText}>{prompt}</Text>
+            <ArrowUpRight size={14} color={inkFaint} strokeWidth={2} />
           </Pressable>
         ))}
       </View>
@@ -318,11 +341,7 @@ export function AgentChatOverlay({
             pressed && !showCollapseHandoffFab && styles.fabPressed,
           ]}
         >
-          <Sparkles
-            size={20}
-            color={colors.headerGradientStart}
-            strokeWidth={2}
-          />
+          <Sparkles size={20} color={surface} strokeWidth={2} />
         </Pressable>
       ) : null}
 
@@ -352,21 +371,13 @@ export function AgentChatOverlay({
                 style={[styles.collapsedIcon, collapsedIconStyle]}
                 pointerEvents="none"
               >
-                <Sparkles
-                  size={20}
-                  color={colors.headerGradientStart}
-                  strokeWidth={2}
-                />
+                <Sparkles size={20} color={surface} strokeWidth={2} />
               </Animated.View>
 
               <Animated.View style={[styles.panelInner, contentStyle]}>
                 <View style={styles.header}>
                   <View style={styles.headerTitleRow}>
-                    <Sparkles
-                      size={20}
-                      color={colors.headerGradientStart}
-                      strokeWidth={2}
-                    />
+                    <Sparkles size={20} color={accent} strokeWidth={2} />
                     <Text style={styles.headerTitle}>Dime Agent</Text>
                   </View>
                   <View style={styles.headerActions}>
@@ -380,11 +391,7 @@ export function AgentChatOverlay({
                         pressed && styles.iconButtonPressed,
                       ]}
                     >
-                      <RotateCcw
-                        size={20}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <RotateCcw size={20} color={inkSoft} strokeWidth={2} />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
@@ -396,11 +403,7 @@ export function AgentChatOverlay({
                         pressed && styles.iconButtonPressed,
                       ]}
                     >
-                      <X
-                        size={22}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <X size={22} color={inkSoft} strokeWidth={2} />
                     </Pressable>
                   </View>
                 </View>
@@ -432,7 +435,7 @@ export function AgentChatOverlay({
                     value={draft}
                     onChangeText={setDraft}
                     placeholder="Ask a question…"
-                    placeholderTextColor={colors.textSecondary}
+                    placeholderTextColor={inkFaint}
                     style={styles.input}
                     multiline
                     maxLength={4000}
@@ -453,14 +456,11 @@ export function AgentChatOverlay({
                     ]}
                   >
                     {isPending ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.barBackground}
-                      />
+                      <ActivityIndicator size="small" color={surface} />
                     ) : (
                       <SendHorizontal
                         size={20}
-                        color={colors.barBackground}
+                        color={surface}
                         strokeWidth={2}
                       />
                     )}
@@ -482,16 +482,14 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: colors.barBackground,
-    borderWidth: 3,
-    borderColor: colors.headerGradientEnd,
+    backgroundColor: accent,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.headerGradientStart,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowColor: shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
   },
   fabPressed: {
     opacity: 0.9,
@@ -514,14 +512,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   panel: {
-    backgroundColor: colors.barBackground,
-    borderWidth: 3,
-    borderColor: colors.headerGradientEnd,
+    backgroundColor: surface,
     overflow: "hidden",
-    shadowColor: colors.headerGradientStart,
+    shadowColor: shadow,
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     elevation: 16,
   },
   collapsedIcon: {
@@ -531,7 +527,7 @@ const styles = StyleSheet.create({
   },
   panelInner: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: surface,
   },
   header: {
     flexDirection: "row",
@@ -539,9 +535,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
+    paddingBottom: 14,
   },
   headerTitleRow: {
     flexDirection: "row",
@@ -551,7 +545,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
-    color: colors.textPrimary,
+    color: ink,
   },
   headerActions: {
     flexDirection: "row",
@@ -582,29 +576,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
-    backgroundColor: colors.barBackground,
+    backgroundColor: surface,
   },
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.pageBackground,
+    borderRadius: radius.full,
+    backgroundColor: surfaceSunken,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontFamily: fontFamilies.regular,
     fontSize: 15,
-    color: colors.textPrimary,
+    color: ink,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -618,34 +608,44 @@ const styles = StyleSheet.create({
 
 const suggestionStyles = StyleSheet.create({
   container: {
-    gap: spacing.md,
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
   title: {
     fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: inkSoft,
   },
   list: {
-    gap: spacing.sm,
+    gap: 2,
   },
   row: {
-    width: "100%",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: radius.sm,
   },
   rowPressed: {
-    opacity: 0.85,
-    backgroundColor: colors.surfaceTint,
+    backgroundColor: surfaceSunken,
+  },
+  iconWell: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: accentTint,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowText: {
-    fontFamily: fontFamilies.regular,
+    flex: 1,
+    fontFamily: fontFamilies.medium,
     fontSize: 15,
-    color: colors.textPrimary,
+    color: ink,
     lineHeight: 22,
   },
 });

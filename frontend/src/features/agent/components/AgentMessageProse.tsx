@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, type TextStyle } from "react-native";
 
-import { colors } from "@/constants";
+import { accent, ink, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { parseAgentProse } from "@/features/agent/utils/parseAgentProse";
 
@@ -19,7 +19,7 @@ export const AgentMessageProse = memo(function AgentMessageProse({
 
   const baseStyle: TextStyle = {
     ...styles.prose,
-    color: isUser ? colors.barBackground : colors.textPrimary,
+    color: isUser ? surface : ink,
   };
 
   const numberStyle: TextStyle = isUser
@@ -79,14 +79,11 @@ const styles = StyleSheet.create({
   },
   numberAssistant: {
     fontFamily: fontFamilies.monoSemiBold,
-    color: colors.headerGradientStart,
+    color: accent,
   },
   numberUser: {
     fontFamily: fontFamilies.monoSemiBold,
-    color: colors.barBackground,
+    color: surface,
   },
-  numberOnUser: {
-    textDecorationLine: "underline",
-    textDecorationColor: colors.headerAvatarRingBorder,
-  },
+  numberOnUser: {},
 });

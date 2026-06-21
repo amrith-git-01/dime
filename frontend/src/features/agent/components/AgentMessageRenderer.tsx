@@ -1,10 +1,9 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BENTO_GAP } from "@/components/bento";
 import { BentoStatCell } from "@/components/shared";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
-import { colors, radius, spacing } from "@/constants";
+import { accent, colors, ink, inkSoft, radius, shadow, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type { AgentBlock, AgentDeepLink } from "../types";
@@ -29,17 +28,12 @@ function MetricBlock({
   block: Extract<AgentBlock, { type: "metric" }>;
 }) {
   return (
-    <TwoToneCard
-      header={
-        <View style={styles.metricHeader}>
-          <BentoStatCell label={block.label} value={block.value} />
-          {block.delta ? (
-            <Text style={styles.metricDelta}>{block.delta}</Text>
-          ) : null}
-        </View>
-      }
-      body={<View />}
-    />
+    <View style={styles.metricCard}>
+      <BentoStatCell label={block.label} value={block.value} />
+      {block.delta ? (
+        <Text style={styles.metricDelta}>{block.delta}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -193,24 +187,42 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   bubbleUser: {
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: accent,
   },
   bubbleAssistant: {
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    backgroundColor: surface,
+    ...Platform.select({
+      android: { elevation: 2 },
+      default: {
+        shadowColor: shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+    }),
   },
   blocks: {
     gap: BENTO_GAP,
   },
-  metricHeader: {
-    padding: spacing.md,
-    gap: spacing.xs,
+  metricCard: {
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...Platform.select({
+      android: { elevation: 2 },
+      default: {
+        shadowColor: shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+    }),
   },
   metricDelta: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   categoryRow: {
     flexDirection: "row",
@@ -223,7 +235,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   categoryMeta: {
     alignItems: "flex-end",
@@ -232,12 +244,12 @@ const styles = StyleSheet.create({
   categoryAmount: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   categoryPct: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   txPreview: {
     gap: spacing.xs,
@@ -252,7 +264,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.regular,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   txAmount: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -265,7 +277,7 @@ const styles = StyleSheet.create({
   txMore: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
     marginTop: spacing.xs,
   },
   deepLink: {
@@ -275,6 +287,6 @@ const styles = StyleSheet.create({
   deepLinkText: {
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: colors.headerGradientStart,
+    color: accent,
   },
 });

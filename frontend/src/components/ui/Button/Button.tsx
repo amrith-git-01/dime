@@ -1,16 +1,19 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  type PressableProps,
-} from "react-native";
+import { Pressable, StyleSheet, Text, type PressableProps } from "react-native";
 
+import {
+  BUTTON_LOADER_SIZE,
+  InfinityButtonLoader,
+} from "@/components/ui/InfinityButtonLoader";
 import { colors, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
-type ButtonVariant = "primary" | "secondary" | "danger";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "danger"
+  | "ghost"
+  | "ghostDanger";
 
 export type ButtonProps = Omit<PressableProps, "style" | "children"> & {
   title: string;
@@ -28,6 +31,8 @@ export function Button({
 }: ButtonProps) {
   const isPrimary = variant === "primary";
   const isDanger = variant === "danger";
+  const isGhost = variant === "ghost";
+  const isGhostDanger = variant === "ghostDanger";
   const isDisabled = disabled || loading;
 
   const backgroundColor = isPrimary
@@ -38,22 +43,20 @@ export function Button({
       ? isDisabled
         ? surfaces.dangerTint06
         : surfaces.dangerTint08
-      : colors.barBackground;
+      : "transparent";
 
   const borderWidth = isPrimary ? 0 : StyleSheet.hairlineWidth;
-  const borderColor = isDanger ? colors.danger : colors.border;
+  const borderColor = isDanger || isGhostDanger ? colors.danger : colors.border;
 
   const labelColor = isPrimary
     ? colors.barBackground
-    : isDanger
+    : isDanger || isGhostDanger
       ? colors.danger
-      : colors.primary;
+      : isGhost
+        ? colors.textPrimary
+        : colors.primary;
 
-  const spinnerColor = isPrimary
-    ? colors.barBackground
-    : isDanger
-      ? colors.danger
-      : colors.primary;
+  const loaderColor = labelColor;
 
   return (
     <Pressable
@@ -77,7 +80,7 @@ export function Button({
       {...rest}
     >
       {loading ? (
-        <ActivityIndicator color={spinnerColor} />
+        <InfinityButtonLoader color={loaderColor} size={BUTTON_LOADER_SIZE} />
       ) : (
         <Text
           style={{
