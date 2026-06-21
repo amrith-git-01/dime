@@ -18,3 +18,8 @@ declare module "*.jpeg" {
   const value: ImageSourcePropType;
   export default value;
 }
+
+declare module "*.json" {
+  const value: Record<string, unknown>;
+  export default value;
+}
