@@ -1,7 +1,14 @@
 import { House } from "lucide-react-native";
-import { Pressable, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, StyleSheet } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
-import { colors } from "@/constants";
+import { ink, inkFaint } from "@/constants/colors";
+import { springs } from "@/constants/motion";
 
 import {
   ACTIVE_BUBBLE_SIZE,
@@ -25,52 +32,56 @@ export function DimeTabBarItem({
   onPress,
   onLongPress,
 }: DimeTabBarItemProps) {
-  const tabText =
-    typeof label === "string" && label.trim().length > 0
-      ? label
-      : routeName || "Tab";
-
   const Icon = isRouteName(routeName) ? ROUTE_ICONS[routeName] : House;
+  const a11yLabel =
+    typeof label === "string" && label.trim() ? label : routeName || "Tab";
+
+  // Spring scale: active tab icon grows slightly.
+  const scale = useSharedValue(isFocused ? 1.08 : 1.0);
+  useEffect(() => {
+    scale.value = withSpring(isFocused ? 1.08 : 1.0, springs.snappy);
+  }, [isFocused, scale]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: isFocused }}
-      accessibilityLabel={tabText}
+      accessibilityLabel={a11yLabel}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={styles.tabItem}
+      style={({ pressed }) => [styles.item, pressed && styles.pressed]}
     >
-      <View style={styles.tabItemBody}>
-        <View style={styles.iconStack}>
-          <Icon
-            size={TAB_ICON_SIZE}
-            color={isFocused ? "transparent" : colors.tabBarOnPrimaryInactive}
-            strokeWidth={1.7}
-          />
-        </View>
-      </View>
+      {/* orb is a fixed-size hit region; background provided by the sliding indicator */}
+      <Animated.View style={[styles.orb, iconStyle]}>
+        <Icon
+          size={TAB_ICON_SIZE}
+          color={isFocused ? ink : inkFaint}
+          strokeWidth={isFocused ? 2 : 1.5}
+        />
+      </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  tabItem: {
-    flex: 1,
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 0,
-  },
-  tabItemBody: {
-    width: "100%",
+  item: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 48,
+    zIndex: 1,
   },
-  iconStack: {
+  pressed: {
+    opacity: 0.65,
+  },
+  orb: {
     width: ACTIVE_BUBBLE_SIZE,
     height: ACTIVE_BUBBLE_SIZE,
+    borderRadius: ACTIVE_BUBBLE_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
   },

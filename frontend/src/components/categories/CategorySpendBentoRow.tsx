@@ -4,7 +4,15 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { ProgressBar } from "@/components/ui";
-import { colors, spacing } from "@/constants";
+import {
+  ink,
+  inkSoft,
+  line,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
@@ -71,10 +79,10 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
       : 0;
 
   const subtitle = hasCategoryCap
-    ? "Share of category budget"
+    ? `Cap ₹${formatInrCompact(cap)} · ${Math.round(Math.min(1, item.spentMonth / cap) * 100)}% used`
     : hasMonthlyBudget
-      ? "Share of monthly budget"
-      : "Spent this month";
+      ? `${Math.round(Math.min(1, item.spentMonth / monthlyBudgetAmount) * 100)}% of monthly budget`
+      : null;
 
   const showProgress = hasCategoryCap || hasMonthlyBudget;
 
@@ -83,7 +91,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
       <View style={styles.catLeft}>
         <View style={styles.catTileWrap}>
           <View
-            style={[styles.catTile, { backgroundColor: `${item.color}22` }]}
+            style={[styles.catTile, { backgroundColor: `${item.color}14` }]}
           >
             <CategoryLucideIcon
               iconName={item.icon_name}
@@ -106,11 +114,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
                 pressed && styles.editBadgePressed,
               ]}
             >
-              <Pencil
-                size={13}
-                color={colors.categoryDefault}
-                strokeWidth={2}
-              />
+              <Pencil size={13} color={inkSoft} strokeWidth={2} />
             </Pressable>
           ) : null}
         </View>
@@ -128,7 +132,9 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
               </View>
             ) : null}
           </View>
-          <Text style={styles.catBudgetText}>{subtitle}</Text>
+          {subtitle ? (
+            <Text style={styles.catBudgetText}>{subtitle}</Text>
+          ) : null}
         </View>
       </View>
       <View style={styles.catRight}>
@@ -178,6 +184,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
+    paddingVertical: spacing.md,
   },
   categoryRowPressed: {
     opacity: 0.88,
@@ -195,7 +202,7 @@ const styles = StyleSheet.create({
   catTile: {
     width: 46,
     height: 46,
-    borderRadius: 12,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -208,14 +215,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.barBackground,
+    backgroundColor: surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: line,
+    ...shadows.card,
   },
   editBadgePressed: {
     opacity: 0.88,
@@ -234,12 +237,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: ink,
     flexShrink: 1,
   },
   customPill: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: line,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -248,14 +251,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 10,
     lineHeight: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   catBudgetText: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
+    color: inkSoft,
+    marginTop: 3,
   },
   catRight: {
     flexShrink: 0,
@@ -265,7 +268,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 15,
     lineHeight: 21,
-    color: colors.textPrimary,
+    color: ink,
   },
   catProgressWrap: {
     marginTop: spacing.xs,

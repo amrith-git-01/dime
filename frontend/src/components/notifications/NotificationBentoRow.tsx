@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
+import { accent, line, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   NOTIFICATION_ACTION_WELL_SIZE,
@@ -105,6 +105,11 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
             pressed && styles.rowPressed,
           ]}
         >
+          {unread ? (
+            <View style={styles.dot} />
+          ) : (
+            <View style={styles.dotPlaceholder} />
+          )}
           <View style={[styles.iconWell, kindIconWellStyle]}>
             <Icon size={16} color={visual.iconColor} strokeWidth={2} />
           </View>
@@ -223,9 +228,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: accent,
+    alignSelf: "center",
+    marginRight: spacing.xs,
+  },
+  dotPlaceholder: {
+    width: 6,
+    marginRight: spacing.xs,
+  },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginLeft: ICON_WELL_SIZE + spacing.sm,
+    backgroundColor: line,
+    marginLeft: 6 + spacing.xs + ICON_WELL_SIZE + spacing.sm,
   },
 });

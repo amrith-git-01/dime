@@ -1,21 +1,15 @@
-import {
-  ArrowLeftRight,
-  ChartBar,
-  House,
-  Target,
-} from "lucide-react-native";
+import { ArrowLeftRight, ChartBar, House, Target } from "lucide-react-native";
 
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 export const TAB_ICON_SIZE = 22;
-export const ACTIVE_ICON_SIZE = 24;
+export const ACTIVE_ICON_SIZE = 22;
 export const ACTIVE_BUBBLE_SIZE = 44;
-export const ACTION_BUBBLE_SIZE = 64;
-export const ACTION_PLUS_ICON_SIZE = 30;
+export const ACTION_BUBBLE_SIZE = 60;
+export const ACTION_PLUS_ICON_SIZE = 26;
 export const OPTION_BUBBLE_SIZE = 44;
-export const LIQUID_PILL_WIDTH = 56;
-export const LIQUID_PILL_HEIGHT = 30;
-export const NOTCH_CUTOUT_SIZE = 52;
+export const LIQUID_PILL_WIDTH = 44;
+export const LIQUID_PILL_HEIGHT = 44;
 export const TOTAL_NAV_SLOTS = 5;
 
 export const ROUTE_ICONS = {
