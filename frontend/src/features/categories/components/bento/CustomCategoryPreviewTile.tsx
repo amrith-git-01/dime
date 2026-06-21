@@ -1,9 +1,9 @@
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { CategorySpendBentoRow } from "@/components/categories/CategorySpendBentoRow";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { ink, inkSoft, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
 
 type CustomCategoryPreviewTileProps = {
@@ -18,34 +18,27 @@ export const CustomCategoryPreviewTile = memo(
     iconName,
     color,
   }: CustomCategoryPreviewTileProps) {
-    const displayName = name.trim().length > 0 ? name.trim() : "Name";
-
-    const previewItem = useMemo(
-      () => ({
-        id: "preview",
-        name: displayName,
-        icon_name: iconName,
-        color,
-        spentMonth: 0,
-        is_system: false,
-      }),
-      [color, displayName, iconName],
-    );
+    const displayName = name.trim().length > 0 ? name.trim() : "Category Name";
+    const tileBg = useMemo(() => `${color}14`, [color]);
 
     return (
       <View style={styles.wrap}>
-        <Text style={styles.label}>Preview</Text>
-        <View style={styles.rowShell}>
-          <CategorySpendBentoRow
-            item={previewItem}
-            hasMonthlyBudget={false}
-            monthlyBudgetAmount={0}
-            nameWraps
+        <View style={[styles.iconTile, { backgroundColor: tileBg }]}>
+          <CategoryLucideIcon
+            iconName={iconName}
+            color={color}
+            size={22}
+            strokeWidth={1.5}
           />
         </View>
-        <Text style={styles.hint}>
-          Icon uses your color; tile background is the list tint
-        </Text>
+        <View style={styles.meta}>
+          <Text style={styles.name} numberOfLines={1}>
+            {displayName}
+          </Text>
+          <Text style={styles.hint}>
+            This is how it&apos;ll appear in your budget list
+          </Text>
+        </View>
       </View>
     );
   },
@@ -53,28 +46,32 @@ export const CustomCategoryPreviewTile = memo(
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
-  label: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  iconTile: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  rowShell: {
-    backgroundColor: bento.sectionSurface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+  meta: {
+    flex: 1,
+    gap: 3,
+  },
+  name: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: ink,
   },
   hint: {
     fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
+    color: inkSoft,
   },
 });

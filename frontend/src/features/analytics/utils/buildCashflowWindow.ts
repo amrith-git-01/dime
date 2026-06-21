@@ -39,6 +39,14 @@ export function isCurrentMonth(year: number, monthIndex0: number): boolean {
   return now.getFullYear() === year && now.getMonth() === monthIndex0;
 }
 
+export function isPastMonth(year: number, monthIndex0: number): boolean {
+  const now = new Date();
+  return (
+    year < now.getFullYear() ||
+    (year === now.getFullYear() && monthIndex0 < now.getMonth())
+  );
+}
+
 /** Last calendar day in the month (28–31), including future days in the current month. */
 export function calendarDaysInMonth(year: number, monthIndex0: number): number {
   return lastDayOfMonth(new Date(year, monthIndex0, 1)).getDate();

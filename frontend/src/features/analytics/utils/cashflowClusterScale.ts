@@ -150,7 +150,8 @@ export function collectCashflowRowValues(
 ): number[] {
   const values: number[] = [];
   for (const row of rows) {
-    values.push(row.expense, row.income, row.netSurplus, row.netDeficit);
+    // Scale axis on expense only — income and net values are not bars.
+    values.push(row.expense);
   }
   return values;
 }

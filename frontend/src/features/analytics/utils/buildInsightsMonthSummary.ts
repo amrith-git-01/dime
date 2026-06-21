@@ -11,6 +11,7 @@ export function buildInsightsMonthSummary(
   data: InsightsSummary | undefined,
   hasMonthlyBudget: boolean,
   monthlyBudgetAmount: number,
+  isPast: boolean,
 ): InsightsMonthSummary {
   if (!data || data.transaction_count === 0) {
     return buildEmptyInsightsMonthSummary(
@@ -41,6 +42,12 @@ export function buildInsightsMonthSummary(
     : hasSpentMonth
       ? `${Math.round(usagePct * 100)}%`
       : "0%";
+  const incomeNum = Number.parseFloat(data.credit_total);
+  const hasIncome = Number.isFinite(incomeNum) && incomeNum > 0;
+  const savingsRatePct = hasIncome
+    ? Math.round((netValue / incomeNum) * 100)
+    : null;
+
   return {
     transactionCount: data.transaction_count,
     hasMonthlyBudget,
@@ -50,7 +57,11 @@ export function buildInsightsMonthSummary(
       : "\u2014",
     usedPctDisplay,
     remainingValue,
-    remainingLabel: isOverBudget ? "Over" : "Remaining",
+    remainingLabel: isOverBudget
+      ? "Over budget"
+      : isPast
+        ? "Saved"
+        : "Remaining",
     remainingDisplay: !hasMonthlyBudget
       ? "\u2014"
       : isOverBudget
@@ -60,5 +71,6 @@ export function buildInsightsMonthSummary(
     incomeDisplay: formatSpendMagnitude(data.credit_total),
     netDisplay: formatNetDisplay(data.net),
     netValue,
+    savingsRatePct,
   };
 }

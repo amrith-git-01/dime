@@ -50,6 +50,12 @@ export function useChartInViewport(
   const onChartLayout = useCallback(
     (_event: LayoutChangeEvent) => {
       measureVisibility();
+      // measureInWindow can return height=0 on the first call for a freshly
+      // mounted native view (layout not yet committed to the window layer).
+      // A double rAF retries after the frame is actually painted.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => measureVisibility());
+      });
     },
     [measureVisibility],
   );

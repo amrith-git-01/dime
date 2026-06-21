@@ -1,29 +1,24 @@
 import { useIsFocused } from "@react-navigation/native";
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { EmptyState, emptyStateCopy } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import { bento, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { spacing } from "@/constants";
 import { ClockwiseAnimatedPie } from "@/features/analytics/components/ClockwiseAnimatedPie";
-import { PayeeDonutEmptyChart } from "@/features/analytics/components/PayeeDonutChart";
+import { PayeeDonutLegendList } from "@/features/analytics/components/PayeeDonutLegendList";
 import { INSIGHTS_CHART_DONUT_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import { COMPARE_DONUT_SIZE } from "@/features/analytics/constants/compare";
 import { COUNTERPARTY_DONUT_INNER_RADIUS_RATIO } from "@/features/analytics/constants/counterpartyDonut";
 import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
 import { buildCounterpartyDonutData } from "@/features/analytics/utils/buildCounterpartyDonutData";
-import { formatPayeeShare } from "@/features/analytics/utils/formatPayeeShare";
-import { formatInrCompact } from "@/utils/currency";
 
 import {
-  CompareColumnEmpty,
   CompareColumnError,
   ComparePairedColumns,
   ComparePairedLayout,
 } from "./ComparePairedLayout";
-
-const TOP_PAYEE_COUNT = 3;
 
 export type ComparePayeeSectionProps = {
   leftLabel: string;
@@ -73,12 +68,11 @@ function PayeeColumn({
     () => buildCounterpartyDonutData(counterpartySpend),
     [counterpartySpend],
   );
-  const topPayees = useMemo(
-    () =>
-      donutData.filter((slice) => slice.value > 0).slice(0, TOP_PAYEE_COUNT),
+  const legendSlices = useMemo(
+    () => donutData.filter((slice) => slice.value > 0),
     [donutData],
   );
-  const hasData = donutData.some((slice) => slice.value > 0);
+  const hasData = legendSlices.length > 0;
   const isFocused = useIsFocused();
   const donutEntryProgress = usePieClockwiseEntry({
     identity: `compare-donut-${year}-${monthIndex0}`,
@@ -96,34 +90,25 @@ function PayeeColumn({
 
   return (
     <View style={styles.column} pointerEvents="none">
-      <View style={styles.donutWrap}>
-        {hasData ? (
-          <ClockwiseAnimatedPie
-            data={donutData}
-            size={COMPARE_DONUT_SIZE}
-            innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
-            progress={donutEntryProgress}
-          />
-        ) : (
-          <PayeeDonutEmptyChart size={COMPARE_DONUT_SIZE} />
-        )}
-      </View>
-      {topPayees.length > 0 ? (
-        <View style={styles.payeeList}>
-          {topPayees.map((slice) => (
-            <View key={slice.payee_key} style={styles.payeeRow}>
-              <Text style={styles.payeeName} numberOfLines={1}>
-                {slice.display_name}
-              </Text>
-              <Text style={styles.payeeMeta} numberOfLines={1}>
-                {formatPayeeShare(slice.share)} ·{" "}
-                {formatInrCompact(slice.debit_total)}
-              </Text>
-            </View>
-          ))}
-        </View>
+      {hasData ? (
+        <>
+          <View style={styles.donutWrap}>
+            <ClockwiseAnimatedPie
+              data={donutData}
+              size={COMPARE_DONUT_SIZE}
+              innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
+              progress={donutEntryProgress}
+            />
+          </View>
+          <PayeeDonutLegendList slices={legendSlices} />
+        </>
       ) : (
-        <CompareColumnEmpty message="No payees this month" />
+        <EmptyState
+          layout="inset"
+          compact
+          headline={emptyStateCopy.comparePayees.headline}
+          subtext={emptyStateCopy.comparePayees.subtext}
+        />
       )}
     </View>
   );
@@ -145,7 +130,7 @@ export const ComparePayeeSection = memo(function ComparePayeeSection({
 }: ComparePayeeSectionProps) {
   return (
     <ComparePairedLayout
-      title="Who you paid"
+      kicker="WHO YOU PAID"
       subtitle="Where spending went"
       leftLabel={leftLabel}
       rightLabel={rightLabel}
@@ -181,24 +166,6 @@ const styles = StyleSheet.create({
   },
   donutWrap: {
     alignItems: "center",
-  },
-  payeeList: {
-    gap: spacing.xs,
-  },
-  payeeRow: {
-    gap: 1,
-  },
-  payeeName: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 14,
-    color: bento.onPastel.primary,
-  },
-  payeeMeta: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 10,
-    lineHeight: 13,
-    color: bento.onPastel.muted,
   },
   skeleton: {
     alignItems: "center",

@@ -25,6 +25,7 @@ export function buildEmptyInsightsMonthSummary(
     incomeDisplay: EM_DASH,
     netDisplay: EM_DASH,
     netValue: 0,
+    savingsRatePct: null,
   };
 }
 
@@ -43,9 +44,10 @@ export function buildEmptyBurnRateMetrics(
   return {
     spentSoFar: 0,
     spentDisplay: EM_DASH,
+    spentLabel: "Spent so far",
     idealPace: null,
     idealDisplay: EM_DASH,
-    idealLabel: hasMonthlyBudget ? "Ideal by today" : "Ideal by today",
+    idealLabel: "Ideal by today",
     hasMonthlyBudget: budget != null,
     monthlyBudget: budget,
     isOverPace: false,

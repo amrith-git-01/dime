@@ -78,6 +78,11 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
     animateConfig: INSIGHTS_CHART_BAR_ANIMATION,
   });
 
+  const incomeFlags = useMemo(
+    () => entryChartData.map((row) => row.income > 0),
+    [entryChartData],
+  );
+
   const scrollRef = useRef<ScrollView>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
 
@@ -126,10 +131,10 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
                 barPadding={barPadding}
                 plotHeight={COMPARE_CASHFLOW_PLOT_HEIGHT}
                 plotWidth={scrollWidth}
-                expenseStrokeWidth={2}
-                incomeStrokeWidth={1.5}
-                chartPadding={{ left: 4, right: 8, top: 6, bottom: 2 }}
-                domainPadding={{ left: 8, right: 8, top: 6, bottom: 2 }}
+                incomeFlags={incomeFlags}
+                todayDay={todayDay}
+                chartPadding={{ left: 4, right: 8, top: 10, bottom: 2 }}
+                domainPadding={{ left: 8, right: 8, top: 10, bottom: 2 }}
               />
             </View>
 
