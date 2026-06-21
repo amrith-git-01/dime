@@ -3,20 +3,19 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type MutableRefObject,
 } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import {
   ChartTooltipOverlay,
-  TwoToneCard,
+  EmptyState,
+  emptyStateCopy,
   type ChartPressTooltipRow,
   type ChartTooltipAnchor,
 } from "@/components/shared";
-import { bento, colors, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { spacing } from "@/constants";
 import { INSIGHTS_CHART_DONUT_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import {
   COUNTERPARTY_DONUT_INNER_RADIUS_RATIO,
@@ -36,11 +35,12 @@ import { useChartInViewport } from "@/features/analytics/hooks/useChartInViewpor
 import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 
 import { ClockwiseAnimatedPie } from "./ClockwiseAnimatedPie";
-import { PayeeDonutEmptyChart } from "./PayeeDonutChart";
+import { InsightsDonutCardSkeleton } from "./InsightsAnalyticsSkeletons";
+import { InsightsCard } from "./InsightsCard";
+import { PayeeDonutLegendList } from "./PayeeDonutLegendList";
 import { PayeeDonutPressable } from "./PayeeDonutPressable";
 
-const LEGEND_MAX_WIDTH = 168;
-const CONTENT_MIN_HEIGHT = 228;
+const CONTENT_MIN_HEIGHT = 240;
 const TOOLTIP_WIDTH = 168;
 
 export type InsightsCounterpartyDonutCardProps = {
@@ -78,12 +78,11 @@ function buildPayeeTooltipRows(
 
 const EmptyDonutLayout = memo(function EmptyDonutLayout() {
   return (
-    <View style={styles.emptyContent}>
-      <PayeeDonutEmptyChart
-        size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
-        innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
-      />
-    </View>
+    <EmptyState
+      layout="inset"
+      headline={emptyStateCopy.analyticsCounterparty.headline}
+      subtext={emptyStateCopy.analyticsCounterparty.subtext}
+    />
   );
 });
 
@@ -168,7 +167,7 @@ export const InsightsCounterpartyDonutCard = memo(
         label:
           tooltipPayee.slice.payee_key === COUNTERPARTY_DONUT_OTHER_KEY
             ? "View other payees"
-            : undefined,
+            : "View transactions",
         onPress: handleTooltipViewPress,
       };
     }, [handleTooltipViewPress, tooltipPayee]);
@@ -183,56 +182,46 @@ export const InsightsCounterpartyDonutCard = memo(
 
     return (
       <>
-        <TwoToneCard
-          header={
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Who you paid</Text>
-              <Text style={styles.headerSubtitle}>
-                Debit spending by payee this month
-              </Text>
-            </View>
-          }
-          body={
-            <View style={styles.body}>
-              {chartLoading || !hasSpend ? (
-                <EmptyDonutLayout />
-              ) : (
-                <View
-                  ref={containerRef}
-                  collapsable={false}
-                  onLayout={onChartLayout}
-                  style={styles.contentRow}
-                >
-                  <View style={styles.donutLegendCluster}>
-                    <PayeeDonutPressable
+        <InsightsCard
+          kicker="WHO YOU PAID"
+          subtitle="Debit spending by payee this month"
+        >
+          <View style={styles.body}>
+            {chartLoading ? (
+              <InsightsDonutCardSkeleton />
+            ) : !hasSpend ? (
+              <EmptyDonutLayout />
+            ) : (
+              <View
+                ref={containerRef}
+                collapsable={false}
+                onLayout={onChartLayout}
+                style={styles.contentRow}
+              >
+                <View style={styles.donutLegendCluster}>
+                  <PayeeDonutPressable
+                    data={chartData}
+                    size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
+                    innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
+                    onSlicePress={handleDonutSlicePress}
+                  >
+                    <ClockwiseAnimatedPie
                       data={chartData}
                       size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
                       innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
-                      onSlicePress={handleDonutSlicePress}
-                    >
-                      <ClockwiseAnimatedPie
-                        data={chartData}
-                        size={INSIGHTS_COUNTERPARTY_DONUT_SIZE}
-                        innerRadiusRatio={COUNTERPARTY_DONUT_INNER_RADIUS_RATIO}
-                        progress={donutEntryProgress}
-                      />
-                    </PayeeDonutPressable>
+                      progress={donutEntryProgress}
+                    />
+                  </PayeeDonutPressable>
 
-                    <View style={styles.legend}>
-                      {chartData.map((slice) => (
-                        <LegendRow
-                          key={slice.payee_key}
-                          slice={slice}
-                          onPress={handleLegendPress}
-                        />
-                      ))}
-                    </View>
-                  </View>
+                  <PayeeDonutLegendList
+                    slices={chartData}
+                    onSlicePress={handleLegendPress}
+                  />
                 </View>
-              )}
-            </View>
-          }
-        />
+              </View>
+            )}
+          </View>
+        </InsightsCard>
 
         <ChartTooltipOverlay
           visible={tooltipPayee != null}
@@ -248,69 +237,11 @@ export const InsightsCounterpartyDonutCard = memo(
   },
 );
 
-type LegendRowProps = {
-  slice: CounterpartyDonutDatum;
-  onPress: (slice: CounterpartyDonutDatum, anchor: ChartTooltipAnchor) => void;
-};
-
-const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
-  const rowRef = useRef<View>(null);
-
-  const handlePress = useCallback(() => {
-    rowRef.current?.measureInWindow((x, y, width, height) => {
-      onPress(slice, { x, y, width, height });
-    });
-  }, [onPress, slice]);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`View details for ${slice.display_name}`}
-      onPress={handlePress}
-      style={({ pressed }) => [
-        styles.legendRow,
-        pressed && styles.legendRowPressed,
-      ]}
-    >
-      <View ref={rowRef} collapsable={false} style={styles.legendRowInner}>
-        <View style={[styles.legendSwatch, { backgroundColor: slice.color }]} />
-        <View style={styles.legendTextCol}>
-          <Text style={styles.legendName} numberOfLines={1}>
-            {slice.display_name}
-          </Text>
-          <Text style={styles.legendMeta}>
-            {formatPayeeShare(slice.share)} ·{" "}
-            {formatInrCompact(slice.debit_total)}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-});
-
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.primary,
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: bento.onPastel.muted,
-  },
   body: {
     width: "100%",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     minHeight: CONTENT_MIN_HEIGHT,
     alignItems: "center",
@@ -320,58 +251,12 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
+    minHeight: CONTENT_MIN_HEIGHT - spacing.md - spacing.lg,
   },
   donutLegendCluster: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: spacing.md,
     maxWidth: "100%",
-  },
-  emptyContent: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: CONTENT_MIN_HEIGHT - spacing.sm - spacing.lg,
-  },
-  legend: {
-    flexShrink: 1,
-    maxWidth: LEGEND_MAX_WIDTH,
-    gap: 8,
-  },
-  legendRow: {
-    borderRadius: 8,
-  },
-  legendRowInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: 5,
-    paddingHorizontal: spacing.xs,
-  },
-  legendRowPressed: {
-    opacity: 0.88,
-  },
-  legendSwatch: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendTextCol: {
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  legendName: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textPrimary,
-  },
-  legendMeta: {
-    marginTop: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 10,
-    lineHeight: 13,
-    color: bento.onPastel.muted,
   },
 });

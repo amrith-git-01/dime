@@ -1,15 +1,14 @@
-import { Group, rect } from "@shopify/react-native-skia";
+import { Circle } from "@shopify/react-native-skia";
 import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { Bar, CartesianChart, Line } from "victory-native";
+import { Bar, CartesianChart } from "victory-native";
 
-import { colors } from "@/constants";
+import { accent, colors } from "@/constants";
 import type { ChartPathAnimationConfig } from "@/features/analytics/constants/chartAnimation";
 
-import {
-  NET_DEFICIT_BAR,
-  NET_SURPLUS_BAR,
-} from "./insightsCashflowChartTokens";
+const INCOME_DOT_RADIUS = 3;
+const TODAY_DOT_RADIUS = 3.5;
+const DOT_GAP = 3;
 
 type CashflowChartRow = {
   day: number;
@@ -30,8 +29,10 @@ export type CashflowVictoryChartProps = {
   barPadding: number;
   plotHeight: number;
   plotWidth: number;
-  expenseStrokeWidth?: number;
-  incomeStrokeWidth?: number;
+  /** Indices into chartData where income > 0 (for green dot indicators). */
+  incomeFlags: boolean[];
+  /** 1-based day number for current month today indicator (null for past/future). */
+  todayDay: number | null;
   chartPadding?: {
     left: number;
     right: number;
@@ -53,27 +54,26 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
   barPadding,
   plotHeight,
   plotWidth,
-  expenseStrokeWidth = 2.5,
-  incomeStrokeWidth = 2,
-  chartPadding = { left: 6, right: 10, top: 8, bottom: 4 },
-  domainPadding = { left: 10, right: 10, top: 8, bottom: 4 },
+  incomeFlags,
+  todayDay,
+  chartPadding = { left: 6, right: 10, top: 16, bottom: 4 },
+  domainPadding = { left: 10, right: 10, top: 16, bottom: 4 },
 }: CashflowVictoryChartProps) {
   const barCount = chartData.length;
 
-  const lineProps = useMemo(
-    () => ({
-      curveType: "monotoneX" as const,
-      connectMissingData: true,
-    }),
-    [],
-  );
+  // Map day → index in chartData for quick lookup in render prop
+  const dayToIndex = useMemo(() => {
+    const m = new Map<number, number>();
+    chartData.forEach((row, i) => m.set(row.day, i));
+    return m;
+  }, [chartData]);
 
   return (
     <View style={[styles.plot, { height: plotHeight, width: plotWidth }]}>
       <CartesianChart
         data={chartData}
         xKey="day"
-        yKeys={["netSurplus", "netDeficit", "expense", "income"]}
+        yKeys={["expense"]}
         domain={domain}
         padding={chartPadding}
         domainPadding={domainPadding}
@@ -90,45 +90,62 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
       >
         {({ points, chartBounds }) => (
           <>
+            {/* Expense bars — accent indigo fill */}
             <Bar
-              points={points.netSurplus}
+              points={points.expense}
               chartBounds={chartBounds}
-              color={NET_SURPLUS_BAR}
+              color={accent}
               innerPadding={barPadding}
               barCount={barCount}
               animate={animate}
             />
-            <Bar
-              points={points.netDeficit}
-              chartBounds={chartBounds}
-              color={NET_DEFICIT_BAR}
-              innerPadding={barPadding}
-              barCount={barCount}
-              animate={animate}
-            />
-            <Group
-              clip={rect(
-                chartBounds.left,
-                chartBounds.top,
-                chartBounds.right - chartBounds.left,
-                chartBounds.bottom - chartBounds.top,
-              )}
-            >
-              <Line
-                points={points.expense}
-                color={colors.danger}
-                strokeWidth={expenseStrokeWidth}
-                animate={animate}
-                {...lineProps}
-              />
-              <Line
-                points={points.income}
-                color={colors.success}
-                strokeWidth={incomeStrokeWidth}
-                animate={animate}
-                {...lineProps}
-              />
-            </Group>
+
+            {/* Income dots — small green circles above the expense bar */}
+            {points.expense.map((pt, i) => {
+              if (!incomeFlags[i] || pt.x === undefined) return null;
+              const barTop = pt.y ?? chartBounds.bottom;
+              const cy = Math.max(
+                chartBounds.top + INCOME_DOT_RADIUS,
+                barTop - INCOME_DOT_RADIUS - DOT_GAP,
+              );
+              return (
+                <Circle
+                  key={`income-${i}`}
+                  cx={pt.x}
+                  cy={cy}
+                  r={INCOME_DOT_RADIUS}
+                  color={colors.success}
+                />
+              );
+            })}
+
+            {/* Today marker — filled accent dot above today's bar */}
+            {todayDay != null &&
+              (() => {
+                const idx = dayToIndex.get(todayDay);
+                if (idx === undefined) return null;
+                const pt = points.expense[idx];
+                if (!pt || pt.x === undefined) return null;
+                // Income dot already there? Stack today dot further up
+                const hasIncome = incomeFlags[idx];
+                const barTop = pt.y ?? chartBounds.bottom;
+                const cy = Math.max(
+                  chartBounds.top + TODAY_DOT_RADIUS,
+                  barTop -
+                    TODAY_DOT_RADIUS -
+                    DOT_GAP -
+                    (hasIncome ? INCOME_DOT_RADIUS * 2 + DOT_GAP : 0),
+                );
+                return (
+                  <Circle
+                    key="today"
+                    cx={pt.x}
+                    cy={cy}
+                    r={TODAY_DOT_RADIUS}
+                    color={accent}
+                  />
+                );
+              })()}
           </>
         )}
       </CartesianChart>

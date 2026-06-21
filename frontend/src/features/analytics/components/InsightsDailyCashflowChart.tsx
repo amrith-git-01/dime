@@ -1,10 +1,9 @@
 import {
   ChartTooltipOverlay,
   netTone,
-  TwoToneCard,
   type ChartTooltipAnchor,
 } from "@/components/shared";
-import { bento, colors, spacing, surfaces } from "@/constants";
+import { accent, colors, inkSoft, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { DailyCashflowRow } from "@/features/analytics/types";
 import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
@@ -37,10 +36,8 @@ import {
   formatCashflowXLabel,
 } from "../utils/buildCashflowWindow";
 import { CashflowVictoryChart } from "./CashflowVictoryChart";
-import {
-  NET_DEFICIT_BAR,
-  NET_SURPLUS_BAR,
-} from "./insightsCashflowChartTokens";
+import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
+import { InsightsCard } from "./InsightsCard";
 
 const CHART_PLOT_HEIGHT = 212;
 const X_LABEL_ROW_HEIGHT = 22;
@@ -191,6 +188,13 @@ export const InsightsDailyCashflowChart = memo(
     const victoryChartData = chartLoading ? zeroChartData : entryChartData;
     const victoryAnimate = chartLoading ? undefined : chartAnimate;
 
+    // Income dot flags — derived from victoryChartData so dots only appear
+    // once bars animate in (zero phase has income=0, target phase shows real data).
+    const incomeFlags = useMemo(
+      () => victoryChartData.map((row) => row.income > 0),
+      [victoryChartData],
+    );
+
     const [selected, setSelected] = useState<SelectedDay | null>(null);
     const scrollRef = useRef<ScrollView>(null);
     const [viewportWidth, setViewportWidth] = useState(0);
@@ -285,24 +289,21 @@ export const InsightsDailyCashflowChart = memo(
     }, [dismissTooltip, onViewDayPress, selected]);
 
     const tooltipViewAction = useMemo(
-      () => ({ onPress: handleTooltipViewPress }),
+      () => ({ label: "View day", onPress: handleTooltipViewPress }),
       [handleTooltipViewPress],
     );
 
     return (
       <>
         <View ref={containerRef} collapsable={false} onLayout={onChartLayout}>
-          <TwoToneCard
-            header={
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Daily cash flow</Text>
-                <Text style={styles.headerSubtitle}>
-                  Income, spending, and net each day
-                </Text>
-              </View>
-            }
-            body={
-              <View style={styles.body}>
+          <InsightsCard
+            kicker="DAILY CASH FLOW"
+            subtitle="Expense each day this month"
+          >
+            <View style={styles.body}>
+              {chartLoading ? (
+                <InsightsCashflowChartSkeleton />
+              ) : (
                 <>
                   <View style={styles.chartRow}>
                     <View
@@ -342,6 +343,8 @@ export const InsightsDailyCashflowChart = memo(
                             barPadding={barPadding}
                             plotHeight={CHART_PLOT_HEIGHT}
                             plotWidth={scrollWidth}
+                            incomeFlags={incomeFlags}
+                            todayDay={todayDay}
                           />
 
                           <View
@@ -432,46 +435,18 @@ export const InsightsDailyCashflowChart = memo(
 
                   <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendLine,
-                          { backgroundColor: colors.danger },
-                        ]}
-                      />
+                      <View style={styles.legendBar} />
                       <Text style={styles.legendLabel}>Expense</Text>
                     </View>
                     <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendLine,
-                          { backgroundColor: colors.success },
-                        ]}
-                      />
+                      <View style={styles.legendDot} />
                       <Text style={styles.legendLabel}>Income</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendBar,
-                          { backgroundColor: NET_SURPLUS_BAR },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Net +</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendBar,
-                          { backgroundColor: NET_DEFICIT_BAR },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Net −</Text>
                     </View>
                   </View>
                 </>
-              </View>
-            }
-          />
+              )}
+            </View>
+          </InsightsCard>
         </View>
         <ChartTooltipOverlay
           visible={selected != null && tooltipRows != null}
@@ -487,27 +462,9 @@ export const InsightsDailyCashflowChart = memo(
 );
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.primary,
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: bento.onPastel.muted,
-  },
   body: {
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
@@ -530,7 +487,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 8,
     lineHeight: 10,
-    color: bento.onPastel.muted,
+    color: inkSoft,
     textAlign: "right",
   },
   chartScroll: {
@@ -551,7 +508,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   dayHitCellSelected: {
-    backgroundColor: surfaces.primaryTint08,
+    backgroundColor: `${accent}14`,
   },
   xLabelsRow: {
     flexDirection: "row",
@@ -566,14 +523,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 9,
     lineHeight: 12,
-    color: bento.onPastel.muted,
+    color: inkSoft,
     textAlign: "center",
   },
   xLabelToday: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 8,
     lineHeight: 11,
-    color: colors.textPrimary,
+    color: accent,
   },
   legendRow: {
     flexDirection: "row",
@@ -586,20 +543,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
   },
-  legendLine: {
-    width: 12,
-    height: 3,
-    borderRadius: 2,
-  },
   legendBar: {
-    width: 8,
+    width: 10,
     height: 10,
     borderRadius: 2,
+    backgroundColor: accent,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
   },
   legendLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 10,
     lineHeight: 13,
-    color: bento.onPastel.muted,
+    color: inkSoft,
   },
 });

@@ -1,23 +1,23 @@
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import {
-  BentoStatCell,
-  MonthSummaryCardShell,
-  MonthSummaryHeaderError,
-  MonthSummaryHeaderKicker,
-  MonthSummaryHeaderTitle,
-  MonthSummarySectionDivider,
-  MonthSummaryStatDivider,
-  MonthSummaryStatsRow,
-  MonthSummaryUnavailableText,
-  netTone,
-  type BentoStatCellTone,
-} from "@/components/shared";
-import { SkeletonStrip } from "@/components/ui";
-import { bento, spacing } from "@/constants";
+  accent,
+  danger,
+  ink,
+  inkFaint,
+  inkSoft,
+  line,
+  radius,
+  shadows,
+  spacing,
+  success,
+  surface,
+  surfaceSunken,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import type { MonthOption } from "@/utils/buildMonthOptions";
 
 export type InsightsMonthSummary = {
   transactionCount: number;
@@ -32,149 +32,304 @@ export type InsightsMonthSummary = {
   incomeDisplay: string;
   netDisplay: string;
   netValue: number;
+  savingsRatePct: number | null;
 };
 
 export type InsightsMonthSummaryCardProps = {
   selectedMonth: string;
-  monthOptions: MonthOption[];
-  onSelectMonth: (index: number) => void;
-  onMonthMenuOpenChange?: (open: boolean) => void;
+  canGoPrevMonth: boolean;
+  canGoNextMonth: boolean;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
   summary: InsightsMonthSummary | null;
   summaryLoading: boolean;
   summaryFailed: boolean;
+  hasMonthlyBudget?: boolean;
 };
 
-function transactionCountLabel(count: number): string {
-  if (count <= 0) {
-    return "\u2014";
+function heroColor(
+  summary: InsightsMonthSummary | null,
+  loading: boolean,
+): string {
+  if (loading || !summary) return accent;
+  if (summary.netValue > 0) return success;
+  if (summary.netValue < 0) return danger;
+  return accent;
+}
+
+function buildSubtitle(summary: InsightsMonthSummary): string {
+  const parts: string[] = [];
+  if (summary.savingsRatePct !== null && summary.incomeDisplay !== "\u2014") {
+    parts.push(`${summary.savingsRatePct}% saved`);
   }
-  return count === 1 ? "1 transaction" : `${count} transactions`;
+  if (summary.transactionCount > 0) {
+    parts.push(
+      summary.transactionCount === 1
+        ? "1 transaction"
+        : `${summary.transactionCount} transactions`,
+    );
+  }
+  return parts.join(" · ");
+}
+
+function budgetUsedProgress(summary: InsightsMonthSummary): number {
+  if (!summary.hasMonthlyBudget || !summary.budgetDisplay) return 0;
+  const used = summary.usedPctDisplay.replace("%", "");
+  const pct = Number.parseInt(used, 10);
+  return Number.isFinite(pct) ? Math.min(pct / 100, 1) : 0;
 }
 
 export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   selectedMonth,
-  monthOptions,
-  onSelectMonth,
-  onMonthMenuOpenChange,
+  canGoPrevMonth,
+  canGoNextMonth,
+  onPrevMonth,
+  onNextMonth,
   summary,
   summaryLoading,
   summaryFailed,
+  hasMonthlyBudget,
 }: InsightsMonthSummaryCardProps) {
-  const remainingTone: BentoStatCellTone = summary?.isOverBudget
-    ? "debit"
-    : summary && summary.remainingValue > 0
-      ? "credit"
-      : "neutral";
-  const remainingLabel =
-    summaryLoading || !summary?.isOverBudget
-      ? "Remaining"
-      : summary.remainingLabel;
+  const heroCol = heroColor(summary, summaryLoading);
+  const subtitle = summary ? buildSubtitle(summary) : "";
+  const showBudgetBar = Boolean(hasMonthlyBudget ?? summary?.hasMonthlyBudget);
+  const budgetProgress = summary ? budgetUsedProgress(summary) : 0;
+  const hasIncome = summary !== null && summary.incomeDisplay !== "\u2014";
 
   return (
-    <MonthSummaryCardShell
-      selectedMonth={selectedMonth}
-      monthOptions={monthOptions}
-      onSelectMonth={onSelectMonth}
-      onMonthMenuOpenChange={onMonthMenuOpenChange}
-      bodyKicker="Budget"
-      headerContent={
-        summaryFailed ? (
-          <MonthSummaryHeaderError>
-            Could not load summary
-          </MonthSummaryHeaderError>
+    <View style={styles.card}>
+      {/* Header row */}
+      <View style={styles.headerRow}>
+        <Text style={styles.kicker}>THIS MONTH</Text>
+        <View style={styles.navRow}>
+          <Pressable
+            onPress={onPrevMonth}
+            disabled={!canGoPrevMonth}
+            hitSlop={8}
+            style={styles.navBtn}
+            accessibilityLabel="Previous month"
+          >
+            <ChevronLeft
+              size={18}
+              color={canGoPrevMonth ? inkSoft : inkFaint}
+              strokeWidth={2}
+            />
+          </Pressable>
+          <Text style={styles.monthLabel}>{selectedMonth}</Text>
+          <Pressable
+            onPress={onNextMonth}
+            disabled={!canGoNextMonth}
+            hitSlop={8}
+            style={styles.navBtn}
+            accessibilityLabel="Next month"
+          >
+            <ChevronRight
+              size={18}
+              color={canGoNextMonth ? inkSoft : inkFaint}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Hero amount */}
+      <View style={styles.heroSection}>
+        {summaryFailed ? (
+          <Text style={styles.errorText}>Could not load</Text>
+        ) : summaryLoading ? (
+          <>
+            <SkeletonBlock style={styles.heroSkeleton} />
+            <SkeletonBlock style={styles.subtitleSkeleton} />
+          </>
         ) : (
           <>
-            <MonthSummaryHeaderKicker>This month</MonthSummaryHeaderKicker>
-            {summaryLoading ? (
-              <SkeletonStrip
-                variant="statValue"
-                style={styles.headerTitleSkeleton}
-              />
-            ) : (
-              <MonthSummaryHeaderTitle>
-                {transactionCountLabel(summary?.transactionCount ?? 0)}
-              </MonthSummaryHeaderTitle>
-            )}
+            <Text style={[styles.heroAmount, { color: heroCol }]}>
+              {summary?.netDisplay ?? "\u2014"}
+            </Text>
+            {subtitle.length > 0 ? (
+              <Text style={styles.heroSubtitle}>{subtitle}</Text>
+            ) : null}
           </>
-        )
-      }
-    >
-      {summaryFailed ? (
-        <MonthSummaryUnavailableText />
-      ) : (
-        <View style={styles.bodySections}>
-          <MonthSummaryStatsRow>
-            <BentoStatCell
-              label="Budget"
-              value={summary?.budgetDisplay ?? "—"}
-              isValueLoading={summaryLoading}
-            />
-            <MonthSummaryStatDivider />
-            <BentoStatCell
-              label="Used"
-              value={summary?.usedPctDisplay ?? "—"}
-              tone={summary?.isOverBudget ? "debit" : "neutral"}
-              isValueLoading={summaryLoading}
-            />
-            <MonthSummaryStatDivider />
-            <BentoStatCell
-              label={remainingLabel}
-              value={summary?.remainingDisplay ?? "—"}
-              tone={remainingTone}
-              isValueLoading={summaryLoading}
-            />
-          </MonthSummaryStatsRow>
+        )}
+      </View>
 
-          <MonthSummarySectionDivider />
-
-          <View style={styles.cashFlowSection}>
-            <Text style={styles.cashFlowKicker}>Cash flow</Text>
-            <MonthSummaryStatsRow>
-              <BentoStatCell
-                label="Spent"
-                value={summary?.spentDisplay ?? "—"}
-                tone="debit"
-                isValueLoading={summaryLoading}
-              />
-              <MonthSummaryStatDivider />
-              <BentoStatCell
-                label="Income"
-                value={summary?.incomeDisplay ?? "—"}
-                tone="credit"
-                isValueLoading={summaryLoading}
-              />
-              <MonthSummaryStatDivider />
-              <BentoStatCell
-                label="Net"
-                value={summary?.netDisplay ?? "—"}
-                tone={summary ? netTone(summary.netValue) : "neutral"}
-                isValueLoading={summaryLoading}
-              />
-            </MonthSummaryStatsRow>
-          </View>
+      {/* Stats row */}
+      <View style={styles.divider} />
+      <View style={styles.statsRow}>
+        <View style={styles.statCell}>
+          <Text style={styles.statLabel}>Spent</Text>
+          {summaryLoading ? (
+            <SkeletonBlock style={styles.statSkeleton} />
+          ) : (
+            <Text style={styles.statValue}>
+              {summary?.spentDisplay ?? "\u2014"}
+            </Text>
+          )}
         </View>
-      )}
-    </MonthSummaryCardShell>
+        {hasIncome || summaryLoading ? (
+          <>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Text style={styles.statLabel}>Income</Text>
+              {summaryLoading ? (
+                <SkeletonBlock style={styles.statSkeleton} />
+              ) : (
+                <Text style={[styles.statValue, styles.incomeValue]}>
+                  {summary?.incomeDisplay ?? "\u2014"}
+                </Text>
+              )}
+            </View>
+          </>
+        ) : null}
+      </View>
+
+      {/* Budget bar */}
+      {showBudgetBar && summary ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.budgetSection}>
+            <ProgressBar
+              progress={budgetProgress}
+              height={8}
+              fillColor={summary.isOverBudget ? danger : accent}
+              backgroundColor={surfaceSunken}
+            />
+            <Text style={styles.budgetMeta}>
+              {`Budget ${summary.budgetDisplay} · ${summary.remainingLabel} ${summary.remainingDisplay} · ${summary.usedPctDisplay} used`}
+            </Text>
+          </View>
+        </>
+      ) : null}
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
-  bodySections: {
-    gap: spacing.md,
+  card: {
+    backgroundColor: surface,
+    borderRadius: radius.lg,
+    ...shadows.card,
+    overflow: "hidden",
   },
-  cashFlowSection: {
-    gap: spacing.sm,
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
-  cashFlowKicker: {
-    fontFamily: fontFamilies.medium,
+  kicker: {
+    fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 14,
-    color: bento.onPastel.muted,
+    color: inkSoft,
     textTransform: "uppercase",
-    letterSpacing: 0.45,
+    letterSpacing: 0.6,
   },
-  headerTitleSkeleton: {
-    width: "50%",
-    marginTop: 2,
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  navBtn: {
+    padding: spacing.xs,
+  },
+  monthLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: ink,
+    minWidth: 72,
+    textAlign: "center",
+  },
+  heroSection: {
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.xs,
+    minHeight: 72,
+    justifyContent: "center",
+  },
+  heroAmount: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 40,
+    lineHeight: 48,
+    fontVariant: ["tabular-nums"],
+  },
+  heroSubtitle: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+    textAlign: "center",
+  },
+  heroSkeleton: {
+    width: 160,
+    height: 44,
+    borderRadius: radius.sm,
+  },
+  subtitleSkeleton: {
+    width: 120,
+    height: 16,
+    borderRadius: radius.sm,
+  },
+  errorText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: danger,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: line,
+    marginHorizontal: spacing.lg,
+  },
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  statCell: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: line,
+    alignSelf: "stretch",
+  },
+  statLabel: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: inkSoft,
+  },
+  statValue: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: ink,
+    fontVariant: ["tabular-nums"],
+  },
+  incomeValue: {
+    color: success,
+  },
+  statSkeleton: {
+    width: 60,
+    height: 18,
+    borderRadius: radius.sm,
+  },
+  budgetSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  budgetMeta: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: inkFaint,
   },
 });

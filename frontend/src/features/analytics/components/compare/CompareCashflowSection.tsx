@@ -86,7 +86,7 @@ export const CompareCashflowSection = memo(function CompareCashflowSection(
 
   return (
     <ComparePairedLayout
-      title="Daily cash flow"
+      kicker="DAILY CASH FLOW"
       subtitle="Income, spending, and net each day"
       leftLabel={leftLabel}
       rightLabel={rightLabel}

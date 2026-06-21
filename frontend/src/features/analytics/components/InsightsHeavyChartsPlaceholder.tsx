@@ -17,7 +17,12 @@ export const InsightsHeavyChartsPlaceholder = memo(
   function InsightsHeavyChartsPlaceholder() {
     return (
       <>
-        <InsightsBurnRateMetricCard metrics={null} loading />
+        <InsightsBurnRateMetricCard
+          metrics={null}
+          loading
+          year={new Date().getFullYear()}
+          monthIndex0={new Date().getMonth()}
+        />
         <TwoToneCard
           header={
             <View style={styles.header}>

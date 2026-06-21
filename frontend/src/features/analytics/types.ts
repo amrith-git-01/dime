@@ -21,11 +21,20 @@ export type CounterpartySpendRow = {
   transaction_count: number;
 };
 
+export type CounterpartyIncomeRow = {
+  payee_key: string;
+  display_name: string;
+  credit_total: string;
+  share: number;
+  transaction_count: number;
+};
+
 export type MonthInsights = {
   year: number;
   month: number;
   summary: InsightsSummary;
   daily_cashflow: DailyCashflowRow[];
   counterparty_spend: CounterpartySpendRow[];
+  counterparty_income: CounterpartyIncomeRow[];
   top_expenses: TransactionRow[];
 };
