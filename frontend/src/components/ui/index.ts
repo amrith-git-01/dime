@@ -1,6 +1,11 @@
 export { AnimatedProgressBar } from "./AnimatedProgressBar";
 export { AnimatedSparkBar } from "./AnimatedSparkBar";
 export { Button, type ButtonProps } from "./Button/Button";
+export {
+  BUTTON_LOADER_SIZE,
+  InfinityButtonLoader,
+  type InfinityButtonLoaderProps,
+} from "./InfinityButtonLoader";
 export { ProgressBar } from "./ProgressBar";
 export { SegmentChip } from "./SegmentChip/SegmentChip";
 export {

@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react-native";
 import { memo, useMemo } from "react";
 import {
   Dimensions,
@@ -8,12 +9,22 @@ import {
   View,
 } from "react-native";
 
-import { bento, charts, colors, shadows, spacing } from "@/constants";
+import {
+  accent,
+  accentTint,
+  danger,
+  ink,
+  line,
+  overlays,
+  radius,
+  shadows,
+  spacing,
+  success,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
-import { BentoActionPill } from "./BentoActionPill";
 import type { BentoStatCellTone } from "./BentoStatCell";
-import { MonthSummarySectionDivider } from "./MonthSummaryCardShell";
 
 export type ChartPressTooltipRow = {
   label: string;
@@ -55,13 +66,13 @@ export type ChartTooltipOverlayProps = {
   viewAction?: ChartTooltipViewAction;
 };
 
-const DEFAULT_WIDTH = 148;
-const ANCHOR_GAP = 8;
+const DEFAULT_WIDTH = 168;
+const ANCHOR_GAP = 10;
 const SCREEN_INSET = 12;
-const ESTIMATED_ROW_HEIGHT = 17;
-/** 1px divider + vertical margins (matches month summary section spacing). */
+const ESTIMATED_ROW_HEIGHT = 20;
+const TITLE_BLOCK_HEIGHT = 18;
 const TITLE_DIVIDER_HEIGHT = 1 + spacing.sm * 2;
-const VIEW_ACTION_BLOCK_HEIGHT = 38;
+const VIEW_ACTION_BLOCK_HEIGHT = 36;
 
 function toneStyle(tone: BentoStatCellTone | undefined) {
   if (tone === "credit" || tone === "net-positive") {
@@ -83,10 +94,14 @@ export function computeChartTooltipPosition(
   hasViewAction: boolean = false,
 ): { left: number; top: number; placement: "left" | "right" } {
   const estimatedHeight =
-    28 +
+    spacing.sm +
+    TITLE_BLOCK_HEIGHT +
     TITLE_DIVIDER_HEIGHT +
     Math.max(0, rowCount) * ESTIMATED_ROW_HEIGHT +
-    (hasViewAction ? VIEW_ACTION_BLOCK_HEIGHT : 0);
+    spacing.xs +
+    (hasViewAction ? VIEW_ACTION_BLOCK_HEIGHT : 0) +
+    spacing.sm;
+
   const anchorCenterX = anchor.x + anchor.width / 2;
   const placeOnRight = anchorCenterX < viewportWidth / 2;
 
@@ -159,12 +174,12 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
         pointerEvents={hasViewAction ? "auto" : "none"}
         style={[styles.card, shadows.cardElevated]}
       >
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
-        <View style={styles.titleDividerWrap}>
-          <MonthSummarySectionDivider />
-        </View>
+
+        <View style={styles.titleDivider} />
+
         <View style={styles.body}>
           {rows.map((row) => (
             <View key={row.label} style={styles.row}>
@@ -178,15 +193,20 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
             </View>
           ))}
         </View>
+
         {viewAction ? (
-          <View style={styles.viewActionWrap}>
-            <BentoActionPill
-              label={viewLabel}
-              onPress={viewAction.onPress}
-              accessibilityLabel={`${viewLabel} ${title}`}
-              fullWidth
-            />
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${viewLabel} ${title}`}
+            onPress={viewAction.onPress}
+            style={({ pressed }) => [
+              styles.viewAction,
+              pressed && styles.viewActionPressed,
+            ]}
+          >
+            <Text style={styles.viewActionLabel}>{viewLabel}</Text>
+            <ChevronRight size={14} color={accent} strokeWidth={2} />
+          </Pressable>
         ) : null}
       </View>
     </View>
@@ -239,32 +259,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrim: {
-    backgroundColor: charts.tooltipScrim,
+    backgroundColor: overlays.backdrop,
   },
   tooltipRoot: {
     position: "absolute",
     zIndex: 2,
   },
   card: {
-    backgroundColor: colors.barBackground,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderList,
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
   },
   title: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.textPrimary,
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: ink,
   },
-  titleDividerWrap: {
+  titleDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: line,
     marginVertical: spacing.sm,
   },
   body: {
-    gap: 4,
+    gap: spacing.xs,
   },
   row: {
     flexDirection: "row",
@@ -274,29 +294,47 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontFamily: fontFamilies.medium,
-    fontSize: 9,
-    lineHeight: 12,
-    color: bento.onPastel.muted,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.06 * 11,
     textTransform: "uppercase",
-    letterSpacing: 0.3,
+    color: ink,
+    opacity: 0.45,
   },
   rowValue: {
     flexShrink: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 10,
-    lineHeight: 13,
-    color: colors.textPrimary,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 14,
+    lineHeight: 18,
+    fontVariant: ["tabular-nums"],
+    color: ink,
     textAlign: "right",
   },
   valueCredit: {
-    color: colors.success,
+    color: success,
   },
   valueDebit: {
-    color: colors.danger,
+    color: danger,
   },
-  viewActionWrap: {
+  viewAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
     marginTop: spacing.sm,
     alignSelf: "stretch",
-    width: "100%",
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: accentTint,
+  },
+  viewActionPressed: {
+    opacity: 0.72,
+  },
+  viewActionLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: accent,
   },
 });

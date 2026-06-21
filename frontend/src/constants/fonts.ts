@@ -1,27 +1,29 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-} from "@expo-google-fonts/inter";
-import {
-  JetBrainsMono_400Regular,
-  JetBrainsMono_600SemiBold,
-} from "@expo-google-fonts/jetbrains-mono";
+  HankenGrotesk_400Regular,
+  HankenGrotesk_500Medium,
+  HankenGrotesk_600SemiBold,
+  HankenGrotesk_700Bold,
+} from "@expo-google-fonts/hanken-grotesk";
 
-/** PostScript names used as React Native `fontFamily` values (must match loaded faces). */
+/** PostScript names used as React Native `fontFamily` values.
+ * All UI text uses Hanken Grotesk — one geometric grotesk, everywhere.
+ * Tabular figures are enabled via `fontVariant: ['tabular-nums']` where needed.
+ */
 export const fontFamilies = {
-  regular: "Inter_400Regular",
-  medium: "Inter_500Medium",
-  semiBold: "Inter_600SemiBold",
-  mono: "JetBrainsMono_400Regular",
-  monoSemiBold: "JetBrainsMono_600SemiBold",
+  regular: "HankenGrotesk_400Regular",
+  medium: "HankenGrotesk_500Medium",
+  semiBold: "HankenGrotesk_600SemiBold",
+  bold: "HankenGrotesk_700Bold",
+  /** @deprecated alias for semiBold — kept for migration */
+  monoSemiBold: "HankenGrotesk_600SemiBold",
+  /** @deprecated alias for regular — kept for migration */
+  mono: "HankenGrotesk_400Regular",
 } as const;
 
 /** Pass to `useFonts` from `expo-font`. */
 export const loadableAppFonts = {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  JetBrainsMono_400Regular,
-  JetBrainsMono_600SemiBold,
+  HankenGrotesk_400Regular,
+  HankenGrotesk_500Medium,
+  HankenGrotesk_600SemiBold,
+  HankenGrotesk_700Bold,
 };

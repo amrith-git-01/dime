@@ -10,6 +10,11 @@ import {
 } from "react-native";
 
 import {
+  BUTTON_LOADER_SIZE,
+  InfinityButtonLoader,
+} from "@/components/ui/InfinityButtonLoader";
+
+import {
   bento,
   colors,
   overlays,
@@ -79,7 +84,7 @@ function ModalActionButton({
       {...rest}
     >
       {loading ? (
-        <ActivityIndicator color={labelColor} size="small" />
+        <InfinityButtonLoader color={labelColor} size={BUTTON_LOADER_SIZE} />
       ) : (
         <Text style={[styles.actionLabel, { color: labelColor }]}>{title}</Text>
       )}
