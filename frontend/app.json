@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#f9f9ff",
+    "backgroundColor": "#FAFAFA",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -22,7 +22,7 @@
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#f9f9ff",
+        "backgroundColor": "#FAFAFA",
         "foregroundImage": "./assets/images/icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
@@ -61,9 +61,9 @@
         {
           "image": "./assets/images/splash-wordmark.png",
           "resizeMode": "contain",
-          "backgroundColor": "#f9f9ff",
+          "backgroundColor": "#FAFAFA",
           "dark": {
-            "backgroundColor": "#f9f9ff"
+            "backgroundColor": "#FAFAFA"
           },
           "ios": {
             "imageWidth": 300
