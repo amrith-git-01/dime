@@ -20,6 +20,7 @@ export {
   type ChartTooltipOverlayProps,
   type ChartTooltipViewAction,
 } from "./ChartPressTooltip";
+export { ConfirmModal, type ConfirmModalProps } from "./ConfirmModal";
 export {
   EmptyState,
   type EmptyStateLayout,
@@ -44,7 +45,3 @@ export {
 export { SkeletonListRow } from "./SkeletonListRow";
 export { TransactionRowListSkeleton } from "./TransactionRowListSkeleton";
 export { TwoToneCard, type TwoToneCardProps } from "./TwoToneCard";
-export {
-  TwoToneConfirmModal,
-  type TwoToneConfirmModalProps,
-} from "./TwoToneConfirmModal";

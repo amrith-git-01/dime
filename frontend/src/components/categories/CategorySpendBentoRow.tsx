@@ -79,7 +79,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
       : 0;
 
   const subtitle = hasCategoryCap
-    ? `Cap ₹${formatInrCompact(cap)} · ${Math.round(Math.min(1, item.spentMonth / cap) * 100)}% used`
+    ? `Cap ${formatInrCompact(cap)} · ${Math.round(Math.min(1, item.spentMonth / cap) * 100)}% used`
     : hasMonthlyBudget
       ? `${Math.round(Math.min(1, item.spentMonth / monthlyBudgetAmount) * 100)}% of monthly budget`
       : null;
