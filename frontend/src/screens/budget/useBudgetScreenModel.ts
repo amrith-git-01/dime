@@ -175,6 +175,10 @@ export function useBudgetScreenModel() {
     : Number.NaN;
   const hasSpentMonth = Number.isFinite(spentMonthNum);
   const monthSummaryFailed = monthSummaryQuery.isError;
+  // keepPreviousData serves the prior month while the new month fetches — same
+  // pattern as Analytics (useAnalyticsScreenModel).
+  const isMonthDataTransitioning = monthSummaryQuery.isPlaceholderData;
+
   const isOverBudget =
     hasMonthlyBudget && hasSpentMonth && spentMonthNum > monthlyBudgetAmount;
   const remainingValue =
@@ -207,6 +211,7 @@ export function useBudgetScreenModel() {
 
   const summaryLoading =
     (monthSummaryQuery.isPending && !monthSummaryQuery.data) ||
+    isMonthDataTransitioning ||
     (isBudgetLoading && budgetResp === undefined);
 
   const monthSummary: BudgetMonthBentoSummary | null =
@@ -231,6 +236,7 @@ export function useBudgetScreenModel() {
   const categoriesStillLoading = categoriesLoading && categories.length === 0;
   const isListLoading =
     categoriesStillLoading ||
+    isMonthDataTransitioning ||
     (isMonthSpendPending &&
       !monthSummaryQuery.data &&
       Object.keys(spendByCategoryQuery).length === 0);

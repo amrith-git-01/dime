@@ -11,11 +11,11 @@ import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTr
 import { supabase } from "@/lib/supabase/client";
 import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
-import PermissionsSetupScreen from "@/screens/onboarding/PermissionsSetupScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
+import WelcomeTourScreen from "@/screens/onboarding/WelcomeTourScreen";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
-import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
+import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -34,25 +34,28 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-type RootAppRoute = "auth" | "bootstrapping" | "setup" | "permissions" | "main";
+type RootAppRoute = "welcome" | "auth" | "bootstrapping" | "setup" | "main";
+
+function resolveUnauthenticatedRoute(
+  welcomeTourCompleted: boolean,
+): "welcome" | "auth" {
+  return welcomeTourCompleted ? "auth" : "welcome";
+}
 
 function resolveRootAppRoute(
   session: Session | null,
   profileGateReady: boolean,
   hasUsername: boolean,
-  permissionsPromptPending: boolean,
+  welcomeTourCompleted: boolean,
 ): RootAppRoute {
   if (!session) {
-    return "auth";
+    return resolveUnauthenticatedRoute(welcomeTourCompleted);
   }
   if (!profileGateReady) {
     return "bootstrapping";
   }
   if (!hasUsername) {
     return "setup";
-  }
-  if (permissionsPromptPending) {
-    return "permissions";
   }
   return "main";
 }
@@ -80,9 +83,7 @@ export default function RootNavigator() {
   }, []);
 
   const googleAuthPending = useGoogleAuthGate((s) => s.isPending);
-  const permissionsPromptPending = usePermissionsPromptStore(
-    (s) => s.pendingAfterGoogleSignIn,
-  );
+  const welcomeTourCompleted = useWelcomeTourStore((s) => s.completed);
   const profileUserId = session?.user.id;
 
   useCategoriesRealtimeSync(profileUserId ?? null);
@@ -105,14 +106,14 @@ export default function RootNavigator() {
             session,
             profileGateReady,
             hasUsername,
-            permissionsPromptPending,
+            welcomeTourCompleted,
           ),
     [
       googleAuthPending,
       session,
       profileGateReady,
       hasUsername,
-      permissionsPromptPending,
+      welcomeTourCompleted,
     ],
   );
 
@@ -123,18 +124,14 @@ export default function RootNavigator() {
   return (
     <View style={styles.root}>
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
-        {route === "auth" || route === "bootstrapping" ? (
+        {route === "welcome" ? (
+          <Stack.Screen name="WelcomeTour" component={WelcomeTourScreen} />
+        ) : route === "auth" || route === "bootstrapping" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : route === "setup" ? (
           <Stack.Screen
             name="ProfileSetup"
             component={ProfileSetupScreen}
-            options={{ gestureEnabled: false }}
-          />
-        ) : route === "permissions" ? (
-          <Stack.Screen
-            name="PermissionsSetup"
-            component={PermissionsSetupScreen}
             options={{ gestureEnabled: false }}
           />
         ) : (

@@ -3,8 +3,9 @@ import { useCallback, useMemo, useState } from "react";
 import { BackHandler } from "react-native";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { ProfileSetupEditor } from "@/features/profile/components";
+import { ConfirmModal } from "@/components/shared";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
+import { ProfileSetupEditor } from "@/features/profile/components";
 import { useSaveProfileMutation } from "@/features/profile/hooks/useSaveProfileMutation";
 import { useProfileSetup } from "@/hooks/useProfileSetup";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
@@ -19,7 +20,8 @@ export default function ProfileSetupScreen() {
   );
 
   const saveProfileMutation = useSaveProfileMutation();
-  const { confirmSignOut, signOutLoading } = useConfirmSignOut();
+  const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
+    useConfirmSignOut();
 
   useFocusEffect(
     useCallback(() => {
@@ -90,6 +92,14 @@ export default function ProfileSetupScreen() {
         onRefreshRandom={refreshAvatarSeed}
         onContinue={() => void handleContinue()}
         onSignOut={confirmSignOut}
+      />
+      <ConfirmModal
+        {...signOutConfirmModalProps}
+        title="Sign out?"
+        message="You'll need to sign in again to use the app."
+        cancelLabel="Cancel"
+        confirmLabel="Sign out"
+        confirmTone="danger"
       />
     </StackScreenShell>
   );
