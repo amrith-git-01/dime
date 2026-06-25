@@ -11,11 +11,13 @@ import {
   View,
 } from "react-native";
 
-import { formStyles } from "@/constants/formStyles";
 import { colors, spacing } from "@/constants";
+import { formStyles } from "@/constants/formStyles";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;
+  /** When false, only the input shell is rendered (section title lives outside). */
+  hideLabel?: boolean;
   /** Shown on the same row as the label, right-aligned (e.g. character count). */
   labelRight?: ReactNode;
   errorMessage?: string | null;
@@ -25,6 +27,7 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
 
 export function TextField({
   label,
+  hideLabel = false,
   labelRight,
   errorMessage,
   showClear = true,
@@ -45,16 +48,18 @@ export function TextField({
   const showClearButton = showClear && hasValue && editable !== false;
   return (
     <View>
-      {labelRight ? (
-        <View style={styles.labelRow}>
-          <Text style={[formStyles.fieldLabel, styles.labelInRow]}>
-            {label}
-          </Text>
-          {labelRight}
-        </View>
-      ) : (
-        <Text style={formStyles.fieldLabel}>{label}</Text>
-      )}
+      {!hideLabel ? (
+        labelRight ? (
+          <View style={styles.labelRow}>
+            <Text style={[formStyles.fieldLabel, styles.labelInRow]}>
+              {label}
+            </Text>
+            {labelRight}
+          </View>
+        ) : (
+          <Text style={formStyles.fieldLabel}>{label}</Text>
+        )
+      ) : null}
       <View
         style={[
           formStyles.fieldShell,
