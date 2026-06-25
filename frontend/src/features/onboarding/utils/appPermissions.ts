@@ -5,7 +5,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 
-import type { AppPermissionId } from "../constants/appPermissionItems";
+export type AppPermissionId = "notifications" | "camera" | "microphone";
 
 export type AppPermissionState = {
   id: AppPermissionId;
@@ -81,4 +81,20 @@ export async function getAllAppPermissionStates(): Promise<
 > {
   const ids: AppPermissionId[] = ["notifications", "camera", "microphone"];
   return Promise.all(ids.map((id) => getAppPermissionState(id)));
+}
+
+const PERMISSION_REQUEST_ORDER: AppPermissionId[] = [
+  "notifications",
+  "camera",
+  "microphone",
+];
+
+/** Requests each native permission dialog in sequence (skips already granted). */
+export async function requestAllAppPermissionsSequentially(): Promise<void> {
+  for (const id of PERMISSION_REQUEST_ORDER) {
+    const state = await getAppPermissionState(id);
+    if (state.available && !state.granted) {
+      await requestAppPermission(id);
+    }
+  }
 }

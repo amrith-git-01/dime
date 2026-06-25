@@ -1,29 +1,74 @@
+import { memo, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
+import Animated, {
+  interpolate,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
-import { colors, spacing, surfaces } from "@/constants";
+import { accent, accentTint, radius, spacing, springs } from "@/constants";
+
+const INACTIVE_DOT_WIDTH = 8;
+const ACTIVE_DOT_WIDTH = 20;
+const DOT_HEIGHT = 8;
 
 export interface AuthPostcardDotsProps {
   count: number;
   activeIndex: number;
 }
 
-export function AuthPostcardDots({
+type AnimatedDotProps = {
+  index: number;
+  activeIndex: number;
+};
+
+const AnimatedDot = memo(function AnimatedDot({
+  index,
+  activeIndex,
+}: AnimatedDotProps) {
+  const isActive = index === activeIndex;
+  const progress = useSharedValue(isActive ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withSpring(isActive ? 1 : 0, springs.smooth);
+  }, [isActive, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: interpolate(
+      progress.value,
+      [0, 1],
+      [INACTIVE_DOT_WIDTH, ACTIVE_DOT_WIDTH],
+    ),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [accentTint, accent],
+    ),
+  }));
+
+  return (
+    <Animated.View
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isActive }}
+      style={[styles.dot, animatedStyle]}
+    />
+  );
+});
+
+export const AuthPostcardDots = memo(function AuthPostcardDots({
   count,
   activeIndex,
 }: AuthPostcardDotsProps) {
   return (
     <View style={styles.row} accessibilityRole="tablist">
       {Array.from({ length: count }, (_, index) => (
-        <View
-          key={index}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: index === activeIndex }}
-          style={[styles.dot, index === activeIndex && styles.dotActive]}
-        />
+        <AnimatedDot key={index} index={index} activeIndex={activeIndex} />
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {
@@ -33,13 +78,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: surfaces.primaryTint14,
-  },
-  dotActive: {
-    width: 20,
-    backgroundColor: colors.brandPrimary,
+    height: DOT_HEIGHT,
+    borderRadius: radius.full,
   },
 });
