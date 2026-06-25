@@ -155,9 +155,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: paper,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    gap: spacing.lg,
+    gap: spacing.xl,
   },
   subtitleRow: {
     paddingBottom: spacing.xs,
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     color: inkSoft,
   },
   sectionGroup: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -194,14 +194,13 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: surface,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    overflow: "hidden",
     ...shadows.card,
   },
   rowDivider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: line,
-    marginLeft: spacing.lg + 40 + spacing.sm,
+    marginLeft: spacing.lg + 40 + spacing.md,
   },
   centered: {
     flex: 1,

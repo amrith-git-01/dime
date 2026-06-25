@@ -4,6 +4,7 @@ import { MessageSquareText, ScanLine } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
+import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { fontFamilies, inkSoft, spacing } from "@/constants";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
@@ -21,7 +22,8 @@ export default function SettingsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { displayName, avatarUrl } = useUserProfile();
-  const { confirmSignOut, signOutLoading } = useConfirmSignOut();
+  const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
+    useConfirmSignOut();
   const { confirmRefreshAppData, loading: refreshLoading } =
     useRefreshAppData();
 
@@ -84,6 +86,15 @@ export default function SettingsScreen() {
           onPress={confirmSignOut}
         />
       </View>
+
+      <ConfirmModal
+        {...signOutConfirmModalProps}
+        title="Sign out?"
+        message="You'll need to sign in again to use the app."
+        cancelLabel="Cancel"
+        confirmLabel="Sign out"
+        confirmTone="danger"
+      />
     </View>
   );
 }

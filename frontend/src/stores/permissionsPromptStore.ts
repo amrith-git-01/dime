@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-/** True after a successful Google sign-in until the permissions setup screen is finished. */
+/** True after Google sign-in until Home shows native permission dialogs. */
 export const usePermissionsPromptStore = create<{
   pendingAfterGoogleSignIn: boolean;
   markPendingAfterGoogleSignIn: () => void;
