@@ -16,6 +16,7 @@ import {
   surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
 
 import { CategoryBudgetSection } from "../CategoryBudgetSection";
@@ -63,6 +64,16 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
   onDelete,
   deleteLoading = false,
 }: CustomCategoryEditorProps) {
+  const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
+  const requiredTag = <Text style={styles.requiredHint}>(required)</Text>;
+
+  const { data: budgetResp } = useBudgetQuery();
+  const budgetMonthly = budgetResp?.budget?.monthly_budget ?? null;
+  const existingBudget = budgetMonthly ? Number.parseFloat(budgetMonthly) : 0;
+  const hasMonthlyBudget =
+    Number.isFinite(existingBudget) && existingBudget > 0;
+  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -70,121 +81,141 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {/* PREVIEW card */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>PREVIEW</Text>
-        <View style={styles.card}>
-          <CustomCategoryPreviewTile
-            name={name}
-            iconName={iconName}
-            color={color}
-          />
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>PREVIEW</Text>
         </View>
+        <CustomCategoryPreviewTile
+          name={name}
+          iconName={iconName}
+          color={color}
+          monthlyBudget={monthlyBudget}
+          hasMonthlyBudget={hasMonthlyBudget}
+          monthlyBudgetAmount={monthlyBudgetAmount}
+          showBudgetSection={showBudgetSection}
+        />
       </View>
 
-      {/* NAME field */}
-      <View style={styles.section}>
-        <View style={styles.card}>
-          <TextField
-            label="Name"
-            placeholder="e.g. Pet care"
-            value={name}
-            onChangeText={onNameChange}
-            onSubmitEditing={onSave}
-            maxLength={40}
-            autoCapitalize="words"
-            editable={!fieldsDisabled}
-          />
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>NAME</Text>
+          {!fieldsDisabled ? requiredTag : null}
         </View>
+        <TextField
+          hideLabel
+          label="Name"
+          placeholder="e.g. Pet care"
+          value={name}
+          onChangeText={onNameChange}
+          onSubmitEditing={onSave}
+          maxLength={40}
+          autoCapitalize="words"
+          editable={!fieldsDisabled}
+        />
       </View>
 
-      {/* ICON + COLOR pickers */}
       {!fieldsDisabled ? (
-        <View style={styles.section}>
-          <View style={styles.card}>
-            <CustomCategoryChipPickers
-              selectedIcon={iconName}
-              selectedColor={color}
-              onSelectIcon={onIconChange}
-              onSelectColor={onColorChange}
-            />
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>ICON</Text>
+            {requiredTag}
           </View>
+          <CustomCategoryChipPickers
+            section="icon"
+            selectedIcon={iconName}
+            selectedColor={color}
+            onSelectIcon={onIconChange}
+            onSelectColor={onColorChange}
+          />
+          <View style={[styles.cardHeader, styles.cardHeaderSpaced]}>
+            <Text style={styles.sectionLabel}>COLOR</Text>
+            {requiredTag}
+          </View>
+          <CustomCategoryChipPickers
+            section="color"
+            selectedIcon={iconName}
+            selectedColor={color}
+            onSelectIcon={onIconChange}
+            onSelectColor={onColorChange}
+          />
         </View>
       ) : null}
 
-      {/* MONTHLY CAP */}
       {showBudgetSection ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>MONTHLY CAP (OPTIONAL)</Text>
-          <View style={styles.card}>
-            <CategoryBudgetSection
-              value={monthlyBudget}
-              onChangeText={onMonthlyBudgetChange}
-            />
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>MONTHLY CAP</Text>
+            {optionalTag}
           </View>
+          <CategoryBudgetSection
+            value={monthlyBudget}
+            onChangeText={onMonthlyBudgetChange}
+          />
         </View>
       ) : null}
 
       {limitHint ? <Text style={styles.limitHint}>{limitHint}</Text> : null}
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Pressable
-          onPress={onClear}
-          disabled={atLimit}
-          style={({ pressed }) => [
-            styles.clearBtn,
-            atLimit && styles.clearBtnDisabled,
-            pressed && !atLimit && styles.clearBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Clear"
-        >
-          <Text
-            style={[
-              styles.clearBtnText,
-              atLimit && styles.clearBtnTextDisabled,
+      <View style={styles.actions}>
+        {onDelete ? (
+          <Pressable
+            onPress={onDelete}
+            disabled={deleteLoading}
+            style={({ pressed }) => [
+              styles.deleteBtn,
+              deleteLoading && styles.deleteBtnDisabled,
+              pressed && !deleteLoading && styles.deleteBtnPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Delete category"
           >
-            Clear
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onSave}
-          disabled={saveDisabled || atLimit || saveLoading}
-          style={({ pressed }) => [
-            styles.saveBtn,
-            (saveDisabled || atLimit || saveLoading) && styles.saveBtnDisabled,
-            pressed &&
-              !(saveDisabled || atLimit || saveLoading) &&
-              styles.saveBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Save"
-        >
-          <Text style={styles.saveBtnText}>
-            {saveLoading ? "Saving…" : "Save"}
-          </Text>
-        </Pressable>
-      </View>
+            <Text style={styles.deleteBtnText}>
+              {deleteLoading ? "Deleting…" : "Delete category"}
+            </Text>
+          </Pressable>
+        ) : null}
 
-      {/* Delete link */}
-      {onDelete ? (
-        <Pressable
-          onPress={onDelete}
-          disabled={deleteLoading}
-          style={({ pressed }) => [
-            styles.deleteBtn,
-            pressed && styles.deleteBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Delete category"
-        >
-          <Text style={styles.deleteBtnText}>
-            {deleteLoading ? "Deleting…" : "Delete category"}
-          </Text>
-        </Pressable>
-      ) : null}
+        <View style={styles.footer}>
+          <Pressable
+            onPress={onClear}
+            disabled={atLimit}
+            style={({ pressed }) => [
+              styles.clearBtn,
+              atLimit && styles.clearBtnDisabled,
+              pressed && !atLimit && styles.clearBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Clear"
+          >
+            <Text
+              style={[
+                styles.clearBtnText,
+                atLimit && styles.clearBtnTextDisabled,
+              ]}
+            >
+              Clear
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={onSave}
+            disabled={saveDisabled || atLimit || saveLoading}
+            style={({ pressed }) => [
+              styles.saveBtn,
+              (saveDisabled || atLimit || saveLoading) &&
+                styles.saveBtnDisabled,
+              pressed &&
+                !(saveDisabled || atLimit || saveLoading) &&
+                styles.saveBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Save"
+          >
+            <Text style={styles.saveBtnText}>
+              {saveLoading ? "Saving…" : "Save"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     </ScrollView>
   );
 });
@@ -198,25 +229,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl * 3,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
-  section: {
-    gap: spacing.xs,
+  card: {
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  cardHeaderSpaced: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   sectionLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
-    lineHeight: 14,
-    color: inkSoft,
-    textTransform: "uppercase",
     letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
+    color: accent,
+    textTransform: "uppercase",
   },
-  card: {
-    backgroundColor: surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    ...shadows.card,
+  optionalHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    color: inkFaint,
+  },
+  requiredHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    color: inkSoft,
   },
   limitHint: {
     fontFamily: fontFamilies.regular,
@@ -225,10 +271,13 @@ const styles = StyleSheet.create({
     color: inkSoft,
     textAlign: "center",
   },
+  actions: {
+    gap: spacing.lg,
+    marginTop: spacing.sm,
+  },
   footer: {
     flexDirection: "row",
     gap: spacing.md,
-    marginTop: spacing.sm,
   },
   clearBtn: {
     flex: 1,
@@ -275,16 +324,22 @@ const styles = StyleSheet.create({
     color: surface,
   },
   deleteBtn: {
+    borderRadius: radius.full,
+    paddingVertical: 14,
     alignItems: "center",
-    paddingVertical: spacing.md,
+    backgroundColor: danger,
+  },
+  deleteBtnDisabled: {
+    opacity: 0.45,
   },
   deleteBtnPressed: {
-    opacity: 0.7,
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
   deleteBtnText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
     lineHeight: 20,
-    color: danger,
+    color: surface,
   },
 });

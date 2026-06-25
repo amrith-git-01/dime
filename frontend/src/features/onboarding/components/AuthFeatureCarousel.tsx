@@ -1,84 +1,66 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   StyleSheet,
-  useWindowDimensions,
   View,
-  type ViewToken,
+  type LayoutChangeEvent,
+  type ListRenderItem,
 } from "react-native";
 
 import {
   AUTH_FEATURE_SLIDES,
   type AuthFeatureSlideData,
 } from "../constants/authFeatureSlides";
-import { getAuthPostcardLayout } from "../constants/onboardingTokens";
+import { getWelcomeTourSlideLayout } from "../constants/onboardingTokens";
 import { AuthFeatureSlide } from "./AuthFeatureSlide";
 
-const AUTO_ADVANCE_MS = 2500;
-const SLIDE_COUNT = AUTH_FEATURE_SLIDES.length;
-
 export interface AuthFeatureCarouselProps {
-  onActiveIndexChange: (index: number) => void;
+  activeIndex: number;
 }
 
-export function AuthFeatureCarousel({
-  onActiveIndexChange,
-}: AuthFeatureCarouselProps) {
-  const { width: windowWidth } = useWindowDimensions();
-  const pageWidth = windowWidth;
-  const layout = useMemo(() => getAuthPostcardLayout(pageWidth), [pageWidth]);
-
+/** Horizontal slide pager — programmatic navigation only (no swipe). */
+export function AuthFeatureCarousel({ activeIndex }: AuthFeatureCarouselProps) {
   const flatListRef = useRef<FlatList<AuthFeatureSlideData>>(null);
-  const currentIndexRef = useRef(0);
-  const isUserScrollingRef = useRef(false);
+  const [pageWidth, setPageWidth] = useState(0);
 
-  const viewabilityConfig = useRef({
-    viewAreaCoveragePercentThreshold: 60,
-  }).current;
-
-  // Sync active index from both auto-advance and manual swipe
-  const onViewableItemsChanged = useCallback(
-    ({
-      viewableItems,
-    }: {
-      viewableItems: ViewToken<AuthFeatureSlideData>[];
-    }) => {
-      const index = viewableItems[0]?.index;
-      if (index != null) {
-        currentIndexRef.current = index;
-        onActiveIndexChange(index);
-      }
-    },
-    [onActiveIndexChange],
+  const layout = useMemo(
+    () => (pageWidth > 0 ? getWelcomeTourSlideLayout(pageWidth) : null),
+    [pageWidth],
   );
 
-  // Auto-advance every AUTO_ADVANCE_MS; pauses while user is dragging
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextWidth = Math.round(event.nativeEvent.layout.width);
+    if (nextWidth > 0) {
+      setPageWidth(nextWidth);
+    }
+  }, []);
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (isUserScrollingRef.current) return;
-      const next = (currentIndexRef.current + 1) % SLIDE_COUNT;
-      flatListRef.current?.scrollToIndex({ index: next, animated: true });
-    }, AUTO_ADVANCE_MS);
-    return () => clearInterval(interval);
-  }, []);
+    if (pageWidth <= 0) {
+      return;
+    }
+    flatListRef.current?.scrollToOffset({
+      offset: activeIndex * pageWidth,
+      animated: true,
+    });
+  }, [activeIndex, pageWidth]);
 
-  const handleScrollBeginDrag = useCallback(() => {
-    isUserScrollingRef.current = true;
-  }, []);
-
-  const handleMomentumScrollEnd = useCallback(() => {
-    isUserScrollingRef.current = false;
-  }, []);
-
-  const renderItem = useCallback(
-    ({ item }: { item: AuthFeatureSlideData }) => (
-      <AuthFeatureSlide slide={item} pageWidth={pageWidth} layout={layout} />
-    ),
+  const renderItem: ListRenderItem<AuthFeatureSlideData> = useCallback(
+    ({ item }) => {
+      if (!layout) {
+        return null;
+      }
+      return (
+        <View style={[styles.page, { width: pageWidth }]}>
+          <AuthFeatureSlide slide={item} layout={layout} />
+        </View>
+      );
+    },
     [layout, pageWidth],
   );
 
-  const itemLayout = useMemo(
-    () => (index: number) => ({
+  const getItemLayout = useCallback(
+    (_: ArrayLike<AuthFeatureSlideData> | null | undefined, index: number) => ({
       length: pageWidth,
       offset: pageWidth * index,
       index,
@@ -87,24 +69,27 @@ export function AuthFeatureCarousel({
   );
 
   return (
-    <View style={styles.root}>
-      <FlatList
-        ref={flatListRef}
-        data={AUTH_FEATURE_SLIDES}
-        horizontal
-        pagingEnabled
-        bounces={false}
-        nestedScrollEnabled
-        style={[styles.list, { height: layout.pageHeight }]}
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        getItemLayout={(_, index) => itemLayout(index)}
-        onScrollBeginDrag={handleScrollBeginDrag}
-        onMomentumScrollEnd={handleMomentumScrollEnd}
-      />
+    <View style={styles.root} onLayout={handleLayout}>
+      {pageWidth > 0 && layout ? (
+        <FlatList
+          ref={flatListRef}
+          data={AUTH_FEATURE_SLIDES}
+          horizontal
+          pagingEnabled
+          scrollEnabled={false}
+          bounces={false}
+          nestedScrollEnabled={false}
+          style={styles.list}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={activeIndex}
+          windowSize={3}
+          maxToRenderPerBatch={2}
+          removeClippedSubviews
+        />
+      ) : null}
     </View>
   );
 }
@@ -112,9 +97,14 @@ export function AuthFeatureCarousel({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    justifyContent: "center",
+    width: "100%",
   },
   list: {
-    flexGrow: 0,
+    flex: 1,
+  },
+  page: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

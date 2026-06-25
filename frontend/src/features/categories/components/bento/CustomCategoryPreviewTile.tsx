@@ -1,15 +1,21 @@
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { View } from "react-native";
 
-import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
-import { ink, inkSoft, radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import {
+  CategorySpendBentoRow,
+  type CategorySpendRowData,
+} from "@/components/categories/CategorySpendBentoRow";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
+import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 
 type CustomCategoryPreviewTileProps = {
   name: string;
   iconName: CustomCategoryIconName;
   color: string;
+  monthlyBudget: string;
+  hasMonthlyBudget: boolean;
+  monthlyBudgetAmount: number;
+  showBudgetSection?: boolean;
 };
 
 export const CustomCategoryPreviewTile = memo(
@@ -17,61 +23,32 @@ export const CustomCategoryPreviewTile = memo(
     name,
     iconName,
     color,
+    monthlyBudget,
+    hasMonthlyBudget,
+    monthlyBudgetAmount,
+    showBudgetSection = true,
   }: CustomCategoryPreviewTileProps) {
-    const displayName = name.trim().length > 0 ? name.trim() : "Category Name";
-    const tileBg = useMemo(() => `${color}14`, [color]);
+    const previewItem = useMemo((): CategorySpendRowData => {
+      const cap = showBudgetSection ? parseBudgetAmount(monthlyBudget) : null;
+      return {
+        id: "category-preview",
+        name: name.trim().length > 0 ? name.trim() : "Name",
+        icon_name: iconName,
+        color,
+        spentMonth: 0,
+        is_system: false,
+        monthlyCap: cap,
+      };
+    }, [color, iconName, monthlyBudget, name, showBudgetSection]);
 
     return (
-      <View style={styles.wrap}>
-        <View style={[styles.iconTile, { backgroundColor: tileBg }]}>
-          <CategoryLucideIcon
-            iconName={iconName}
-            color={color}
-            size={22}
-            strokeWidth={1.5}
-          />
-        </View>
-        <View style={styles.meta}>
-          <Text style={styles.name} numberOfLines={1}>
-            {displayName}
-          </Text>
-          <Text style={styles.hint}>
-            This is how it&apos;ll appear in your budget list
-          </Text>
-        </View>
+      <View pointerEvents="none">
+        <CategorySpendBentoRow
+          item={previewItem}
+          hasMonthlyBudget={showBudgetSection && hasMonthlyBudget}
+          monthlyBudgetAmount={monthlyBudgetAmount}
+        />
       </View>
     );
   },
 );
-
-const styles = StyleSheet.create({
-  wrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  iconTile: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  meta: {
-    flex: 1,
-    gap: 3,
-  },
-  name: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: ink,
-  },
-  hint: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: inkSoft,
-  },
-});
