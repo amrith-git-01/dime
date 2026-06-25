@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import {
@@ -6,14 +6,18 @@ import {
   type CategorySpendRowData,
 } from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { EmptyState, emptyStateCopy } from "@/components/shared";
-import { SkeletonBlock } from "@/components/ui";
+import {
+  CATEGORY_SPEND_ROW_DIVIDER_INSET,
+  EmptyState,
+  emptyStateCopy,
+} from "@/components/shared";
 import { line, paper, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
 import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import {
   BudgetCategoriesSectionHeader,
+  BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
 
@@ -28,20 +32,7 @@ function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
   );
 }
 
-const CategoryRowSkeleton = memo(function CategoryRowSkeleton() {
-  return (
-    <View style={styles.skeletonRow}>
-      <SkeletonBlock tone="surface" style={styles.skeletonIcon} />
-      <View style={styles.skeletonMeta}>
-        <SkeletonBlock tone="surface" style={styles.skeletonName} />
-        <SkeletonBlock tone="surface" style={styles.skeletonSub} />
-      </View>
-      <SkeletonBlock tone="surface" style={styles.skeletonAmount} />
-    </View>
-  );
-});
-
-const SKELETON_COUNT = 5;
+const SKELETON_ROW_COUNT = 10;
 
 export default function BudgetScreen() {
   const {
@@ -95,12 +86,10 @@ export default function BudgetScreen() {
     if (isListLoading) {
       return (
         <View style={styles.categoryCard}>
-          {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <View key={i}>
-              <CategoryRowSkeleton />
-              {i < SKELETON_COUNT - 1 && <View style={styles.rowDivider} />}
-            </View>
-          ))}
+          <BudgetCategoryRowsSkeleton
+            rowCount={SKELETON_ROW_COUNT}
+            showProgress={hasMonthlyBudget}
+          />
         </View>
       );
     }
@@ -124,7 +113,13 @@ export default function BudgetScreen() {
         )}
       </View>
     );
-  }, [isListLoading, listData, budgetListKey, renderCategoryRow]);
+  }, [
+    isListLoading,
+    hasMonthlyBudget,
+    listData,
+    budgetListKey,
+    renderCategoryRow,
+  ]);
 
   return (
     <TabScreenShell>
@@ -183,9 +178,9 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   rowDivider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: line,
-    marginLeft: spacing.lg + 46 + spacing.md,
+    marginLeft: CATEGORY_SPEND_ROW_DIVIDER_INSET,
   },
   emptyCard: {
     backgroundColor: surface,
@@ -193,37 +188,6 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     overflow: "hidden",
     ...shadows.card,
-  },
-  skeletonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  skeletonIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.md,
-    flexShrink: 0,
-  },
-  skeletonMeta: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  skeletonName: {
-    height: 14,
-    width: "55%",
-    borderRadius: 4,
-  },
-  skeletonSub: {
-    height: 11,
-    width: "35%",
-    borderRadius: 4,
-  },
-  skeletonAmount: {
-    width: 52,
-    height: 14,
-    borderRadius: 4,
   },
   footer: {
     height: spacing.xl,

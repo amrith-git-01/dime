@@ -69,6 +69,18 @@ export default function EditCategoryScreen() {
 
   const fieldsDisabled = category?.is_system ?? false;
 
+  const savedBaseline = useMemo(
+    () => ({
+      name: category?.name ?? "",
+      iconName:
+        (category?.icon_name as CustomCategoryIconName) ??
+        DEFAULT_CUSTOM_CATEGORY_ICON,
+      color: category?.color ?? DEFAULT_CUSTOM_CATEGORY_COLOR,
+      monthlyBudget: initialBudget,
+    }),
+    [category, initialBudget],
+  );
+
   useEffect(() => {
     if (!category) {
       return;
@@ -181,15 +193,12 @@ export default function EditCategoryScreen() {
     void triggerLightHaptic();
     Keyboard.dismiss();
     if (!fieldsDisabled) {
-      setName(category?.name ?? "");
-      setIconName(
-        (category?.icon_name as CustomCategoryIconName) ??
-          DEFAULT_CUSTOM_CATEGORY_ICON,
-      );
-      setColor(category?.color ?? DEFAULT_CUSTOM_CATEGORY_COLOR);
+      setName(savedBaseline.name);
+      setIconName(savedBaseline.iconName);
+      setColor(savedBaseline.color);
     }
-    setMonthlyBudget("");
-  }, [category, fieldsDisabled]);
+    setMonthlyBudget(savedBaseline.monthlyBudget);
+  }, [fieldsDisabled, savedBaseline]);
 
   if (!category) {
     return null;

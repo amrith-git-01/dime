@@ -1,53 +1,55 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { bento, colors, radius, shadows, spacing } from "@/constants";
+import { BUTTON_LOADER_SIZE, InfinityButtonLoader } from "@/components/ui";
+import {
+  accent,
+  danger,
+  paper,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import {
-  AuthFeatureCarousel,
-  AuthPostcardDots,
-} from "@/features/onboarding/components";
-import { AUTH_FEATURE_SLIDES } from "@/features/onboarding/constants/authFeatureSlides";
-import {
-  ONBOARDING_CTA_TOP_GAP,
-  ONBOARDING_DOT_PAGER_GAP,
-} from "@/features/onboarding/constants/onboardingTokens";
+import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 
+const wordmark = require("../../../assets/images/splash-wordmark.png");
+
 export default function AuthScreen() {
   const model = useAuthScreenModel();
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const handleActiveIndexChange = useCallback((index: number) => {
-    setActiveSlideIndex(index);
-  }, []);
+  const insets = useSafeAreaInsets();
 
   return (
     <StackScreenShell
       scrollEnabled={false}
       contentContainerStyle={styles.shellContent}
     >
-      <View style={styles.screen}>
-        <View style={styles.postcardRegion}>
-          <AuthFeatureCarousel onActiveIndexChange={handleActiveIndexChange} />
-        </View>
-
-        <View style={styles.dotsRegion}>
-          <AuthPostcardDots
-            count={AUTH_FEATURE_SLIDES.length}
-            activeIndex={activeSlideIndex}
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.brandHeader}>
+          <Image
+            source={wordmark}
+            style={styles.wordmark}
+            accessibilityLabel="Dime"
+            resizeMode="contain"
           />
         </View>
 
-        <View style={styles.ctaRegion}>
+        <View style={styles.heroRegion}>
+          <AuthHeroLottie />
+        </View>
+
+        <View
+          style={[
+            styles.ctaRegion,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) },
+          ]}
+        >
           {model.googleError ? (
             <Text style={styles.errorText}>{model.googleError}</Text>
           ) : null}
@@ -56,7 +58,10 @@ export default function AuthScreen() {
             accessibilityRole="button"
             accessibilityLabel="Continue with Google"
             disabled={model.busy}
-            onPress={model.submitGoogle}
+            onPress={() => {
+              void triggerLightHaptic();
+              model.submitGoogle();
+            }}
             style={({ pressed }) => [
               styles.googleButton,
               pressed && !model.busy && styles.googleButtonPressed,
@@ -64,13 +69,9 @@ export default function AuthScreen() {
             ]}
           >
             {model.googleLoading ? (
-              <ActivityIndicator size="small" color={colors.oauthGoogle} />
+              <InfinityButtonLoader color={surface} size={BUTTON_LOADER_SIZE} />
             ) : (
-              <MaterialCommunityIcons
-                name="google"
-                size={22}
-                color={colors.oauthGoogle}
-              />
+              <MaterialCommunityIcons name="google" size={22} color={surface} />
             )}
             <Text style={styles.googleLabel}>
               {model.googleLoading ? "Signing in…" : "Continue with Google"}
@@ -85,58 +86,62 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   shellContent: {
     flex: 1,
+    backgroundColor: paper,
   },
   screen: {
     flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  postcardRegion: {
+  brandHeader: {
+    alignItems: "flex-start",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  wordmark: {
+    width: 132,
+    height: 44,
+  },
+  heroRegion: {
     flex: 1,
-    minHeight: 0,
+    alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: -spacing.lg,
-  },
-  dotsRegion: {
-    marginTop: ONBOARDING_DOT_PAGER_GAP,
-    paddingBottom: ONBOARDING_CTA_TOP_GAP,
+    minHeight: 0,
+    paddingBottom: spacing.sm,
   },
   ctaRegion: {
-    backgroundColor: bento.twoToneBodySurface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.cardBorder,
-    padding: spacing.lg,
     gap: spacing.md,
-    ...shadows.card,
+    paddingTop: spacing.md,
   },
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    minHeight: 48,
-    borderRadius: radius.md,
+    minHeight: 54,
+    borderRadius: radius.full,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.barBackground,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: accent,
+    ...shadows.cardElevated,
   },
   googleButtonPressed: {
     opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
   googleButtonDisabled: {
     opacity: 0.55,
   },
   googleLabel: {
-    fontFamily: fontFamilies.medium,
+    fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,
-    color: colors.textPrimary,
+    color: surface,
   },
   errorText: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.error,
+    color: danger,
     textAlign: "center",
   },
 });
