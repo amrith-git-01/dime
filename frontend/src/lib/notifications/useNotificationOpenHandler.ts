@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
 import { navigationRef } from "@/navigation/navigationRef";
@@ -13,24 +13,31 @@ type NotificationActionData = {
   [key: string]: any;
 };
 
-function navigateToNotifications(): void {
+function canNavigateToMain(): boolean {
   if (!navigationRef.isReady()) {
-    return;
+    return false;
   }
 
+  const rootState = navigationRef.getRootState();
+
+  if (!rootState) {
+    return false;
+  }
+
+  return rootState.routeNames?.includes("Main") ?? false;
+}
+
+function navigateToNotifications(): void {
   navigationRef.navigate("Main", {
     screen: "Notifications",
   });
 }
 
 function handleNotificationAction(
+  id: string,
   data: NotificationActionData | undefined,
   queryClient: ReturnType<typeof useQueryClient>,
-): void {
-  if (!navigationRef.isReady()) {
-    return;
-  }
-
+): boolean {
   const transactionId =
     typeof data?.action_transaction_id === "string"
       ? data.action_transaction_id
@@ -43,31 +50,99 @@ function handleNotificationAction(
         screen: "TransactionDetail",
         params: { transaction },
       });
-      return;
+      return true;
     }
   }
 
   navigateToNotifications();
+  return true;
 }
 
-export function useNotificationOpenHandler(): void {
+export function useNotificationOpenHandler(): {
+  handleNavigationReady: () => void;
+} {
   const queryClient = useQueryClient();
-  const lastHandledNotificationIdRef = useRef<string | null>(null);
+  const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+  const pendingResponsesRef = useRef<
+    Map<string, Notifications.NotificationResponse>
+  >(new Map());
+
+  const maybeHandleOrQueueResponse = useCallback(
+    (response: Notifications.NotificationResponse) => {
+      const id = response.notification.request.identifier;
+
+      if (handledNotificationIdsRef.current.has(id)) {
+        return;
+      }
+
+      if (pendingResponsesRef.current.has(id)) {
+        return;
+      }
+
+      const data = response.notification.request.content
+        .data as NotificationActionData | null;
+
+      if (canNavigateToMain()) {
+        const handled = handleNotificationAction(
+          id,
+          data ?? undefined,
+          queryClient,
+        );
+
+        if (handled) {
+          handledNotificationIdsRef.current.add(id);
+        }
+
+        return;
+      }
+
+      pendingResponsesRef.current.set(id, response);
+    },
+    [queryClient],
+  );
+
+  const handleNavigationReady = useCallback(() => {
+    if (!canNavigateToMain()) {
+      return;
+    }
+
+    if (pendingResponsesRef.current.size === 0) {
+      return;
+    }
+
+    const entries = Array.from(pendingResponsesRef.current.entries());
+
+    entries.forEach(([id, response]) => {
+      if (handledNotificationIdsRef.current.has(id)) {
+        pendingResponsesRef.current.delete(id);
+        return;
+      }
+
+      const data = response.notification.request.content
+        .data as NotificationActionData | null;
+
+      if (!canNavigateToMain()) {
+        return;
+      }
+
+      const handled = handleNotificationAction(
+        id,
+        data ?? undefined,
+        queryClient,
+      );
+
+      if (handled) {
+        handledNotificationIdsRef.current.add(id);
+        pendingResponsesRef.current.delete(id);
+      }
+    });
+  }, [queryClient]);
 
   useEffect(() => {
     function handleResponse(
       response: Notifications.NotificationResponse,
     ): void {
-      const id = response.notification.request.identifier;
-      if (lastHandledNotificationIdRef.current === id) {
-        return;
-      }
-      lastHandledNotificationIdRef.current = id;
-
-      const data = response.notification.request.content
-        .data as NotificationActionData | null;
-
-      handleNotificationAction(data ?? undefined, queryClient);
+      maybeHandleOrQueueResponse(response);
     }
 
     const subscription =
@@ -84,6 +159,10 @@ export function useNotificationOpenHandler(): void {
     return () => {
       subscription.remove();
     };
-  }, [queryClient]);
+  }, [maybeHandleOrQueueResponse]);
+
+  return {
+    handleNavigationReady,
+  };
 }
 

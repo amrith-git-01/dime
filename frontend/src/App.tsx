@@ -88,11 +88,15 @@ function AppSplashCoordinator({
 }
 
 function AppRoot() {
-  useNotificationOpenHandler();
+  const { handleNavigationReady } = useNotificationOpenHandler();
 
   return (
     <>
-      <NavigationContainer ref={navigationRef} theme={appNavigationTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={appNavigationTheme}
+        onReady={handleNavigationReady}
+      >
         <RootNavigator />
         <ReceiptScanBusyOverlay />
         <VoiceCaptureBar />
