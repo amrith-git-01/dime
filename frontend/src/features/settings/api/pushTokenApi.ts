@@ -15,6 +15,6 @@ export async function deletePushToken(token?: string): Promise<void> {
     return;
   }
 
-  await dimeApi.delete("/api/v1/me/push-token");
+  await dimeApi.delete("/api/v1/me/push-token", { data: {} });
 }
 
