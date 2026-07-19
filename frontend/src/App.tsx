@@ -35,6 +35,8 @@ import {
   appQueryPersistOptions,
   createAppQueryClient,
 } from "@/lib/appBootstrap";
+import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
+import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
@@ -86,6 +88,8 @@ function AppSplashCoordinator({
 }
 
 function AppRoot() {
+  useNotificationOpenHandler();
+
   return (
     <>
       <NavigationContainer ref={navigationRef} theme={appNavigationTheme}>
@@ -101,6 +105,10 @@ function AppRoot() {
 export default function App() {
   const [queryClient] = useState(() => createAppQueryClient());
   const [fontsLoaded, fontError] = useFonts(loadableAppFonts);
+
+  useEffect(() => {
+    configureExpoNotifications();
+  }, []);
 
   useEffect(() => {
     return persistQueryClientSubscribe({
