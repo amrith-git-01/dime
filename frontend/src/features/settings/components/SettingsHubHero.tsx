@@ -3,19 +3,22 @@ import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ink, inkFaint, inkSoft, line, radius, shadows, spacing, surface } from "@/constants";
+import { ink, inkFaint, inkSoft, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
-import { SETTINGS_HERO_AVATAR_SIZE } from "./settingsBentoTokens";
+import { SETTINGS_HERO_AVATAR_SIZE } from "../constants/settingsTokens";
 
 export type SettingsHubHeroProps = {
   displayName: string;
+  email: string | null;
   avatarUrl: string;
   onPress: () => void;
 };
 
 export const SettingsHubHero = memo(function SettingsHubHero({
   displayName,
+  email,
   avatarUrl,
   onPress,
 }: SettingsHubHeroProps) {
@@ -23,29 +26,27 @@ export const SettingsHubHero = memo(function SettingsHubHero({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Account and profile"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        shadows.card,
-        pressed && styles.pressed,
-      ]}
+      onPress={() => {
+        void triggerHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      <View style={styles.avatarRing}>
-        <Image
-          source={{ uri: avatarUrl }}
-          style={styles.avatar}
-          accessibilityLabel="Profile photo"
-        />
-      </View>
+      <Image
+        source={{ uri: avatarUrl }}
+        style={styles.avatar}
+        accessibilityLabel="Profile photo"
+      />
 
       <View style={styles.textCol}>
-        <Text style={styles.kicker}>Your account</Text>
         <Text style={styles.name} numberOfLines={1}>
           {displayName}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          Profile & display name
-        </Text>
+        {email ? (
+          <Text style={styles.email} numberOfLines={1}>
+            {email}
+          </Text>
+        ) : null}
       </View>
 
       <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
@@ -54,23 +55,17 @@ export const SettingsHubHero = memo(function SettingsHubHero({
 });
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: surface,
-    overflow: "visible",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 56,
+    borderRadius: radius.sm,
   },
   pressed: {
     opacity: 0.88,
-  },
-  avatarRing: {
-    padding: 3,
-    borderRadius: radius.full,
-    borderWidth: 2,
-    borderColor: line,
   },
   avatar: {
     width: SETTINGS_HERO_AVATAR_SIZE,
@@ -82,21 +77,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 2,
   },
-  kicker: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: inkSoft,
-  },
   name: {
     fontFamily: fontFamilies.semiBold,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 18,
+    lineHeight: 24,
     color: ink,
   },
-  subtitle: {
+  email: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
