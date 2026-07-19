@@ -12,6 +12,7 @@ import {
 } from "@/features/settings/utils/settingsDraft";
 import { useToast } from "@/features/toast/useToast";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
+import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 
 function patchDraft(
   prev: UserSettings | null,
@@ -61,9 +62,23 @@ export function useSettingsNotificationsScreenModel() {
       return;
     }
 
+    const deviceNotificationsEnabled = draft.deviceNotificationsEnabled;
+
     try {
       await updateMutation.mutateAsync(patch);
       showToast({ variant: "success", message: "Notification settings saved" });
+
+      try {
+        await syncExpoPushTokenForUser(deviceNotificationsEnabled);
+      } catch (error: unknown) {
+        if (deviceNotificationsEnabled) {
+          showToast({
+            variant: "info",
+            message:
+              "Device notifications may not work until Android system permission is allowed.",
+          });
+        }
+      }
     } catch (error: unknown) {
       showToast({
         variant: "error",
@@ -71,7 +86,13 @@ export function useSettingsNotificationsScreenModel() {
           parseFastApiError(error) || "Could not save notification settings.",
       });
     }
-  }, [draft, savedSettings, showToast, updateMutation]);
+  }, [
+    draft,
+    savedSettings,
+    showToast,
+    syncExpoPushTokenForUser,
+    updateMutation,
+  ]);
 
   const isInitialLoading =
     settingsQuery.isPending && settingsQuery.data === undefined;

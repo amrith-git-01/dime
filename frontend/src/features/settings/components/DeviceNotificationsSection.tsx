@@ -10,7 +10,7 @@ export type DeviceNotificationsSectionProps = {
   onEnabledChange: (enabled: boolean) => void;
 };
 
-/** Local device-notification preference — own card, not grouped with in-app alerts. */
+/** Server-backed tray preference — own card, not grouped with in-app alerts. */
 export const DeviceNotificationsSection = memo(
   function DeviceNotificationsSection({
     enabled,

@@ -18,6 +18,10 @@ import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { hydrateNotificationsFromMmkv } from "@/features/notifications/cache/syncNotificationsMmkv";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { fetchUserSettings } from "@/features/settings/api/settingsApi";
+import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserSettingsMmkv";
+import { settingsQueryKeys } from "@/features/settings/queryKeys";
+import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 import {
   fetchTransactionsPage,
   monthRangeIso,
@@ -69,11 +73,13 @@ function restoreQueryCache(queryClient: QueryClient): boolean {
 export function hydrateAppFromMmkv(queryClient: QueryClient): void {
   const queryCacheRestored = restoreQueryCache(queryClient);
   const notificationsRestored = hydrateNotificationsFromMmkv(queryClient);
+  const userSettingsRestored = hydrateUserSettingsFromMmkv(queryClient);
 
   if (__DEV__) {
     console.log("[appBootstrap] hydrated from MMKV", {
       queryCacheRestored,
       notificationsRestored,
+      userSettingsRestored,
     });
   }
 }
@@ -152,6 +158,24 @@ export function prefetchSiblingTabQueries(
   prefetchIfStale(queryClient, categoriesQueryKeys.list(), fetchCategories);
   prefetchIfStale(queryClient, budgetQueryKey, fetchBudget);
   prefetchIfStale(queryClient, categoryBudgetsQueryKey, fetchCategoryBudgets);
+
+  void (async () => {
+    try {
+      const settings = await queryClient.fetchQuery({
+        queryKey: settingsQueryKeys.user(),
+        queryFn: fetchUserSettings,
+      });
+
+      if (settings.deviceNotificationsEnabled) {
+        await syncExpoPushTokenForUser(true);
+      }
+    } catch (error) {
+      console.warn(
+        "[appBootstrap] Failed to sync Expo push token on bootstrap",
+        error,
+      );
+    }
+  })();
 
   const monthPagesKey = transactionsQueryKeys.monthPages(
     userId,
