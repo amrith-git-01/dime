@@ -16,3 +16,5 @@ CREATE TABLE IF NOT EXISTS public.user_push_tokens (
 
 CREATE INDEX IF NOT EXISTS user_push_tokens_user_id_idx
   ON public.user_push_tokens (user_id);
+
+ALTER TABLE public.user_push_tokens ENABLE ROW LEVEL SECURITY;
