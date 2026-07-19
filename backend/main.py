@@ -15,13 +15,11 @@ from routes import (
     agent,
     budget,
     categories,
-    feedback,
     health,
     me,
     notifications,
     profile,
     push_tokens,
-    settings,
     transactions,
 )
 
@@ -93,8 +91,6 @@ def create_application() -> FastAPI:
     application.include_router(budget.router, prefix=api_prefix)
     application.include_router(notifications.router, prefix=api_prefix)
     application.include_router(push_tokens.router, prefix=api_prefix)
-    application.include_router(settings.router, prefix=api_prefix)
-    application.include_router(feedback.router, prefix=api_prefix)
     application.include_router(agent.router, prefix=api_prefix)
 
     @application.get("/")
