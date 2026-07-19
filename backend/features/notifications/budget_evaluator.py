@@ -12,6 +12,7 @@ from features.categories.repository import CategoryRepository
 from features.notifications.emitter import NotificationEmitter, format_inr
 from features.transactions.repository import TransactionRepository
 from features.transactions.time_bounds import day_bounds_iso, month_bounds_iso, parse_tz
+from features.user_settings.snapshot import UserSettingsSnapshot
 
 
 def _debit_by_category_from_period_blob(blob: dict[str, object]) -> dict[str, Decimal]:
@@ -48,12 +49,14 @@ class BudgetThresholdEvaluator:
         transaction_repo: TransactionRepository,
         emitter: NotificationEmitter,
         db_client: object,
+        settings: UserSettingsSnapshot | None = None,
     ) -> None:
         self._budget_repo = budget_repo
         self._category_budget_repo = category_budget_repo
         self._transaction_repo = transaction_repo
         self._emitter = emitter
         self._db = db_client
+        self._settings = settings or UserSettingsSnapshot()
 
     def evaluate_after_debit(
         self,
@@ -70,7 +73,7 @@ class BudgetThresholdEvaluator:
         month_key = f"{year}-{month:02d}"
         day_key = local_day.isoformat()
 
-        if category_id:
+        if category_id and self._settings.budget_category_alerts_enabled:
             self._evaluate_category_budget(
                 user_id=user_id,
                 category_id=category_id,
@@ -85,35 +88,39 @@ class BudgetThresholdEvaluator:
             return
 
         monthly_cap = Decimal(str(budget_row.get("monthly_budget", 0)))
-        if monthly_cap > 0:
+        if monthly_cap > 0 and self._settings.budget_monthly_alerts_enabled:
             start, end = month_bounds_iso(year, month, timezone)
             spent = self._sum_debits(user_id, start, end)
+            warn_pct = self._settings.budget_monthly_warn_pct
             self._emit_thresholds(
                 user_id=user_id,
                 scope="monthly",
                 period_key=month_key,
                 spent=spent,
                 cap=monthly_cap,
-                title_80="80% of monthly budget used",
-                title_100="Monthly budget exceeded",
-                body_80_template="You've spent {spent} of {cap} this month.",
-                body_100_template="You're {over} over your {cap} monthly budget.",
+                warn_pct=warn_pct,
+                title_warn=f"{warn_pct}% of monthly budget used",
+                title_over="Monthly budget exceeded",
+                body_warn_template="You've spent {spent} of {cap} this month.",
+                body_over_template="You're {over} over your {cap} monthly budget.",
             )
 
         daily_cap = Decimal(str(budget_row.get("daily_budget", 0)))
-        if daily_cap > 0:
+        if daily_cap > 0 and self._settings.budget_daily_alerts_enabled:
             start, end = day_bounds_iso(local_day, timezone)
             spent = self._sum_debits(user_id, start, end)
+            warn_pct = self._settings.budget_daily_warn_pct
             self._emit_thresholds(
                 user_id=user_id,
                 scope="daily",
                 period_key=day_key,
                 spent=spent,
                 cap=daily_cap,
-                title_80="80% of daily budget used",
-                title_100="Daily budget exceeded",
-                body_80_template="You've spent {spent} of {cap} today.",
-                body_100_template="You're {over} over your {cap} daily budget.",
+                warn_pct=warn_pct,
+                title_warn=f"{warn_pct}% of daily budget used",
+                title_over="Daily budget exceeded",
+                body_warn_template="You've spent {spent} of {cap} today.",
+                body_over_template="You're {over} over your {cap} daily budget.",
             )
 
     def _evaluate_category_budget(
@@ -153,17 +160,19 @@ class BudgetThresholdEvaluator:
             if isinstance(raw_name, str) and raw_name.strip():
                 name = raw_name.strip()
 
+        warn_pct = self._settings.budget_category_warn_pct
         self._emit_thresholds(
             user_id=user_id,
             scope="category",
             period_key=month_key,
             spent=spent,
             cap=monthly_cap,
+            warn_pct=warn_pct,
             category_id=category_id,
-            title_80=f"80% of {name} budget used",
-            title_100=f"{name} budget exceeded",
-            body_80_template="You've spent {spent} of {cap} on {name} this month.",
-            body_100_template="You're {over} over your {cap} {name} budget this month.",
+            title_warn=f"{warn_pct}% of {name} budget used",
+            title_over=f"{name} budget exceeded",
+            body_warn_template="You've spent {spent} of {cap} on {name} this month.",
+            body_over_template="You're {over} over your {cap} {name} budget this month.",
             category_name=name,
         )
 
@@ -227,10 +236,11 @@ class BudgetThresholdEvaluator:
         period_key: str,
         spent: Decimal,
         cap: Decimal,
-        title_80: str,
-        title_100: str,
-        body_80_template: str,
-        body_100_template: str,
+        warn_pct: int,
+        title_warn: str,
+        title_over: str,
+        body_warn_template: str,
+        body_over_template: str,
         category_id: str | None = None,
         category_name: str = "",
     ) -> None:
@@ -238,9 +248,10 @@ class BudgetThresholdEvaluator:
         spent_fmt = format_inr(spent)
         cap_fmt = format_inr(cap)
         name = category_name or "Category"
+        warn_ratio = Decimal(warn_pct) / Decimal(100)
 
-        if pct >= Decimal("0.8"):
-            body_80 = body_80_template.format(
+        if pct >= warn_ratio:
+            body_warn = body_warn_template.format(
                 spent=spent_fmt,
                 cap=cap_fmt,
                 over="",
@@ -251,23 +262,23 @@ class BudgetThresholdEvaluator:
                     user_id=user_id,
                     category_id=category_id,
                     period_key=period_key,
-                    threshold=80,
-                    title=title_80,
-                    body=body_80,
+                    threshold=warn_pct,
+                    title=title_warn,
+                    body=body_warn,
                 )
             else:
                 self._emitter.emit_budget_threshold(
                     user_id=user_id,
                     scope=scope,  # type: ignore[arg-type]
                     period_key=period_key,
-                    threshold=80,
-                    title=title_80,
-                    body=body_80,
+                    threshold=warn_pct,
+                    title=title_warn,
+                    body=body_warn,
                 )
 
         if pct > Decimal("1"):
             over = format_inr(spent - cap)
-            body_100 = body_100_template.format(
+            body_over = body_over_template.format(
                 spent=spent_fmt,
                 cap=cap_fmt,
                 over=over,
@@ -279,8 +290,8 @@ class BudgetThresholdEvaluator:
                     category_id=category_id,
                     period_key=period_key,
                     threshold=100,
-                    title=title_100,
-                    body=body_100,
+                    title=title_over,
+                    body=body_over,
                 )
             else:
                 self._emitter.emit_budget_threshold(
@@ -288,6 +299,6 @@ class BudgetThresholdEvaluator:
                     scope=scope,  # type: ignore[arg-type]
                     period_key=period_key,
                     threshold=100,
-                    title=title_100,
-                    body=body_100,
+                    title=title_over,
+                    body=body_over,
                 )

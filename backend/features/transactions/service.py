@@ -22,7 +22,10 @@ from features.notifications.emitter import (
     body_for_auto_tx,
     title_for_auto_tx,
 )
+from features.notifications.push_tokens_repository import PushTokensRepository
 from features.notifications.repository import NotificationRepository
+from features.user_settings.repository import UserSettingsRepository
+from features.user_settings.service import UserSettingsService
 from features.transactions.repository import TransactionRepository
 from features.transactions.dedupe import build_payment_hash, build_sparse_merge_patch
 from features.transactions.schemas import (
@@ -658,7 +661,14 @@ class TransactionService:
         enriched = self._enrich_rows(user.id, [raw])
         enriched_row = enriched[0]
         db = self._repo._db  # type: ignore[attr-defined]
-        notifier = NotificationEmitter(NotificationRepository(db))
+        settings_snapshot = UserSettingsService(
+            UserSettingsRepository(db)
+        ).get_snapshot(user.id)
+        notifier = NotificationEmitter(
+            NotificationRepository(db),
+            settings=settings_snapshot,
+            push_tokens_repo=PushTokensRepository(db),
+        )
 
         if body.type == "debit":
             BudgetThresholdEvaluator(
@@ -667,6 +677,7 @@ class TransactionService:
                 transaction_repo=self._repo,
                 emitter=notifier,
                 db_client=db,
+                settings=settings_snapshot,
             ).evaluate_after_debit(
                 user_id=user.id,
                 timezone=timezone,

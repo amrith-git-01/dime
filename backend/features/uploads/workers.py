@@ -16,7 +16,10 @@ from features.ai.schemas import ParseExpenseResult
 from features.ai.service import AIParseError, AIOrchestratorService
 from features.ai.voice_audio import VoiceAudioNormalizeError, normalize_audio_for_transcription
 from features.notifications.emitter import NotificationEmitter
+from features.notifications.push_tokens_repository import PushTokensRepository
 from features.notifications.repository import NotificationRepository
+from features.user_settings.repository import UserSettingsRepository
+from features.user_settings.service import UserSettingsService
 from features.transactions.schemas import TransactionCreate
 from features.transactions.service import TransactionService
 
@@ -209,7 +212,14 @@ async def process_receipt_job(
     try:
         await _process_receipt_job_inner(client=client, bucket=bucket, job=job)
     except Exception:
-        NotificationEmitter(NotificationRepository(client)).emit_capture_failed(
+        settings_snapshot = UserSettingsService(
+            UserSettingsRepository(client)
+        ).get_snapshot(job.user_id)
+        NotificationEmitter(
+            NotificationRepository(client),
+            settings=settings_snapshot,
+            push_tokens_repo=PushTokensRepository(client),
+        ).emit_capture_failed(
             user_id=job.user_id,
             source="scan",
             title="Receipt scan failed",
