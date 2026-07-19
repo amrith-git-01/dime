@@ -161,6 +161,18 @@ export function useNotificationOpenHandler(): {
     };
   }, [maybeHandleOrQueueResponse]);
 
+  useEffect(() => {
+    const unsubscribe = navigationRef.addListener("state", () => {
+      if (!canNavigateToMain()) {
+        return;
+      }
+
+      handleNavigationReady();
+    });
+
+    return unsubscribe;
+  }, [handleNavigationReady]);
+
   return {
     handleNavigationReady,
   };
