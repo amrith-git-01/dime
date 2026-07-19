@@ -11,7 +11,19 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.job_runner import start_workers, stop_workers
 from features.agent.sql_executor import close_sql_pool, init_sql_pool
-from routes import agent, budget, categories, health, me, notifications, profile, transactions
+from routes import (
+    agent,
+    budget,
+    categories,
+    feedback,
+    health,
+    me,
+    notifications,
+    profile,
+    push_tokens,
+    settings,
+    transactions,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +92,9 @@ def create_application() -> FastAPI:
     application.include_router(transactions.router, prefix=api_prefix)
     application.include_router(budget.router, prefix=api_prefix)
     application.include_router(notifications.router, prefix=api_prefix)
+    application.include_router(push_tokens.router, prefix=api_prefix)
+    application.include_router(settings.router, prefix=api_prefix)
+    application.include_router(feedback.router, prefix=api_prefix)
     application.include_router(agent.router, prefix=api_prefix)
 
     @application.get("/")
