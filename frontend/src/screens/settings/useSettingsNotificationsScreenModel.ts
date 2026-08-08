@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { getAppPermissionState } from "@/features/onboarding/utils/appPermissions";
 import { useUpdateUserSettingsMutation } from "@/features/settings/hooks/useUpdateUserSettingsMutation";
 import { useUserSettingsQuery } from "@/features/settings/hooks/useUserSettingsQuery";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/features/settings/utils/settingsDraft";
 import { useToast } from "@/features/toast/useToast";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
+import { syncDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 
 function patchDraft(
@@ -63,6 +65,8 @@ export function useSettingsNotificationsScreenModel() {
     }
 
     const deviceNotificationsEnabled = draft.deviceNotificationsEnabled;
+    const dailyExpenseReminderEnabled = draft.dailyExpenseReminderEnabled;
+    const dailyExpenseReminderTime = draft.dailyExpenseReminderTime;
 
     try {
       await updateMutation.mutateAsync(patch);
@@ -70,12 +74,39 @@ export function useSettingsNotificationsScreenModel() {
 
       try {
         await syncExpoPushTokenForUser(deviceNotificationsEnabled);
-      } catch (error: unknown) {
+      } catch {
         if (deviceNotificationsEnabled) {
           showToast({
             variant: "info",
             message:
               "Device notifications may not work until Android system permission is allowed.",
+          });
+        }
+      }
+
+      try {
+        await syncDailyExpenseReminderSchedule({
+          enabled: dailyExpenseReminderEnabled,
+          time: dailyExpenseReminderTime,
+          deviceNotificationsEnabled,
+        });
+
+        if (dailyExpenseReminderEnabled && deviceNotificationsEnabled) {
+          const permission = await getAppPermissionState("notifications");
+          if (!permission.granted) {
+            showToast({
+              variant: "info",
+              message:
+                "Daily expense reminder may not work until Android system permission is allowed.",
+            });
+          }
+        }
+      } catch {
+        if (dailyExpenseReminderEnabled && deviceNotificationsEnabled) {
+          showToast({
+            variant: "info",
+            message:
+              "Daily expense reminder may not work until Android system permission is allowed.",
           });
         }
       }
@@ -86,13 +117,7 @@ export function useSettingsNotificationsScreenModel() {
           parseFastApiError(error) || "Could not save notification settings.",
       });
     }
-  }, [
-    draft,
-    savedSettings,
-    showToast,
-    syncExpoPushTokenForUser,
-    updateMutation,
-  ]);
+  }, [draft, savedSettings, showToast, updateMutation]);
 
   const isInitialLoading =
     settingsQuery.isPending && settingsQuery.data === undefined;
@@ -109,6 +134,22 @@ export function useSettingsNotificationsScreenModel() {
         setDraft((prev) =>
           patchDraft(prev, savedSettings, {
             deviceNotificationsEnabled: enabled,
+          }),
+        );
+      },
+      dailyExpenseReminderEnabled: editorDraft.dailyExpenseReminderEnabled,
+      dailyExpenseReminderTime: editorDraft.dailyExpenseReminderTime,
+      onDailyExpenseReminderEnabledChange: (enabled: boolean) => {
+        setDraft((prev) =>
+          patchDraft(prev, savedSettings, {
+            dailyExpenseReminderEnabled: enabled,
+          }),
+        );
+      },
+      onDailyExpenseReminderTimeChange: (time: string) => {
+        setDraft((prev) =>
+          patchDraft(prev, savedSettings, {
+            dailyExpenseReminderTime: time,
           }),
         );
       },

@@ -22,6 +22,7 @@ import { fetchUserSettings } from "@/features/settings/api/settingsApi";
 import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserSettingsMmkv";
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
+import { syncDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import {
   fetchTransactionsPage,
   monthRangeIso,
@@ -169,9 +170,15 @@ export function prefetchSiblingTabQueries(
       if (settings.deviceNotificationsEnabled) {
         await syncExpoPushTokenForUser(true);
       }
+
+      await syncDailyExpenseReminderSchedule({
+        enabled: settings.dailyExpenseReminderEnabled,
+        time: settings.dailyExpenseReminderTime,
+        deviceNotificationsEnabled: settings.deviceNotificationsEnabled,
+      });
     } catch (error) {
       console.warn(
-        "[appBootstrap] Failed to sync Expo push token on bootstrap",
+        "[appBootstrap] Failed to sync notification schedules on bootstrap",
         error,
       );
     }

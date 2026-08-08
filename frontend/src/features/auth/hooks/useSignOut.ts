@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 import { clearDimeAuthTokenCache } from "@/lib/api/dimeApi";
+import { cancelDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { clearPersistedNotifications } from "@/lib/notifications/notificationsMmkv";
 import { clearQueryMmkv } from "@/lib/queryPersister";
 import { clearPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
@@ -25,6 +26,15 @@ export function useSignOut() {
       } catch (error) {
         console.warn(
           "[useSignOut] Failed to delete Expo push token on sign-out",
+          error,
+        );
+      }
+
+      try {
+        await cancelDailyExpenseReminderSchedule();
+      } catch (error) {
+        console.warn(
+          "[useSignOut] Failed to cancel daily expense reminder on sign-out",
           error,
         );
       }

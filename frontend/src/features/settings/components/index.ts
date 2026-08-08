@@ -1,4 +1,5 @@
 export { BudgetAlertScopeBlock } from "./BudgetAlertScopeBlock";
+export { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 export { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 export { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
 export { SettingsAccountEditor } from "./SettingsAccountEditor";

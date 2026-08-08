@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { SETTINGS_SECTION_GAP } from "../constants/settingsTokens";
 import { useSettingsToggleBusyGate } from "../hooks/useSettingsToggleBusyGate";
 import { BudgetAlertScopeBlock } from "./BudgetAlertScopeBlock";
+import { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 import { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 import { SettingsEditorFooter } from "./SettingsEditorFooter";
 import { SettingsFormCard } from "./SettingsFormCard";
@@ -12,6 +13,10 @@ import { SettingsToggleRow } from "./SettingsToggleRow";
 export type SettingsNotificationsEditorProps = {
   deviceNotificationsEnabled: boolean;
   onDeviceNotificationsChange: (enabled: boolean) => void;
+  dailyExpenseReminderEnabled: boolean;
+  dailyExpenseReminderTime: string;
+  onDailyExpenseReminderEnabledChange: (enabled: boolean) => void;
+  onDailyExpenseReminderTimeChange: (time: string) => void;
   budgetMonthlyAlertsEnabled: boolean;
   budgetDailyAlertsEnabled: boolean;
   budgetCategoryAlertsEnabled: boolean;
@@ -42,6 +47,10 @@ export const SettingsNotificationsEditor = memo(
   function SettingsNotificationsEditor({
     deviceNotificationsEnabled,
     onDeviceNotificationsChange,
+    dailyExpenseReminderEnabled,
+    dailyExpenseReminderTime,
+    onDailyExpenseReminderEnabledChange,
+    onDailyExpenseReminderTimeChange,
     budgetMonthlyAlertsEnabled,
     budgetDailyAlertsEnabled,
     budgetCategoryAlertsEnabled,
@@ -75,6 +84,14 @@ export const SettingsNotificationsEditor = memo(
           enabled={deviceNotificationsEnabled}
           disabled={togglesDisabled}
           onEnabledChange={onDeviceNotificationsChange}
+        />
+
+        <DailyExpenseReminderSection
+          enabled={dailyExpenseReminderEnabled}
+          time={dailyExpenseReminderTime}
+          disabled={togglesDisabled}
+          onEnabledChange={onDailyExpenseReminderEnabledChange}
+          onTimeChange={onDailyExpenseReminderTimeChange}
         />
 
         <SettingsFormCard>
