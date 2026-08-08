@@ -38,6 +38,11 @@ function handleNotificationAction(
   data: NotificationActionData | undefined,
   queryClient: ReturnType<typeof useQueryClient>,
 ): boolean {
+  if (data?.action_type === "manual_add") {
+    navigationRef.navigate("Main", { screen: "ManualAddTransaction" });
+    return true;
+  }
+
   const transactionId =
     typeof data?.action_transaction_id === "string"
       ? data.action_transaction_id
