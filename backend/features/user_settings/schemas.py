@@ -12,6 +12,8 @@ class UserSettingsResponse(BaseModel):
     auto_capture_alerts_enabled: bool
     capture_failed_alerts_enabled: bool
     device_notifications_enabled: bool = True
+    daily_expense_reminder_enabled: bool = True
+    daily_expense_reminder_time: str = "20:00"
 
 
 class UserSettingsPatchBody(BaseModel):
@@ -27,3 +29,8 @@ class UserSettingsPatchBody(BaseModel):
     auto_capture_alerts_enabled: bool | None = None
     capture_failed_alerts_enabled: bool | None = None
     device_notifications_enabled: bool | None = None
+    daily_expense_reminder_enabled: bool | None = None
+    daily_expense_reminder_time: str | None = Field(
+        default=None,
+        pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$",
+    )

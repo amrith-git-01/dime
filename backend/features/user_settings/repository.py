@@ -15,7 +15,9 @@ _SELECT = (
     "budget_category_warn_pct,"
     "auto_capture_alerts_enabled,"
     "capture_failed_alerts_enabled,"
-    "device_notifications_enabled"
+    "device_notifications_enabled,"
+    "daily_expense_reminder_enabled,"
+    "daily_expense_reminder_time"
 )
 
 _DEFAULTS: dict[str, Any] = {
@@ -29,6 +31,8 @@ _DEFAULTS: dict[str, Any] = {
     "auto_capture_alerts_enabled": True,
     "capture_failed_alerts_enabled": True,
     "device_notifications_enabled": True,
+    "daily_expense_reminder_enabled": True,
+    "daily_expense_reminder_time": "20:00",
 }
 
 

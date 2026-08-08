@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+from pydantic import ValidationError
+
 from features.user_settings.schemas import UserSettingsPatchBody
 from features.user_settings.service import UserSettingsService
 
@@ -18,6 +21,8 @@ def _full_row(**overrides: object) -> dict[str, object]:
         "auto_capture_alerts_enabled": True,
         "capture_failed_alerts_enabled": True,
         "device_notifications_enabled": True,
+        "daily_expense_reminder_enabled": True,
+        "daily_expense_reminder_time": "20:00",
     }
     row.update(overrides)
     return row
@@ -37,6 +42,8 @@ def test_get_or_create_returns_defaults_when_missing() -> None:
     assert result.auto_capture_alerts_enabled is True
     assert result.capture_failed_alerts_enabled is True
     assert result.device_notifications_enabled is True
+    assert result.daily_expense_reminder_enabled is True
+    assert result.daily_expense_reminder_time == "20:00"
 
 
 def test_patch_updates_only_provided_fields() -> None:
@@ -80,3 +87,35 @@ def test_patch_updates_device_notifications_enabled() -> None:
     assert isinstance(patch_arg, dict)
     assert patch_arg["device_notifications_enabled"] is False
     assert result.device_notifications_enabled is False
+
+
+def test_patch_updates_daily_expense_reminder_fields() -> None:
+    repo = MagicMock()
+    repo.fetch_by_user_id.return_value = _full_row()
+    repo.update.return_value = _full_row(
+        daily_expense_reminder_enabled=False,
+        daily_expense_reminder_time="21:30",
+    )
+    service = UserSettingsService(repo)
+
+    result = service.patch(
+        "user-1",
+        UserSettingsPatchBody(
+            daily_expense_reminder_enabled=False,
+            daily_expense_reminder_time="21:30",
+        ),
+    )
+
+    repo.update.assert_called_once()
+    args, kwargs = repo.update.call_args
+    patch_arg = args[1] if len(args) > 1 else kwargs.get("patch")
+    assert isinstance(patch_arg, dict)
+    assert patch_arg["daily_expense_reminder_enabled"] is False
+    assert patch_arg["daily_expense_reminder_time"] == "21:30"
+    assert result.daily_expense_reminder_enabled is False
+    assert result.daily_expense_reminder_time == "21:30"
+
+
+def test_patch_rejects_invalid_daily_expense_reminder_time() -> None:
+    with pytest.raises(ValidationError):
+        UserSettingsPatchBody(daily_expense_reminder_time="25:00")

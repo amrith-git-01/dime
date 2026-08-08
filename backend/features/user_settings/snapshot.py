@@ -23,6 +23,8 @@ class UserSettingsSnapshot:
     auto_capture_alerts_enabled: bool = True
     capture_failed_alerts_enabled: bool = True
     device_notifications_enabled: bool = True
+    daily_expense_reminder_enabled: bool = True
+    daily_expense_reminder_time: str = "20:00"
 
     @classmethod
     def from_row(cls, row: dict[str, object] | None) -> UserSettingsSnapshot:
@@ -56,5 +58,11 @@ class UserSettingsSnapshot:
             ),
             device_notifications_enabled=bool(
                 row.get("device_notifications_enabled", True)
+            ),
+            daily_expense_reminder_enabled=bool(
+                row.get("daily_expense_reminder_enabled", True)
+            ),
+            daily_expense_reminder_time=str(
+                row.get("daily_expense_reminder_time", "20:00")
             ),
         )

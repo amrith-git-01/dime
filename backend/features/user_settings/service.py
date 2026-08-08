@@ -34,6 +34,8 @@ class UserSettingsService:
             ("auto_capture_alerts_enabled", body.auto_capture_alerts_enabled),
             ("capture_failed_alerts_enabled", body.capture_failed_alerts_enabled),
             ("device_notifications_enabled", body.device_notifications_enabled),
+            ("daily_expense_reminder_enabled", body.daily_expense_reminder_enabled),
+            ("daily_expense_reminder_time", body.daily_expense_reminder_time),
         )
         for key, value in mapping:
             if value is not None:
@@ -63,4 +65,6 @@ class UserSettingsService:
             auto_capture_alerts_enabled=snap.auto_capture_alerts_enabled,
             capture_failed_alerts_enabled=snap.capture_failed_alerts_enabled,
             device_notifications_enabled=snap.device_notifications_enabled,
+            daily_expense_reminder_enabled=snap.daily_expense_reminder_enabled,
+            daily_expense_reminder_time=snap.daily_expense_reminder_time,
         )
