@@ -10,7 +10,9 @@ export function settingsEqual(a: UserSettings, b: UserSettings): boolean {
     a.budgetCategoryWarnPct === b.budgetCategoryWarnPct &&
     a.autoCaptureAlertsEnabled === b.autoCaptureAlertsEnabled &&
     a.captureFailedAlertsEnabled === b.captureFailedAlertsEnabled &&
-    a.deviceNotificationsEnabled === b.deviceNotificationsEnabled
+    a.deviceNotificationsEnabled === b.deviceNotificationsEnabled &&
+    a.dailyExpenseReminderEnabled === b.dailyExpenseReminderEnabled &&
+    a.dailyExpenseReminderTime === b.dailyExpenseReminderTime
   );
 }
 
@@ -47,6 +49,12 @@ export function buildSettingsPatch(
   }
   if (draft.deviceNotificationsEnabled !== saved.deviceNotificationsEnabled) {
     patch.deviceNotificationsEnabled = draft.deviceNotificationsEnabled;
+  }
+  if (draft.dailyExpenseReminderEnabled !== saved.dailyExpenseReminderEnabled) {
+    patch.dailyExpenseReminderEnabled = draft.dailyExpenseReminderEnabled;
+  }
+  if (draft.dailyExpenseReminderTime !== saved.dailyExpenseReminderTime) {
+    patch.dailyExpenseReminderTime = draft.dailyExpenseReminderTime;
   }
 
   return Object.keys(patch).length > 0 ? patch : null;

@@ -9,6 +9,8 @@ export type UserSettings = {
   autoCaptureAlertsEnabled: boolean;
   captureFailedAlertsEnabled: boolean;
   deviceNotificationsEnabled: boolean;
+  dailyExpenseReminderEnabled: boolean;
+  dailyExpenseReminderTime: string;
 };
 
 export type UserSettingsPatch = Partial<UserSettings>;
@@ -31,6 +33,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   autoCaptureAlertsEnabled: true,
   captureFailedAlertsEnabled: true,
   deviceNotificationsEnabled: true,
+  dailyExpenseReminderEnabled: true,
+  dailyExpenseReminderTime: "20:00",
 };
 
 export function normalizeUserSettings(

@@ -17,6 +17,8 @@ type UserSettingsDto = {
   auto_capture_alerts_enabled: boolean;
   capture_failed_alerts_enabled: boolean;
   device_notifications_enabled: boolean;
+  daily_expense_reminder_enabled: boolean;
+  daily_expense_reminder_time: string;
 };
 
 function mapDto(dto: UserSettingsDto): UserSettings {
@@ -31,13 +33,15 @@ function mapDto(dto: UserSettingsDto): UserSettings {
     autoCaptureAlertsEnabled: dto.auto_capture_alerts_enabled,
     captureFailedAlertsEnabled: dto.capture_failed_alerts_enabled,
     deviceNotificationsEnabled: dto.device_notifications_enabled,
+    dailyExpenseReminderEnabled: dto.daily_expense_reminder_enabled,
+    dailyExpenseReminderTime: dto.daily_expense_reminder_time,
   });
 }
 
 function mapPatchToDto(
   patch: UserSettingsPatch,
-): Record<string, boolean | number> {
-  const dto: Record<string, boolean | number> = {};
+): Record<string, boolean | number | string> {
+  const dto: Record<string, boolean | number | string> = {};
   if (patch.budgetAlertsEnabled !== undefined) {
     dto.budget_alerts_enabled = patch.budgetAlertsEnabled;
   }
@@ -67,6 +71,12 @@ function mapPatchToDto(
   }
   if (patch.deviceNotificationsEnabled !== undefined) {
     dto.device_notifications_enabled = patch.deviceNotificationsEnabled;
+  }
+  if (patch.dailyExpenseReminderEnabled !== undefined) {
+    dto.daily_expense_reminder_enabled = patch.dailyExpenseReminderEnabled;
+  }
+  if (patch.dailyExpenseReminderTime !== undefined) {
+    dto.daily_expense_reminder_time = patch.dailyExpenseReminderTime;
   }
   return dto;
 }
