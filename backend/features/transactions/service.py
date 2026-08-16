@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from fastapi import HTTPException, status
 from supabase import Client
 
 from core.async_utils import run_sync
@@ -37,6 +38,7 @@ from features.transactions.schemas import (
     TransactionCreate,
     TransactionListResponse,
     TransactionResponse,
+    TransactionUpdate,
 )
 from features.transactions.time_bounds import (
     current_month_bounds_iso,
@@ -695,3 +697,60 @@ class TransactionService:
             )
 
         return TransactionResponse.model_validate(enriched_row)
+
+    def update_manual(
+        self,
+        user: CurrentUser,
+        transaction_id: str,
+        body: TransactionUpdate,
+    ) -> TransactionResponse:
+        existing = self._repo.fetch_active_for_user(user.id, transaction_id)
+        if existing is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Transaction not found.",
+            )
+
+        category_id = str(body.category_id) if body.category_id is not None else None
+        if category_id and not self._category_exists(user.id, category_id):
+            category_id = None
+        if category_id is None:
+            category_id, _ = self._resolve_category(user.id, body.category)
+
+        name_stripped = body.counterparty_name.strip()
+        counterparty_normalized = self._normalize_counterparty(name_stripped)
+        amount_str = format(body.amount, "f")
+        patch: dict[str, Any] = {
+            "amount": amount_str,
+            "type": body.type,
+            "note": body.note,
+            "transaction_at": body.transaction_at.isoformat(),
+            "category_id": category_id,
+            "counterparty_name": name_stripped,
+            "counterparty_normalized": counterparty_normalized,
+        }
+        if body.counterparty_type is not None:
+            patch["counterparty_type"] = body.counterparty_type
+
+        updated = self._repo.update_for_user(
+            user_id=user.id,
+            transaction_id=transaction_id,
+            patch=patch,
+        )
+        if updated is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Transaction not found.",
+            )
+        return self._response_from_existing(user.id, updated)
+
+    def soft_delete(self, user: CurrentUser, transaction_id: str) -> None:
+        deleted = self._repo.soft_delete_for_user(
+            user_id=user.id,
+            transaction_id=transaction_id,
+        )
+        if not deleted:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Transaction not found.",
+            )

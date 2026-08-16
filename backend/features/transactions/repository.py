@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from supabase import Client
@@ -387,3 +388,55 @@ class TransactionRepository:
         if not isinstance(data, list) or not data or not isinstance(data[0], dict):
             return None
         return data[0]
+
+    def fetch_active_for_user(
+        self, user_id: str, transaction_id: str
+    ) -> dict[str, Any] | None:
+        res = (
+            self._db.table("transactions")
+            .select(_DETAIL_SELECT)
+            .eq("id", transaction_id)
+            .eq("user_id", user_id)
+            .is_("deleted_at", "null")
+            .limit(1)
+            .execute()
+        )
+        data = res.data
+        if not isinstance(data, list) or not data or not isinstance(data[0], dict):
+            return None
+        return data[0]
+
+    def update_for_user(
+        self,
+        *,
+        user_id: str,
+        transaction_id: str,
+        patch: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if not patch:
+            return self.fetch_active_for_user(user_id, transaction_id)
+        res = (
+            self._db.table("transactions")
+            .update(patch)
+            .eq("id", transaction_id)
+            .eq("user_id", user_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        data = res.data
+        if not isinstance(data, list) or not data:
+            return None
+        return self.fetch_active_for_user(user_id, transaction_id)
+
+    def soft_delete_for_user(self, *, user_id: str, transaction_id: str) -> bool:
+        now = datetime.now(UTC).isoformat()
+        res = (
+            self._db.table("transactions")
+            .update({"deleted_at": now})
+            .eq("id", transaction_id)
+            .eq("user_id", user_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+        data = res.data
+        return isinstance(data, list) and len(data) > 0

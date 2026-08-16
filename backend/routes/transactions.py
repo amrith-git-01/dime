@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from supabase import Client
@@ -20,6 +21,8 @@ from features.transactions.schemas import (
     SmsBatchRequest,
     TransactionCreate,
     TransactionListResponse,
+    TransactionResponse,
+    TransactionUpdate,
 )
 from features.transactions.service import TransactionService
 from features.uploads.workers import ReceiptJob, SmsJob, VoiceJob
@@ -152,6 +155,53 @@ async def create_transaction(
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
             detail="Could not save transaction.",
+        ) from exc
+
+
+@router.patch("/{transaction_id}", response_model=TransactionResponse)
+async def update_transaction(
+    transaction_id: UUID,
+    body: TransactionUpdate,
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+) -> TransactionResponse:
+    try:
+        service = TransactionService(supabase)
+        return await run_sync(service.update_manual, user, str(transaction_id), body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Failed to update transaction id=%s user id=%s",
+            transaction_id,
+            user.id,
+        )
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not update transaction.",
+        ) from exc
+
+
+@router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_transaction(
+    transaction_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+) -> None:
+    try:
+        service = TransactionService(supabase)
+        await run_sync(service.soft_delete, user, str(transaction_id))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Failed to delete transaction id=%s user id=%s",
+            transaction_id,
+            user.id,
+        )
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="Could not delete transaction.",
         ) from exc
 
 

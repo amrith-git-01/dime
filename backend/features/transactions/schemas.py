@@ -78,6 +78,42 @@ class TransactionCreate(BaseModel):
         return None
 
 
+class TransactionUpdate(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    type: TransactionType
+    counterparty_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        validation_alias=AliasChoices("counterparty_name", "merchant"),
+    )
+    counterparty_type: CounterpartyType | None = None
+    category: str | None = Field(default=None, max_length=120)
+    category_id: UUID | None = None
+    note: str | None = Field(default=None, max_length=2000)
+    transaction_at: datetime
+
+    @field_validator("counterparty_type", mode="before")
+    @classmethod
+    def normalize_update_counterparty_type(cls, value: object) -> str | None:
+        return TransactionCreate.normalize_create_counterparty_type(value)
+
+    @field_validator("amount")
+    @classmethod
+    def quantize_update_amount(cls, value: Decimal) -> Decimal:
+        return value.quantize(Decimal("0.01"))
+
+    @field_validator("counterparty_name")
+    @classmethod
+    def strip_update_counterparty_name(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("category", "note", mode="before")
+    @classmethod
+    def empty_update_to_none(cls, value: object) -> str | None:
+        return TransactionCreate.empty_to_none(value)
+
+
 class TransactionResponse(BaseModel):
     id: str
     user_id: str
