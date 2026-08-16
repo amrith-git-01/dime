@@ -16,9 +16,11 @@ import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScree
 import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
 import SettingsHapticScreenBase from "@/screens/settings/SettingsHapticScreen";
 import SettingsNotificationsScreenBase from "@/screens/settings/SettingsNotificationsScreen";
+import SettingsPermissionsScreenBase from "@/screens/settings/SettingsPermissionsScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
+import EditTransactionScreenBase from "@/screens/transactions/EditTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
 
@@ -41,6 +43,10 @@ const SettingsGlossaryScreen = withStackScreen(
   SettingsGlossaryScreenBase,
   settingsStackShellConfig,
 );
+const SettingsPermissionsScreen = withStackScreen(
+  SettingsPermissionsScreenBase,
+  settingsStackShellConfig,
+);
 const SettingsNotificationsScreen = withStackScreen(
   SettingsNotificationsScreenBase,
 );
@@ -51,6 +57,7 @@ const NotificationsScreen = withStackScreen(
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
+const EditTransactionScreen = withStackScreen(EditTransactionScreenBase);
 // TransactionDetail renders its own overlay — no shell wrapper
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
@@ -103,7 +110,12 @@ export default function MainStackNavigator() {
       <Stack.Screen
         name="SettingsGlossary"
         component={SettingsGlossaryScreen}
-        options={{ ...stackScreenOptions, title: "Words we use" }}
+        options={{ ...stackScreenOptions, title: "Glossary" }}
+      />
+      <Stack.Screen
+        name="SettingsPermissions"
+        component={SettingsPermissionsScreen}
+        options={{ ...stackScreenOptions, title: "Permissions" }}
       />
       <Stack.Screen
         name="SettingsNotifications"
@@ -119,6 +131,11 @@ export default function MainStackNavigator() {
         name="ManualAddTransaction"
         component={ManualAddTransactionScreen}
         options={{ ...stackScreenOptions, title: "Add transaction" }}
+      />
+      <Stack.Screen
+        name="EditTransaction"
+        component={EditTransactionScreen}
+        options={{ ...stackScreenOptions, title: "Edit transaction" }}
       />
       <Stack.Screen
         name="TransactionDetail"

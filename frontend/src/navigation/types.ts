@@ -17,6 +17,7 @@ export type MainStackParamList = {
   SettingsFeedback: undefined;
   SettingsHaptic: undefined;
   SettingsGlossary: undefined;
+  SettingsPermissions: undefined;
   SettingsNotifications: undefined;
   Notifications: undefined;
   ManualAddTransaction:
@@ -25,7 +26,14 @@ export type MainStackParamList = {
         createdCategoryName?: string;
       }
     | undefined;
-  CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  EditTransaction: {
+    transaction: TransactionRow;
+    createdCategoryId?: string;
+    createdCategoryName?: string;
+  };
+  CreateCustomCategory:
+    | { origin?: "budget" | "manual-add" | "edit-transaction" }
+    | undefined;
   EditCategory: { categoryId: string };
   EditMonthlyBudget:
     | {

@@ -85,6 +85,18 @@ export default function CreateCustomCategoryScreen() {
         return;
       }
 
+      if (route.params?.origin === "edit-transaction") {
+        navigation.navigate({
+          name: "EditTransaction",
+          params: {
+            createdCategoryId: row.id,
+            createdCategoryName: row.name,
+          } as MainStackParamList["EditTransaction"],
+          merge: true,
+        });
+        return;
+      }
+
       navigation.goBack();
     } catch (error) {
       const message =
