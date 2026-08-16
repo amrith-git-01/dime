@@ -34,7 +34,7 @@ export function useEditTransactionScreenModel() {
   const { categories, isLoading: categoriesLoading } = useCategories();
 
   const baseline = useMemo(
-    () => transactionRowToFormState(transaction),
+    () => (transaction ? transactionRowToFormState(transaction) : undefined),
     [transaction],
   );
   const form = useManualAddTransactionForm(baseline);
@@ -153,6 +153,9 @@ export function useEditTransactionScreenModel() {
   }, [customCategoryCount, navigation, showToast]);
 
   const handleClear = useCallback(() => {
+    if (!baseline) {
+      return;
+    }
     void triggerHaptic();
     Keyboard.dismiss();
     applySnapshot(baseline);
@@ -207,7 +210,10 @@ export function useEditTransactionScreenModel() {
 
   const onSave = useCallback(async () => {
     if (!authReady || !userId) {
-      Alert.alert("Sign in required", "Sign in to add a transaction.");
+      Alert.alert("Sign in required", "Sign in to save this transaction.");
+      return;
+    }
+    if (!transaction) {
       return;
     }
     const payload = buildPayload();
@@ -247,7 +253,7 @@ export function useEditTransactionScreenModel() {
     buildPayload,
     navigation,
     showToast,
-    transaction.id,
+    transaction,
     updateMutation,
     userId,
   ]);

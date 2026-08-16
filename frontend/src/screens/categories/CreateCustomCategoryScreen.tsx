@@ -91,7 +91,7 @@ export default function CreateCustomCategoryScreen() {
           params: {
             createdCategoryId: row.id,
             createdCategoryName: row.name,
-          } as MainStackParamList["EditTransaction"],
+          },
           merge: true,
         });
         return;

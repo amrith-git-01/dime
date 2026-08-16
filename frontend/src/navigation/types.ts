@@ -27,7 +27,7 @@ export type MainStackParamList = {
       }
     | undefined;
   EditTransaction: {
-    transaction: TransactionRow;
+    transaction?: TransactionRow;
     createdCategoryId?: string;
     createdCategoryName?: string;
   };
