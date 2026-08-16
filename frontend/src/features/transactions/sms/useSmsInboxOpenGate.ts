@@ -46,13 +46,16 @@ export function useSmsInboxOpenGate(input: {
 
   useEffect(() => {
     if (!mainActive || !userId) {
+      console.log("[sms-gate] skip", { mainActive, hasUser: Boolean(userId) });
       return;
     }
     if (!smsScanEnabled) {
+      console.log("[sms-gate] skip: capture toggle off");
       markDone();
       return;
     }
     if (phase !== "idle") {
+      console.log("[sms-gate] skip: phase", phase);
       return;
     }
 
@@ -66,6 +69,7 @@ export function useSmsInboxOpenGate(input: {
           return;
         }
         if (permission !== "granted") {
+          console.log("[sms-gate] stop: permission", permission);
           markDone();
           return;
         }
@@ -74,7 +78,8 @@ export function useSmsInboxOpenGate(input: {
         let inbox: Awaited<ReturnType<typeof queryInboxSince>> = [];
         try {
           inbox = await queryInboxSince(watermarkMs);
-        } catch {
+        } catch (error) {
+          console.warn("[sms-gate] inbox query failed", error);
           markDone();
           return;
         }
@@ -82,11 +87,31 @@ export function useSmsInboxOpenGate(input: {
           return;
         }
 
+        const newest = inbox.reduce(
+          (max, row) => (row.dateMs > max ? row.dateMs : max),
+          0,
+        );
         const decision = decideSmsGate({
           toggleOn: true,
           permissionGranted: true,
           watermarkMs,
           inbox,
+        });
+        console.log("[sms-gate] result", {
+          watermarkMs,
+          watermarkAgeSec: Math.round((Date.now() - watermarkMs) / 1000),
+          inboxCount: inbox.length,
+          newestAgeSec:
+            newest > 0 ? Math.round((Date.now() - newest) / 1000) : null,
+          kind: decision.kind,
+          kept:
+            decision.kind === "review"
+              ? decision.kept.map((row) => ({
+                  address: row.address,
+                  dateMs: row.dateMs,
+                  preview: row.body.slice(0, 80),
+                }))
+              : [],
         });
 
         if (decision.kind === "review") {
