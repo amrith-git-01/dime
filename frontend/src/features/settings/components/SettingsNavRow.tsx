@@ -11,7 +11,6 @@ import {
   line,
   radius,
   spacing,
-  surfaceSunken,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -41,7 +40,8 @@ export const SettingsNavRow = memo(function SettingsNavRow({
           void triggerHaptic();
           onPress();
         }}
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        android_ripple={{ color: "transparent" }}
+        style={styles.row}
       >
         <View style={styles.iconWell}>
           <Icon size={20} color={accent} strokeWidth={2} />
@@ -78,9 +78,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     minHeight: 52,
     borderRadius: radius.sm,
-  },
-  rowPressed: {
-    backgroundColor: surfaceSunken,
   },
   textCol: {
     flex: 1,

@@ -29,6 +29,10 @@ export type HomeBentoContentProps = {
   // Stat row
   netDisplay: string;
   netValue: number;
+  incomeValue: number;
+  spentMonthValue: number;
+  /** Month credits — Income cell on MonthStatRow. */
+  creditedDisplay: string;
 
   // Sections
   topCategories: HomeTopCategoryItem[];
@@ -49,7 +53,6 @@ export type HomeBentoContentProps = {
   onVoice: () => void;
 
   // Unused in new design (kept for compat during migration)
-  creditedDisplay: string;
-  debitedDisplay: string;
   last7DaysSpend: { date: string; total: number }[];
+  debitedDisplay: string;
 };

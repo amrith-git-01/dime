@@ -5,6 +5,7 @@ import {
   BookOpen,
   MessageSquareText,
   ScanLine,
+  Shield,
   Vibrate,
 } from "lucide-react-native";
 import { StyleSheet, Text, View } from "react-native";
@@ -80,9 +81,16 @@ export default function SettingsScreen() {
         <View style={styles.preferencesInner}>
           <SettingsNavRow
             icon={BookOpen}
-            label="Words we use"
+            label="Glossary"
             subtitle="What Debit, Payee, and other labels mean"
             onPress={() => navigation.navigate("SettingsGlossary")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Shield}
+            label="Permissions"
+            subtitle="What we ask for, how we use it, and why"
+            onPress={() => navigation.navigate("SettingsPermissions")}
           />
         </View>
       </SettingsSection>

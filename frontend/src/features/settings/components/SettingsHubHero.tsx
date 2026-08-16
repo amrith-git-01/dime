@@ -30,7 +30,8 @@ export const SettingsHubHero = memo(function SettingsHubHero({
         void triggerHaptic();
         onPress();
       }}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      android_ripple={{ color: "transparent" }}
+      style={styles.row}
     >
       <Image
         source={{ uri: avatarUrl }}
@@ -63,9 +64,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     minHeight: 56,
     borderRadius: radius.sm,
-  },
-  pressed: {
-    opacity: 0.88,
   },
   avatar: {
     width: SETTINGS_HERO_AVATAR_SIZE,

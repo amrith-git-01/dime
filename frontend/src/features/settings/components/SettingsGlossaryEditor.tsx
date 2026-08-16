@@ -3,22 +3,22 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies, inkSoft } from "@/constants";
 
-import type { GlossaryGroup } from "../constants/glossaryTerms";
+import type { HelpAccordionGroup } from "../constants/helpAccordion";
 import { SETTINGS_SECTION_GAP } from "../constants/settingsTokens";
 import { GlossaryTermRow } from "./GlossaryTermRow";
 import { SettingsSection } from "./SettingsSection";
 
 export type SettingsGlossaryEditorProps = {
   intro: string;
-  groups: readonly GlossaryGroup[];
-  expandedTermId: string | null;
+  groups: readonly HelpAccordionGroup[];
+  expandedIds: ReadonlySet<string>;
   onToggleTerm: (id: string) => void;
 };
 
 export const SettingsGlossaryEditor = memo(function SettingsGlossaryEditor({
   intro,
   groups,
-  expandedTermId,
+  expandedIds,
   onToggleTerm,
 }: SettingsGlossaryEditorProps) {
   return (
@@ -32,7 +32,7 @@ export const SettingsGlossaryEditor = memo(function SettingsGlossaryEditor({
               id={item.id}
               term={item.term}
               description={item.description}
-              expanded={expandedTermId === item.id}
+              expanded={expandedIds.has(item.id)}
               onToggle={onToggleTerm}
               showSeparator={index < group.terms.length - 1}
             />

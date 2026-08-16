@@ -1,16 +1,20 @@
 import { ChevronDown } from "lucide-react-native";
-import { memo, useCallback } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-
+import { memo, useCallback, useEffect } from "react";
 import {
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  spacing,
-  surfaceSunken,
-} from "@/constants";
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+
+import { ink, inkFaint, inkSoft, line, spacing, timings } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
@@ -31,10 +35,35 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
   onToggle,
   showSeparator = false,
 }: GlossaryTermRowProps) {
+  const progress = useSharedValue(expanded ? 1 : 0);
+  const measuredHeight = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(expanded ? 1 : 0, timings.normal);
+  }, [expanded, progress]);
+
   const handlePress = useCallback(() => {
     void triggerHaptic();
     onToggle(id);
   }, [id, onToggle]);
+
+  const handleBodyLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      measuredHeight.value = event.nativeEvent.layout.height;
+    },
+    [measuredHeight],
+  );
+
+  const bodyStyle = useAnimatedStyle(() => ({
+    height: measuredHeight.value * progress.value,
+    opacity: progress.value,
+  }));
+
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg` },
+    ],
+  }));
 
   return (
     <View>
@@ -43,20 +72,20 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
         accessibilityState={{ expanded }}
         accessibilityLabel={term}
         onPress={handlePress}
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        android_ripple={{ color: "transparent" }}
+        style={styles.pressable}
       >
         <View style={styles.titleRow}>
           <Text style={styles.term}>{term}</Text>
-          <ChevronDown
-            size={20}
-            color={inkFaint}
-            strokeWidth={2}
-            style={expanded ? styles.chevronExpanded : undefined}
-          />
+          <Animated.View style={chevronStyle}>
+            <ChevronDown size={20} color={inkFaint} strokeWidth={2} />
+          </Animated.View>
         </View>
-        {expanded ? (
-          <Text style={styles.description}>{description}</Text>
-        ) : null}
+        <Animated.View style={[styles.bodyClip, bodyStyle]}>
+          <View style={styles.bodyMeasure} onLayout={handleBodyLayout}>
+            <Text style={styles.description}>{description}</Text>
+          </View>
+        </Animated.View>
       </Pressable>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>
@@ -64,21 +93,14 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
 });
 
 const styles = StyleSheet.create({
-  row: {
-    paddingVertical: spacing.sm,
+  pressable: {
     paddingHorizontal: spacing.sm,
-    minHeight: 52,
-    justifyContent: "center",
-    gap: spacing.xs,
-    borderRadius: radius.sm,
-  },
-  rowPressed: {
-    backgroundColor: surfaceSunken,
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+    minHeight: 52,
   },
   term: {
     flex: 1,
@@ -87,15 +109,22 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: ink,
   },
+  bodyClip: {
+    overflow: "hidden",
+  },
+  bodyMeasure: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    paddingBottom: spacing.sm,
+  },
   description: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
     color: inkSoft,
     paddingRight: 28,
-  },
-  chevronExpanded: {
-    transform: [{ rotate: "180deg" }],
   },
   separator: {
     height: StyleSheet.hairlineWidth,

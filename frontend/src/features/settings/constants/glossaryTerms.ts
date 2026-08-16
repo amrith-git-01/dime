@@ -1,14 +1,7 @@
-export type GlossaryTerm = {
-  id: string;
-  term: string;
-  description: string;
-};
+import type { HelpAccordionGroup, HelpAccordionItem } from "./helpAccordion";
 
-export type GlossaryGroup = {
-  id: string;
-  title: string;
-  terms: readonly GlossaryTerm[];
-};
+export type GlossaryTerm = HelpAccordionItem;
+export type GlossaryGroup = HelpAccordionGroup;
 
 export const GLOSSARY_INTRO = "Labels you'll see in Dime, in plain language.";
 

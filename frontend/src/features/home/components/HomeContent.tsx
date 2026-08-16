@@ -52,7 +52,10 @@ export const HomeContent = memo(function HomeContent(
       />
 
       <MonthStatRow
+        incomeDisplay={props.creditedDisplay}
+        incomeValue={props.incomeValue}
         spentDisplay={props.spentMonthDisplay}
+        spentValue={props.spentMonthValue}
         netDisplay={props.netDisplay}
         netValue={props.netValue}
       />

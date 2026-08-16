@@ -144,6 +144,10 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const creditedDisplay = monthSummaryData
     ? formatSpendMagnitude(monthSummaryData.credit_total)
     : "\u2014";
+  const incomeValue = monthSummaryData
+    ? Math.abs(Number.parseFloat(monthSummaryData.credit_total)) || 0
+    : 0;
+  const spentMonthValue = Number.isFinite(spentMonthNum) ? spentMonthNum : 0;
   const debitedDisplay = monthSummaryData
     ? formatSpendMagnitude(monthSummaryData.debit_total)
     : "\u2014";
@@ -228,6 +232,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   return {
     creditedDisplay,
+    incomeValue,
     dailyProgress,
     dailySubtext,
     dayLabel,
@@ -257,6 +262,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     recentTransactions,
     showRecentEmpty,
     spentMonthDisplay,
+    spentMonthValue,
     spentTodayDisplay,
     topCategories,
   };

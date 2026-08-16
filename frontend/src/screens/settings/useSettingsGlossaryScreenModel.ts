@@ -1,21 +1,16 @@
-import { useCallback, useState } from "react";
-
 import {
   GLOSSARY_GROUPS,
   GLOSSARY_INTRO,
 } from "@/features/settings/constants/glossaryTerms";
+import { useHelpAccordionExpand } from "@/features/settings/hooks/useHelpAccordionExpand";
 
 export function useSettingsGlossaryScreenModel() {
-  const [expandedTermId, setExpandedTermId] = useState<string | null>(null);
-
-  const onToggleTerm = useCallback((id: string) => {
-    setExpandedTermId((current) => (current === id ? null : id));
-  }, []);
+  const { expandedIds, onToggleTerm } = useHelpAccordionExpand();
 
   return {
     intro: GLOSSARY_INTRO,
     groups: GLOSSARY_GROUPS,
-    expandedTermId,
+    expandedIds,
     onToggleTerm,
   };
 }

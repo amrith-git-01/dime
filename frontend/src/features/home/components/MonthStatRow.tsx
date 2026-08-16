@@ -6,27 +6,48 @@ import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
 
 type MonthStatRowProps = {
+  incomeDisplay: string;
+  incomeValue: number;
   spentDisplay: string;
+  spentValue: number;
   netDisplay: string;
   netValue: number;
 };
 
+function isZero(value: number): boolean {
+  return !Number.isFinite(value) || value === 0;
+}
+
 export const MonthStatRow = memo(function MonthStatRow({
+  incomeDisplay,
+  incomeValue,
   spentDisplay,
+  spentValue,
   netDisplay,
   netValue,
 }: MonthStatRowProps) {
-  const netColor = netValue >= 0 ? success : danger;
+  const incomeColor = isZero(incomeValue) ? ink : success;
+  const spentColor = isZero(spentValue) ? ink : danger;
+  const netColor = isZero(netValue) ? ink : netValue > 0 ? success : danger;
 
   return (
     <View style={styles.row}>
       <View style={styles.cell}>
-        <Text style={styles.label}>SPENT</Text>
-        <Text style={[styles.amount, { color: ink }]}>{spentDisplay}</Text>
+        <Text style={styles.label}>Income</Text>
+        <Text style={[styles.amount, { color: incomeColor }]}>
+          {incomeDisplay}
+        </Text>
       </View>
       <View style={styles.divider} />
       <View style={styles.cell}>
-        <Text style={styles.label}>NET</Text>
+        <Text style={styles.label}>Spent</Text>
+        <Text style={[styles.amount, { color: spentColor }]}>
+          {spentDisplay}
+        </Text>
+      </View>
+      <View style={styles.divider} />
+      <View style={styles.cell}>
+        <Text style={styles.label}>Net</Text>
         <Text style={[styles.amount, { color: netColor }]}>{netDisplay}</Text>
       </View>
     </View>
@@ -48,7 +69,7 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 32,
     backgroundColor: line,
-    marginHorizontal: spacing.md,
+    marginHorizontal: spacing.sm,
   },
   label: {
     fontFamily: fontFamilies.medium,
@@ -60,7 +81,7 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 20,
     fontVariant: ["tabular-nums"],
   },
