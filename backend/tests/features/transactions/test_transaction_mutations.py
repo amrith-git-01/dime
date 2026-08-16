@@ -65,7 +65,12 @@ def test_update_manual_writes_editable_fields_only(service: TransactionService) 
 
     result = service.update_manual(_USER, _TX, _update_body())
 
-    patch = service._repo.update_for_user.call_args.kwargs["patch"]
+    service._repo.fetch_active_for_user.assert_called_once_with("user-1", _TX)
+
+    update_kwargs = service._repo.update_for_user.call_args.kwargs
+    assert update_kwargs["user_id"] == "user-1"
+    assert update_kwargs["transaction_id"] == _TX
+    patch = update_kwargs["patch"]
     assert patch["amount"] == "250.50"
     assert patch["type"] == "credit"
     assert patch["counterparty_name"] == "New Payee"
@@ -84,6 +89,7 @@ def test_update_manual_404_when_missing(service: TransactionService) -> None:
         service.update_manual(_USER, _TX, _update_body())
     assert exc.value.status_code == 404
     assert exc.value.detail == "Transaction not found."
+    service._repo.fetch_active_for_user.assert_called_once_with("user-1", _TX)
 
 
 def test_soft_delete_404_when_missing(service: TransactionService) -> None:

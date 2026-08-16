@@ -424,8 +424,8 @@ class TransactionRepository:
             .execute()
         )
         data = res.data
-        if not isinstance(data, list) or not data:
-            return None
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return self.fetch_active_for_user(user_id, transaction_id) or data[0]
         return self.fetch_active_for_user(user_id, transaction_id)
 
     def soft_delete_for_user(self, *, user_id: str, transaction_id: str) -> bool:
