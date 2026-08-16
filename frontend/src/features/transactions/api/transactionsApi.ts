@@ -89,3 +89,16 @@ export async function fetchMonthSummary(input: {
 }
 
 export { TX_PAGE_LIMIT };
+
+export type UpdateTransactionBody = Omit<CreateTransactionBody, "detected_via">;
+
+export async function updateTransaction(
+  id: string,
+  body: UpdateTransactionBody,
+): Promise<void> {
+  await dimeApi.patch(`/api/v1/transactions/${id}`, body);
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  await dimeApi.delete(`/api/v1/transactions/${id}`);
+}

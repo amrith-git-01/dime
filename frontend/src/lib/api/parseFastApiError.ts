@@ -66,3 +66,7 @@ export function parseFastApiError(error: unknown): string {
   }
   return "Something went wrong. Try again.";
 }
+
+export function isFastApiNotFound(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 404;
+}
