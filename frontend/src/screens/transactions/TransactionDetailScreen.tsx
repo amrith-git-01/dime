@@ -1,8 +1,14 @@
-import type { RouteProp } from "@react-navigation/native";
-import { useNavigation, useRoute } from "@react-navigation/native";
 import { format, isToday, parseISO } from "date-fns";
-import { Calendar, Clock, CreditCard, FileText, X } from "lucide-react-native";
-import { useCallback, useEffect, type ReactNode } from "react";
+import {
+  Calendar,
+  Clock,
+  CreditCard,
+  FileText,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react-native";
+import { useEffect, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -11,8 +17,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { ConfirmModal } from "@/components/shared";
 import {
   accent,
+  danger,
   ink,
   inkFaint,
   inkSoft,
@@ -29,13 +37,7 @@ import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
-import type { MainStackParamList } from "@/navigation/types";
-
-type TransactionDetailRoute = RouteProp<
-  MainStackParamList,
-  "TransactionDetail"
->;
+import { useTransactionDetailScreenModel } from "@/screens/transactions/useTransactionDetailScreenModel";
 
 function formatIsoDate(iso: string): string {
   try {
@@ -82,9 +84,8 @@ function MetaRow({ icon, label, value, isLast = false }: MetaRowProps) {
 const SPRING_CONFIG = { damping: 24, stiffness: 300, mass: 0.8 };
 
 export default function TransactionDetailScreen() {
-  const navigation = useNavigation();
-  const { params } = useRoute<TransactionDetailRoute>();
-  const { transaction } = params;
+  const model = useTransactionDetailScreenModel();
+  const { transaction } = model;
 
   const ui = mapTransactionRowToUi(transaction);
   const isCredit = ui.amount > 0;
@@ -102,109 +103,149 @@ export default function TransactionDetailScreen() {
     opacity: opacity.value,
   }));
 
-  const handleDismiss = useCallback(() => {
-    void triggerHaptic();
-    navigation.goBack();
-  }, [navigation]);
-
   const hasNote = Boolean(transaction.note?.trim());
 
   return (
-    <View style={styles.overlay}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} />
+    <>
+      <View style={styles.overlay}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={model.handleDismiss}
+        />
 
-      <Animated.View style={[styles.card, cardShadowStyle, cardStyle]}>
-        {/* Header: category icon + merchant + close button */}
-        <View style={styles.cardHeader}>
-          <View
-            style={[styles.iconTile, { backgroundColor: ui.category.bgColor }]}
-          >
-            <CategoryLucideIcon
-              iconName={ui.category.icon_name}
-              color={ui.category.color}
-              size={22}
-              strokeWidth={1.5}
-            />
+        <Animated.View style={[styles.card, cardShadowStyle, cardStyle]}>
+          {/* Header: category icon + merchant + header actions */}
+          <View style={styles.cardHeader}>
+            <View
+              style={[styles.iconTile, { backgroundColor: ui.category.bgColor }]}
+            >
+              <CategoryLucideIcon
+                iconName={ui.category.icon_name}
+                color={ui.category.color}
+                size={22}
+                strokeWidth={1.5}
+              />
+            </View>
+            <Text style={styles.merchantName} numberOfLines={1}>
+              {ui.merchant}
+            </Text>
+            <View style={styles.headerActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit"
+                hitSlop={12}
+                onPress={model.handleEdit}
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  pressed && styles.closeBtnPressed,
+                ]}
+              >
+                <Pencil size={20} color={ink} strokeWidth={1.5} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete"
+                hitSlop={12}
+                onPress={model.handleDeletePress}
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  pressed && styles.closeBtnPressed,
+                ]}
+              >
+                <Trash2 size={20} color={danger} strokeWidth={1.5} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
+                onPress={model.handleDismiss}
+                style={({ pressed }) => [
+                  styles.closeBtn,
+                  pressed && styles.closeBtnPressed,
+                ]}
+              >
+                <X size={20} color={ink} strokeWidth={1.5} />
+              </Pressable>
+            </View>
           </View>
-          <Text style={styles.merchantName} numberOfLines={1}>
-            {ui.merchant}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            hitSlop={12}
-            onPress={handleDismiss}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && styles.closeBtnPressed,
-            ]}
-          >
-            <X size={20} color={ink} strokeWidth={1.5} />
-          </Pressable>
-        </View>
 
-        {/* Hero amount */}
-        <View style={styles.heroSection}>
-          <Text
-            style={[
-              styles.heroAmount,
-              isCredit ? styles.heroCredit : styles.heroDebit,
-            ]}
-            numberOfLines={1}
-          >
-            {formatTransactionListAmount(ui.amount)}
-          </Text>
-          <View
-            style={[
-              styles.categoryChip,
-              { backgroundColor: ui.category.bgColor },
-            ]}
-          >
-            <CategoryLucideIcon
-              iconName={ui.category.icon_name}
-              color={ui.category.color}
-              size={12}
-              strokeWidth={1.5}
-            />
+          {/* Hero amount */}
+          <View style={styles.heroSection}>
             <Text
-              style={[styles.categoryChipText, { color: ui.category.color }]}
+              style={[
+                styles.heroAmount,
+                isCredit ? styles.heroCredit : styles.heroDebit,
+              ]}
               numberOfLines={1}
             >
-              {ui.category.name}
+              {formatTransactionListAmount(ui.amount)}
             </Text>
+            <View
+              style={[
+                styles.categoryChip,
+                { backgroundColor: ui.category.bgColor },
+              ]}
+            >
+              <CategoryLucideIcon
+                iconName={ui.category.icon_name}
+                color={ui.category.color}
+                size={12}
+                strokeWidth={1.5}
+              />
+              <Text
+                style={[styles.categoryChipText, { color: ui.category.color }]}
+                numberOfLines={1}
+              >
+                {ui.category.name}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        {/* Dashed separator */}
-        <View style={styles.dashedSeparator} />
+          {/* Dashed separator */}
+          <View style={styles.dashedSeparator} />
 
-        {/* Meta rows — fixed 4 rows, no scroll needed */}
-        <View>
-          <MetaRow
-            icon={<Calendar size={16} color={inkFaint} strokeWidth={1.5} />}
-            label="Date"
-            value={formatIsoDate(transaction.transaction_at)}
-          />
-          <MetaRow
-            icon={<Clock size={16} color={inkFaint} strokeWidth={1.5} />}
-            label="Time"
-            value={formatIsoTime(transaction.transaction_at)}
-          />
-          <MetaRow
-            icon={<CreditCard size={16} color={inkFaint} strokeWidth={1.5} />}
-            label="Source"
-            value={ui.viaLabel}
-          />
-          <MetaRow
-            icon={<FileText size={16} color={inkFaint} strokeWidth={1.5} />}
-            label="Notes"
-            value={hasNote ? transaction.note!.trim() : "—"}
-            isLast
-          />
-        </View>
-        <View style={styles.cardBottom} />
-      </Animated.View>
-    </View>
+          {/* Meta rows — fixed 4 rows, no scroll needed */}
+          <View>
+            <MetaRow
+              icon={<Calendar size={16} color={inkFaint} strokeWidth={1.5} />}
+              label="Date"
+              value={formatIsoDate(transaction.transaction_at)}
+            />
+            <MetaRow
+              icon={<Clock size={16} color={inkFaint} strokeWidth={1.5} />}
+              label="Time"
+              value={formatIsoTime(transaction.transaction_at)}
+            />
+            <MetaRow
+              icon={
+                <CreditCard size={16} color={inkFaint} strokeWidth={1.5} />
+              }
+              label="Source"
+              value={ui.viaLabel}
+            />
+            <MetaRow
+              icon={<FileText size={16} color={inkFaint} strokeWidth={1.5} />}
+              label="Notes"
+              value={hasNote ? transaction.note!.trim() : "—"}
+              isLast
+            />
+          </View>
+          <View style={styles.cardBottom} />
+        </Animated.View>
+      </View>
+
+      <ConfirmModal
+        visible={model.confirmVisible}
+        title="Delete transaction?"
+        message="This removes it from Home, Insights, and budgets. You can’t undo this."
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        confirmTone="danger"
+        confirmLoading={model.deleteLoading}
+        onCancel={model.handleCancelDelete}
+        onConfirm={model.handleConfirmDelete}
+      />
+    </>
   );
 }
 
@@ -242,6 +283,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.md,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
+    gap: spacing.xs,
   },
   iconTile: {
     width: 44,
