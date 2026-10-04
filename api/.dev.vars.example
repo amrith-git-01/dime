@@ -1,0 +1,62 @@
+# Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
+# In deployed environments set secrets with `wrangler secret put <NAME>` and
+# non-secret values in wrangler.jsonc `vars`.
+
+# --- Supabase ---
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_placeholder
+SUPABASE_SECRET_KEY=sb_secret_placeholder
+# Legacy HS256 JWT secret (only needed if the project still signs with it)
+SUPABASE_JWT_SECRET=placeholder-jwt-secret
+
+# --- Parse model (DeepSeek) ---
+DEEPSEEK_API_KEY=placeholder
+AI_BASE_URL=https://api.deepseek.com/chat/completions
+AI_MODEL=deepseek-v4-flash
+AI_PARSE_FALLBACK=deepseek:deepseek-v4-flash,deepseek:deepseek-chat
+AI_TIMEOUT_SECONDS=45
+AI_TEMPERATURE=0.1
+
+# --- Groq (OCR + Whisper preprocess) ---
+GROQ_API_KEY=placeholder
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_WHISPER_PRIMARY=whisper-large-v3-turbo
+GROQ_WHISPER_FALLBACK=whisper-large-v3
+GROQ_VISION_OCR_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+
+# --- Agent ---
+AGENT_BASE_URL=https://api.deepseek.com
+AGENT_MODEL=deepseek-v4-flash
+AGENT_MODEL_FALLBACK=deepseek-v4-pro
+AGENT_THINKING_ENABLED=false
+AGENT_STRICT_TOOLS=true
+AGENT_MAX_TOOL_ROUNDS=5
+AGENT_TIMEOUT_SECONDS=45
+AGENT_CONTEXT_MAX_MESSAGES=20
+AGENT_SQL_TIMEOUT_SECONDS=10
+AGENT_SQL_MAX_ROWS=500
+
+# --- Uploads and media ---
+MAX_RECEIPT_UPLOAD_BYTES=10485760
+MAX_VOICE_UPLOAD_BYTES=15728640
+STORAGE_BUCKET=Dime
+PRIVATE_STORAGE_BUCKET=Dime-private
+SIGNED_URL_TTL_SECONDS=21600
+AVATAR_URL_ALLOWED_HOSTS=api.dicebear.com
+
+# --- CORS: comma-separated origins; empty = no CORS headers (mobile app needs none) ---
+CORS_ORIGINS=
+
+# --- Email (Brevo). Missing BREVO_API_KEY = log and skip send ---
+BREVO_API_KEY=
+EMAIL_FROM=Dime <hello@localhost>
+EMAIL_UNSUBSCRIBE_SECRET=placeholder-long-random-string
+EMAIL_APP_LINK=https://play.google.com/store
+EMAIL_CRON_SECRET=placeholder-long-random-string
+EMAIL_PUBLIC_BASE_URL=http://127.0.0.1:8787
+# Optional override; default is the Worker's own /email/* static assets
+EMAIL_ASSET_BASE_URL=
+FAVQS_API_KEY=
+
+# Database for agent SQL is NOT an env var. Use the HYPERDRIVE binding; locally set
+# CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://... (see README).

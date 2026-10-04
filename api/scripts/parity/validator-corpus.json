@@ -1,0 +1,1577 @@
+[
+ {
+  "id": 1,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT id FROM transactions"
+ },
+ {
+  "id": 2,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT * FROM (SELECT id FROM transactions) AS _q LIMIT 500"
+ },
+ {
+  "id": 3,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT 1; SELECT 2"
+ },
+ {
+  "id": 4,
+  "source": "py:test_sql_validator.py",
+  "sql": "DELETE FROM transactions"
+ },
+ {
+  "id": 5,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT * INTO temp FROM transactions"
+ },
+ {
+  "id": 6,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT * FROM secret_table"
+ },
+ {
+  "id": 7,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT id FROM transactions LIMIT 10"
+ },
+ {
+  "id": 8,
+  "source": "py:test_sql_validator.py",
+  "sql": "SELECT id FROM "
+ },
+ {
+  "id": 9,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT pg_sleep(10)"
+ },
+ {
+  "id": 10,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM transactions WHERE pg_sleep(5) IS NULL"
+ },
+ {
+  "id": 11,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT set_config('role', 'postgres', false)"
+ },
+ {
+  "id": 12,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT current_setting('request.jwt.claims')"
+ },
+ {
+  "id": 13,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT pg_read_file('/etc/passwd')"
+ },
+ {
+  "id": 14,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT pg_read_binary_file('/etc/passwd')"
+ },
+ {
+  "id": 15,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM pg_ls_dir('.')"
+ },
+ {
+  "id": 16,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT dblink_connect('host=evil')"
+ },
+ {
+  "id": 17,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT lo_import('/etc/passwd')"
+ },
+ {
+  "id": 18,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT pg_terminate_backend(1)"
+ },
+ {
+  "id": 19,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT query_to_xml('select * from pg_roles', true, true, '')"
+ },
+ {
+  "id": 20,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM transactions; DROP TABLE users"
+ },
+ {
+  "id": 21,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "WITH d AS (DELETE FROM transactions RETURNING *) SELECT * FROM d"
+ },
+ {
+  "id": 22,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "WITH u AS (UPDATE users SET email = 'x' RETURNING *) SELECT * FROM u"
+ },
+ {
+  "id": 23,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM transactions FOR UPDATE"
+ },
+ {
+  "id": 24,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * INTO backup FROM transactions"
+ },
+ {
+  "id": 25,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SET ROLE postgres"
+ },
+ {
+  "id": 26,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "WITH spend AS (SELECT category_id, SUM(amount) AS total FROM transactions WHERE type = 'debit' GROUP BY category_id) SELECT c.name, spend.total FROM spend JOIN categories c ON c.id = spend.category_id"
+ },
+ {
+  "id": 27,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM (WITH spend AS"
+ },
+ {
+  "id": 28,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "WITH RECURSIVE n AS (SELECT 1 AS a UNION ALL SELECT a + 1 FROM n WHERE a < 5) SELECT * FROM n"
+ },
+ {
+  "id": 29,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT t.id FROM transactions t, pg_roles r"
+ },
+ {
+  "id": 30,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM transactions WHERE user_id IN (SELECT oid::text FROM pg_authid)"
+ },
+ {
+  "id": 31,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM information_schema.tables"
+ },
+ {
+  "id": 32,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM pg_catalog.pg_class"
+ },
+ {
+  "id": 33,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM other_schema.transactions"
+ },
+ {
+  "id": 34,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM \"pg_roles\""
+ },
+ {
+  "id": 35,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "WITH x AS (SELECT * FROM pg_shadow) SELECT * FROM x"
+ },
+ {
+  "id": 36,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT * FROM pg_roles, (WITH pg_roles AS (SELECT 1) SELECT * FROM pg_roles) q"
+ },
+ {
+  "id": 37,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM public.transactions"
+ },
+ {
+  "id": 38,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT id FROM budgets UNION SELECT id FROM categories"
+ },
+ {
+  "id": 39,
+  "source": "py:test_sql_validator_security.py",
+  "sql": "SELECT g FROM generate_series(1, 5) AS g"
+ },
+ {
+  "id": 40,
+  "source": "py:test_execute_sql_node.py",
+  "sql": "SELECT amount FROM transactions"
+ },
+ {
+  "id": 41,
+  "source": "py:test_execute_sql_node.py",
+  "sql": "SELECT 1"
+ },
+ {
+  "id": 42,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "WITH spend AS (SELECT category_id, SUM(amount) AS total FROM transactions WHERE type = 'debit' GROUP BY category_id) "
+ },
+ {
+  "id": 43,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT c.name, spend.total FROM spend JOIN categories c ON c.id = spend.category_id"
+ },
+ {
+  "id": 44,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT b.monthly_budget, COALESCE(SUM(t.amount), 0) AS spent FROM budgets b LEFT JOIN transactions t ON t.type = 'debit' AND t.deleted_at IS NULL "
+ },
+ {
+  "id": 45,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT t.counterparty_normalized, MAX(t.counterparty_name) AS counterparty_name, SUM(t.amount) AS total FROM transactions t WHERE t.counterparty_normalized = "
+ },
+ {
+  "id": 47,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT c.name AS category_name, SUM(CASE WHEN t.transaction_at BETWEEN '2026-06-01' AND '2026-06-30' THEN t.amount ELSE 0 END) AS period_a_amount "
+ },
+ {
+  "id": 48,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT date_trunc('day', transaction_at AT TIME ZONE 'Asia/Kolkata')::date AS d, to_char(transaction_at, 'YYYY-MM') AS m, EXTRACT(month FROM transaction_at) FROM transactions"
+ },
+ {
+  "id": 49,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT id FROM transactions -- newest first"
+ },
+ {
+  "id": 50,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM (\nSELECT id FROM transactions -- newest first\n) AS _q LIMIT 500"
+ },
+ {
+  "id": 51,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT id FROM transactions;"
+ },
+ {
+  "id": 52,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "WITH pg_roles AS (SELECT * FROM pg_roles) SELECT * FROM pg_roles"
+ },
+ {
+  "id": 53,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "WITH a AS (SELECT * FROM b), b AS (SELECT 1) SELECT * FROM a"
+ },
+ {
+  "id": 54,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "TABLE pg_roles"
+ },
+ {
+  "id": 55,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM transactions UNION SELECT * FROM auth.users"
+ },
+ {
+  "id": 56,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM notifications"
+ },
+ {
+  "id": 57,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM public.notifications"
+ },
+ {
+  "id": 58,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM mycatalog.public.transactions"
+ },
+ {
+  "id": 59,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT (SELECT count(*) FROM jobs)"
+ },
+ {
+  "id": 60,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM transactions ORDER BY (SELECT 1 FROM email_sends LIMIT 1)"
+ },
+ {
+  "id": 61,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM transactions WHERE EXISTS (SELECT 1 FROM user_settings)"
+ },
+ {
+  "id": 62,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM transactions TABLESAMPLE SYSTEM (10) JOIN user_feedback ON true"
+ },
+ {
+  "id": 63,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM xmltable('/a' PASSING xmlparse(document '<a/>') COLUMNS x int)"
+ },
+ {
+  "id": 64,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT pg_catalog.pg_sleep(1)"
+ },
+ {
+  "id": 65,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT \"pg_sleep\"(1)"
+ },
+ {
+  "id": 66,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT nextval('s')"
+ },
+ {
+  "id": 67,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT setval('s', 1)"
+ },
+ {
+  "id": 68,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT has_table_privilege('transactions', 'select')"
+ },
+ {
+  "id": 69,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT txid_current()"
+ },
+ {
+  "id": 70,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT table_to_xml('transactions', true, false, '')"
+ },
+ {
+  "id": 71,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT ts_stat($$select 1$$)"
+ },
+ {
+  "id": 72,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM ROWS FROM (generate_series(1, 3), pg_sleep(1))"
+ },
+ {
+  "id": 73,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT * FROM transactions t, LATERAL pg_ls_dir(t.note)"
+ },
+ {
+  "id": 74,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT transactions_period_summary('00000000-0000-0000-0000-000000000000', now(), now())"
+ },
+ {
+  "id": 75,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT update_category_with_budget(1)"
+ },
+ {
+  "id": 76,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT auth.uid()"
+ },
+ {
+  "id": 77,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT extensions.http_get(1)"
+ },
+ {
+  "id": 78,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT http_get('http://169.254.169.254')"
+ },
+ {
+  "id": 79,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT 'pg_roles'::regclass"
+ },
+ {
+  "id": 80,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT 10::regrole"
+ },
+ {
+  "id": 81,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT CAST('x' AS pg_catalog.regprocedure)"
+ },
+ {
+  "id": 82,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "WITH i AS (INSERT INTO budgets (user_id) VALUES ('x') RETURNING *) SELECT * FROM i"
+ },
+ {
+  "id": 83,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT id FROM transactions FOR SHARE"
+ },
+ {
+  "id": 84,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "EXPLAIN SELECT 1"
+ },
+ {
+  "id": 85,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "COPY transactions TO STDOUT"
+ },
+ {
+  "id": 86,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "BEGIN; SELECT 1"
+ },
+ {
+  "id": 87,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "CREATE TABLE x (a int)"
+ },
+ {
+  "id": 88,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "DROP TABLE transactions"
+ },
+ {
+  "id": 89,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "TRUNCATE transactions"
+ },
+ {
+  "id": 90,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SHOW ALL"
+ },
+ {
+  "id": 91,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "RESET ALL"
+ },
+ {
+  "id": 92,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "DO $$ BEGIN PERFORM 1; END $$"
+ },
+ {
+  "id": 93,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "CALL some_proc()"
+ },
+ {
+  "id": 94,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "LOCK TABLE transactions"
+ },
+ {
+  "id": 95,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "VACUUM"
+ },
+ {
+  "id": 96,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT pg_sleep(1) FROM pg_roles FOR UPDATE"
+ },
+ {
+  "id": 97,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT pg_sleep(1) FROM pg_roles"
+ },
+ {
+  "id": 98,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT 1 FROM transactions\u0000; DROP TABLE x"
+ },
+ {
+  "id": 99,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT id FROM transactions WHERE note = '; DROP TABLE users; --'"
+ },
+ {
+  "id": 100,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT $q$'; DROP TABLE users; --$q$ AS x FROM transactions"
+ },
+ {
+  "id": 101,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT 1 /* ; */ ; DROP TABLE users"
+ },
+ {
+  "id": 102,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT id FROM transactions --"
+ },
+ {
+  "id": 103,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT 1 FROM transactions /* unterminated"
+ },
+ {
+  "id": 104,
+  "source": "ts:agent-validator.test.ts",
+  "sql": "SELECT FROM WHERE"
+ },
+ {
+  "id": 105,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT * FROM"
+ },
+ {
+  "id": 106,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT SUM(amount) AS total FROM transactions"
+ },
+ {
+  "id": 107,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "select set_config('request.jwt.claims', $1, true)"
+ },
+ {
+  "id": 108,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "set local role authenticated"
+ },
+ {
+  "id": 109,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "set local statement_timeout = '3000ms'"
+ },
+ {
+  "id": 110,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT * FROM (SELECT SUM(amount) AS total FROM transactions) AS _q LIMIT 500"
+ },
+ {
+  "id": 111,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT * FROM pg_roles"
+ },
+ {
+  "id": 112,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT pg_sleep(5)"
+ },
+ {
+  "id": 113,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT n FROM transactions"
+ },
+ {
+  "id": 114,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT nope FROM transactions"
+ },
+ {
+  "id": 115,
+  "source": "ts:agent-executor.test.ts",
+  "sql": "SELECT 1 FROM transactions"
+ },
+ {
+  "id": 116,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT monthly_budget FROM budgets"
+ },
+ {
+  "id": 117,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT b.monthly_budget, COALESCE(SUM(t.amount),0) AS spent FROM budgets b LEFT JOIN transactions t ON ..."
+ },
+ {
+  "id": 118,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "select * from transactions"
+ },
+ {
+  "id": 119,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT counterparty_normalized, counterparty_name, SUM(amount) AS total_spending FROM transactions WHERE type = 'debit' GROUP BY 1, 2"
+ },
+ {
+  "id": 120,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "show me stuff"
+ },
+ {
+  "id": 121,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT COUNT(*) AS n FROM transactions"
+ },
+ {
+  "id": 122,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT b.monthly_budget, COALESCE(SUM(t.amount), 0) AS spent FROM budgets b LEFT JOIN transactions t ON true GROUP BY 1"
+ },
+ {
+  "id": 123,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT transaction_at::date AS d, SUM(amount) AS amount FROM transactions GROUP BY 1"
+ },
+ {
+  "id": 124,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT 1 AS x FROM transactions"
+ },
+ {
+  "id": 125,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "SELECT SUM(amount) AS period_a_total FROM transactions"
+ },
+ {
+  "id": 126,
+  "source": "ts:agent-loop.test.ts",
+  "sql": "does not retry a permanent provider error on the same model"
+ },
+ {
+  "id": 127,
+  "source": "ts:prompts.ts",
+  "sql": "Do not give investment or tax advice."
+ },
+ {
+  "id": 128,
+  "source": "extra",
+  "sql": "SELECT now()"
+ },
+ {
+  "id": 129,
+  "source": "extra",
+  "sql": "SELECT version()"
+ },
+ {
+  "id": 130,
+  "source": "extra",
+  "sql": "SELECT current_user"
+ },
+ {
+  "id": 131,
+  "source": "extra",
+  "sql": "SELECT session_user"
+ },
+ {
+  "id": 132,
+  "source": "extra",
+  "sql": "SELECT current_database()"
+ },
+ {
+  "id": 133,
+  "source": "extra",
+  "sql": "SELECT current_schema()"
+ },
+ {
+  "id": 134,
+  "source": "extra",
+  "sql": "SELECT current_schemas(true)"
+ },
+ {
+  "id": 135,
+  "source": "extra",
+  "sql": "SELECT inet_server_addr()"
+ },
+ {
+  "id": 136,
+  "source": "extra",
+  "sql": "SELECT inet_client_addr()"
+ },
+ {
+  "id": 137,
+  "source": "extra",
+  "sql": "SELECT pg_backend_pid()"
+ },
+ {
+  "id": 138,
+  "source": "extra",
+  "sql": "SELECT PG_SLEEP(1)"
+ },
+ {
+  "id": 139,
+  "source": "extra",
+  "sql": "SELECT public.pg_sleep(1)"
+ },
+ {
+  "id": 140,
+  "source": "extra",
+  "sql": "SELECT pg_catalog.set_config('role','postgres',false)"
+ },
+ {
+  "id": 141,
+  "source": "extra",
+  "sql": "SELECT \"set_config\"('a','b',false)"
+ },
+ {
+  "id": 142,
+  "source": "extra",
+  "sql": "SELECT current_setting('x', true)"
+ },
+ {
+  "id": 143,
+  "source": "extra",
+  "sql": "SELECT xpath('/a', '<a/>'::xml)"
+ },
+ {
+  "id": 144,
+  "source": "extra",
+  "sql": "SELECT convert_from('abc'::bytea, 'UTF8')"
+ },
+ {
+  "id": 145,
+  "source": "extra",
+  "sql": "SELECT txid_current_snapshot()"
+ },
+ {
+  "id": 146,
+  "source": "extra",
+  "sql": "SELECT has_database_privilege('postgres','CONNECT')"
+ },
+ {
+  "id": 147,
+  "source": "extra",
+  "sql": "SELECT dblink('x','y')"
+ },
+ {
+  "id": 148,
+  "source": "extra",
+  "sql": "SELECT * FROM dblink('x','select 1') AS t(a int)"
+ },
+ {
+  "id": 149,
+  "source": "extra",
+  "sql": "SELECT lo_get(1)"
+ },
+ {
+  "id": 150,
+  "source": "extra",
+  "sql": "SELECT pg_ls_dir('.')"
+ },
+ {
+  "id": 151,
+  "source": "extra",
+  "sql": "SELECT pg_stat_file('/etc/passwd')"
+ },
+ {
+  "id": 152,
+  "source": "extra",
+  "sql": "SELECT pg_advisory_lock(1)"
+ },
+ {
+  "id": 153,
+  "source": "extra",
+  "sql": "SELECT pg_notify('c','p')"
+ },
+ {
+  "id": 154,
+  "source": "extra",
+  "sql": "SELECT pg_cancel_backend(1)"
+ },
+ {
+  "id": 155,
+  "source": "extra",
+  "sql": "SELECT pg_reload_conf()"
+ },
+ {
+  "id": 156,
+  "source": "extra",
+  "sql": "SELECT * FROM pg_stat_activity"
+ },
+ {
+  "id": 157,
+  "source": "extra",
+  "sql": "SELECT * FROM pg_settings"
+ },
+ {
+  "id": 158,
+  "source": "extra",
+  "sql": "SELECT * FROM pg_user"
+ },
+ {
+  "id": 159,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions"
+ },
+ {
+  "id": 160,
+  "source": "extra",
+  "sql": "SELECT * FROM TRANSACTIONS"
+ },
+ {
+  "id": 161,
+  "source": "extra",
+  "sql": "SELECT * FROM \"Transactions\""
+ },
+ {
+  "id": 162,
+  "source": "extra",
+  "sql": "SELECT * FROM \"transactions\""
+ },
+ {
+  "id": 163,
+  "source": "extra",
+  "sql": "SELECT * FROM \"public\".\"transactions\""
+ },
+ {
+  "id": 164,
+  "source": "extra",
+  "sql": "SELECT * FROM \"public\".transactions"
+ },
+ {
+  "id": 165,
+  "source": "extra",
+  "sql": "SELECT * FROM PUBLIC.TRANSACTIONS"
+ },
+ {
+  "id": 166,
+  "source": "extra",
+  "sql": "SELECT * FROM public . transactions"
+ },
+ {
+  "id": 167,
+  "source": "extra",
+  "sql": "SELECT * FROM ONLY transactions"
+ },
+ {
+  "id": 168,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions AS t(a, b)"
+ },
+ {
+  "id": 169,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions t WHERE t.amount::text ~ '^1'"
+ },
+ {
+  "id": 170,
+  "source": "extra",
+  "sql": "SELECT t.* FROM transactions t JOIN LATERAL (SELECT 1 AS x) s ON true"
+ },
+ {
+  "id": 171,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions NATURAL JOIN categories"
+ },
+ {
+  "id": 172,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions CROSS JOIN pg_roles"
+ },
+ {
+  "id": 173,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions, categories, budgets, users"
+ },
+ {
+  "id": 174,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WINDOW w AS (PARTITION BY user_id)"
+ },
+ {
+  "id": 175,
+  "source": "extra",
+  "sql": "SELECT amount, SUM(amount) OVER (PARTITION BY category_id ORDER BY transaction_at) FROM transactions"
+ },
+ {
+  "id": 176,
+  "source": "extra",
+  "sql": "SELECT category_id, SUM(amount) FILTER (WHERE type = 'debit') FROM transactions GROUP BY ROLLUP(category_id)"
+ },
+ {
+  "id": 177,
+  "source": "extra",
+  "sql": "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) FROM transactions"
+ },
+ {
+  "id": 178,
+  "source": "extra",
+  "sql": "SELECT ARRAY(SELECT id FROM transactions)"
+ },
+ {
+  "id": 179,
+  "source": "extra",
+  "sql": "SELECT ARRAY(SELECT oid FROM pg_class)"
+ },
+ {
+  "id": 180,
+  "source": "extra",
+  "sql": "SELECT 1 WHERE EXISTS (SELECT 1 FROM auth.users)"
+ },
+ {
+  "id": 181,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE id = ANY(SELECT id FROM pg_authid)"
+ },
+ {
+  "id": 182,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE amount > ALL (SELECT amount FROM budgets)"
+ },
+ {
+  "id": 183,
+  "source": "extra",
+  "sql": "SELECT * FROM (SELECT * FROM pg_user) x"
+ },
+ {
+  "id": 184,
+  "source": "extra",
+  "sql": "SELECT * FROM (SELECT 1) x"
+ },
+ {
+  "id": 185,
+  "source": "extra",
+  "sql": "SELECT (SELECT 1)"
+ },
+ {
+  "id": 186,
+  "source": "extra",
+  "sql": "SELECT 1 UNION SELECT 2"
+ },
+ {
+  "id": 187,
+  "source": "extra",
+  "sql": "SELECT 1 UNION ALL SELECT 2 EXCEPT SELECT 3"
+ },
+ {
+  "id": 188,
+  "source": "extra",
+  "sql": "VALUES (1), (2)"
+ },
+ {
+  "id": 189,
+  "source": "extra",
+  "sql": "TABLE transactions"
+ },
+ {
+  "id": 190,
+  "source": "extra",
+  "sql": "(SELECT 1)"
+ },
+ {
+  "id": 191,
+  "source": "extra",
+  "sql": "(SELECT 1) UNION (SELECT 2)"
+ },
+ {
+  "id": 192,
+  "source": "extra",
+  "sql": "SELECT * FROM generate_series(1, 3)"
+ },
+ {
+  "id": 193,
+  "source": "extra",
+  "sql": "SELECT * FROM generate_series('2026-01-01'::date, '2026-12-01'::date, '1 month') AS g"
+ },
+ {
+  "id": 194,
+  "source": "extra",
+  "sql": "SELECT * FROM unnest(ARRAY[1, 2])"
+ },
+ {
+  "id": 195,
+  "source": "extra",
+  "sql": "SELECT * FROM json_each('{}')"
+ },
+ {
+  "id": 196,
+  "source": "extra",
+  "sql": "SELECT * FROM jsonb_to_recordset('[]') AS t(a int)"
+ },
+ {
+  "id": 197,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions_period_summary('x', now(), now())"
+ },
+ {
+  "id": 198,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions_daily_totals('x', now(), now(), 'UTC')"
+ },
+ {
+  "id": 199,
+  "source": "extra",
+  "sql": "SELECT * FROM jobs"
+ },
+ {
+  "id": 200,
+  "source": "extra",
+  "sql": "SELECT * FROM email_sends"
+ },
+ {
+  "id": 201,
+  "source": "extra",
+  "sql": "SELECT * FROM user_settings"
+ },
+ {
+  "id": 202,
+  "source": "extra",
+  "sql": "SELECT * FROM budgets"
+ },
+ {
+  "id": 203,
+  "source": "extra",
+  "sql": "SELECT * FROM category_budgets"
+ },
+ {
+  "id": 204,
+  "source": "extra",
+  "sql": "SELECT COALESCE(SUM(amount), 0)::numeric(12,2) FROM transactions"
+ },
+ {
+  "id": 205,
+  "source": "extra",
+  "sql": "SELECT CAST(amount AS text) FROM transactions"
+ },
+ {
+  "id": 206,
+  "source": "extra",
+  "sql": "SELECT current_date"
+ },
+ {
+  "id": 207,
+  "source": "extra",
+  "sql": "SELECT CURRENT_TIMESTAMP"
+ },
+ {
+  "id": 208,
+  "source": "extra",
+  "sql": "SELECT localtimestamp"
+ },
+ {
+  "id": 209,
+  "source": "extra",
+  "sql": "SELECT user"
+ },
+ {
+  "id": 210,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions LIMIT ALL"
+ },
+ {
+  "id": 211,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions OFFSET 5 ROWS FETCH FIRST 3 ROWS ONLY"
+ },
+ {
+  "id": 212,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions LIMIT 5 OFFSET 2"
+ },
+ {
+  "id": 213,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions FOR UPDATE SKIP LOCKED"
+ },
+ {
+  "id": 214,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions FOR NO KEY UPDATE"
+ },
+ {
+  "id": 215,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions FOR KEY SHARE"
+ },
+ {
+  "id": 216,
+  "source": "extra",
+  "sql": "SELECT 1 FOR UPDATE"
+ },
+ {
+  "id": 217,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions TABLESAMPLE BERNOULLI (50)"
+ },
+ {
+  "id": 218,
+  "source": "extra",
+  "sql": "WITH t AS MATERIALIZED (SELECT 1) SELECT * FROM t"
+ },
+ {
+  "id": 219,
+  "source": "extra",
+  "sql": "WITH t(a) AS (SELECT 1) SELECT * FROM t"
+ },
+ {
+  "id": 220,
+  "source": "extra",
+  "sql": "WITH a AS (SELECT 1), b AS (SELECT * FROM a) SELECT * FROM b"
+ },
+ {
+  "id": 221,
+  "source": "extra",
+  "sql": "WITH RECURSIVE a AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM a WHERE n < 3), b AS (SELECT * FROM a) SELECT * FROM b"
+ },
+ {
+  "id": 222,
+  "source": "extra",
+  "sql": "WITH a AS (SELECT * FROM transactions) SELECT * FROM a, pg_roles"
+ },
+ {
+  "id": 223,
+  "source": "extra",
+  "sql": "WITH a AS (SELECT 1) SELECT * FROM a; SELECT 2"
+ },
+ {
+  "id": 224,
+  "source": "extra",
+  "sql": "WITH a AS (SELECT 1) DELETE FROM transactions"
+ },
+ {
+  "id": 225,
+  "source": "extra",
+  "sql": "WITH a AS (SELECT 1) INSERT INTO budgets SELECT * FROM a"
+ },
+ {
+  "id": 226,
+  "source": "extra",
+  "sql": "WITH t AS (SELECT * FROM transactions) UPDATE transactions SET note = 'x'"
+ },
+ {
+  "id": 227,
+  "source": "extra",
+  "sql": "SELECT * INTO TEMP t FROM transactions"
+ },
+ {
+  "id": 228,
+  "source": "extra",
+  "sql": "CREATE TEMP TABLE t AS SELECT * FROM transactions"
+ },
+ {
+  "id": 229,
+  "source": "extra",
+  "sql": "CREATE VIEW v AS SELECT 1"
+ },
+ {
+  "id": 230,
+  "source": "extra",
+  "sql": "INSERT INTO budgets VALUES (1)"
+ },
+ {
+  "id": 231,
+  "source": "extra",
+  "sql": "UPDATE transactions SET note = 'x'"
+ },
+ {
+  "id": 232,
+  "source": "extra",
+  "sql": "ALTER TABLE transactions DROP COLUMN note"
+ },
+ {
+  "id": 233,
+  "source": "extra",
+  "sql": "GRANT ALL ON transactions TO public"
+ },
+ {
+  "id": 234,
+  "source": "extra",
+  "sql": "REVOKE ALL ON transactions FROM public"
+ },
+ {
+  "id": 235,
+  "source": "extra",
+  "sql": "SET LOCAL role = 'postgres'"
+ },
+ {
+  "id": 236,
+  "source": "extra",
+  "sql": "SET statement_timeout = 0"
+ },
+ {
+  "id": 237,
+  "source": "extra",
+  "sql": "RESET ROLE"
+ },
+ {
+  "id": 238,
+  "source": "extra",
+  "sql": "BEGIN"
+ },
+ {
+  "id": 239,
+  "source": "extra",
+  "sql": "COMMIT"
+ },
+ {
+  "id": 240,
+  "source": "extra",
+  "sql": "ROLLBACK"
+ },
+ {
+  "id": 241,
+  "source": "extra",
+  "sql": "SAVEPOINT s"
+ },
+ {
+  "id": 242,
+  "source": "extra",
+  "sql": "PREPARE p AS SELECT 1"
+ },
+ {
+  "id": 243,
+  "source": "extra",
+  "sql": "EXECUTE p"
+ },
+ {
+  "id": 244,
+  "source": "extra",
+  "sql": "DEALLOCATE ALL"
+ },
+ {
+  "id": 245,
+  "source": "extra",
+  "sql": "LISTEN c"
+ },
+ {
+  "id": 246,
+  "source": "extra",
+  "sql": "NOTIFY c"
+ },
+ {
+  "id": 247,
+  "source": "extra",
+  "sql": "CHECKPOINT"
+ },
+ {
+  "id": 248,
+  "source": "extra",
+  "sql": "ANALYZE transactions"
+ },
+ {
+  "id": 249,
+  "source": "extra",
+  "sql": "REINDEX TABLE transactions"
+ },
+ {
+  "id": 250,
+  "source": "extra",
+  "sql": "CLUSTER transactions"
+ },
+ {
+  "id": 251,
+  "source": "extra",
+  "sql": "REFRESH MATERIALIZED VIEW x"
+ },
+ {
+  "id": 252,
+  "source": "extra",
+  "sql": "SELECT 1;"
+ },
+ {
+  "id": 253,
+  "source": "extra",
+  "sql": "SELECT 1;;"
+ },
+ {
+  "id": 254,
+  "source": "extra",
+  "sql": ";;SELECT 1"
+ },
+ {
+  "id": 255,
+  "source": "extra",
+  "sql": ";"
+ },
+ {
+  "id": 256,
+  "source": "extra",
+  "sql": "SELECT 1 ; SELECT 2 ;"
+ },
+ {
+  "id": 257,
+  "source": "extra",
+  "sql": "/* c */ SELECT 1"
+ },
+ {
+  "id": 258,
+  "source": "extra",
+  "sql": "SELECT 1 -- ; DROP TABLE x"
+ },
+ {
+  "id": 259,
+  "source": "extra",
+  "sql": "SELECT 1 /* ; DROP TABLE x */"
+ },
+ {
+  "id": 260,
+  "source": "extra",
+  "sql": "SELECT 1 /* unterminated"
+ },
+ {
+  "id": 261,
+  "source": "extra",
+  "sql": "SELECT 'unterminated"
+ },
+ {
+  "id": 262,
+  "source": "extra",
+  "sql": "SELECT $$a;b$$"
+ },
+ {
+  "id": 263,
+  "source": "extra",
+  "sql": "SELECT $tag$a;b$tag$"
+ },
+ {
+  "id": 264,
+  "source": "extra",
+  "sql": "SELECT $1"
+ },
+ {
+  "id": 265,
+  "source": "extra",
+  "sql": "SELECT :x"
+ },
+ {
+  "id": 266,
+  "source": "extra",
+  "sql": "SELECT 'a' || 'b' FROM transactions"
+ },
+ {
+  "id": 267,
+  "source": "extra",
+  "sql": "select * from transactions where note like '%;%'"
+ },
+ {
+  "id": 268,
+  "source": "extra",
+  "sql": "SELECT 1 AS \"a;b\""
+ },
+ {
+  "id": 269,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions /*+ hint */"
+ },
+ {
+  "id": 270,
+  "source": "extra",
+  "sql": "SELECT /*+ hint */ 1"
+ },
+ {
+  "id": 271,
+  "source": "extra",
+  "sql": "SELECT \"pg_roles\".* FROM \"pg_roles\""
+ },
+ {
+  "id": 272,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions t, pg_roles"
+ },
+ {
+  "id": 273,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions JOIN pg_roles ON true"
+ },
+ {
+  "id": 274,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions LEFT JOIN auth.users u ON true"
+ },
+ {
+  "id": 275,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE user_id IN (SELECT id FROM auth.users)"
+ },
+ {
+  "id": 276,
+  "source": "extra",
+  "sql": "SELECT 'a'::regclass"
+ },
+ {
+  "id": 277,
+  "source": "extra",
+  "sql": "SELECT 'pg_roles'::regclass::oid"
+ },
+ {
+  "id": 278,
+  "source": "extra",
+  "sql": "SELECT to_regclass('pg_roles')"
+ },
+ {
+  "id": 279,
+  "source": "extra",
+  "sql": "SELECT pg_get_viewdef('x')"
+ },
+ {
+  "id": 280,
+  "source": "extra",
+  "sql": "SELECT pg_get_functiondef(1)"
+ },
+ {
+  "id": 281,
+  "source": "extra",
+  "sql": "SELECT obj_description(1)"
+ },
+ {
+  "id": 282,
+  "source": "extra",
+  "sql": "SELECT format('%s', 1)"
+ },
+ {
+  "id": 283,
+  "source": "extra",
+  "sql": "SELECT to_char(now(), 'YYYY')"
+ },
+ {
+  "id": 284,
+  "source": "extra",
+  "sql": "SELECT date_trunc('month', transaction_at) FROM transactions"
+ },
+ {
+  "id": 285,
+  "source": "extra",
+  "sql": "SELECT set_config('x','y',true) FROM transactions"
+ },
+ {
+  "id": 286,
+  "source": "extra",
+  "sql": "SELECT extract(epoch FROM now())"
+ },
+ {
+  "id": 287,
+  "source": "extra",
+  "sql": "SELECT generate_series(1, 3)"
+ },
+ {
+  "id": 288,
+  "source": "extra",
+  "sql": "SELECT unnest(ARRAY[1,2])"
+ },
+ {
+  "id": 289,
+  "source": "extra",
+  "sql": "SELECT random()"
+ },
+ {
+  "id": 290,
+  "source": "extra",
+  "sql": "SELECT gen_random_uuid()"
+ },
+ {
+  "id": 291,
+  "source": "extra",
+  "sql": "SELECT md5('x')"
+ },
+ {
+  "id": 292,
+  "source": "extra",
+  "sql": "SELECT repeat('x', 100000000)"
+ },
+ {
+  "id": 293,
+  "source": "extra",
+  "sql": "SELECT array_agg(id) FROM transactions"
+ },
+ {
+  "id": 294,
+  "source": "extra",
+  "sql": "SELECT string_agg(note, ',') FROM transactions"
+ },
+ {
+  "id": 295,
+  "source": "extra",
+  "sql": "SELECT jsonb_agg(t) FROM transactions t"
+ },
+ {
+  "id": 296,
+  "source": "extra",
+  "sql": "SELECT row_to_json(t) FROM transactions t"
+ },
+ {
+  "id": 297,
+  "source": "extra",
+  "sql": "SELECT to_jsonb(u) FROM users u"
+ },
+ {
+  "id": 298,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE note ILIKE ANY (ARRAY['%a%', '%b%'])"
+ },
+ {
+  "id": 299,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE transaction_at AT TIME ZONE 'Asia/Kolkata' > now()"
+ },
+ {
+  "id": 300,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions ORDER BY 1 NULLS LAST"
+ },
+ {
+  "id": 301,
+  "source": "extra",
+  "sql": "SELECT DISTINCT ON (category_id) * FROM transactions ORDER BY category_id, transaction_at DESC"
+ },
+ {
+  "id": 302,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions GROUP BY GROUPING SETS ((category_id), ())"
+ },
+ {
+  "id": 303,
+  "source": "extra",
+  "sql": "SELECT 1 WHERE false"
+ },
+ {
+  "id": 304,
+  "source": "extra",
+  "sql": "SELECT"
+ },
+ {
+  "id": 305,
+  "source": "extra",
+  "sql": "SELECT FROM"
+ },
+ {
+  "id": 306,
+  "source": "extra",
+  "sql": "FROM transactions"
+ },
+ {
+  "id": 307,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions WHERE"
+ },
+ {
+  "id": 308,
+  "source": "extra",
+  "sql": "SELECT id\nFROM transactions\n-- trailing comment"
+ },
+ {
+  "id": 309,
+  "source": "extra",
+  "sql": "SELECT 1\n;\n\nSELECT 2"
+ },
+ {
+  "id": 310,
+  "source": "extra",
+  "sql": "  \n\t SELECT 1  \n"
+ },
+ {
+  "id": 311,
+  "source": "extra",
+  "sql": "SELECT * FROM transactions\n/* block\ncomment */\nLIMIT 3"
+ },
+ {
+  "id": 312,
+  "source": "extra",
+  "sql": "SELECT 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1"
+ },
+ {
+  "id": 313,
+  "source": "extra",
+  "sql": "SELECT 1\u0000"
+ },
+ {
+  "id": 314,
+  "source": "extra",
+  "sql": "SELECT 1 FROM transactions WHERE note = '\u0000'"
+ },
+ {
+  "id": 315,
+  "source": "extra",
+  "sql": "SELECT E'\\\\x41'"
+ },
+ {
+  "id": 316,
+  "source": "extra",
+  "sql": "SELECT U&'\\0041'"
+ }
+]

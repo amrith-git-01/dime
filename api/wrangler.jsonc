@@ -1,0 +1,180 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "dime-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  // nodejs_compat: AsyncLocalStorage (request-scoped logging) and postgres.js (agent SQL, R4).
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Hard cap on CPU time per invocation: protects the bill from runaway loops.
+  "limits": { "cpu_ms": 30000 },
+
+  // Non-secret config. Secrets (keys, JWT secret, email secrets) are set with
+  // `wrangler secret put` and listed in .dev.vars.example. Env sections do NOT inherit these.
+  "vars": {
+    "SUPABASE_URL": "https://REPLACE-ME.supabase.co",
+    "STORAGE_BUCKET": "Dime",
+    "PRIVATE_STORAGE_BUCKET": "Dime-private",
+    "SIGNED_URL_TTL_SECONDS": "21600",
+    "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
+    "MAX_VOICE_UPLOAD_BYTES": "15728640",
+    "AVATAR_URL_ALLOWED_HOSTS": "api.dicebear.com",
+    "CORS_ORIGINS": "",
+    "AI_BASE_URL": "https://api.deepseek.com/chat/completions",
+    "AI_MODEL": "deepseek-v4-flash",
+    "AI_PARSE_FALLBACK": "deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
+    "AI_TIMEOUT_SECONDS": "45",
+    "AI_TEMPERATURE": "0.1",
+    "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
+    "GROQ_WHISPER_PRIMARY": "whisper-large-v3-turbo",
+    "GROQ_WHISPER_FALLBACK": "whisper-large-v3",
+    "GROQ_VISION_OCR_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "AGENT_BASE_URL": "https://api.deepseek.com",
+    "AGENT_MODEL": "deepseek-v4-flash",
+    "AGENT_MODEL_FALLBACK": "deepseek-v4-pro",
+    "AGENT_THINKING_ENABLED": "false",
+    "AGENT_STRICT_TOOLS": "true",
+    "AGENT_MAX_TOOL_ROUNDS": "5",
+    "AGENT_TIMEOUT_SECONDS": "45",
+    "AGENT_CONTEXT_MAX_MESSAGES": "20",
+    "AGENT_SQL_TIMEOUT_SECONDS": "10",
+    "AGENT_SQL_MAX_ROWS": "500",
+    "EMAIL_FROM": "Dime <hello@localhost>",
+    "EMAIL_APP_LINK": "https://play.google.com/store",
+    "EMAIL_PUBLIC_BASE_URL": "https://dime-api.REPLACE-ME.workers.dev"
+  },
+
+  "queues": {
+    "producers": [
+      { "binding": "INGEST_QUEUE", "queue": "dime-ingest" },
+      { "binding": "EMAIL_QUEUE", "queue": "dime-email" }
+    ],
+    "consumers": [
+      {
+        "queue": "dime-ingest",
+        "max_batch_size": 5,
+        "max_batch_timeout": 2,
+        "max_retries": 3,
+        "retry_delay": 10,
+        "dead_letter_queue": "dime-ingest-dlq"
+      },
+      // Messages the queue gave up on: marks the job failed and notifies the user.
+      {
+        "queue": "dime-ingest-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 2
+      },
+      {
+        "queue": "dime-email",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "retry_delay": 30
+      }
+    ]
+  },
+
+  // Create with `npx wrangler hyperdrive create dime-db --connection-string=...` and paste the id.
+  // Local dev: `localConnectionString` below, or CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE (see README).
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+    }
+  ],
+
+  // "*/5 * * * *": ingest recovery sweep (re-sends stale pending/processing jobs).
+  // "30 2 * * *" (08:00 IST daily): fan out email digests onto EMAIL_QUEUE (R4).
+  "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
+
+  // Email images served at /email/*. run_worker_first stays off so assets bypass the Worker (free, no CPU).
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+
+  // Per-location rate limits; `period` must be 10 or 60. namespace_id is an integer-string unique per account.
+  "ratelimits": [
+    { "name": "WRITE_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "AI_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+
+  "env": {
+    "staging": {
+      "name": "dime-api-staging",
+      "vars": {
+        "SUPABASE_URL": "https://REPLACE-ME-STAGING.supabase.co",
+        "STORAGE_BUCKET": "Dime",
+        "PRIVATE_STORAGE_BUCKET": "Dime-private",
+        "SIGNED_URL_TTL_SECONDS": "21600",
+        "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
+        "MAX_VOICE_UPLOAD_BYTES": "15728640",
+        "AVATAR_URL_ALLOWED_HOSTS": "api.dicebear.com",
+        "CORS_ORIGINS": "",
+        "AI_BASE_URL": "https://api.deepseek.com/chat/completions",
+        "AI_MODEL": "deepseek-v4-flash",
+        "AI_PARSE_FALLBACK": "deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
+        "AI_TIMEOUT_SECONDS": "45",
+        "AI_TEMPERATURE": "0.1",
+        "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
+        "GROQ_WHISPER_PRIMARY": "whisper-large-v3-turbo",
+        "GROQ_WHISPER_FALLBACK": "whisper-large-v3",
+        "GROQ_VISION_OCR_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "AGENT_BASE_URL": "https://api.deepseek.com",
+        "AGENT_MODEL": "deepseek-v4-flash",
+        "AGENT_MODEL_FALLBACK": "deepseek-v4-pro",
+        "AGENT_THINKING_ENABLED": "false",
+        "AGENT_STRICT_TOOLS": "true",
+        "AGENT_MAX_TOOL_ROUNDS": "5",
+        "AGENT_TIMEOUT_SECONDS": "45",
+        "AGENT_CONTEXT_MAX_MESSAGES": "20",
+        "AGENT_SQL_TIMEOUT_SECONDS": "10",
+        "AGENT_SQL_MAX_ROWS": "500",
+        "EMAIL_FROM": "Dime <hello@localhost>",
+        "EMAIL_APP_LINK": "https://play.google.com/store",
+        "EMAIL_PUBLIC_BASE_URL": "https://dime-api-staging.REPLACE-ME.workers.dev"
+      },
+      "queues": {
+        "producers": [
+          { "binding": "INGEST_QUEUE", "queue": "dime-ingest-staging" },
+          { "binding": "EMAIL_QUEUE", "queue": "dime-email-staging" }
+        ],
+        "consumers": [
+          {
+            "queue": "dime-ingest-staging",
+            "max_batch_size": 5,
+            "max_batch_timeout": 2,
+            "max_retries": 3,
+            "retry_delay": 10,
+            "dead_letter_queue": "dime-ingest-dlq-staging"
+          },
+          {
+            "queue": "dime-ingest-dlq-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 2
+          },
+          {
+            "queue": "dime-email-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 3,
+            "retry_delay": 30
+          }
+        ]
+      },
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "00000000000000000000000000000000",
+          "localConnectionString": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+        }
+      ],
+      "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
+      "assets": { "directory": "./public", "binding": "ASSETS" },
+      "ratelimits": [
+        { "name": "WRITE_LIMITER", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
+        { "name": "AI_LIMITER", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } }
+      ]
+    }
+  }
+}

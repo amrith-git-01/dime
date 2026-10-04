@@ -1,0 +1,45 @@
+{
+  "name": "dime-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dime backend: Hono on Cloudflare Workers",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types --strict-vars=false",
+    "parity": "tsx scripts/parity/parity.ts",
+    "parity:validator": "tsx scripts/parity/validator-corpus.ts --run-python",
+    "parity:tokens": "tsx scripts/parity/tokens-check.ts",
+    "parity:routes": "tsx scripts/parity/routes-check.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "@supabase/postgrest-js": "^2.117.2",
+    "@supabase/storage-js": "^2.117.2",
+    "hono": "^4.13.13",
+    "jose": "^6.2.12",
+    "libpg-query": "17.7.4",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.147.0"
+  }
+}
