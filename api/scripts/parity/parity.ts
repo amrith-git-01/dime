@@ -120,7 +120,7 @@ function describeDiff(d: Diff): string {
   }
 }
 
-function record(name: string, py: Reply, ts: Reply, extra: { shapeOnly?: boolean; keysOnly?: boolean } = {}): Row {
+function record(name: string, py: Reply, ts: Reply, extra: { shapeOnly?: boolean; keysOnly?: boolean; tsOnlyKeys?: readonly string[] } = {}): Row {
   const notes: string[] = [];
   let verdict: Verdict = 'OK';
   const bump = (v: Verdict) => {
@@ -141,10 +141,12 @@ function record(name: string, py: Reply, ts: Reply, extra: { shapeOnly?: boolean
     notes.push(`content-type py=${py.contentType ?? '-'} ts=${ts.contentType ?? '-'}`);
   }
   if (extra.keysOnly) {
-    const keys = (b: unknown) => (b && typeof b === 'object' ? Object.keys(b).sort().join(',') : typeof b);
-    if (keys(py.body) !== keys(ts.body)) {
+    // `tsOnlyKeys`: additive fields the TS API is allowed to add (agent contract C9: `memory`, `turn_id`).
+    const keys = (b: unknown, drop: readonly string[] = []) =>
+      b && typeof b === 'object' ? Object.keys(b).filter((k) => !drop.includes(k)).sort().join(',') : typeof b;
+    if (keys(py.body) !== keys(ts.body, extra.tsOnlyKeys)) {
       bump('DIFF');
-      notes.push(`top-level keys py=[${keys(py.body)}] ts=[${keys(ts.body)}]`);
+      notes.push(`top-level keys py=[${keys(py.body)}] ts=[${keys(ts.body, extra.tsOnlyKeys)}]`);
     }
   } else if (py.status === ts.status && (pyJson || tsJson)) {
     const a = extra.shapeOnly ? shapeOf(py.body) : normalize(py.body);
@@ -324,7 +326,9 @@ async function agent(py: Client, ts: Client): Promise<void> {
   console.log('\n== Agent chat (LLM call on both backends) ==');
   const body = { content: 'How much did I spend this month?', timezone: TIMEZONE, history: [] };
   const [a, b] = await Promise.all([py.call('POST', '/agent/chat', { json: body }), ts.call('POST', '/agent/chat', { json: body })]);
-  record('POST /agent/chat (top-level keys only)', a, b, { keysOnly: true });
+  // C9: JSON mode keeps the C5 ChatResponse and only ADDS `memory` and `turn_id` (the agent is a tool-calling loop now;
+  // wording and charts differ by design, so only the top-level shape is compared).
+  record('POST /agent/chat (top-level keys only; TS adds memory + turn_id)', a, b, { keysOnly: true, tsOnlyKeys: ['memory', 'turn_id'] });
 }
 
 /* ------------------------------------------------------------------------------------------------- */

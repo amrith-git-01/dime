@@ -7,6 +7,9 @@ import type { SqlClient } from './sql-executor';
  * pool, so creating a client per request is the documented pattern). postgres.js is imported on
  * first use, so routes that never touch the agent do not pay for it at cold start.
  *
+ * - `max: 1`: every statement of an agent step (the setup statements and all of the step's tool calls)
+ *   is pipelined inside ONE transaction on ONE pinned connection, so no second connection is ever needed
+ *   and one request can never take more than one connection from Hyperdrive's pool.
  * - `prepare: true` (default) keeps Hyperdrive's prepared-statement caching; the agent's own SQL goes
  *   through `unsafe()`, which is never prepared.
  * - `fetch_types: false` saves a round trip; the three parsers below cover what the agent returns.
@@ -25,6 +28,11 @@ import type { SqlClient } from './sql-executor';
 export async function openAgentDb(env: Bindings): Promise<SqlClient> {
   const connectionString = (env as { HYPERDRIVE?: Hyperdrive }).HYPERDRIVE?.connectionString;
   if (!connectionString) throw new AgentDbUnavailableError('HYPERDRIVE binding is not configured.');
+  return connectAgentDb(connectionString);
+}
+
+/** The same client for any connection string (the eval fixture validator uses it against a local database). */
+export async function connectAgentDb(connectionString: string): Promise<SqlClient> {
   const { default: postgres } = await import('postgres');
   const sql = postgres(connectionString, {
     max: 1,

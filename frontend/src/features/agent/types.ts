@@ -83,7 +83,7 @@ export type AgentDeepLink = {
   label?: string;
 };
 
-/** Agent chat always answers HTTP 200; a failure arrives as this body instead (C5). */
+/** Failure body (C5): JSON mode answers HTTP 200 with this instead of a `ChatResponse`. */
 export type AgentChatErrorBody = {
   error: { code: string; message: string };
 };
@@ -92,7 +92,15 @@ export type AgentChatResponse = {
   answer: string;
   blocks: AgentBlock[];
   deep_link: AgentDeepLink | null;
+  /** Signed conversation memory; echo it back unchanged on the next turn. */
+  memory?: string | null;
+  /** Identifies this turn for `POST /agent/feedback`. */
+  turn_id?: string | null;
 };
+
+export type AgentStepEvent = { tool: string; label: string };
+
+export type AgentFeedbackRating = "up" | "down";
 
 export type ChatMessage = {
   id: string;
@@ -104,7 +112,10 @@ export type ChatMessage = {
   isPending?: boolean;
   /** True when `content` is an error message; never sent back to the API as history. */
   isError?: boolean;
+  /** Latest real progress label from a `step` event, shown until answer text arrives. */
+  stepLabel?: string | null;
+  /** Server turn id of a completed assistant message (enables feedback). */
+  turnId?: string | null;
+  /** The user's vote on this message; one vote per message. */
+  feedback?: AgentFeedbackRating | null;
 };
-
-/** @deprecated Use ChatMessage */
-export type ChatStreamMessage = ChatMessage;

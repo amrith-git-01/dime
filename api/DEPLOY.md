@@ -71,7 +71,10 @@ Edit `wrangler.jsonc` (top level **and** `env.staging`; they are separate):
 | `EMAIL_APP_LINK` | The store link used in emails |
 | `CORS_ORIGINS` | Leave empty: the mobile app needs no CORS headers. Only add origins for a web client. |
 | `STORAGE_BUCKET` / `PRIVATE_STORAGE_BUCKET` | `Dime` / `Dime-private` unless you renamed the buckets |
-| `AI_*`, `GROQ_*`, `AGENT_*` | Defaults are fine; they are the Python backend's values |
+| `AI_*`, `GROQ_*` | Defaults are fine; they are the Python backend's values |
+| `AGENT_ENABLED` | Kill switch of the AI agent: `false` makes every chat answer the `agent_disabled` error (no model call, no database access). Change it in `wrangler.jsonc` and redeploy (or `wrangler deploy --var AGENT_ENABLED:false`). Default `true`. |
+| `AGENT_DAILY_TOKEN_BUDGET` | Tokens (prompt + completion) one user may spend per UTC day, default `200000`; above it the agent answers `daily_limit`. Needs the agent migration (section 6). |
+| `AGENT_MAX_STEPS` / `AGENT_TURN_TIMEOUT_SECONDS` / `AGENT_LLM_TIMEOUT_SECONDS` | Tool steps per turn (4), turn deadline (25 s), per model call (12 s). `AGENT_MODEL`, `AGENT_MODEL_FALLBACK`, `AGENT_SQL_TIMEOUT_SECONDS`, `AGENT_SQL_MAX_ROWS` as before. |
 
 Then regenerate types: `npm run cf-typegen`.
 
@@ -84,16 +87,17 @@ Secrets are encrypted per Worker. `wrangler secret put` deploys a new version im
 | `SUPABASE_SECRET_KEY` | yes | Service-role / secret key. Every DB and Storage call uses it. |
 | `SUPABASE_PUBLISHABLE_KEY` | yes | The publishable key. |
 | `SUPABASE_JWT_SECRET` | only for HS256 projects | Legacy JWT secret. Omit if the project uses asymmetric signing keys (the JWKS is read from `SUPABASE_URL`). |
-| `DEEPSEEK_API_KEY` | yes | SMS/receipt/voice parsing and the agent. |
+| `DEEPSEEK_API_KEY` | yes | SMS/receipt/voice parsing and the agent (function calling, streaming). |
 | `GROQ_API_KEY` | yes | Receipt OCR (vision) and Whisper. |
 | `BREVO_API_KEY` | for email | Without it emails are logged and skipped. |
 | `EMAIL_UNSUBSCRIBE_SECRET` | for email | **Use the same value as the Python backend** so unsubscribe links in emails already sent keep working. No fallback exists on purpose. |
 | `EMAIL_CRON_SECRET` | for the manual email trigger | Guards `POST /api/v1/internal/email/run`; the route is refused while it is unset. |
 | `FAVQS_API_KEY` | optional | Quote of the day in digests. |
+| `AGENT_MEMORY_SECRET` | for agent follow-ups | HMAC key that signs the agent's conversation-memory token (`openssl rand -base64 32`). A NEW secret: do not reuse another. Without it the agent works but answers every question without memory ("and July?" does not work). Rotating it only invalidates the 24 h tokens in flight. |
 
 ```bash
 for s in SUPABASE_SECRET_KEY SUPABASE_PUBLISHABLE_KEY SUPABASE_JWT_SECRET DEEPSEEK_API_KEY GROQ_API_KEY \
-         BREVO_API_KEY EMAIL_UNSUBSCRIBE_SECRET EMAIL_CRON_SECRET FAVQS_API_KEY; do
+         BREVO_API_KEY EMAIL_UNSUBSCRIBE_SECRET EMAIL_CRON_SECRET FAVQS_API_KEY AGENT_MEMORY_SECRET; do
   npx wrangler secret put "$s" --env staging
 done
 npx wrangler secret list --env staging
@@ -115,6 +119,7 @@ Apply `supabase/migrations/*` **in this order** (CLI: `supabase db push`, or pas
 | 6 | `20261004000500_update_category_with_budget.sql` | RPC `update_category_with_budget` (atomic category + budget edit), `SECURITY INVOKER`, execute only for `service_role`. | Required for `PATCH /categories/{id}` with `budget_amount`. |
 | 7 | `20261004000600_transactions_aggregates.sql` | RPCs `transactions_daily_totals`, `transactions_payee_totals` (SQL-side aggregation). | Optional for correctness (the API falls back to paging rows) but strongly recommended: otherwise a month of data is transferred row by row. Execute only for `service_role`. |
 | 8 | `20261004000700_transactions_payment_hash_unique.sql` | NULLs `payment_hash` on duplicate active rows (keeps the oldest; nothing is deleted), then a unique partial index `(user_id, payment_hash)` for active rows. | **Write-locks `transactions` while the index builds**: run at low traffic, then check the row count of NULLed hashes. Required for race-free duplicate capture. |
+| 9 | `20261005000100_agent_v2.sql` | AI agent v2: `pg_trgm` (`create extension if not exists pg_trgm with schema extensions`, available on Supabase) with trigram GIN indexes on `transactions.counterparty_name` (partial, active rows) and `categories.name`; the tool functions `agent_payee_key`, `agent_resolve_entities`, `agent_spending_summary`, `agent_category_breakdown`, `agent_top_payees`, `agent_daily_cashflow`, `agent_compare_periods`, `agent_budget_status`, `agent_list_transactions` (SECURITY INVOKER, STABLE, `auth.uid()`, half-open ranges, EXECUTE for `authenticated` only); table `agent_usage` + RPC `agent_usage_add` (daily token budget, service role only); table `agent_feedback` (RLS: insert and select own rows). | **Required for the agent**: without it every tool call fails and the budget check fails open. Additive. The two `CREATE INDEX` statements take a short write lock on `transactions` (a migration cannot use `CONCURRENTLY`): run at low traffic. If the SQL editor or role may not create extensions, enable `pg_trgm` first in Dashboard -> Database -> Extensions. The functions use `search_path = public, extensions`, so they work wherever the extension lives. |
 
 After the last migration, create/confirm Storage buckets in the dashboard: `Dime` (public, avatars) and `Dime-private` (private, created by migration 2).
 
@@ -152,6 +157,15 @@ After the last migration, create/confirm Storage buckets in the dashboard: `Dime
    If it is `monthly_amount > 0`, either relax it to `>= 0` or accept that `0` is rejected (the app sends `null` to remove a budget).
 5. **RLS on the agent tables**: `transactions`, `categories`, `budgets`, `category_budgets`, `users` have row level security enabled with `user_id = auth.uid()` style policies (the agent returns other users' rows otherwise): `select relname, relrowsecurity from pg_class where relname in (...)`.
 6. **`jobs` and `email_sends` have RLS on with no policies** (service role only), and `authenticated` cannot select from them.
+7. **Agent v2 grants** (migration 9): `authenticated` may run the `agent_*` tool functions and nothing else of the agent, `anon` and `service_role` may not run them, and only `service_role` may run `agent_usage_add`:
+   ```sql
+   select p.proname, has_function_privilege('authenticated', p.oid, 'execute') as authenticated,
+          has_function_privilege('anon', p.oid, 'execute') as anon, has_function_privilege('service_role', p.oid, 'execute') as service_role
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname like 'agent\_%' order by 1;
+   -- agent_usage_add: false / false / true. every other agent_* function: true / false / false.
+   select extname, extnamespace::regnamespace from pg_extension where extname = 'pg_trgm';   -- present
+   ```
 
 Known limitation: **HEIC/HEIF receipts** are accepted by the upload but Groq vision cannot read them; the app's camera/picker produces JPEG, so this only affects files shared from elsewhere.
 
@@ -188,7 +202,7 @@ Then check every flow (also in the app, pointed at the staging URL):
 - [ ] Categories create / edit (with `budget_amount`) / delete-impact / delete; category budgets and the overall budget
 - [ ] Receipt upload -> 202, then a transaction + notification appear within about 30 s (`wrangler tail --env staging` shows `ocr_done`)
 - [ ] Voice (m4a) -> transaction; SMS batch -> transactions
-- [ ] Agent chat (needs Hyperdrive): a spend question answers; a question needing SQL returns rows
+- [ ] Agent chat (needs Hyperdrive, the agent migration and `AGENT_MEMORY_SECRET`): "How much did I spend this month?" answers (JSON), and with `-H 'accept: text/event-stream'` streams `step`, `delta` and `final` events; a follow-up ("and last month?") that sends the returned `memory` works; `POST /api/v1/agent/feedback {"turn_id": "<from the response>", "rating": "up"}` answers `{"ok": true}`; with `AGENT_ENABLED=false` the answer is the `agent_disabled` error
 - [ ] Notifications list / read / delete, unread count; push token PUT/DELETE
 - [ ] `POST /api/v1/internal/email/run {"kind":"weekly"}` with header `X-Email-Cron-Secret` returns `{sent, queued}` and emails arrive
 - [ ] Unsubscribe link from a received email opens the confirmation page
@@ -223,7 +237,7 @@ Rollback restores code and config but **not** secrets/vars changed since, and no
 
 ## 9. Observability
 
-- Logs are structured JSON (`{"level","msg","requestId",...}`) with Workers Logs on (`observability.enabled`). Dashboard: Worker -> Logs; filter by `requestId`, `msg` (`ingest_job_failed`, `email_digest_dead_lettered`, `agent_turn_complete`, ...).
+- Logs are structured JSON (`{"level","msg","requestId",...}`) with Workers Logs on (`observability.enabled`). Dashboard: Worker -> Logs; filter by `requestId`, `msg` (`ingest_job_failed`, `email_digest_dead_lettered`, `agent_turn`, ...). `agent_turn` is one line per agent turn: hashed user, tool steps (ms, rows, ok), model calls (tokens incl. `cache_hit_tokens`), `verified` (pass / regenerated / template) and outcome.
 - Live: `npx wrangler tail --env staging --format pretty` (add `--search <text>` or `--status error`).
 - Every response carries `X-Request-ID`; a 500 body includes the same id, so a user report maps straight to a log line.
 - Queues: dashboard -> Queues -> each queue shows backlog, consumer errors, DLQ depth. A non-empty `dime-ingest-dlq` or `dime-email-dlq` means retries were exhausted: read the logged errors.
@@ -236,7 +250,7 @@ Workers Paid is $5/month and includes a large monthly allowance of requests and 
 - Dashboard -> Notifications -> add a **usage-based billing / budget alert** so you are emailed before costs surprise you. Review Billing -> Usage in the first weeks.
 - **Rate limits** (already in `wrangler.jsonc`): `WRITE_LIMITER` 60 requests/minute and `AI_LIMITER` 10/minute per user per location on mutating and LLM routes. Tune `limit` if real users hit them.
 - **`limits.cpu_ms: 30000`** caps CPU per invocation so a runaway loop cannot bill for minutes.
-- Upload caps (`MAX_RECEIPT_UPLOAD_BYTES`, `MAX_VOICE_UPLOAD_BYTES`), a 1 MiB cap on agent bodies, agent `AGENT_MAX_TOOL_ROUNDS`, and per-turn LLM call limits bound the third-party spend (DeepSeek, Groq, Brevo have their own dashboards: set spend limits there too).
+- Upload caps (`MAX_RECEIPT_UPLOAD_BYTES`, `MAX_VOICE_UPLOAD_BYTES`), a 1 MiB cap on agent bodies, the agent's `AGENT_MAX_STEPS` / turn deadline and the per-user `AGENT_DAILY_TOKEN_BUDGET` (kill switch: `AGENT_ENABLED=false`) bound the third-party spend (DeepSeek, Groq, Brevo have their own dashboards: set spend limits there too).
 - Queues: bounded retries (3) then DLQ, so a poison message cannot loop forever.
 
 ## 11. Cron triggers

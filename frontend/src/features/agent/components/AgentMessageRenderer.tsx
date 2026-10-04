@@ -6,20 +6,32 @@ import { BentoStatCell } from "@/components/shared";
 import { accent, colors, ink, inkSoft, radius, shadow, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
-import type { AgentBlock, AgentDeepLink } from "../types";
+import type {
+  AgentBlock,
+  AgentDeepLink,
+  AgentFeedbackRating,
+} from "../types";
 
 import { AgentCompareMonthsBlock } from "./AgentCompareMonthsBlock";
+import { AgentFeedbackButtons } from "./AgentFeedbackButtons";
 import { AgentMessageProse } from "./AgentMessageProse";
 import { AgentMiniChartBlock } from "./AgentMiniChartBlock";
 import { AgentThinkingBubble } from "./AgentThinkingBubble";
 
 type AgentMessageRendererProps = {
+  id: string;
   role: "user" | "assistant";
   content: string;
   blocks: AgentBlock[];
   deepLink: AgentDeepLink | null;
   isPending?: boolean;
+  isError?: boolean;
+  stepLabel?: string | null;
+  /** Present on completed assistant answers; enables the feedback row. */
+  turnId?: string | null;
+  feedback?: AgentFeedbackRating | null;
   onDeepLinkPress?: (link: AgentDeepLink) => void;
+  onFeedback?: (messageId: string, rating: AgentFeedbackRating) => void;
 };
 
 function MetricBlock({
@@ -111,19 +123,25 @@ function BlockView({ block }: { block: AgentBlock }) {
 }
 
 export const AgentMessageRenderer = memo(function AgentMessageRenderer({
+  id,
   role,
   content,
   blocks,
   deepLink,
   isPending,
+  isError,
+  stepLabel,
+  turnId,
+  feedback,
   onDeepLinkPress,
+  onFeedback,
 }: AgentMessageRendererProps) {
   const isUser = role === "user";
   const hasContent =
     content.length > 0 || blocks.length > 0 || Boolean(deepLink?.screen);
 
   if (!isUser && isPending && !hasContent) {
-    return <AgentThinkingBubble active />;
+    return <AgentThinkingBubble label={stepLabel} />;
   }
 
   return (
@@ -163,6 +181,14 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
               {deepLink.label ?? "View details →"}
             </Text>
           </Pressable>
+        ) : null}
+
+        {!isUser && !isPending && !isError && turnId && onFeedback ? (
+          <AgentFeedbackButtons
+            messageId={id}
+            feedback={feedback ?? null}
+            onFeedback={onFeedback}
+          />
         ) : null}
       </View>
     </View>

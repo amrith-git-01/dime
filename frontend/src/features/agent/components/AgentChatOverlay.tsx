@@ -101,8 +101,13 @@ export function AgentChatOverlay({
     ),
   );
 
-  const { messages, isPending, sendMessage, resetConversation } =
-    useAgentChat();
+  const {
+    messages,
+    isPending,
+    sendMessage,
+    resetConversation,
+    submitFeedback,
+  } = useAgentChat();
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
@@ -114,11 +119,19 @@ export function AgentChatOverlay({
     [messages.length],
   );
 
+  // New message, or turn finished (the final answer may add charts). Streaming growth is
+  // handled by `onContentSizeChange`: a debounce here would starve under 50 ms flushes.
   useEffect(() => {
     if (!visible) return;
     const timer = setTimeout(() => scrollToBottom(), 80);
     return () => clearTimeout(timer);
-  }, [visible, messages, scrollToBottom]);
+  }, [visible, messages.length, isPending, scrollToBottom]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (isPending) {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [isPending]);
 
   useEffect(() => {
     if (!visible) return;
@@ -207,15 +220,21 @@ export function AgentChatOverlay({
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => (
       <AgentMessageRenderer
+        id={item.id}
         role={item.role}
         content={item.content}
         blocks={item.blocks}
         deepLink={item.deepLink}
         isPending={item.isPending}
+        isError={item.isError}
+        stepLabel={item.stepLabel}
+        turnId={item.turnId}
+        feedback={item.feedback}
         onDeepLinkPress={handleDeepLink}
+        onFeedback={submitFeedback}
       />
     ),
-    [handleDeepLink],
+    [handleDeepLink, submitFeedback],
   );
 
   const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
@@ -348,6 +367,7 @@ export function AgentChatOverlay({
                   renderItem={renderMessage}
                   style={styles.messages}
                   contentContainerStyle={styles.messagesContent}
+                  onContentSizeChange={handleContentSizeChange}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                   removeClippedSubviews

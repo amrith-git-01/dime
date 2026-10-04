@@ -24,17 +24,19 @@ GROQ_WHISPER_PRIMARY=whisper-large-v3-turbo
 GROQ_WHISPER_FALLBACK=whisper-large-v3
 GROQ_VISION_OCR_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
 
-# --- Agent ---
+# --- Agent (bounded tool-calling loop, see docs/rewrite/agent-v2.md) ---
+AGENT_ENABLED=true
 AGENT_BASE_URL=https://api.deepseek.com
 AGENT_MODEL=deepseek-v4-flash
 AGENT_MODEL_FALLBACK=deepseek-v4-pro
-AGENT_THINKING_ENABLED=false
-AGENT_STRICT_TOOLS=true
-AGENT_MAX_TOOL_ROUNDS=5
-AGENT_TIMEOUT_SECONDS=45
-AGENT_CONTEXT_MAX_MESSAGES=20
-AGENT_SQL_TIMEOUT_SECONDS=10
+AGENT_MAX_STEPS=4
+AGENT_TURN_TIMEOUT_SECONDS=25
+AGENT_LLM_TIMEOUT_SECONDS=12
+AGENT_DAILY_TOKEN_BUDGET=200000
+AGENT_SQL_TIMEOUT_SECONDS=6
 AGENT_SQL_MAX_ROWS=500
+# HMAC key of the conversation-memory token (use `openssl rand -base64 32`). Without it follow-up memory is off.
+AGENT_MEMORY_SECRET=placeholder-long-random-string
 
 # --- Uploads and media ---
 MAX_RECEIPT_UPLOAD_BYTES=10485760

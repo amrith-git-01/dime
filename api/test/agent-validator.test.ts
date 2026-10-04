@@ -171,6 +171,8 @@ describe('validateSelectSql: rejected queries', () => {
     'SELECT * FROM transactions t, LATERAL pg_ls_dir(t.note)',
     "SELECT transactions_period_summary('00000000-0000-0000-0000-000000000000', now(), now())",
     'SELECT update_category_with_budget(1)',
+    "SELECT agent_spending_summary(now(), now(), NULL, NULL)", // the agent's own tool functions: run_sql stays a plain SELECT fallback
+    "SELECT agent_usage_add('00000000-0000-0000-0000-000000000000', current_date, 1, 1)",
     'SELECT auth.uid()',
     'SELECT extensions.http_get(1)',
     "SELECT http_get('http://169.254.169.254')",

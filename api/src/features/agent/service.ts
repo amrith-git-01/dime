@@ -1,389 +1,408 @@
 import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
-import { resolveTimezone, today } from './dates';
-import { parseRespondJson } from './chart';
-import type { ParsedRespond } from './chart';
-import { enrichCompareBlocks } from './compare-blocks';
-import { fetchCompareInsights, fetchYearCompareInsights } from './compare-insights';
-import type { CompareBlock, CompareSummary } from './compare-insights';
-import { resolveDeepLinkIds } from './deep-link';
-import { UnusableOutputError, callAgentJson, jsonParser } from './llm';
-import type { LlmDeps } from './llm';
-import { CLASSIFY_INTENT_SYSTEM, RESPOND_SYSTEM, generateSqlSystem } from './prompts';
-import { classifyOutputSchema, sqlOutputSchema } from './schemas';
-import type { ChatHistoryMessage, ChatRequest, ChatResponse, MiniChartBlock, SqlAttempt } from './schemas';
-import { executeReadonlySql } from './sql-executor';
-import type { SqlClient } from './sql-executor';
-import { prependTemporalContext } from './temporal-context';
-import {
-  MAX_DAILY_COMPARISON_DAYS,
-  buildCompareTimeRange,
-  fillCashflowPoints,
-  isCompareRange,
-  resolveDailyComparisonRange,
-  resolveTimeRange,
-} from './time-range';
-import type { CompareRange, TimeRange } from './time-range';
+import { PermanentAiError, TransientAiError } from '../ai/errors';
+import { buildBlocks, buildDeepLink, collectEntityNames } from './blocks';
+import { resolveTimezone } from './dates';
+import { emptyUsage, TurnAbortedError } from './llm';
+import type { ChatMessage, LlmClient, LlmRequest, LlmResult, ToolCall, Usage } from './llm';
+import { signMemory, verifyMemory } from './memory';
+import type { AgentMemory, MemoryContent } from './memory';
+import { runPrepass } from './prepass';
+import type { PrePass } from './prepass';
+import { buildUserMessage, SYSTEM_PROMPT, verificationFeedback, wrapToolResult } from './prompts';
+import type { AgentResponse, ChatRequest } from './schemas';
+import { executeReadonlySql, executeToolCalls } from './sql-executor';
+import type { SqlClient, SqlExecutionResult, ToolSql } from './sql-executor';
+import { NO_DATA_ANSWER, templateAnswer } from './template';
+import type { ToolResult } from './template';
+import { TOOL_BY_NAME, TOOL_SPECS, ToolArgError } from './tools';
+import type { Prepared, ToolContext, ToolName, ToolOutput } from './tools';
+import { numbersIn, verifyAnswer } from './verify';
 
 /**
- * The agent turn: a plain typed async loop over the same steps as the Python LangGraph.
+ * The agent turn: a bounded tool-calling loop.
  *
- *   classifyIntent -> compare (month_pair | year_pair) ? fetchCompareData : (generateSql -> executeSql -> reflect)*
- *                  -> respond
+ *   pre-pass (time hint, pg_trgm entity resolution, clarification) -> [LLM -> tools]* -> answer
  *
- * Stateless: the client sends the history with every request. Bounded work per turn: at most
- * 1 classify + `maxToolRounds` x (1 SQL generation) + 1 respond LLM calls (each with at most one
- * retry/fallback attempt), one Hyperdrive transaction per round, and no other subrequests (the compare
- * path replaces the SQL rounds with two insights aggregates).
+ * Guards: at most `maxSteps` tool steps (then the model must answer), at most 3 parallel tool calls per
+ * step, a turn deadline (an AbortSignal runs through every request), and a numeric check of the answer
+ * against the tool results (one regeneration, then a deterministic template). Everything the user sees
+ * as numbers is the database's. Streaming and JSON modes share this code; only `emit` differs.
  */
+
+const MAX_PARALLEL_TOOLS = 3;
+/** Below this much time left a new model call is not worth starting. */
+const MIN_LLM_MS = 1500;
+/** The fallback model is only tried when at least this much time remains. */
+const FALLBACK_MIN_MS = 4000;
+const SQL_PREVIEW_ROWS = 20;
+const SQL_CELL_CHARS = 80;
 
 export interface AgentDeps {
   config: AppConfig['agent'];
-  llm: LlmDeps;
-  /** Opens the read-only agent database client (lazily: compare turns never need it). */
+  llm: LlmClient;
+  /** Opens the read-only database client (lazily: a turn that needs no data never connects). */
   openSql: () => Promise<SqlClient>;
-  /** Service-role Supabase client for the compare path (always filtered by the JWT user id). */
-  supabase: () => DimeSupabaseClient;
   /** Epoch ms; overridable for tests. */
   now?: () => number;
+  newId?: () => string;
 }
 
-interface AgentState {
-  history: ChatHistoryMessage[];
-  userText: string;
-  timezone: string | null;
-  timeRange: TimeRange | null;
-  sqlAttempts: SqlAttempt[];
-  lastResult: Record<string, unknown> | null;
-  nextSqlHint: string | null;
-  queryRounds: number;
-  uiBlocks: Record<string, unknown>[];
-  compareInsights: CompareSummary | null;
+export type AgentEvent = { type: 'step'; tool: ToolName; label: string } | { type: 'delta'; text: string };
+
+export interface TurnOptions {
+  userId: string;
+  body: ChatRequest;
+  /** Aborted when the client disconnects. */
+  signal: AbortSignal;
+  /** Receives progress events (SSE mode). Without it model calls do not stream. */
+  emit?: (event: AgentEvent) => void;
 }
 
-interface Timing {
-  step: string;
-  ms: number;
+type Outcome = 'ok' | 'clarification' | 'template' | 'deadline' | 'aborted' | 'error';
+
+export interface TurnResult {
+  response: AgentResponse;
+  usage: Usage;
+  outcome: Outcome;
+  trace: Trace;
 }
 
-const BUDGET_HINT =
-  'Join budgets with SUM(debit transactions) for the resolved month using ' +
-  'transaction_at >= time_range.start_iso AND transaction_at <= time_range.end_iso. ' +
-  'Return monthly_budget and spent in one row.';
-const BUDGET_SPEND_KEYS = ['spent', 'total_spent', 'spend', 'total', 'amount'] as const;
-const DEFAULT_CLASSIFY_TIMEZONE = 'Asia/Kolkata';
-/** Hard stop for one turn regardless of the model's behavior. */
-const MAX_TURN_MS = 120_000;
-
-const stripped = (s: string) => s.trim();
-const clock = (deps: AgentDeps): number => deps.now?.() ?? Date.now();
-
-/** Prior turns, most recent `max`. */
-export function trimHistory(history: readonly ChatHistoryMessage[], max: number): ChatHistoryMessage[] {
-  return history.length <= max ? [...history] : history.slice(-max);
-}
-
-/** "User: ..." / "Assistant: ..." lines of the conversation including the current question. */
-export function formatTranscript(history: readonly ChatHistoryMessage[], current: string): string {
-  const lines: string[] = [];
-  for (const m of [...history, { role: 'user' as const, content: current }]) {
-    const text = stripped(m.content);
-    if (text) lines.push(`${m.role === 'user' ? 'User' : 'Assistant'}: ${text}`);
-  }
-  return lines.join('\n');
-}
-
-/* ----------------------------------------------------------------------------------------------
- * reflect (deterministic) and the budget guard
- * -------------------------------------------------------------------------------------------- */
-
-/** Retry hint when a budget question returned no usable spend data (port of `_budget_spend_guard`). */
-export function budgetSpendGuard(input: {
-  userText: string;
-  lastResult: { rows?: unknown; error?: unknown } | null;
-  sqlAttempts: readonly Pick<SqlAttempt, 'sql'>[];
-}): string | null {
-  if (!input.userText.toLowerCase().includes('budget')) return null;
-  const last = input.lastResult ?? {};
-  if (last.error) return null; // a SQL error is handled by reflect itself
-
-  const lastSql = (input.sqlAttempts.at(-1)?.sql ?? '').toLowerCase();
-  if (!lastSql.includes('transactions')) return BUDGET_HINT;
-
-  const rows = Array.isArray(last.rows) ? last.rows : [];
-  if (rows.length === 0) return BUDGET_HINT;
-  const first = typeof rows[0] === 'object' && rows[0] !== null && !Array.isArray(rows[0]) ? (rows[0] as Record<string, unknown>) : {};
-  if (!BUDGET_SPEND_KEYS.some((k) => k in first)) return BUDGET_HINT;
-  return null;
-}
-
-/** Deterministic retry check, no LLM: a SQL error or a budget answer without spend data asks for another round. */
-export function reflect(state: Pick<AgentState, 'userText' | 'lastResult' | 'sqlAttempts'>): string | null {
-  const error = (state.lastResult as { error?: unknown } | null)?.error;
-  if (error) return `Fix SQL error: ${typeof error === 'string' ? error : JSON.stringify(error)}`;
-  return budgetSpendGuard({ userText: state.userText, lastResult: state.lastResult, sqlAttempts: state.sqlAttempts });
-}
-
-/** After reflect: another SQL round only with a hint and while rounds remain (Python `route_after_reflect`). */
-export function shouldRetrySql(state: Pick<AgentState, 'nextSqlHint' | 'queryRounds'>, maxRounds: number): boolean {
-  if (state.queryRounds >= maxRounds) return false;
-  return Boolean(state.nextSqlHint);
-}
-
-/** Compare questions with a month/year pair skip SQL generation entirely. */
-export function routeAfterClassify(timeRange: TimeRange | null): 'fetch_compare_data' | 'generate_sql' {
-  return isCompareRange(timeRange) ? 'fetch_compare_data' : 'generate_sql';
-}
-
-/* ----------------------------------------------------------------------------------------------
- * Steps
- * -------------------------------------------------------------------------------------------- */
-
-async function classifyIntent(deps: AgentDeps, state: AgentState): Promise<CompareRange | null> {
-  const tzName = state.timezone?.trim() || DEFAULT_CLASSIFY_TIMEZONE;
-  try {
-    const { value } = await callAgentJson(deps.llm, {
-      node: 'classify_intent',
-      system: prependTemporalContext(CLASSIFY_INTENT_SYSTEM, state.timezone, clock(deps)),
-      user: state.userText,
-      parse: jsonParser(classifyOutputSchema),
-    });
-    const { comparison_kind: kind, period_a: a, period_b: b } = value;
-    if (!kind || !a || !b) return null;
-
-    const tz = resolveTimezone(tzName);
-    const nowMs = clock(deps);
-    return buildCompareTimeRange(kind, a, b, { tz, today: today(tz, nowMs) });
-  } catch (err) {
-    // Any failure here just means "standard routing" (SQL), exactly like the Python node.
-    log.warn('agent_classify_failed', { err: String(err) });
-    return null;
-  }
-}
-
-async function fetchCompareData(deps: AgentDeps, state: AgentState, userId: string, range: CompareRange): Promise<void> {
-  const timezone = state.timezone?.trim() || DEFAULT_CLASSIFY_TIMEZONE;
-  const tz = resolveTimezone(timezone);
-  const db = deps.supabase();
-  const { block, summary }: { block: CompareBlock; summary: CompareSummary } =
-    range.subkind === 'year_pair'
-      ? await fetchYearCompareInsights(db, userId, range, tz)
-      : await fetchCompareInsights(db, userId, range, tz);
-
-  state.compareInsights = summary;
-  state.lastResult = {
-    row_count: 2,
-    rows: [
-      { period: summary.period_a_label, period_a_amount: summary.period_a['spent'], period_b_amount: summary.period_b['spent'] },
-    ],
-    columns: ['period', 'period_a_amount', 'period_b_amount'],
-    truncated: false,
-    error: null,
-  };
-  state.uiBlocks = [block as unknown as Record<string, unknown>];
-}
-
-async function generateSql(deps: AgentDeps, state: AgentState): Promise<string | null> {
-  const parts = [state.userText];
-  if (state.timeRange) {
-    parts.push(`\ntime_range (use these bounds exactly): ${JSON.stringify(state.timeRange)}`);
-    if ((state.timeRange as { daily_comparison?: boolean }).daily_comparison) {
-      parts.push(`Per-day breakdown requested — max ${MAX_DAILY_COMPARISON_DAYS} days.`);
-    }
-  }
-  if (state.nextSqlHint) parts.push(`\nFix hint from previous attempt: ${state.nextSqlHint}`);
-
-  try {
-    const { value } = await callAgentJson(deps.llm, {
-      node: 'generate_sql',
-      system: prependTemporalContext(generateSqlSystem(), state.timezone, clock(deps)),
-      user: parts.join('\n'),
-      parse: jsonParser(sqlOutputSchema),
-    });
-    return value.sql.trim() || null;
-  } catch (err) {
-    // The model answering without a usable statement is not fatal (Python: "no run_sql tool call"):
-    // the loop's round limit applies and respond explains. Provider outages still abort the turn.
-    if (err instanceof UnusableOutputError) {
-      log.warn('agent_generate_sql_unusable', { err: String(err) });
-      return null;
-    }
-    throw err;
-  }
-}
-
-async function executeSql(deps: AgentDeps, state: AgentState, userId: string, sql: string): Promise<void> {
-  const round = state.queryRounds + 1;
-  const sqlClient = await deps.openSql();
-  const result = await executeReadonlySql(sqlClient, sql, {
-    userId,
-    maxRows: deps.config.sqlMaxRows,
-    timeoutMs: deps.config.sqlTimeoutMs,
-  });
-  state.lastResult = result as unknown as Record<string, unknown>;
-  state.sqlAttempts = [...state.sqlAttempts, { sql, row_count: result.row_count, error: result.error, elapsed_ms: result.elapsed_ms, round }];
-  state.queryRounds = round;
-  log.info('agent_sql', {
-    round,
-    rows: result.row_count,
-    ms: result.elapsed_ms,
-    error: result.error ? result.error.slice(0, 200) : null,
-    sql: sql.slice(0, 300),
-  });
-}
-
-function respondPayload(state: AgentState): string {
-  const payload: Record<string, unknown> = {
-    user_question: state.userText,
-    conversation: formatTranscript(state.history, state.userText),
-    time_range: state.timeRange,
-    last_result: state.lastResult,
-    sql_attempts: state.sqlAttempts,
-    error: null,
-  };
-  if (state.compareInsights) payload['compare_insights'] = state.compareInsights;
-  return JSON.stringify(payload);
-}
-
-/** Gap-fill cashflow charts over the authoritative range (port of `enrich_cashflow_blocks`). */
-function enrichCashflowBlocks(blocks: MiniChartBlock[], timeRange: TimeRange | null): void {
-  const range = timeRange as { start_date?: unknown; end_date?: unknown } | null;
-  if (!range || typeof range.start_date !== 'string' || typeof range.end_date !== 'string') return;
-  for (const block of blocks) {
-    if (block.chart_kind !== 'cashflow') continue;
-    const points = Array.isArray(block.payload.points) ? block.payload.points : [];
-    block.payload = {
-      ...block.payload,
-      start_date: range.start_date,
-      end_date: range.end_date,
-      points: fillCashflowPoints(points, range.start_date, range.end_date).slice(0, MAX_DAILY_COMPARISON_DAYS),
-    };
-  }
-}
-
-async function respond(deps: AgentDeps, state: AgentState): Promise<ChatResponse> {
-  const { value: parsed } = await callAgentJson<ParsedRespond>(deps.llm, {
-    node: 'respond',
-    system: prependTemporalContext(RESPOND_SYSTEM, state.timezone, clock(deps)),
-    user: respondPayload(state),
-    parse: parseRespondJson,
-  });
-
-  const blocks: MiniChartBlock[] = [...parsed.blocks];
-  enrichCashflowBlocks(blocks, state.timeRange);
-
-  let finalBlocks: Record<string, unknown>[];
-  if (state.compareInsights) {
-    // The pre-built compare_months card wins over any model chart.
-    const compareMonths = state.uiBlocks.filter((b) => b['type'] === 'compare_months');
-    finalBlocks = compareMonths.length > 0 ? compareMonths : (blocks as unknown as Record<string, unknown>[]);
-  } else {
-    enrichCompareBlocks(blocks, { timeRange: state.timeRange, lastResult: state.lastResult });
-    finalBlocks = blocks as unknown as Record<string, unknown>[];
-  }
-
-  const deepLink = resolveDeepLinkIds(parsed.deepLink, { lastResult: state.lastResult, timeRange: state.timeRange });
-  return { answer: parsed.answer.slice(0, 4000), blocks: finalBlocks, deep_link: deepLink };
-}
-
-/* ----------------------------------------------------------------------------------------------
- * Turn
- * -------------------------------------------------------------------------------------------- */
-
+/** The turn ran out of time before the model produced anything usable. */
 export class TurnTimeoutError extends Error {
   override name = 'TurnTimeoutError';
 }
 
-export async function runAgentTurn(deps: AgentDeps, userId: string, body: ChatRequest): Promise<ChatResponse> {
-  const nowMs = () => clock(deps);
-  const started = nowMs();
-  const timings: Timing[] = [];
-  const timed = async <T>(step: string, fn: () => Promise<T>): Promise<T> => {
-    const t0 = nowMs();
-    try {
-      return await fn();
-    } finally {
-      timings.push({ step, ms: nowMs() - t0 });
-    }
-  };
-  const checkDeadline = () => {
-    if (nowMs() - started > MAX_TURN_MS) throw new TurnTimeoutError('Agent turn exceeded its time budget.');
-  };
+/** What one turn did: the structured log line, and the `debug` object of the evals (X-Agent-Debug). */
+interface Trace {
+  steps: { tool: string; ms: number; rows: number; ok: boolean }[];
+  /** Model calls that ended in tool calls (at most `maxSteps`). */
+  tool_steps: number;
+  llm: { model: string; ms: number; prompt_tokens: number; cache_hit_tokens: number; completion_tokens: number }[];
+  verified: 'pass' | 'regenerated' | 'template' | 'n/a';
+  outcome: Outcome;
+}
 
-  // Single-period phrases and per-day requests are resolved deterministically before any LLM call.
-  const resolved = resolveTimeRange(body.content, body.timezone, nowMs());
-  const daily = resolveDailyComparisonRange({
-    userText: body.content,
-    goal: body.content,
-    timeRange: resolved,
-    timezone: body.timezone,
-    nowMs: nowMs(),
+const stripMarkup = (s: string): string => s.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
+
+async function hashId(id: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id));
+  return [...new Uint8Array(digest).slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Rejects when `signal` fires, without leaving the original promise's rejection unhandled. */
+function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    promise.catch(() => undefined);
+    return Promise.reject(new TurnAbortedError('The turn was cancelled or ran out of time.'));
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new TurnAbortedError('The turn was cancelled or ran out of time.'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (v) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(v);
+      },
+      (e: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
   });
-  const history = trimHistory(body.history, deps.config.contextMaxMessages);
-  const userText = stripped(body.content);
+}
 
-  log.info('agent_turn_start', { userId, historyCount: history.length, timezone: body.timezone ?? null, chars: body.content.length });
-  if (daily.clarification) {
-    log.info('agent_turn_complete', { userId, ms: nowMs() - started, clarification: true });
-    return { answer: daily.clarification, blocks: [], deep_link: null };
+function addUsage(total: Usage, add: Usage): void {
+  total.promptTokens += add.promptTokens;
+  total.completionTokens += add.completionTokens;
+  total.cacheHitTokens += add.cacheHitTokens;
+}
+
+/** A cell of a `run_sql` row, bounded. */
+function cell(v: unknown): unknown {
+  if (typeof v === 'string') return v.length > SQL_CELL_CHARS ? `${v.slice(0, SQL_CELL_CHARS)}...` : v;
+  return v;
+}
+
+/** What the model sees of a `run_sql` result: a capped preview (never a `note` column), or the error. */
+function summarizeSql(result: SqlExecutionResult): ToolOutput | { error: string } {
+  if (result.error) return { error: result.error.slice(0, 300) };
+  const columns = result.columns.filter((c) => c.toLowerCase() !== 'note');
+  const rows = result.rows.slice(0, SQL_PREVIEW_ROWS).map((r) => Object.fromEntries(columns.map((c) => [c, cell(r[c])])));
+  return {
+    data: { row_count: result.row_count, columns, rows, ...(result.row_count > SQL_PREVIEW_ROWS || result.truncated ? { truncated: true } : {}) },
+    rows: result.row_count,
+  };
+}
+
+export async function runAgentTurn(deps: AgentDeps, opts: TurnOptions): Promise<TurnResult> {
+  const now = deps.now ?? Date.now;
+  const started = now();
+  const trace: Trace = { steps: [], tool_steps: 0, llm: [], verified: 'n/a', outcome: 'error' };
+  try {
+    const result = await runTurn(deps, opts, trace);
+    trace.outcome = result.outcome;
+    log.info('agent_turn', { user: await hashId(opts.userId), total_ms: now() - started, ...trace });
+    return result;
+  } catch (err) {
+    trace.outcome = err instanceof TurnAbortedError || opts.signal.aborted ? 'aborted' : err instanceof TurnTimeoutError ? 'deadline' : 'error';
+    log.warn('agent_turn', { user: await hashId(opts.userId), total_ms: now() - started, error: String(err), ...trace });
+    throw err;
   }
+}
 
-  const state: AgentState = {
-    history,
-    userText,
-    timezone: body.timezone?.trim() || null,
-    timeRange: daily.timeRange,
-    sqlAttempts: [],
-    lastResult: null,
-    nextSqlHint: null,
-    queryRounds: 0,
-    uiBlocks: [],
-    compareInsights: null,
+async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promise<TurnResult> {
+  const { config } = deps;
+  const now = deps.now ?? Date.now;
+  const { userId, body, emit } = opts;
+  const started = now();
+  const deadline = started + config.turnTimeoutMs;
+  const signal = AbortSignal.any([opts.signal, AbortSignal.timeout(config.turnTimeoutMs)]);
+
+  const tz = resolveTimezone(body.timezone);
+  const question = body.content.trim();
+  const ctx: ToolContext = { tz, nowMs: started };
+  const usage = emptyUsage();
+  const results: ToolResult[] = [];
+
+  const memory = config.memorySecret ? await verifyMemory(config.memorySecret, body.memory, userId, started) : null;
+  if (body.memory && !memory) log.info('agent_memory_ignored', { reason: config.memorySecret ? 'invalid_or_expired' : 'no_secret' });
+
+  const prepass = await raceAbort(
+    runPrepass({ text: question, tz, nowMs: started, userId, memory, openSql: deps.openSql, timeoutMs: config.sqlTimeoutMs }),
+    signal,
+  );
+
+  const finish = async (answer: string, outcome: Outcome): Promise<TurnResult> => {
+    const text = answer.slice(0, 4000);
+    const names = collectEntityNames(results, prepass.entities);
+    const memoryToken = config.memorySecret
+      ? await signMemory(config.memorySecret, userId, memoryContent({ prepass, results, names, memory, question, answer: text }), now())
+      : '';
+    return {
+      response: {
+        answer: text,
+        blocks: buildBlocks(results),
+        deep_link: buildDeepLink(results, names, tz),
+        memory: memoryToken,
+        turn_id: deps.newId?.() ?? crypto.randomUUID(),
+      },
+      usage,
+      outcome,
+      trace,
+    };
   };
 
-  const compare = await timed('classify_intent', () => classifyIntent(deps, state));
-  if (compare) state.timeRange = compare;
-
-  let usedCompare = false;
-  if (routeAfterClassify(state.timeRange) === 'fetch_compare_data') {
-    try {
-      await timed('fetch_compare_data', () => fetchCompareData(deps, state, userId, state.timeRange as CompareRange));
-      usedCompare = true;
-    } catch (err) {
-      // The SQL route understands compare ranges too (see the generate-SQL prompt), so a failed
-      // aggregate fetch degrades instead of failing the question.
-      log.warn('agent_compare_fetch_failed', { err: String(err) });
-    }
+  if (prepass.clarification) {
+    trace.verified = 'n/a';
+    return finish(prepass.clarification, 'clarification');
   }
 
-  if (!usedCompare) {
-    // Each iteration is one SQL generation; `queryRounds` counts executed statements (Python parity),
-    // `iterations` also bounds rounds where the model produced nothing runnable.
-    let iterations = 0;
+  const messages: ChatMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: buildUserMessage({ question, tz, nowMs: started, memory, history: body.history, prepass }) },
+  ];
+
+  /** One model call with the secondary model as a single fallback while time remains. Streams text when `stream`. */
+  const callModel = async (request: Pick<LlmRequest, 'toolChoice'>, stream: boolean): Promise<LlmResult> => {
+    const models = [config.model, ...(config.modelFallback && config.modelFallback !== config.model ? [config.modelFallback] : [])];
+    let forwarded = false;
+    let last: unknown;
+    for (const [i, model] of models.entries()) {
+      const remaining = deadline - now();
+      if (remaining < MIN_LLM_MS || (i > 0 && remaining < FALLBACK_MIN_MS)) break;
+      try {
+        const res = await deps.llm({
+          model,
+          messages,
+          tools: TOOL_SPECS,
+          toolChoice: request.toolChoice,
+          signal,
+          timeoutMs: Math.min(config.llmTimeoutMs, remaining),
+          // After text reached the client, a retry must not stream the same words again.
+          ...(stream && emit && !forwarded
+            ? {
+                onDelta: (text: string) => {
+                  forwarded = true;
+                  emit({ type: 'delta', text });
+                },
+              }
+            : {}),
+        });
+        addUsage(usage, res.usage);
+        trace.llm.push({ model, ms: res.ms, prompt_tokens: res.usage.promptTokens, cache_hit_tokens: res.usage.cacheHitTokens, completion_tokens: res.usage.completionTokens });
+        return res;
+      } catch (err) {
+        if (err instanceof TurnAbortedError) throw err;
+        last = err;
+      }
+    }
+    throw last instanceof Error ? last : new TransientAiError('No time left for a model call.');
+  };
+
+  /** Runs one step's tool calls; every call gets a tool message (the API requires it). */
+  const runStep = async (calls: readonly ToolCall[]): Promise<ChatMessage[]> => {
+    interface Slot {
+      call: ToolCall;
+      tool: ToolName | null;
+      prepared: Prepared | null;
+      error: string | null;
+    }
+    const slots: Slot[] = calls.map((call, index) => {
+      const tool = TOOL_BY_NAME.get(call.function.name);
+      if (!tool) return { call, tool: null, prepared: null, error: `Unknown tool "${call.function.name}". Available: ${[...TOOL_BY_NAME.keys()].join(', ')}.` };
+      if (index >= MAX_PARALLEL_TOOLS) return { call, tool: tool.name, prepared: null, error: `At most ${MAX_PARALLEL_TOOLS} tool calls per step. Call this one again in the next step.` };
+      emit?.({ type: 'step', tool: tool.name, label: tool.label });
+      try {
+        return { call, tool: tool.name, prepared: tool.prepare(call.function.arguments, ctx), error: null };
+      } catch (err) {
+        if (err instanceof ToolArgError) return { call, tool: tool.name, prepared: null, error: err.message };
+        throw err;
+      }
+    });
+
+    // Data tools of the step share ONE read-only transaction (pipelined); run_sql runs on its own afterwards.
+    const dataSlots = slots.filter((s): s is Slot & { prepared: Extract<Prepared, { kind: 'sql' }> } => s.prepared?.kind === 'sql');
+    const outcomes = new Map<Slot, { output: ToolOutput | null; error: string | null; ms: number }>();
+    if (dataSlots.length > 0) {
+      const sql = await raceAbort(deps.openSql(), signal);
+      // Each tool's own call, then any extra (block-only) calls, all in the one transaction.
+      const calls: ToolSql[] = dataSlots.flatMap((s) => [s.prepared.call, ...(s.prepared.extra ?? [])]);
+      const { results: raw, ms } = await raceAbort(executeToolCalls(sql, userId, calls, { timeoutMs: config.sqlTimeoutMs }), signal);
+      let at = 0;
+      for (const slot of dataSlots) {
+        const r = raw[at++];
+        const extras = (slot.prepared.extra ?? []).map(() => raw[at++]);
+        const extraValues = extras.every((e) => e?.ok) ? extras.map((e) => (e?.ok ? e.value : null)) : [];
+        outcomes.set(slot, r?.ok ? { output: slot.prepared.shape(r.value, extraValues), error: null, ms } : { output: null, error: r?.error ?? 'No result.', ms });
+      }
+    }
+    for (const slot of slots) {
+      if (slot.prepared?.kind !== 'run_sql') continue;
+      const t0 = now();
+      const sql = await raceAbort(deps.openSql(), signal);
+      const res = await raceAbort(executeReadonlySql(sql, slot.prepared.query, { userId, maxRows: config.sqlMaxRows, timeoutMs: config.sqlTimeoutMs }), signal);
+      const summary = summarizeSql(res);
+      outcomes.set(slot, 'error' in summary ? { output: null, error: summary.error, ms: now() - t0 } : { output: summary, error: null, ms: now() - t0 });
+    }
+
+    return slots.map((slot): ChatMessage => {
+      const outcome = outcomes.get(slot);
+      const error = slot.error ?? outcome?.error ?? null;
+      const output = outcome?.output ?? null;
+      if (slot.tool) {
+        results.push({
+          name: slot.tool,
+          args: slot.prepared?.args ?? {},
+          ok: error === null && output !== null,
+          data: output?.data ?? null,
+          error,
+          ms: outcome?.ms ?? 0,
+          rows: output?.rows ?? 0,
+          blockData: output?.blockData ?? null,
+        });
+        trace.steps.push({ tool: slot.tool, ms: outcome?.ms ?? 0, rows: output?.rows ?? 0, ok: error === null && output !== null });
+      }
+      return { role: 'tool', tool_call_id: slot.call.id, content: wrapToolResult(slot.tool ?? slot.call.function.name, error !== null ? { error } : (output?.data ?? {})) };
+    });
+  };
+
+  /** Model and tools until the model answers (the draft text), or the step limit forces it to. */
+  const converse = async (): Promise<string> => {
+    let toolSteps = 0;
     for (;;) {
-      checkDeadline();
-      iterations += 1;
-      const sql = await timed('generate_sql', () => generateSql(deps, state));
-      state.nextSqlHint = null;
-      if (sql) await timed('execute_sql', () => executeSql(deps, state, userId, sql));
-      state.nextSqlHint = reflect(state);
-      const retry = shouldRetrySql({ nextSqlHint: state.nextSqlHint, queryRounds: state.queryRounds }, deps.config.maxToolRounds);
-      if (!retry || iterations >= deps.config.maxToolRounds) break;
+      if (deadline - now() < MIN_LLM_MS) throw new TurnAbortedError('out of time');
+      const mustAnswer = toolSteps >= config.maxSteps;
+      const res = await callModel({ toolChoice: mustAnswer ? 'none' : 'auto' }, true);
+      if (res.toolCalls.length === 0 || mustAnswer) return res.content;
+      toolSteps += 1;
+      trace.tool_steps = toolSteps;
+      messages.push({ role: 'assistant', content: res.content || null, tool_calls: res.toolCalls });
+      messages.push(...(await runStep(res.toolCalls)));
     }
+  };
+
+  /* ---- the loop ---- */
+  let answer: string;
+  try {
+    answer = await converse();
+  } catch (err) {
+    if (opts.signal.aborted) throw err; // the client left: nothing to answer
+    const expected = err instanceof TurnAbortedError || err instanceof TransientAiError || err instanceof PermanentAiError;
+    if (!expected) throw err;
+    // Out of time or the model is down: with data in hand answer from it, else report the failure.
+    if (!results.some((r) => r.ok)) {
+      if (err instanceof TurnAbortedError) throw new TurnTimeoutError('The turn ran out of time.');
+      throw err;
+    }
+    trace.verified = 'template';
+    return finish(templateAnswer(results), err instanceof TurnAbortedError ? 'deadline' : 'template');
   }
 
-  checkDeadline();
-  const response = await timed('respond', () => respond(deps, state));
+  /* ---- verification ---- */
+  const allowed = [...results.flatMap((r) => (r.ok ? numbersIn(r.data) : [])), ...numbersIn(question)];
+  const fallback = (): Promise<TurnResult> => {
+    trace.verified = 'template';
+    return finish(results.some((r) => r.ok) ? templateAnswer(results) : NO_DATA_ANSWER, 'template');
+  };
 
-  log.info('agent_turn_complete', {
-    userId,
-    ms: nowMs() - started,
-    steps: timings,
-    rounds: state.queryRounds,
-    compare: usedCompare,
-    blocks: response.blocks.length,
-    deepLink: response.deep_link !== null,
-  });
-  return response;
+  let draft = answer.trim();
+  if (draft === '') return fallback();
+  const first = verifyAnswer(draft, allowed);
+  if (first.ok) {
+    trace.verified = 'pass';
+    return finish(draft, 'ok');
+  }
+
+  // One regeneration with the offending figures named; still wrong means the deterministic template.
+  log.info('agent_answer_unverified', { unmatched: first.unmatched.slice(0, 6) });
+  messages.push({ role: 'assistant', content: draft }, { role: 'user', content: verificationFeedback(first.unmatched) });
+  try {
+    draft = (await callModel({ toolChoice: 'none' }, false)).content.trim();
+  } catch (err) {
+    if (opts.signal.aborted) throw err;
+    return fallback();
+  }
+  if (draft !== '' && verifyAnswer(draft, allowed).ok) {
+    trace.verified = 'regenerated';
+    return finish(draft, 'ok');
+  }
+  return fallback();
+}
+
+/** What the next turn needs to remember (the signed memory token carries this). */
+function memoryContent(input: {
+  prepass: PrePass;
+  results: readonly ToolResult[];
+  names: ReadonlyMap<string, string>;
+  memory: AgentMemory | null;
+  question: string;
+  answer: string;
+}): MemoryContent {
+  const { prepass, results, names, memory } = input;
+  const scoped = [...results].reverse().find((r) => r.ok && typeof r.args['from'] === 'string' && typeof r.args['to'] === 'string');
+  const from = scoped ? String(scoped.args['from']) : null;
+  const to = scoped ? String(scoped.args['to']) : null;
+  const known = prepass.range ?? memory?.time_range ?? null;
+  const time_range =
+    from && to ? { from, to, label: known && known.from === from && known.to === to ? known.label : from === to ? from : `${from} to ${to}` } : known ? { from: known.from, to: known.to, label: known.label } : null;
+
+  const entities = new Map<string, { type: 'payee' | 'category'; id: string; name: string }>();
+  const add = (type: 'payee' | 'category', id: unknown) => {
+    const name = typeof id === 'string' ? names.get(`${type}:${id}`) : undefined;
+    if (typeof id === 'string' && name) entities.set(`${type}:${id}`, { type, id, name });
+  };
+  for (const e of [...prepass.entities, ...prepass.clarificationOptions]) entities.set(`${e.type}:${e.id}`, { type: e.type, id: e.id, name: e.name });
+  for (const r of results) {
+    add('payee', r.args['payee_key']);
+    add('category', r.args['category_id']);
+  }
+  const carried = entities.size === 0 && memory ? memory.entities : [...entities.values()];
+
+  return {
+    time_range,
+    entities: carried.slice(0, 5),
+    last_tools: [...new Set(results.map((r) => r.name))],
+    summary: `Asked: ${stripMarkup(input.question).slice(0, 110)} | Said: ${stripMarkup(input.answer).slice(0, 170)}`.slice(0, 300),
+  };
 }

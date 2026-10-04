@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AgentDbUnavailableError, executeReadonlySql, isDbUnavailable, jsonSafe } from '../src/features/agent/sql-executor';
+import { AgentDbUnavailableError, executeReadonlySql, executeToolCalls, isDbUnavailable, jsonSafe } from '../src/features/agent/sql-executor';
 import type { SqlClient, SqlTx } from '../src/features/agent/sql-executor';
 
 interface Recorded {
@@ -136,5 +136,70 @@ describe('jsonSafe', () => {
     expect(jsonSafe(5n)).toBe(5);
     expect(jsonSafe(new Uint8Array([1, 255]))).toBe('\\x01ff');
     expect(jsonSafe('s')).toBe('s');
+  });
+});
+
+describe('executeToolCalls', () => {
+  const calls = [
+    { text: 'select public.agent_spending_summary($1::text::timestamptz) as r', params: ['2026-06-01T00:00:00Z'] as (string | null)[] },
+    { text: 'select public.agent_top_payees($1::text::timestamptz) as r', params: [null] as (string | null)[] },
+  ];
+
+  function fakeStep(handler: (query: string) => Row[] | Error) {
+    const statements: string[] = [];
+    let transactions = 0;
+    const client: SqlClient = {
+      begin: async <T>(options: string, fn: (tx: SqlTx) => Promise<T>): Promise<T> => {
+        transactions += 1;
+        expect(options).toBe('read only');
+        return await fn({
+          unsafe: (query) => {
+            statements.push(query);
+            const out = handler(query);
+            return out instanceof Error ? Promise.reject(out) : Promise.resolve(out);
+          },
+        });
+      },
+      end: () => Promise.resolve(),
+    };
+    return { client, statements, transactions: () => transactions };
+  }
+
+  it('pipelines the step in ONE transaction after the claims, role switch and timeout', async () => {
+    const { client, statements, transactions } = fakeStep((q) => (q.includes('agent_spending_summary') ? [{ r: { debit: 1 } }] : q.includes('agent_top_payees') ? [{ r: { payees: [] } }] : []));
+    const { results } = await executeToolCalls(client, OPTIONS.userId, calls, { timeoutMs: 2500 });
+    expect(transactions()).toBe(1);
+    expect(statements).toEqual([
+      "select set_config('request.jwt.claims', $1, true)",
+      'set local role authenticated',
+      "set local statement_timeout = '2500ms'",
+      calls[0]?.text,
+      calls[1]?.text,
+    ]);
+    expect(results).toEqual([{ ok: true, value: { debit: 1 } }, { ok: true, value: { payees: [] } }]);
+  });
+
+  it('reports a failing call without hiding the others (and never leaks the database message)', async () => {
+    const { client } = fakeStep((q) => (q.includes('agent_top_payees') ? new Error('canceling statement due to statement timeout') : [{ r: { debit: 1 } }]));
+    const { results } = await executeToolCalls(client, OPTIONS.userId, calls, { timeoutMs: 2500 });
+    expect(results[0]).toEqual({ ok: true, value: { debit: 1 } });
+    expect(results[1]).toEqual({ ok: false, error: 'The query took too long. Try a shorter period.' });
+
+    const aborted = fakeStep((q) => (q.includes('agent_spending_summary') ? new Error('current transaction is aborted, commands ignored until end of transaction block') : [{ r: 1 }]));
+    const second = await executeToolCalls(aborted.client, OPTIONS.userId, calls, { timeoutMs: 2500 });
+    expect(second.results[0]).toMatchObject({ ok: false });
+    const other = fakeStep((q) => (q.includes('agent_spending_summary') ? new Error('relation "secret_table" does not exist') : [{ r: 1 }]));
+    const third = await executeToolCalls(other.client, OPTIONS.userId, calls, { timeoutMs: 2500 });
+    expect(JSON.stringify(third.results[0])).not.toContain('secret_table');
+  });
+
+  it('throws AgentDbUnavailableError when the connection is gone', async () => {
+    const { client } = fakeStep(() => Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }));
+    await expect(executeToolCalls(client, OPTIONS.userId, calls, { timeoutMs: 2500 })).rejects.toBeInstanceOf(AgentDbUnavailableError);
+  });
+
+  it('fails the step when the role switch itself fails', async () => {
+    const { client } = fakeStep((q) => (q === 'set local role authenticated' ? new Error('permission denied to set role "authenticated"') : []));
+    await expect(executeToolCalls(client, OPTIONS.userId, calls, { timeoutMs: 2500 })).rejects.toThrow(/permission denied/);
   });
 });

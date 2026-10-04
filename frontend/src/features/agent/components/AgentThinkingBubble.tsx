@@ -1,36 +1,30 @@
 import { memo } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { accent, inkSoft, radius, shadow, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import {
-  AGENT_SPINNER_INTERVAL_MS,
-  AGENT_SPINNER_WORDS,
-} from "@/features/agent/constants/loadingPhrases";
-import { useRotatingPhrase } from "@/features/agent/hooks/useRotatingPhrase";
+
+const DEFAULT_LABEL = "Thinking";
 
 type AgentThinkingBubbleProps = {
-  active: boolean;
+  /** Real progress from the server (`step` events); a neutral label until the first one. */
+  label?: string | null;
 };
 
 export const AgentThinkingBubble = memo(function AgentThinkingBubble({
-  active,
+  label,
 }: AgentThinkingBubbleProps) {
-  const word = useRotatingPhrase(
-    AGENT_SPINNER_WORDS,
-    active,
-    AGENT_SPINNER_INTERVAL_MS,
-  );
-
-  if (!active) {
-    return null;
-  }
-
   return (
     <View style={styles.bubbleWrap}>
       <View style={styles.bubble} accessibilityLiveRegion="polite">
         <ActivityIndicator size="small" color={accent} />
-        <Text style={styles.word}>{word}</Text>
+        <Text style={styles.word}>{label || DEFAULT_LABEL}</Text>
       </View>
     </View>
   );

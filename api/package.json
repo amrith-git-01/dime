@@ -17,7 +17,10 @@
     "parity": "tsx scripts/parity/parity.ts",
     "parity:validator": "tsx scripts/parity/validator-corpus.ts --run-python",
     "parity:tokens": "tsx scripts/parity/tokens-check.ts",
-    "parity:routes": "tsx scripts/parity/routes-check.ts"
+    "parity:routes": "tsx scripts/parity/routes-check.ts",
+    "evals": "tsx evals/run.ts",
+    "evals:validate": "tsx evals/validate.ts",
+    "evals:generate": "tsx evals/generate.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",

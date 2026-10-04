@@ -1,10 +1,9 @@
-import { addDays, localDate, parseTimezone, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
+import { addDays, dateKey, localDate, parseTimezone, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
 
 /**
- * Calendar helpers for the agent. The prompts and `time_range` objects carry offset ISO strings
- * (`2026-06-01T00:00:00+05:30`, inclusive day ends at `23:59:59.999999`) exactly like Python's
- * `datetime.isoformat()`, because the LLM copies them into SQL.
+ * Calendar helpers for the agent. Tool arguments are INCLUSIVE local dates (`YYYY-MM-DD`, the
+ * timezone of the app); the database always sees HALF-OPEN UTC instants `[from 00:00, to + 1 day 00:00)`.
  */
 
 export const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
@@ -23,25 +22,26 @@ export const MONTH_FULL = [
   'December',
 ] as const;
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
-
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
-export const DEFAULT_TIMEZONE = 'UTC';
+const DEFAULT_TIMEZONE = 'UTC';
 
-/** Python `resolve_timezone` + `parse_tz`: blank/missing is UTC, an unknown name is a 400. */
+/** Blank or missing is UTC; an unknown name is a 400 (`Invalid timezone: 'x'`). */
 export function resolveTimezone(timezone: string | null | undefined): string {
-  const name = timezone?.trim() ? timezone.trim() : DEFAULT_TIMEZONE;
-  return parseTimezone(name);
+  return parseTimezone(timezone?.trim() ? timezone.trim() : DEFAULT_TIMEZONE);
 }
 
-export function isoDate(d: LocalDate): string {
-  return `${pad(d.year, 4)}-${pad(d.month)}-${pad(d.day)}`;
-}
+export const isoDate = dateKey;
 
-export function parseIsoDate(iso: string): LocalDate {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!m) throw new Error(`Invalid ISO date: ${iso}`);
-  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A real calendar date `YYYY-MM-DD`, or null. */
+export function parseIsoDate(iso: string): LocalDate | null {
+  const m = DATE_RE.exec(iso);
+  if (!m) return null;
+  const date = { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+  const check = new Date(Date.UTC(date.year, date.month - 1, date.day));
+  return check.getUTCFullYear() === date.year && check.getUTCMonth() === date.month - 1 && check.getUTCDate() === date.day ? date : null;
 }
 
 /** Whole days from `a` to `b` (calendar arithmetic, no timezone). */
@@ -53,27 +53,39 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-/** Python `date.weekday()`: Monday = 0. */
+function weekdayName(d: LocalDate): string {
+  return WEEKDAYS[new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay()] ?? '';
+}
+
+/** 0 = Monday .. 6 = Sunday. */
 export function weekdayMon0(d: LocalDate): number {
   return (new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay() + 6) % 7;
 }
 
-export function weekdayName(d: LocalDate): string {
-  return WEEKDAYS[new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay()] ?? '';
+export const today = (tz: string, nowMs: number): LocalDate => localDate(tz, nowMs);
+
+export interface InstantRange {
+  /** Inclusive, ISO-8601 UTC. */
+  from: string;
+  /** Exclusive, ISO-8601 UTC. */
+  to: string;
 }
 
-export function today(tz: string, nowMs: number): LocalDate {
-  return localDate(tz, nowMs);
+/** `[from 00:00, to + 1 day 00:00)` in `tz` for two inclusive local dates. */
+export function toInstantRange(tz: string, from: LocalDate, to: LocalDate): InstantRange {
+  return {
+    from: new Date(startOfLocalDay(tz, from)).toISOString(),
+    to: new Date(startOfLocalDay(tz, addDays(to, 1))).toISOString(),
+  };
 }
 
 function formatOffset(offsetMs: number): string {
   const total = Math.round(offsetMs / 60_000);
-  const sign = total < 0 ? '-' : '+';
   const abs = Math.abs(total);
-  return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+  return `${total < 0 ? '-' : '+'}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 
-/** `datetime.combine(day, time(h, m, s, micro), tzinfo=tz).isoformat()`. */
+/** Offset ISO string of a wall-clock time on a local date (`2026-06-01T00:00:00+05:30`). */
 export function wallIso(tz: string, date: LocalDate, h: number, m: number, s: number, micro = 0): string {
   const wallMs = ((h * 60 + m) * 60 + s) * 1000;
   const offset = tzOffsetMs(tz, startOfLocalDay(tz, date) + wallMs);
@@ -81,35 +93,17 @@ export function wallIso(tz: string, date: LocalDate, h: number, m: number, s: nu
   return `${isoDate(date)}T${pad(h)}:${pad(m)}:${pad(s)}${frac}${formatOffset(offset)}`;
 }
 
-/** Inclusive bounds of one calendar day. */
-export function dayBoundsIso(tz: string, date: LocalDate): [string, string] {
-  return [wallIso(tz, date, 0, 0, 0), wallIso(tz, date, 23, 59, 59, 999_999)];
+/** The authoritative NOW block of the prompt, so the model never guesses dates. */
+export function nowBlock(tz: string, nowMs: number): string {
+  const day = today(tz, nowMs);
+  const monthStart = { ...day, day: 1 };
+  const monthEnd = { ...day, day: daysInMonth(day.year, day.month) };
+  const prevEndOfMonth = addDays(monthStart, -1);
+  const prevStart = { ...prevEndOfMonth, day: 1 };
+  return [
+    '## NOW (authoritative; never guess dates)',
+    `Today: ${isoDate(day)} (${weekdayName(day)}). Timezone: ${tz}. Currency: INR.`,
+    `This month: ${isoDate(monthStart)} to ${isoDate(monthEnd)}. Last month: ${isoDate(prevStart)} to ${isoDate(prevEndOfMonth)}.`,
+    `Last 7 days: ${isoDate(addDays(day, -6))} to ${isoDate(day)}. Last 30 days: ${isoDate(addDays(day, -29))} to ${isoDate(day)}.`,
+  ].join('\n');
 }
-
-/** Inclusive bounds of a calendar month (end is the last microsecond of the last day). */
-export function monthBoundsIso(tz: string, year: number, month: number): [string, string] {
-  const first: LocalDate = { year, month, day: 1 };
-  const last: LocalDate = { year, month, day: daysInMonth(year, month) };
-  return [wallIso(tz, first, 0, 0, 0), wallIso(tz, last, 23, 59, 59, 999_999)];
-}
-
-/** The calendar month before `ref` (a local date). */
-export function previousMonthOf(ref: LocalDate): { year: number; month: number } {
-  return ref.month === 1 ? { year: ref.year - 1, month: 12 } : { year: ref.year, month: ref.month - 1 };
-}
-
-export function previousMonthBoundsIso(tz: string, ref: LocalDate): [string, string] {
-  const { year, month } = previousMonthOf(ref);
-  return monthBoundsIso(tz, year, month);
-}
-
-/** Inclusive window of `n` calendar days ending on `endDay`. */
-export function lastNDaysBoundsIso(tz: string, endDay: LocalDate, n: number): [string, string] {
-  const start = addDays(endDay, -(n - 1));
-  return [wallIso(tz, start, 0, 0, 0), wallIso(tz, endDay, 23, 59, 59, 999_999)];
-}
-
-/** Python `date.strftime('%d %b')`. */
-export const dayMonthLabel = (d: LocalDate) => `${pad(d.day)} ${MONTH_ABBR[d.month - 1] ?? ''}`;
-/** Python `date.strftime('%b %Y')`. */
-export const monthYearLabel = (d: { year: number; month: number }) => `${MONTH_ABBR[d.month - 1] ?? ''} ${d.year}`;

@@ -46,13 +46,14 @@ const DENIED_FUNCTIONS: ReadonlySet<string> = new Set([
   'lastval',
   'currval',
   'ts_stat',
-  // Beyond Python: this project's own RPCs take a user id argument, so they must never be reachable from agent SQL.
+  // Beyond Python: this project's own RPCs take a user id argument, so they must never be reachable from agent SQL
+  // (the agent_* tool functions, which take none, are denied by prefix below: run_sql stays a plain SELECT fallback).
   'transactions_period_summary',
   'transactions_daily_totals',
   'transactions_payee_totals',
   'update_category_with_budget',
 ]);
-const DENIED_FUNCTION_PREFIXES = ['pg_', 'dblink', 'lo_', 'txid_', 'has_', 'http_'] as const;
+const DENIED_FUNCTION_PREFIXES = ['pg_', 'dblink', 'lo_', 'txid_', 'has_', 'http_', 'agent_'] as const;
 
 /** Table-valued functions allowed in FROM / JOIN (everything else is rejected). */
 const ALLOWED_TABLE_FUNCTIONS: ReadonlySet<string> = new Set(['generate_series']);
