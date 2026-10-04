@@ -24,3 +24,14 @@ export const notificationsInboxShellConfig: Pick<
   contentContainerStyle: styles.scrollContent,
   scrollEnabled: false,
 };
+
+/**
+ * For screens whose body is a virtualized list (FlashList): the list is the scroll container,
+ * so the shell must not wrap it in a second vertical ScrollView.
+ */
+export const stackVirtualizedListShellConfig: Pick<
+  StackScreenShellProps,
+  "scrollEnabled"
+> = {
+  scrollEnabled: false,
+};

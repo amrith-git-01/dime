@@ -7,6 +7,7 @@ import { lastShownWatermarkMs } from "@/features/transactions/sms/smsGate";
 import { redactSmsBody } from "@/features/transactions/sms/smsRedact";
 import type { InboxSms } from "@/features/transactions/sms/smsTypes";
 import { setSmsWatermarkMs } from "@/features/transactions/sms/smsWatermarkStorage";
+import { createIdempotencyKeyCache } from "@/features/transactions/utils/idempotencyKeyCache";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useSmsInboxReviewStore } from "@/stores/smsInboxReviewStore";
 
@@ -21,6 +22,7 @@ export function useSmsInboxReviewScreenModel() {
   const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [idempotencyKeys] = useState(createIdempotencyKeyCache);
 
   const formatStamp = useCallback((dateMs: number) => {
     return format(new Date(dateMs), "d MMM, h:mm a");
@@ -38,12 +40,12 @@ export function useSmsInboxReviewScreenModel() {
     setSyncing(true);
     try {
       if (remaining.length > 0) {
-        await submitSmsBatch(
-          remaining.map((row) => ({
-            body: redactSmsBody(row.body),
-            received_at: new Date(row.dateMs).toISOString(),
-          })),
-        );
+        const messages = remaining.map((row) => ({
+          body: redactSmsBody(row.body),
+          received_at: new Date(row.dateMs).toISOString(),
+        }));
+        await submitSmsBatch(messages, idempotencyKeys.keyFor(messages));
+        idempotencyKeys.clear();
       }
       if (watermark != null) {
         setSmsWatermarkMs(userId, watermark);
@@ -56,7 +58,7 @@ export function useSmsInboxReviewScreenModel() {
     } finally {
       setSyncing(false);
     }
-  }, [markDone, remaining, shown, showToast, syncing, userId]);
+  }, [idempotencyKeys, markDone, remaining, shown, showToast, syncing, userId]);
 
   return {
     phase,

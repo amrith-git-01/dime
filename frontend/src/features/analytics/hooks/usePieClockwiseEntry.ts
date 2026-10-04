@@ -59,7 +59,7 @@ export function usePieClockwiseEntry({
     progress.value = withTiming(1, timing);
   }, [progress, timing]);
 
-  const { hasPlayed: _hasPlayed } = useChartRevealOnce({
+  useChartRevealOnce({
     identity,
     enabled,
     isVisible,

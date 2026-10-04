@@ -5,8 +5,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
-import type { InsightsMonthSummary } from "@/features/analytics/components";
-import type { InsightsCashflowDaySelection } from "@/features/analytics/components/InsightsDailyCashflowChart";
+import type {
+  InsightsCashflowDaySelection,
+  InsightsMonthSummary,
+} from "@/features/analytics/components";
+import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
 import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
 import {
@@ -183,8 +186,10 @@ export function useAnalyticsScreenModel() {
     [navigation],
   );
 
+  const { chartsReady } = useDeferredHeavyCharts(Boolean(insightsData));
+
   return {
-    hasInsightsData: Boolean(insightsData),
+    chartsReady,
     chartsDataSettled,
     monthOptions,
     selectedMonth,

@@ -5,17 +5,21 @@ import { Platform } from "react-native";
 import { requestAppPermission } from "@/features/onboarding/utils/appPermissions";
 
 import { deletePushToken, putPushToken } from "../api/pushTokenApi";
+import { reportError } from "@/lib/reportError";
 
 function getExpoProjectId(): string | null {
   const easProjectId = Constants.easConfig?.projectId;
-  const legacyProjectId = (Constants.expoConfig as any)?.extra?.eas?.projectId;
+  const legacyProjectId = (
+    Constants.expoConfig?.extra as
+      | { eas?: { projectId?: string } }
+      | undefined
+  )?.eas?.projectId;
   return easProjectId ?? legacyProjectId ?? null;
 }
 
 async function getExpoPushToken(projectId: string): Promise<string> {
   const result = await Notifications.getExpoPushTokenAsync({ projectId });
-  const token =
-    typeof (result as any).data === "string" ? (result as any).data : result;
+  const token = result.data;
 
   if (!token || typeof token !== "string") {
     throw new Error("[syncExpoPushToken] Expo push token is empty");
@@ -39,9 +43,9 @@ export async function syncExpoPushTokenForUser(
       try {
         token = await getExpoPushToken(projectId);
       } catch (error) {
-        console.warn(
-          "[syncExpoPushToken] Could not read Expo push token before delete",
+        reportError(
           error,
+          "syncExpoPushToken could not read token before delete",
         );
       }
     }

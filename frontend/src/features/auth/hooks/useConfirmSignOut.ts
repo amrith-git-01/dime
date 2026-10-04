@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 
 import { useSignOut } from "./useSignOut";
+import { reportError } from "@/lib/reportError";
 
 type SignOutConfirmModalProps = {
   visible: boolean;
@@ -19,7 +20,7 @@ export function useConfirmSignOut() {
       await signOut();
       setVisible(false);
     } catch (e) {
-      console.warn("[auth] logout failed", e);
+      reportError(e, "auth logout failed");
       Alert.alert(
         "Couldn't sign out",
         e instanceof Error ? e.message : "Try again.",

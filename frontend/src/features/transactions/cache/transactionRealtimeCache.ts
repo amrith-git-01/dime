@@ -4,10 +4,12 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   applyTransactionInsertToListCaches,
   applyTransactionRemoveFromListCaches,
+  findTransactionInListCaches,
   applyTransactionUpdateToListCaches,
 } from "@/features/transactions/cache/transactionListCache";
 import type { CounterpartyType } from "@/features/transactions/counterpartyTypes";
 import type { TransactionRow } from "@/features/transactions/types";
+import { reconcileRealtimeMedia } from "@/features/transactions/utils/realtimeMedia";
 import { normalizeTransactionAmount } from "@/utils/transactionAmount";
 
 type TransactionDbRecord = Record<string, unknown>;
@@ -86,6 +88,14 @@ function isSoftDeleted(row: TransactionRow): boolean {
   return row.deleted_at != null && row.deleted_at.length > 0;
 }
 
+/** Id of the transaction a realtime payload is about, or null if it has none. */
+export function realtimePayloadTransactionId(
+  payload: RealtimePostgresChangesPayload<TransactionDbRecord>,
+): string | null {
+  const record = payload.eventType === "DELETE" ? payload.old : payload.new;
+  return asString((record as TransactionDbRecord | undefined)?.id);
+}
+
 export function applyRealtimeTransactionChange(
   queryClient: QueryClient,
   input: {
@@ -109,10 +119,20 @@ export function applyRealtimeTransactionChange(
     return;
   }
 
-  const row = mapRealtimeRecordToTransactionRow(payload.new);
-  if (!row) {
+  const mapped = mapRealtimeRecordToTransactionRow(payload.new);
+  if (!mapped) {
     return;
   }
+  // Realtime carries raw storage paths in receipt_url/voice_url (C7): never let them replace
+  // a signed URL that is already cached.
+  const row = reconcileRealtimeMedia(
+    mapped,
+    findTransactionInListCaches(queryClient, {
+      userId,
+      timezone,
+      transactionId: mapped.id,
+    }),
+  );
 
   if (isSoftDeleted(row)) {
     applyTransactionRemoveFromListCaches(queryClient, {

@@ -209,6 +209,7 @@ function MonthArrowSelector({
         disabled={!canGoPrev}
         hitSlop={8}
         style={styles.navBtn}
+        accessibilityRole="button"
         accessibilityLabel="Previous month"
       >
         <ChevronLeft
@@ -223,6 +224,7 @@ function MonthArrowSelector({
         disabled={!canGoNext}
         hitSlop={8}
         style={styles.navBtn}
+        accessibilityRole="button"
         accessibilityLabel="Next month"
       >
         <ChevronRight

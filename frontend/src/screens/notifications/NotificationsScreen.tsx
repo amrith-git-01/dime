@@ -1,97 +1,64 @@
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useRef } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
-import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import { colors, spacing, typography } from "@/constants";
-import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
-import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
-import type { AppNotification } from "@/features/notifications/types";
-import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
-import { useToast } from "@/features/toast/useToast";
-import type { MainStackParamList } from "@/navigation/types";
+import { accent, colors, spacing, typography } from "@/constants";
+import {
+  NotificationBentoRow,
+  NotificationsFilterTabs,
+  NotificationsInboxSkeleton,
+} from "@/features/notifications/components";
+import type { NotificationListItem } from "@/features/notifications/utils/flattenNotificationGroups";
 
 import {
   NOTIFICATION_FILTER_EMPTY,
   NOTIFICATION_INBOX_EMPTY,
 } from "./notificationEmptyCopy";
+import { useNotificationsScreenModel } from "./useNotificationsScreenModel";
 
 export default function NotificationsScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const queryClient = useQueryClient();
-  const { showToast } = useToast();
   const {
     filter,
     setFilter,
-    groups,
+    listItems,
     isInboxEmpty,
     isFilterEmpty,
-    markRead,
-    deleteNotification,
     isUnread,
     isInitialLoading,
     isError,
-  } = useNotificationsFeed();
-
-  const handlePress = useCallback(
-    (notification: AppNotification) => {
-      markRead(notification.id);
-
-      switch (notification.action.type) {
-        case "home":
-          navigation.goBack();
-          break;
-        case "manual_add":
-          navigation.navigate("ManualAddTransaction");
-          break;
-        case "transaction_detail": {
-          const transaction = findTransactionInCache(
-            queryClient,
-            notification.action.transactionId,
-          );
-          if (transaction) {
-            navigation.navigate("TransactionDetail", { transaction });
-          } else {
-            showToast({
-              variant: "info",
-              message: "Open Transactions to view this entry",
-            });
-            navigation.navigate("MainTabs", { screen: "Transactions" });
-          }
-          break;
-        }
-        case "none":
-          break;
-        default:
-          break;
-      }
-    },
-    [markRead, navigation, queryClient, showToast],
-  );
-
-  const handleDelete = useCallback(
-    (id: string) => {
-      deleteNotification(id);
-    },
-    [deleteNotification],
-  );
+    isFetchingNextPage,
+    loadMore,
+    markRead,
+    handlePress,
+    handleDelete,
+    handleSwipeWillStart,
+  } = useNotificationsScreenModel();
 
   const insets = useSafeAreaInsets();
-  const openSwipeRef = useRef<SwipeableMethods | null>(null);
-  const handleSwipeWillStart = useCallback((methods: SwipeableMethods) => {
-    if (openSwipeRef.current != null && openSwipeRef.current !== methods) {
-      openSwipeRef.current.close();
+
+  const renderItem: ListRenderItem<NotificationListItem> = ({ item }) => {
+    if (item.kind === "header") {
+      return (
+        <Text style={[styles.groupHeader, !item.isFirst && styles.groupGap]}>
+          {item.title}
+        </Text>
+      );
     }
-    openSwipeRef.current = methods;
-  }, []);
+    return (
+      <View style={styles.rowWrap}>
+        <NotificationBentoRow
+          notification={item.notification}
+          unread={isUnread(item.notification)}
+          onPress={handlePress}
+          onMarkRead={markRead}
+          onDelete={handleDelete}
+          onSwipeWillStart={handleSwipeWillStart}
+        />
+      </View>
+    );
+  };
 
   if (isInitialLoading) {
     return (
@@ -126,49 +93,60 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <ScrollView
+    <FlashList
       style={styles.scroll}
-      contentContainerStyle={[
-        styles.root,
-        { paddingBottom: spacing.xl + insets.bottom },
-      ]}
+      data={isFilterEmpty ? NO_ITEMS : listItems}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      getItemType={getItemType}
+      renderScrollComponent={ScrollView}
+      contentContainerStyle={{
+        backgroundColor: colors.pageBackground,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xl + insets.bottom,
+      }}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       overScrollMode="never"
       bounces={false}
-    >
-      <NotificationsFilterTabs value={filter} onChange={setFilter} />
-
-      {isFilterEmpty ? (
-        <View style={styles.filterEmptyWrap}>
-          <EmptyState
-            layout="centered"
-            headline={NOTIFICATION_FILTER_EMPTY[filter].title}
-            subtext={NOTIFICATION_FILTER_EMPTY[filter].message}
-          />
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      ListHeaderComponent={
+        <View style={styles.tabsWrap}>
+          <NotificationsFilterTabs value={filter} onChange={setFilter} />
         </View>
-      ) : (
-        <View style={styles.sections}>
-          {groups.map((group) => (
-            <View key={group.key} style={styles.groupWrap}>
-              <Text style={styles.groupHeader}>{group.title}</Text>
-              {group.items.map((item) => (
-                <NotificationBentoRow
-                  key={item.id}
-                  notification={item}
-                  unread={isUnread(item)}
-                  onPress={handlePress}
-                  onMarkRead={markRead}
-                  onDelete={handleDelete}
-                  onSwipeWillStart={handleSwipeWillStart}
-                />
-              ))}
-            </View>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      }
+      ListEmptyComponent={
+        isFilterEmpty ? (
+          <View style={styles.filterEmptyWrap}>
+            <EmptyState
+              layout="centered"
+              headline={NOTIFICATION_FILTER_EMPTY[filter].title}
+              subtext={NOTIFICATION_FILTER_EMPTY[filter].message}
+            />
+          </View>
+        ) : null
+      }
+      ListFooterComponent={
+        isFetchingNextPage ? (
+          <View style={styles.loadingMore}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : null
+      }
+    />
   );
+}
+
+const NO_ITEMS: NotificationListItem[] = [];
+
+function keyExtractor(item: NotificationListItem): string {
+  return item.id;
+}
+
+function getItemType(item: NotificationListItem): NotificationListItem["kind"] {
+  return item.kind;
 }
 
 const styles = StyleSheet.create({
@@ -182,23 +160,25 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     backgroundColor: colors.pageBackground,
   },
-  root: {
-    flexGrow: 1,
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
-  sections: {
-    gap: spacing.lg,
+  tabsWrap: {
+    paddingBottom: spacing.md,
   },
   filterEmptyWrap: {
-    flexGrow: 1,
+    minHeight: 320,
     justifyContent: "center",
-  },
-  groupWrap: {
-    gap: spacing.md,
   },
   groupHeader: {
     ...typography.eyebrow,
+    paddingBottom: spacing.md,
+  },
+  groupGap: {
+    paddingTop: spacing.lg,
+  },
+  rowWrap: {
+    paddingBottom: spacing.md,
+  },
+  loadingMore: {
+    paddingVertical: spacing.lg,
+    alignItems: "center",
   },
 });

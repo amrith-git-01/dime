@@ -5,6 +5,8 @@ import { bento, radius } from "@/constants";
 
 import { BENTO_GAP, BENTO_SECTION_CARD_PADDING } from "@/components/bento";
 
+import { CardSegmentShadowFrame } from "./CardSegmentShadowFrame";
+
 type BentoSectionCardProps = {
   children: ReactNode;
 };
@@ -39,7 +41,8 @@ export const BentoSectionCard = memo(function BentoSectionCard({
 
 /**
  * One row of a virtualized list that visually continues {@link BentoSectionCard}.
- * First/last segments get corner radius; shadow stays on the full card only.
+ * First/last segments get corner radius; each segment carries the card shadow, clipped to its
+ * sides so stacked rows show no seams (see {@link CardSegmentShadowFrame}).
  */
 export const BentoSectionCardSegment = memo(function BentoSectionCardSegment({
   children,
@@ -48,16 +51,19 @@ export const BentoSectionCardSegment = memo(function BentoSectionCardSegment({
   showGapAfter = false,
 }: BentoSectionCardSegmentProps) {
   return (
-    <View
-      style={[
-        styles.segmentBase,
-        isFirst && styles.segmentFirst,
-        isLast && styles.segmentLast,
-      ]}
-    >
-      {children}
-      {showGapAfter ? <View style={styles.segmentGap} /> : null}
-    </View>
+    <CardSegmentShadowFrame isFirst={isFirst} isLast={isLast}>
+      <View
+        style={[
+          styles.segmentBase,
+          shadowStyle,
+          isFirst && styles.segmentFirst,
+          isLast && styles.segmentLast,
+        ]}
+      >
+        {children}
+        {showGapAfter ? <View style={styles.segmentGap} /> : null}
+      </View>
+    </CardSegmentShadowFrame>
   );
 });
 

@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useState } from "react";
 
 import { useToast } from "@/features/toast/useToast";
+import { useTransactionDetailQuery } from "@/features/transactions/hooks/useTransactionDetailQuery";
 import { useDeleteTransactionMutation } from "@/features/transactions/hooks/useDeleteTransactionMutation";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { isFastApiNotFound } from "@/lib/api/parseFastApiError";
@@ -18,7 +19,10 @@ export function useTransactionDetailScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { params } = useRoute<DetailRoute>();
-  const { transaction } = params;
+  // Route param seeds the cache; the query refetches on open so signed media URLs are fresh (C7).
+  const { data: transaction = params.transaction } = useTransactionDetailQuery(
+    params.transaction,
+  );
   const { showToast } = useToast();
   const deleteMutation = useDeleteTransactionMutation();
   const [confirmVisible, setConfirmVisible] = useState(false);

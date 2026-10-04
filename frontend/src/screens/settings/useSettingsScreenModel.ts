@@ -1,0 +1,45 @@
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useCallback } from "react";
+
+import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
+import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import type { MainStackParamList } from "@/navigation/types";
+
+type SettingsHubDestination =
+  | "SettingsAccount"
+  | "SettingsHaptic"
+  | "SettingsNotifications"
+  | "SettingsCapture"
+  | "SettingsEmail"
+  | "SettingsGlossary"
+  | "SettingsPermissions"
+  | "SettingsFeedback";
+
+export function useSettingsScreenModel() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const { displayName, email, avatarUrl } = useUserProfile();
+  const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
+    useConfirmSignOut();
+  const { confirmRefreshAppData, loading: refreshLoading } =
+    useRefreshAppData();
+
+  const openDestination = useCallback(
+    (destination: SettingsHubDestination) => navigation.navigate(destination),
+    [navigation],
+  );
+
+  return {
+    displayName,
+    email,
+    avatarUrl,
+    signOutLoading,
+    signOutConfirmModalProps,
+    refreshLoading,
+    openDestination,
+    onSignOut: confirmSignOut,
+    onRefreshPress: confirmRefreshAppData,
+  };
+}

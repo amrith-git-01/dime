@@ -1,10 +1,7 @@
 import { useEffect } from "react";
 
 import type { TransactionRow } from "@/features/transactions/types";
-import {
-  filterTransactionsByCalendarDay,
-  transactionCalendarDayKey,
-} from "@/features/transactions/utils/buildTransactionFlashListData";
+import { transactionCalendarDayKey } from "@/features/transactions/utils/buildTransactionFlashListData";
 
 type UsePrefetchTransactionsForSelectedDayArgs = {
   selectedDayKey: string;
@@ -16,7 +13,7 @@ type UsePrefetchTransactionsForSelectedDayArgs = {
 
 /**
  * Month list loads newest-first pages. When user picks an earlier calendar day,
- * fetch older pages until loaded window reaches that day or pagination ends.
+ * fetch older pages until the loaded window passes that day or pagination ends.
  */
 export function usePrefetchTransactionsForSelectedDay({
   selectedDayKey,
@@ -30,14 +27,6 @@ export function usePrefetchTransactionsForSelectedDay({
       return;
     }
 
-    const forSelectedDay = filterTransactionsByCalendarDay(
-      flatRows,
-      selectedDayKey,
-    );
-    if (forSelectedDay.length > 0) {
-      return;
-    }
-
     const oldestKey = flatRows.length
       ? transactionCalendarDayKey(flatRows[flatRows.length - 1].transaction_at)
       : null;
@@ -46,7 +35,9 @@ export function usePrefetchTransactionsForSelectedDay({
       return;
     }
 
-    if (selectedDayKey < oldestKey) {
+    // Keep paging until the loaded window is older than the selected day. When the selected
+    // day is the oldest one loaded its rows may continue on the next page.
+    if (selectedDayKey <= oldestKey) {
       void fetchNextPage();
     }
   }, [

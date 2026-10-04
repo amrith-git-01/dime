@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase/client";
 import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
+import { reportError } from "@/lib/reportError";
 
 export function useSignOut() {
   const [loading, setLoading] = useState(false);
@@ -24,30 +25,31 @@ export function useSignOut() {
       try {
         await syncExpoPushTokenForUser(false);
       } catch (error) {
-        console.warn(
-          "[useSignOut] Failed to delete Expo push token on sign-out",
-          error,
-        );
+        reportError(error, "useSignOut delete Expo push token");
       }
 
       try {
         await cancelDailyExpenseReminderSchedule();
       } catch (error) {
-        console.warn(
-          "[useSignOut] Failed to cancel daily expense reminder on sign-out",
-          error,
-        );
+        reportError(error, "useSignOut cancel daily expense reminder");
       }
 
-      const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) throw error;
+      try {
+        const { error } = await supabase.auth.signOut({ scope: "global" });
+        if (error) throw error;
+      } catch (error) {
+        // Offline or server error: still drop the session on this device.
+        reportError(error, "useSignOut global sign-out failed, using local");
+        await supabase.auth.signOut({ scope: "local" });
+      }
 
       try {
         await GoogleSignin.signOut();
       } catch {
         // Email/password users or no Google session — safe to ignore.
       }
-
+    } finally {
+      // Always wipe the previous user's local data, even when the network calls above failed.
       clearSupabaseAuthMmkv();
       clearDimeAuthTokenCache();
       clearQueryMmkv();
@@ -57,7 +59,6 @@ export function useSignOut() {
       usePermissionsPromptStore.getState().clearPendingAfterGoogleSignIn();
       queryClient.removeQueries({ queryKey: settingsQueryKeys.all });
       queryClient.clear();
-    } finally {
       setLoading(false);
     }
   }, [queryClient]);

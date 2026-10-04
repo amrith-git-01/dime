@@ -13,7 +13,8 @@ import type {
 export { monthRangeIso };
 
 export type CreateTransactionBody = {
-  amount: number;
+  /** Decimal string such as `"250.50"` (C6). */
+  amount: string;
   type: TransactionType;
   counterparty_name: string;
   counterparty_type: CounterpartyType;
@@ -27,12 +28,20 @@ export type CreateTransactionBody = {
 
 const TX_PAGE_LIMIT = 50;
 
+/** Server-side list filters (C3). */
+export type TransactionListFilters = {
+  /** Case-insensitive "contains" match on the payee. */
+  payee?: string;
+  categoryId?: string;
+};
+
 export async function fetchTransactionsPage(input: {
   from?: string | null;
   to?: string | null;
   limit?: number;
   offset?: number;
   timezone?: string;
+  filters?: TransactionListFilters;
 }): Promise<TransactionListPage> {
   const { data } = await dimeApi.get<TransactionListPage>(
     "/api/v1/transactions",
@@ -43,6 +52,8 @@ export async function fetchTransactionsPage(input: {
         limit: input.limit ?? TX_PAGE_LIMIT,
         offset: input.offset ?? 0,
         timezone: input.timezone ?? undefined,
+        payee: input.filters?.payee || undefined,
+        category_id: input.filters?.categoryId || undefined,
       },
     },
   );
@@ -56,6 +67,16 @@ export async function fetchTransactions(): Promise<TransactionRow[]> {
     offset: 0,
   });
   return page.items;
+}
+
+/** Single transaction with fresh signed media URLs (C7). */
+export async function fetchTransactionById(
+  id: string,
+): Promise<TransactionRow> {
+  const { data } = await dimeApi.get<TransactionRow>(
+    `/api/v1/transactions/${id}`,
+  );
+  return data;
 }
 
 export async function fetchHomeOverview(

@@ -11,6 +11,8 @@ export type UserSettings = {
   deviceNotificationsEnabled: boolean;
   dailyExpenseReminderEnabled: boolean;
   dailyExpenseReminderTime: string;
+  weeklyEmailEnabled: boolean;
+  monthlyEmailEnabled: boolean;
 };
 
 export type UserSettingsPatch = Partial<UserSettings>;
@@ -35,6 +37,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   deviceNotificationsEnabled: true,
   dailyExpenseReminderEnabled: true,
   dailyExpenseReminderTime: "20:00",
+  weeklyEmailEnabled: true,
+  monthlyEmailEnabled: true,
 };
 
 export function normalizeUserSettings(

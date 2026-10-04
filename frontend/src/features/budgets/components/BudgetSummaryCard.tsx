@@ -84,6 +84,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           onPress={onPrevMonth}
           disabled={!canGoPrevMonth}
           style={styles.navBtn}
+          accessibilityRole="button"
           accessibilityLabel="Previous month"
         >
           <ChevronLeft
@@ -97,6 +98,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           onPress={onNextMonth}
           disabled={!canGoNextMonth}
           style={styles.navBtn}
+          accessibilityRole="button"
           accessibilityLabel="Next month"
         >
           <ChevronRight
@@ -122,6 +124,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
             <Pressable
               onPress={onEditBudget}
               style={styles.editBtn}
+              accessibilityRole="button"
               accessibilityLabel="Edit budget"
             >
               <Edit3 size={16} color={accent} strokeWidth={2} />

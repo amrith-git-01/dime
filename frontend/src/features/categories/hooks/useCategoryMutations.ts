@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { categoryBudgetsQueryKey } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 
 import { createCategory } from "../api/categoriesApi";
@@ -38,6 +38,9 @@ export function useUpdateCategoryMutation() {
       void queryClient.invalidateQueries({
         queryKey: categoriesQueryKeys.all,
       });
+      void queryClient.invalidateQueries({
+        queryKey: categoryBudgetsQueryKeys.all,
+      });
     },
   });
 }
@@ -60,7 +63,7 @@ export function useDeleteCategoryMutation() {
         queryKey: categoriesQueryKeys.all,
       });
       void queryClient.invalidateQueries({
-        queryKey: categoryBudgetsQueryKey,
+        queryKey: categoryBudgetsQueryKeys.all,
       });
       void queryClient.invalidateQueries({
         queryKey: transactionsQueryKeys.all,

@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 
 import type { InboxSms } from "./smsTypes";
+import { reportError } from "@/lib/reportError";
 
 type PermissionStatus = "granted" | "denied" | "unavailable";
 
@@ -25,7 +26,7 @@ export async function ensureSmsReadPermission(): Promise<PermissionStatus> {
     }
     return "denied";
   } catch (error) {
-    console.warn("[sms] permission module unavailable", error);
+    reportError(error, "sms permission module unavailable");
     return "unavailable";
   }
 }
@@ -65,7 +66,7 @@ export async function queryInboxSince(
     mapped.sort((a, b) => a.dateMs - b.dateMs);
     return mapped;
   } catch (error) {
-    console.warn("[sms] inbox query failed", error);
+    reportError(error, "sms inbox query failed");
     throw error;
   }
 }

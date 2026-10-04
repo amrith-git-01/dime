@@ -17,8 +17,7 @@ type NotificationActionData = {
   action_type?: string;
   action_transaction_id?: string;
   // Allow additional backend fields without tightening the type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 function canNavigateToMain(): boolean {

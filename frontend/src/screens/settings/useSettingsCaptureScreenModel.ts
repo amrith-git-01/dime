@@ -22,9 +22,19 @@ export function useSettingsCaptureScreenModel() {
       setShowOpenSettings(false);
       return;
     }
-    void ensureSmsReadPermission().then((status) => {
-      setShowOpenSettings(status === "denied");
-    });
+    let cancelled = false;
+    ensureSmsReadPermission()
+      .then((status) => {
+        if (!cancelled) {
+          setShowOpenSettings(status === "denied");
+        }
+      })
+      .catch(() => {
+        // Permission lookup failed; leave the "open settings" hint as it was.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [draft]);
 
   const handleClear = useCallback(() => {

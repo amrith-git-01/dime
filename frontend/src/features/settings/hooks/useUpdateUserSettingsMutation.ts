@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { writePersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
 
 import { patchUserSettings } from "../api/settingsApi";
@@ -8,29 +9,30 @@ import type { UserSettings, UserSettingsPatch } from "../types";
 
 export function useUpdateUserSettingsMutation() {
   const queryClient = useQueryClient();
+  const { userId } = useSessionUserId();
 
   return useMutation({
     mutationFn: patchUserSettings,
     onMutate: async (patch: UserSettingsPatch) => {
-      await queryClient.cancelQueries({ queryKey: settingsQueryKeys.user() });
+      await queryClient.cancelQueries({ queryKey: settingsQueryKeys.user(userId) });
       const previous = queryClient.getQueryData<UserSettings>(
-        settingsQueryKeys.user(),
+        settingsQueryKeys.user(userId),
       );
       if (previous) {
         const optimistic = { ...previous, ...patch };
-        queryClient.setQueryData(settingsQueryKeys.user(), optimistic);
+        queryClient.setQueryData(settingsQueryKeys.user(userId), optimistic);
         writePersistedUserSettings(optimistic);
       }
       return { previous };
     },
     onError: (_err, _patch, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(settingsQueryKeys.user(), context.previous);
+        queryClient.setQueryData(settingsQueryKeys.user(userId), context.previous);
         writePersistedUserSettings(context.previous);
       }
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(settingsQueryKeys.user(), data);
+      queryClient.setQueryData(settingsQueryKeys.user(userId), data);
       writePersistedUserSettings(data);
     },
   });

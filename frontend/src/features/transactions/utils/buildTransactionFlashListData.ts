@@ -123,3 +123,60 @@ export function buildTransactionFlashListItemsForSingleDay(
     sectionRowIndex,
   }));
 }
+
+export type TransactionListHeaderItem = {
+  kind: "header";
+  id: string;
+  title: string;
+  /** Net total of the section, in rupees. */
+  netTotal: number;
+};
+
+export type TransactionListRowItem = {
+  kind: "row";
+  id: string;
+  transaction: TransactionRow;
+  isFirstInSection: boolean;
+  isLastInSection: boolean;
+};
+
+/** One entry of the virtualized transactions list: a day header or a transaction row. */
+export type TransactionListItem =
+  | TransactionListHeaderItem
+  | TransactionListRowItem;
+
+export type FlattenedTransactionList = {
+  items: TransactionListItem[];
+  /** Indices of `items` that are day headers (sticky). */
+  headerIndices: number[];
+};
+
+/** Flattens day sections into FlashList rows with the day header as its own item. */
+export function flattenTransactionListSections(
+  sections: TransactionListSection[],
+  netTotals: Record<string, number>,
+): FlattenedTransactionList {
+  const items: TransactionListItem[] = [];
+  const headerIndices: number[] = [];
+
+  sections.forEach((section) => {
+    headerIndices.push(items.length);
+    items.push({
+      kind: "header",
+      id: `header:${section.key}`,
+      title: section.title,
+      netTotal: netTotals[section.key] ?? 0,
+    });
+    section.data.forEach((transaction, rowIndex) => {
+      items.push({
+        kind: "row",
+        id: transaction.id,
+        transaction,
+        isFirstInSection: rowIndex === 0,
+        isLastInSection: rowIndex === section.data.length - 1,
+      });
+    });
+  });
+
+  return { items, headerIndices };
+}

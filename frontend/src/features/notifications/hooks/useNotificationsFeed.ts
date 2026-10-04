@@ -1,5 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   readPersistedNotifications,
@@ -7,56 +11,120 @@ import {
 } from "@/lib/notifications/notificationsMmkv";
 import {
   deleteNotification,
-  fetchNotifications,
+  fetchNotificationsPage,
   markNotificationRead,
 } from "../api/notificationsApi";
 import {
   adjustUnreadCountCache,
   patchInboxNotification,
   removeInboxNotification,
+  restoreInboxNotification,
 } from "../cache/notificationListCache";
 import { notificationQueryKeys } from "../queryKeys";
 import type { AppNotification, NotificationInboxFilter } from "../types";
 import { filterNotificationsByInbox } from "../utils/filterNotificationsByInbox";
+import { flattenNotificationGroups } from "../utils/flattenNotificationGroups";
 import { groupNotificationsByDate } from "../utils/groupNotificationsByDate";
+import {
+  buildInboxData,
+  findNotificationInPages,
+  flattenNotificationPages,
+  NOTIFICATIONS_PAGE_LIMIT,
+  resolveSeedCursor,
+  type NotificationsInboxData,
+} from "../utils/notificationPages";
+
+/** Filter tabs slice the loaded pages client-side; keep paging until a tab has this many rows. */
+const MIN_FILTERED_ITEMS = 20;
 
 export function useNotificationsFeed() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<NotificationInboxFilter>("all");
 
-  const listQuery = useQuery({
+  const listQuery = useInfiniteQuery({
     queryKey: notificationQueryKeys.inboxList(),
-    queryFn: async () => {
-      const items = await fetchNotifications("all");
-      const unreadCount =
-        queryClient.getQueryData<number>(notificationQueryKeys.unreadCount()) ??
-        readPersistedNotifications()?.unreadCount ??
-        items.filter((item) => item.readAt == null).length;
-      writePersistedNotifications({ inbox: items, unreadCount });
-      return items;
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const before = pageParam as string | undefined;
+      const page = await fetchNotificationsPage({ before });
+      if (before === undefined) {
+        // Only the first page is persisted: it seeds the next cold start.
+        const unreadCount =
+          queryClient.getQueryData<number>(
+            notificationQueryKeys.unreadCount(),
+          ) ??
+          readPersistedNotifications()?.unreadCount ??
+          page.items.filter((item) => item.readAt == null).length;
+        writePersistedNotifications({
+          inbox: page.items,
+          unreadCount,
+          nextCursor: page.nextCursor,
+        });
+      }
+      return page;
     },
-    placeholderData: () => readPersistedNotifications()?.inbox,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    placeholderData: (): NotificationsInboxData | undefined => {
+      const snapshot = readPersistedNotifications();
+      if (!snapshot) {
+        return undefined;
+      }
+      return buildInboxData(
+        snapshot.inbox,
+        resolveSeedCursor(
+          snapshot.inbox,
+          snapshot.nextCursor,
+          NOTIFICATIONS_PAGE_LIMIT,
+        ),
+      );
+    },
   });
 
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = listQuery;
+
   const items = useMemo(() => {
-    const all = listQuery.data ?? [];
+    const all = flattenNotificationPages(listQuery.data);
     return filterNotificationsByInbox(all, filter);
   }, [listQuery.data, filter]);
   const groups = useMemo(() => groupNotificationsByDate(items), [items]);
+  const listItems = useMemo(() => flattenNotificationGroups(groups), [groups]);
   const settled = !listQuery.isPending && !listQuery.isError;
   const isInitialLoading = listQuery.isPending && listQuery.data === undefined;
 
-  const isInboxEmpty = settled && filter === "all" && items.length === 0;
-  const isFilterEmpty = settled && filter !== "all" && items.length === 0;
+  const isInboxEmpty =
+    settled && filter === "all" && items.length === 0 && !hasNextPage;
+  const isFilterEmpty =
+    settled && filter !== "all" && items.length === 0 && !hasNextPage;
+
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  // A narrow filter can leave too few rows to scroll (so `onEndReached` never fires) while
+  // older pages still hold matches; top the tab up.
+  const needsMoreForFilter =
+    settled &&
+    filter !== "all" &&
+    items.length < MIN_FILTERED_ITEMS &&
+    Boolean(hasNextPage) &&
+    !isFetchingNextPage;
+  useEffect(() => {
+    if (needsMoreForFilter) {
+      void fetchNextPage();
+    }
+  }, [needsMoreForFilter, fetchNextPage]);
 
   const markReadMutation = useMutation({
     mutationFn: markNotificationRead,
     onMutate: async (id) => {
-      const list =
-        queryClient.getQueryData<AppNotification[]>(
+      const prev = findNotificationInPages(
+        queryClient.getQueryData<NotificationsInboxData>(
           notificationQueryKeys.inboxList(),
-        ) ?? [];
-      const prev = list.find((item) => item.id === id);
+        ),
+        id,
+      );
       if (prev?.readAt != null) return { prev: undefined };
       const readAt = new Date().toISOString();
       patchInboxNotification(queryClient, id, { readAt });
@@ -80,11 +148,12 @@ export function useNotificationsFeed() {
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
     onMutate: async (id) => {
-      const list =
-        queryClient.getQueryData<AppNotification[]>(
+      const prev = findNotificationInPages(
+        queryClient.getQueryData<NotificationsInboxData>(
           notificationQueryKeys.inboxList(),
-        ) ?? [];
-      const prev = list.find((item) => item.id === id);
+        ),
+        id,
+      );
       removeInboxNotification(queryClient, id);
       if (prev?.readAt == null) {
         adjustUnreadCountCache(queryClient, -1);
@@ -94,14 +163,7 @@ export function useNotificationsFeed() {
     onError: (_err, id, context) => {
       const prev = context?.prev;
       if (!prev) return;
-      queryClient.setQueryData<AppNotification[]>(
-        notificationQueryKeys.inboxList(),
-        (current) => {
-          const next = current ?? [];
-          if (next.some((item) => item.id === id)) return next;
-          return [prev, ...next];
-        },
-      );
+      restoreInboxNotification(queryClient, prev);
       if (prev.readAt == null) {
         adjustUnreadCountCache(queryClient, 1);
       }
@@ -136,6 +198,7 @@ export function useNotificationsFeed() {
     filter,
     setFilter,
     groups,
+    listItems,
     isInboxEmpty,
     isFilterEmpty,
     markRead,
@@ -143,6 +206,8 @@ export function useNotificationsFeed() {
     isUnread,
     isInitialLoading,
     isError: listQuery.isError,
+    loadMore,
+    isFetchingNextPage,
     refetch: listQuery.refetch,
   };
 }

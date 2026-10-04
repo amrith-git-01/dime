@@ -10,8 +10,11 @@ const LAST_RESPONSE_STAMP_KEY = "dime:last-notification-response-stamp";
 
 export type NotificationsMmkvSnapshot = {
   timestamp: number;
+  /** First page of the inbox only; older pages are fetched on demand. */
   inbox: AppNotification[];
   unreadCount: number;
+  /** Cursor for the page after `inbox`; absent in snapshots written before pagination. */
+  nextCursor?: string | null;
 };
 
 export function hasPersistedNotifications(): boolean {

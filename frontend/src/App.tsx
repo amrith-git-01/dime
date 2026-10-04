@@ -15,6 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppBootstrap } from "@/components/app/AppBootstrap";
+import { AppErrorBoundary } from "@/components/app/AppErrorBoundary";
 import { SplashBrandedShell } from "@/components/app/SplashBrandedShell";
 import {
   SplashRevealProvider,
@@ -34,12 +35,14 @@ import {
 import {
   appQueryPersistOptions,
   createAppQueryClient,
+  subscribeQueryClientLifecycle,
 } from "@/lib/appBootstrap";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
+import { reportError } from "@/lib/reportError";
 
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
@@ -114,6 +117,8 @@ export default function App() {
     configureExpoNotifications();
   }, []);
 
+  useEffect(() => subscribeQueryClientLifecycle(), []);
+
   useEffect(() => {
     return persistQueryClientSubscribe({
       queryClient,
@@ -140,7 +145,7 @@ export default function App() {
   }, [fontError]);
 
   if (fontError) {
-    console.error("[App] useFonts failed:", fontError);
+    reportError(fontError, "App useFonts failed");
     return (
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
@@ -158,13 +163,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <SplashRevealProvider>
-            <KeyboardProvider>
-              <AppSplashCoordinator fontsReady={fontsLoaded}>
-                <AppRoot />
-              </AppSplashCoordinator>
-            </KeyboardProvider>
-          </SplashRevealProvider>
+          <AppErrorBoundary>
+            <SplashRevealProvider>
+              <KeyboardProvider>
+                <AppSplashCoordinator fontsReady={fontsLoaded}>
+                  <AppRoot />
+                </AppSplashCoordinator>
+              </KeyboardProvider>
+            </SplashRevealProvider>
+          </AppErrorBoundary>
           <StatusBar style="auto" />
         </SafeAreaProvider>
       </GestureHandlerRootView>

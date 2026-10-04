@@ -4,15 +4,18 @@ import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights"
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { fetchBudget } from "@/features/budgets/api/budgetsApi";
 import { fetchCategoryBudgets } from "@/features/budgets/api/categoryBudgetsApi";
-import { budgetQueryKey } from "@/features/budgets/hooks/useBudget";
-import { categoryBudgetsQueryKey } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import {
+  budgetQueryKeys,
+  categoryBudgetsQueryKeys,
+} from "@/features/budgets/queryKeys";
 import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import {
-  fetchNotifications,
+  fetchNotificationsPage,
   fetchUnreadNotificationCount,
 } from "@/features/notifications/api/notificationsApi";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { buildInboxData } from "@/features/notifications/utils/notificationPages";
 import { fetchMe } from "@/features/profile/api/meApi";
 import { profileQueryKeys } from "@/features/profile/queryKeys";
 import { fetchUserSettings } from "@/features/settings/api/settingsApi";
@@ -64,16 +67,23 @@ export async function refreshAppDataFromServer(
   const timezone = getDeviceIanaTimezone();
   const { from, to } = monthRangeIso(year, monthIndex0);
 
-  const [inbox, unreadCount, userSettings] = await Promise.all([
-    fetchNotifications("all"),
+  const [inboxPage, unreadCount, userSettings] = await Promise.all([
+    fetchNotificationsPage({ filter: "all" }),
     fetchUnreadNotificationCount(),
     fetchUserSettings(),
   ]);
 
-  queryClient.setQueryData(notificationQueryKeys.inboxList(), inbox);
+  queryClient.setQueryData(
+    notificationQueryKeys.inboxList(),
+    buildInboxData(inboxPage.items, inboxPage.nextCursor),
+  );
   queryClient.setQueryData(notificationQueryKeys.unreadCount(), unreadCount);
-  writePersistedNotifications({ inbox, unreadCount });
-  queryClient.setQueryData(settingsQueryKeys.user(), userSettings);
+  writePersistedNotifications({
+    inbox: inboxPage.items,
+    unreadCount,
+    nextCursor: inboxPage.nextCursor,
+  });
+  queryClient.setQueryData(settingsQueryKeys.user(userId), userSettings);
   writePersistedUserSettings(userSettings);
 
   await Promise.all([
@@ -94,15 +104,15 @@ export async function refreshAppDataFromServer(
       queryFn: () => fetchMonthInsights({ year, month, timezone }),
     }),
     queryClient.fetchQuery({
-      queryKey: categoriesQueryKeys.list(),
+      queryKey: categoriesQueryKeys.list(userId),
       queryFn: fetchCategories,
     }),
     queryClient.fetchQuery({
-      queryKey: budgetQueryKey,
+      queryKey: budgetQueryKeys.current(userId),
       queryFn: fetchBudget,
     }),
     queryClient.fetchQuery({
-      queryKey: categoryBudgetsQueryKey,
+      queryKey: categoryBudgetsQueryKeys.list(userId),
       queryFn: fetchCategoryBudgets,
     }),
     queryClient.fetchInfiniteQuery({

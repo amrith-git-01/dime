@@ -7,7 +7,13 @@ export {
   formatSpendMagnitude,
   type CurrencyTransactionType,
 } from "./currency";
-export { monthRangeIso } from "./dates";
+export { dayRangeIso, monthRangeIso } from "./dates";
 export { formatNotificationTime } from "./dateTime";
 export { getDeviceIanaTimezone } from "./deviceTimezone";
+export {
+  paiseToAmountString,
+  paiseToRupees,
+  parseAmountInputToPaise,
+  toPaise,
+} from "./paise";
 export { normalizeTransactionAmount } from "./transactionAmount";

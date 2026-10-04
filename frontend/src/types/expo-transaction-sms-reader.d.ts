@@ -7,13 +7,13 @@ declare module "expo-transaction-sms-reader" {
     senderAllowlist?: string[];
     minConfidence?: number;
   }): Promise<
-    Array<{
+    {
       raw?: {
         id?: string | number;
         address?: string;
         body?: string;
         date?: number;
       };
-    }>
+    }[]
   >;
 }

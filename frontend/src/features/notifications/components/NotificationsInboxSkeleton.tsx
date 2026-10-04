@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { NotificationBentoRowSkeleton } from "@/components/notifications/NotificationBentoRowSkeleton";
+import { NotificationBentoRowSkeleton } from "./NotificationBentoRowSkeleton";
 import { SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 

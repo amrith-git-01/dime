@@ -3,6 +3,7 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 
 import { supabase } from "@/lib/supabase/client";
+import { useAuthSessionStore } from "@/stores/authSessionStore";
 
 /**
  * Base URL for FastAPI, from `EXPO_PUBLIC_API_BASE_URL` at **bundle/build time**
@@ -122,12 +123,15 @@ async function getAccessToken(): Promise<string | null> {
   return cacheSessionAccessToken(session);
 }
 
-supabase.auth.onAuthStateChange((_event, session) => {
-  if (!session?.access_token) {
+useAuthSessionStore.subscribe((state, prev) => {
+  if (state.session === prev.session) {
+    return;
+  }
+  if (!state.session?.access_token) {
     clearDimeAuthTokenCache();
     return;
   }
-  cacheSessionAccessToken(session);
+  cacheSessionAccessToken(state.session);
 });
 
 /** Same bearer token axios uses; needed for `fetch` uploads (RN FormData + axios XHR is unreliable). */
@@ -137,6 +141,15 @@ export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
     return {};
   }
   return { Authorization: `Bearer ${token}` };
+}
+
+/** Force a token refresh (after a 401) and return fresh auth headers; empty when refresh fails. */
+export async function refreshDimeAuthHeaders(): Promise<
+  Record<string, string>
+> {
+  clearDimeAuthTokenCache();
+  const token = await forceRefreshAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export const dimeApi: AxiosInstance = create({

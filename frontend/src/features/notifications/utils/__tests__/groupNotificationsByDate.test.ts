@@ -1,12 +1,6 @@
 import type { AppNotification } from "../../types";
 import { groupNotificationsByDate } from "../groupNotificationsByDate";
 
-function assert(condition: boolean, message: string): void {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
 function note(id: string, createdAt: string): AppNotification {
   return {
     id,
@@ -19,7 +13,7 @@ function note(id: string, createdAt: string): AppNotification {
   };
 }
 
-function run(): void {
+describe("groupNotificationsByDate", () => {
   const now = new Date("2026-08-15T12:00:00");
 
   const groups = groupNotificationsByDate(
@@ -33,26 +27,21 @@ function run(): void {
     now,
   );
 
-  assert(groups.length === 4, "today, yesterday, 22 Jun, 1 Dec 2025");
-  assert(
-    groups[0]?.key === "today" && groups[0].title === "Today",
-    "today first",
-  );
-  assert(
-    groups[1]?.key === "yesterday" && groups[1].title === "Yesterday",
-    "yesterday second",
-  );
-  assert(
-    groups[2]?.title === "22 Jun",
-    "June 22 uses calendar day, not Earlier",
-  );
-  assert(
-    groups[2]?.items.map((item) => item.id).join(",") === "jun2,jun",
-    "same day newest first",
-  );
-  assert(groups[3]?.title === "1 Dec 2025", "other year includes year");
+  it("creates today, yesterday, 22 Jun and 1 Dec 2025 groups", () => {
+    expect(groups).toHaveLength(4);
+  });
 
-  console.log("groupNotificationsByDate tests passed");
-}
+  it("puts today first and yesterday second", () => {
+    expect(groups[0]).toMatchObject({ key: "today", title: "Today" });
+    expect(groups[1]).toMatchObject({ key: "yesterday", title: "Yesterday" });
+  });
 
-run();
+  it("uses the calendar day for older dates, newest first", () => {
+    expect(groups[2]?.title).toBe("22 Jun");
+    expect(groups[2]?.items.map((item) => item.id)).toEqual(["jun2", "jun"]);
+  });
+
+  it("includes the year for other years", () => {
+    expect(groups[3]?.title).toBe("1 Dec 2025");
+  });
+});

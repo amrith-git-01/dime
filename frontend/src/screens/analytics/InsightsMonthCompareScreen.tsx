@@ -12,11 +12,13 @@ import {
   surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { CompareCashflowSection } from "@/features/analytics/components/compare/CompareCashflowSection";
-import { ComparePaceSection } from "@/features/analytics/components/compare/ComparePaceSection";
-import { ComparePayeeSection } from "@/features/analytics/components/compare/ComparePayeeSection";
-import { CompareSnapshotCard } from "@/features/analytics/components/compare/CompareSnapshotCard";
-import { CompareSummarySection } from "@/features/analytics/components/compare/CompareSummarySection";
+import {
+  CompareCashflowSection,
+  ComparePaceSection,
+  ComparePayeeSection,
+  CompareSnapshotCard,
+  CompareSummarySection,
+} from "@/features/analytics/components";
 import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,

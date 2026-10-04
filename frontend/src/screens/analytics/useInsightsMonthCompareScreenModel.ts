@@ -45,10 +45,12 @@ function useCompareMonthSide(
     );
   }, [
     hasMonthlyBudget,
+    monthIndex0,
     monthlyBudgetAmount,
     query.data?.summary,
     query.isError,
     summaryLoading,
+    year,
   ]);
 
   const dailyCashflow = useMemo(

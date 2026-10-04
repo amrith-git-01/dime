@@ -67,6 +67,10 @@ export const BudgetLimitBentoTile = memo(
             style={styles.amountSlot}
             onPress={isCustom ? onAmountPress : undefined}
             disabled={!isCustom}
+            accessibilityRole={isCustom ? "button" : undefined}
+            accessibilityLabel={
+              isCustom ? `Edit ${config.title} limit` : undefined
+            }
           >
             {!isCustom ? (
               <Text

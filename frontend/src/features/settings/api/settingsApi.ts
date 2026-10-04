@@ -19,6 +19,8 @@ type UserSettingsDto = {
   device_notifications_enabled: boolean;
   daily_expense_reminder_enabled: boolean;
   daily_expense_reminder_time: string;
+  weekly_email_enabled?: boolean;
+  monthly_email_enabled?: boolean;
 };
 
 function mapDto(dto: UserSettingsDto): UserSettings {
@@ -35,6 +37,8 @@ function mapDto(dto: UserSettingsDto): UserSettings {
     deviceNotificationsEnabled: dto.device_notifications_enabled,
     dailyExpenseReminderEnabled: dto.daily_expense_reminder_enabled,
     dailyExpenseReminderTime: dto.daily_expense_reminder_time,
+    weeklyEmailEnabled: dto.weekly_email_enabled ?? true,
+    monthlyEmailEnabled: dto.monthly_email_enabled ?? true,
   });
 }
 
@@ -77,6 +81,12 @@ function mapPatchToDto(
   }
   if (patch.dailyExpenseReminderTime !== undefined) {
     dto.daily_expense_reminder_time = patch.dailyExpenseReminderTime;
+  }
+  if (patch.weeklyEmailEnabled !== undefined) {
+    dto.weekly_email_enabled = patch.weeklyEmailEnabled;
+  }
+  if (patch.monthlyEmailEnabled !== undefined) {
+    dto.monthly_email_enabled = patch.monthlyEmailEnabled;
   }
   return dto;
 }

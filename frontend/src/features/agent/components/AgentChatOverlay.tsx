@@ -1,21 +1,12 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Sparkles } from "lucide-react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUpRight,
-  RotateCcw,
-  SendHorizontal,
-  Sparkles,
-  X,
-} from "lucide-react-native";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
   FlatList,
   Keyboard,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -33,20 +24,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
 import {
   accent,
-  accentTint,
-  ink,
-  inkFaint,
-  inkSoft,
   overlays,
   radius,
   shadow,
   spacing,
   surface,
-  surfaceSunken,
   timings,
 } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import { AGENT_SUGGESTED_PROMPT_META } from "@/features/agent/constants/suggestedPrompts";
 import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
@@ -56,42 +40,15 @@ import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 import type { AgentDeepLink, ChatMessage } from "../types";
 import { navigateAgentDeepLink } from "../utils/agentDeepLink";
 
+import { AgentChatComposer } from "./AgentChatComposer";
+import { AgentChatHeader } from "./AgentChatHeader";
 import { AgentMessageRenderer } from "./AgentMessageRenderer";
+import { AgentSuggestionsHeader } from "./AgentSuggestionsHeader";
 
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
 const MODAL_WIDTH_RATIO = 0.92;
 const MODAL_HEIGHT_RATIO = 0.72;
 
-type SuggestionsHeaderProps = { onSelectPrompt: (p: string) => void };
-const SuggestionsHeader = memo(function SuggestionsHeader({
-  onSelectPrompt,
-}: SuggestionsHeaderProps) {
-  return (
-    <View style={suggestionStyles.container}>
-      <Text style={suggestionStyles.title}>TRY ASKING</Text>
-      <View style={suggestionStyles.list}>
-        {AGENT_SUGGESTED_PROMPT_META.map(({ prompt, icon: Icon }) => (
-          <Pressable
-            key={prompt}
-            accessibilityRole="button"
-            accessibilityLabel={prompt}
-            onPress={() => onSelectPrompt(prompt)}
-            style={({ pressed }) => [
-              suggestionStyles.row,
-              pressed && suggestionStyles.rowPressed,
-            ]}
-          >
-            <View style={suggestionStyles.iconWell}>
-              <Icon size={16} color={accent} strokeWidth={1.5} />
-            </View>
-            <Text style={suggestionStyles.rowText}>{prompt}</Text>
-            <ArrowUpRight size={14} color={inkFaint} strokeWidth={2} />
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-});
 /** Extra lift above the tab bar (above prior `spacing.sm` gap). */
 const FAB_LIFT = spacing.xl + spacing.md;
 
@@ -110,7 +67,7 @@ export function AgentChatOverlay({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
-  const [draft, setDraft] = useState("");
+  const [composerResetToken, setComposerResetToken] = useState(0);
   const [overlayMounted, setOverlayMounted] = useState(false);
 
   const progress = useSharedValue(0);
@@ -165,10 +122,15 @@ export function AgentChatOverlay({
 
   useEffect(() => {
     if (!visible) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const sub = Keyboard.addListener("keyboardDidShow", () => {
-      setTimeout(() => scrollToBottom(), 80);
+      clearTimeout(timer);
+      timer = setTimeout(() => scrollToBottom(), 80);
     });
-    return () => sub.remove();
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
   }, [visible, scrollToBottom]);
 
   useEffect(() => {
@@ -193,8 +155,7 @@ export function AgentChatOverlay({
         runOnJS(setOverlayMounted)(false);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- shared values
-  }, [visible, overlayMounted]);
+  }, [visible, overlayMounted, isOpen, progress]);
 
   const handleOpen = useCallback(() => {
     void triggerHaptic();
@@ -210,18 +171,19 @@ export function AgentChatOverlay({
   const handleResetChat = useCallback(() => {
     void triggerHaptic();
     resetConversation();
-    setDraft("");
+    setComposerResetToken((token) => token + 1);
   }, [resetConversation]);
 
-  const handleSend = useCallback(() => {
-    const text = draft.trim();
-    if (!text || isPending) {
-      return;
-    }
-    void triggerHaptic();
-    setDraft("");
-    void sendMessage(text);
-  }, [draft, isPending, sendMessage]);
+  const handleSend = useCallback(
+    (text: string) => {
+      if (isPending) {
+        return;
+      }
+      void triggerHaptic();
+      void sendMessage(text);
+    },
+    [isPending, sendMessage],
+  );
 
   const handleSuggestedPrompt = useCallback(
     (prompt: string) => {
@@ -323,7 +285,6 @@ export function AgentChatOverlay({
   const showCollapseHandoffFab =
     showEntryFab && overlayMounted && !visible && !fabOpen;
   const showSuggestions = messages.length === 0 && !isPending;
-  const composerDisabled = isPending;
 
   return (
     <>
@@ -375,38 +336,10 @@ export function AgentChatOverlay({
               </Animated.View>
 
               <Animated.View style={[styles.panelInner, contentStyle]}>
-                <View style={styles.header}>
-                  <View style={styles.headerTitleRow}>
-                    <Sparkles size={20} color={accent} strokeWidth={2} />
-                    <Text style={styles.headerTitle}>Dime Agent</Text>
-                  </View>
-                  <View style={styles.headerActions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Clear chat"
-                      onPress={handleResetChat}
-                      hitSlop={10}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed && styles.iconButtonPressed,
-                      ]}
-                    >
-                      <RotateCcw size={20} color={inkSoft} strokeWidth={2} />
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Close"
-                      onPress={handleClose}
-                      hitSlop={10}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed && styles.iconButtonPressed,
-                      ]}
-                    >
-                      <X size={22} color={inkSoft} strokeWidth={2} />
-                    </Pressable>
-                  </View>
-                </View>
+                <AgentChatHeader
+                  onReset={handleResetChat}
+                  onClose={handleClose}
+                />
 
                 <FlatList
                   ref={flatListRef}
@@ -423,49 +356,18 @@ export function AgentChatOverlay({
                   initialNumToRender={10}
                   ListHeaderComponent={
                     showSuggestions ? (
-                      <SuggestionsHeader
+                      <AgentSuggestionsHeader
                         onSelectPrompt={handleSuggestedPrompt}
                       />
                     ) : null
                   }
                 />
 
-                <View style={styles.composer}>
-                  <TextInput
-                    value={draft}
-                    onChangeText={setDraft}
-                    placeholder="Ask a question…"
-                    placeholderTextColor={inkFaint}
-                    style={styles.input}
-                    multiline
-                    maxLength={4000}
-                    editable={!composerDisabled}
-                    onSubmitEditing={handleSend}
-                    returnKeyType="send"
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Send message"
-                    disabled={composerDisabled || draft.trim().length === 0}
-                    onPress={handleSend}
-                    style={({ pressed }) => [
-                      styles.sendButton,
-                      (composerDisabled || draft.trim().length === 0) &&
-                        styles.sendButtonDisabled,
-                      pressed && !composerDisabled && styles.sendButtonPressed,
-                    ]}
-                  >
-                    {isPending ? (
-                      <ActivityIndicator size="small" color={surface} />
-                    ) : (
-                      <SendHorizontal
-                        size={20}
-                        color={surface}
-                        strokeWidth={2}
-                      />
-                    )}
-                  </Pressable>
-                </View>
+                <AgentChatComposer
+                  disabled={isPending}
+                  onSend={handleSend}
+                  resetToken={composerResetToken}
+                />
               </Animated.View>
             </Animated.View>
           </Animated.View>
@@ -529,38 +431,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: surface,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: 14,
-  },
-  headerTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 18,
-    color: ink,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconButtonPressed: {
-    opacity: 0.7,
-  },
   messages: {
     flex: 1,
   },
@@ -568,84 +438,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexGrow: 1,
-  },
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    backgroundColor: surface,
-  },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    borderRadius: radius.full,
-    backgroundColor: surfaceSunken,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    color: ink,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: {
-    opacity: 0.45,
-  },
-  sendButtonPressed: {
-    opacity: 0.85,
-  },
-});
-
-const suggestionStyles = StyleSheet.create({
-  container: {
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: inkSoft,
-  },
-  list: {
-    gap: 2,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 44,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: radius.sm,
-  },
-  rowPressed: {
-    backgroundColor: surfaceSunken,
-  },
-  iconWell: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
-    backgroundColor: accentTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowText: {
-    flex: 1,
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    color: ink,
-    lineHeight: 22,
   },
 });

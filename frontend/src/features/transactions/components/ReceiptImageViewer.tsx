@@ -19,7 +19,7 @@ import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import {
   ReceiptZoomableImage,
   type ReceiptImageZoomRef,
-} from "./receiptZoom/ReceiptZoomableImage";
+} from "./receipt-zoom/ReceiptZoomableImage";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;

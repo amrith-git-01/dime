@@ -83,6 +83,11 @@ export type AgentDeepLink = {
   label?: string;
 };
 
+/** Agent chat always answers HTTP 200; a failure arrives as this body instead (C5). */
+export type AgentChatErrorBody = {
+  error: { code: string; message: string };
+};
+
 export type AgentChatResponse = {
   answer: string;
   blocks: AgentBlock[];
@@ -97,6 +102,8 @@ export type ChatMessage = {
   deepLink: AgentDeepLink | null;
   /** True while waiting for the server response. */
   isPending?: boolean;
+  /** True when `content` is an error message; never sent back to the API as history. */
+  isError?: boolean;
 };
 
 /** @deprecated Use ChatMessage */

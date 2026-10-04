@@ -9,9 +9,9 @@ export type HomeBentoContentProps = {
 
   // Month hero card
   monthLabel: string;
-  /** Formatted remaining budget (e.g. "₹24,996") — shown as hero if budget set. */
+  /** Leftover this month — used in the hero subtitle when a budget exists. */
   monthlyRemainingDisplay: string;
-  /** Formatted total spent (e.g. "₹4") — hero when no budget. */
+  /** Formatted total spent this month — hero amount. */
   spentMonthDisplay: string;
   monthlyProgress: number;
   hasMonthlyBudget: boolean;

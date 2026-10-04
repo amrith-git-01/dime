@@ -17,7 +17,7 @@ export function transactionInCalendarMonth(
 ): boolean {
   const { from, to } = monthRangeIso(year, calendarMonth - 1);
   const txAt = parseISO(row.transaction_at).getTime();
-  return txAt >= parseISO(from).getTime() && txAt <= parseISO(to).getTime();
+  return txAt >= parseISO(from).getTime() && txAt < parseISO(to).getTime();
 }
 
 function compareTransactionsNewestFirst(
@@ -165,6 +165,39 @@ function forEachMonthPageQuery(
     }
     visit(query.queryKey, data);
   }
+}
+
+/** Looks a row up in the cached home overview and month pages (used to keep signed media URLs). */
+export function findTransactionInListCaches(
+  queryClient: QueryClient,
+  input: { userId: string; timezone: string; transactionId: string },
+): TransactionRow | null {
+  const { userId, timezone, transactionId } = input;
+
+  const home = queryClient.getQueryData<HomeOverview>(
+    transactionsQueryKeys.home(userId, timezone),
+  );
+  const fromHome = home?.recent_transactions.find(
+    (tx) => tx.id === transactionId,
+  );
+  if (fromHome) {
+    return fromHome;
+  }
+
+  let found: TransactionRow | null = null;
+  forEachMonthPageQuery(queryClient, userId, (_queryKey, data) => {
+    if (found) {
+      return;
+    }
+    for (const page of data.pages) {
+      const match = page.items.find((item) => item.id === transactionId);
+      if (match) {
+        found = match;
+        return;
+      }
+    }
+  });
+  return found;
 }
 
 export function applyTransactionInsertToListCaches(

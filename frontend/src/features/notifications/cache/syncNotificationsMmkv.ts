@@ -6,7 +6,12 @@ import {
 } from "@/lib/notifications/notificationsMmkv";
 
 import { notificationQueryKeys } from "../queryKeys";
-import type { AppNotification } from "../types";
+import {
+  buildInboxData,
+  NOTIFICATIONS_PAGE_LIMIT,
+  resolveSeedCursor,
+  type NotificationsInboxData,
+} from "../utils/notificationPages";
 
 /** Seeds React Query from the dedicated notifications MMKV key at cold start. */
 export function hydrateNotificationsFromMmkv(
@@ -17,7 +22,17 @@ export function hydrateNotificationsFromMmkv(
     return false;
   }
 
-  queryClient.setQueryData(notificationQueryKeys.inboxList(), snapshot.inbox);
+  queryClient.setQueryData(
+    notificationQueryKeys.inboxList(),
+    buildInboxData(
+      snapshot.inbox,
+      resolveSeedCursor(
+        snapshot.inbox,
+        snapshot.nextCursor,
+        NOTIFICATIONS_PAGE_LIMIT,
+      ),
+    ),
+  );
   queryClient.setQueryData(
     notificationQueryKeys.unreadCount(),
     snapshot.unreadCount,
@@ -25,11 +40,14 @@ export function hydrateNotificationsFromMmkv(
   return true;
 }
 
-/** Writes the current React Query notification caches to MMKV. */
+/**
+ * Writes the current React Query notification caches to MMKV. Only the first page is kept:
+ * it is a cold-start seed, and older pages are fetched on demand.
+ */
 export function persistNotificationsMmkvFromQueryClient(
   queryClient: QueryClient,
 ): void {
-  const inbox = queryClient.getQueryData<AppNotification[]>(
+  const inbox = queryClient.getQueryData<NotificationsInboxData>(
     notificationQueryKeys.inboxList(),
   );
   const unreadCount = queryClient.getQueryData<number>(
@@ -41,9 +59,11 @@ export function persistNotificationsMmkvFromQueryClient(
   }
 
   const existing = readPersistedNotifications();
+  const firstPage = inbox?.pages[0];
 
   writePersistedNotifications({
-    inbox: inbox ?? existing?.inbox ?? [],
+    inbox: firstPage?.items ?? existing?.inbox ?? [],
     unreadCount: unreadCount ?? existing?.unreadCount ?? 0,
+    nextCursor: firstPage ? firstPage.nextCursor : existing?.nextCursor,
   });
 }

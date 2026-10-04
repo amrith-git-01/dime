@@ -14,7 +14,6 @@ import {
   InsightsMonthSummaryCard,
   InsightsTopExpensesCard,
 } from "@/features/analytics/components";
-import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
 import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,
@@ -26,7 +25,7 @@ function AnalyticsInsightsScroll() {
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
   const {
-    hasInsightsData,
+    chartsReady,
     chartsDataSettled,
     monthOptions,
     selectedMonth,
@@ -53,7 +52,6 @@ function AnalyticsInsightsScroll() {
     goPrevMonth,
     goNextMonth,
   } = useAnalyticsScreenModel();
-  const { chartsReady } = useDeferredHeavyCharts(hasInsightsData);
 
   return (
     <ScrollView

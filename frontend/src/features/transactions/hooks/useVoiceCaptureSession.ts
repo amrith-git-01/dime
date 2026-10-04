@@ -5,20 +5,22 @@ import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
 } from "expo-audio";
+import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 
 import { submitVoice } from "../api/submitTransactionApi";
+import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
 import { guessVoiceUploadMeta } from "../voice/guessVoiceMime";
 import {
   MIN_VOICE_RECORDING_SECONDS,
   VOICE_RECORDING_TOO_SHORT_MESSAGE,
 } from "../voice/voiceCaptureConstants";
+import { VOICE_RECORDING_OPTIONS } from "../voice/voiceRecordingOptions";
 
 type CapturePhase = "idle" | "preparing" | "recording";
 
@@ -48,7 +50,7 @@ export function useVoiceCaptureSession() {
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
 
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
 
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const isRecordingRef = useRef(false);
@@ -245,12 +247,13 @@ export function useVoiceCaptureSession() {
         fileUri: uri,
         fileName,
         mimeType,
+        idempotencyKey: randomUUID(),
       });
       showToast({
         variant: "success",
         message: "Voice transaction added",
       });
-      void qc.invalidateQueries({ refetchType: "active" });
+      invalidateTransactionDerivedQueries(qc);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";

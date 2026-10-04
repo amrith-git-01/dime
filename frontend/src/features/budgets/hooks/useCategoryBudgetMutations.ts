@@ -4,7 +4,7 @@ import {
   deleteCategoryBudget,
   upsertCategoryBudget,
 } from "../api/categoryBudgetsApi";
-import { categoryBudgetsQueryKey } from "./useCategoryBudgetsQuery";
+import { categoryBudgetsQueryKeys } from "../queryKeys";
 
 export function useUpsertCategoryBudgetMutation() {
   const qc = useQueryClient();
@@ -17,7 +17,7 @@ export function useUpsertCategoryBudgetMutation() {
       monthlyAmount: number;
     }) => upsertCategoryBudget(categoryId, monthlyAmount),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKey }),
+      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKeys.all }),
   });
 }
 
@@ -26,6 +26,6 @@ export function useDeleteCategoryBudgetMutation() {
   return useMutation({
     mutationFn: (categoryId: string) => deleteCategoryBudget(categoryId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKey }),
+      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKeys.all }),
   });
 }

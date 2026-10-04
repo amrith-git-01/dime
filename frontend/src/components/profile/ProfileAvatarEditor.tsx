@@ -6,7 +6,7 @@ import Animated from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
 import { bento, colors, spacing } from "@/constants";
-import { useAvatarRefreshAnimation } from "@/features/profile/hooks/useAvatarRefreshAnimation";
+import { useAvatarRefreshAnimation } from "@/hooks/useAvatarRefreshAnimation";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 const DEFAULT_AVATAR_SIZE = 96;

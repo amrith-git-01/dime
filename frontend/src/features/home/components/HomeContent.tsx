@@ -31,11 +31,7 @@ export const HomeContent = memo(function HomeContent(
 
       <HeroMonthCard
         monthLabel={props.monthLabel}
-        heroAmount={
-          props.hasMonthlyBudget
-            ? props.monthlyRemainingDisplay
-            : props.spentMonthDisplay
-        }
+        heroAmount={props.spentMonthDisplay}
         hasBudget={props.hasMonthlyBudget}
         subtext={props.monthlySubtext}
         progress={props.monthlyProgress}

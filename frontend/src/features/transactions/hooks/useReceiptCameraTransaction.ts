@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
@@ -8,6 +9,7 @@ import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 
 import { submitReceipt } from "../api/submitTransactionApi";
+import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
 import { prepareReceiptImageForUpload } from "../receipt/prepareReceiptImageForUpload";
 
 /** Opens camera and queues receipt processing on backend. */
@@ -55,6 +57,9 @@ export function useReceiptCameraTransaction() {
       return;
     }
 
+    // One key per captured photo, so a retried upload of this capture cannot create a second transaction.
+    const idempotencyKey = randomUUID();
+
     await new Promise<void>((resolve) => {
       InteractionManager.runAfterInteractions(() => resolve());
     });
@@ -77,12 +82,13 @@ export function useReceiptCameraTransaction() {
         fileUri: preparedUri,
         fileName: "receipt.jpg",
         mimeType: "image/jpeg",
+        idempotencyKey,
       });
       showToast({
         variant: "success",
         message: "Receipt added for processing",
       });
-      void qc.invalidateQueries({ refetchType: "active" });
+      invalidateTransactionDerivedQueries(qc);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
   notificationsInboxShellConfig,
   stackScrollGrowShellConfig,
+  stackVirtualizedListShellConfig,
 } from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
@@ -12,6 +13,7 @@ import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
+import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
 import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
 import SettingsHapticScreenBase from "@/screens/settings/SettingsHapticScreen";
@@ -19,8 +21,8 @@ import SettingsNotificationsScreenBase from "@/screens/settings/SettingsNotifica
 import SettingsPermissionsScreenBase from "@/screens/settings/SettingsPermissionsScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
-import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import EditTransactionScreenBase from "@/screens/transactions/EditTransactionScreen";
+import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
 
@@ -37,6 +39,7 @@ const SettingsScreen = withStackScreen(
 );
 const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
 const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
+const SettingsEmailScreen = withStackScreen(SettingsEmailScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
 const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
 const SettingsGlossaryScreen = withStackScreen(
@@ -61,7 +64,7 @@ const EditTransactionScreen = withStackScreen(EditTransactionScreenBase);
 // TransactionDetail renders its own overlay — no shell wrapper
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
-  stackScrollGrowShellConfig,
+  stackVirtualizedListShellConfig,
 );
 const InsightsMonthCompareScreen = withStackScreen(
   InsightsMonthCompareScreenBase,
@@ -96,6 +99,11 @@ export default function MainStackNavigator() {
         name="SettingsCapture"
         component={SettingsCaptureScreen}
         options={{ ...stackScreenOptions, title: "Capture" }}
+      />
+      <Stack.Screen
+        name="SettingsEmail"
+        component={SettingsEmailScreen}
+        options={{ ...stackScreenOptions, title: "Email summaries" }}
       />
       <Stack.Screen
         name="SettingsFeedback"

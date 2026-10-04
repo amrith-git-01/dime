@@ -109,6 +109,8 @@ export default function TransactionDetailScreen() {
     <>
       <View style={styles.overlay}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close transaction details"
           style={StyleSheet.absoluteFill}
           onPress={model.handleDismiss}
         />

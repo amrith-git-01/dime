@@ -1,22 +1,20 @@
-import { useCallback, useMemo } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { StyleSheet, View } from "react-native";
 
-import {
-  CategorySpendBentoRow,
-  type CategorySpendRowData,
-} from "@/components/categories/CategorySpendBentoRow";
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import {
-  CATEGORY_SPEND_ROW_DIVIDER_INSET,
+  CARD_SEGMENT_SHADOW_TOP_BLEED,
   EmptyState,
   emptyStateCopy,
 } from "@/components/shared";
-import { line, paper, surface } from "@/constants/colors";
+import { paper, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
 import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import {
   BudgetCategoriesSectionHeader,
+  BudgetCategoryRow,
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
@@ -33,6 +31,7 @@ function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
 }
 
 const SKELETON_ROW_COUNT = 10;
+const NO_ROWS: CategorySpendRowData[] = [];
 
 export default function BudgetScreen() {
   const {
@@ -57,118 +56,94 @@ export default function BudgetScreen() {
     summaryLoading,
   } = useBudgetScreenModel();
 
-  const renderCategoryRow = useCallback(
-    (item: CategorySpendRowData, index: number, isLast: boolean) => (
-      <View key={item.id}>
-        <CategorySpendBentoRow
-          item={item}
-          hasMonthlyBudget={hasMonthlyBudget}
-          monthlyBudgetAmount={monthlyBudgetAmount}
-          onPress={() => openCategoryTransactions(item)}
-          onEditPress={
-            isBudgetCategoryEditable(item)
-              ? () => handleEditCategory(item.id)
-              : undefined
-          }
-        />
-        {!isLast && <View style={styles.rowDivider} />}
-      </View>
-    ),
-    [
-      handleEditCategory,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      openCategoryTransactions,
-    ],
+  // Keys carry the month so rows remount (and progress bars snap) when the month changes.
+  const keyExtractor = (item: CategorySpendRowData) =>
+    `${budgetListKey}:${item.id}`;
+
+  const renderItem: ListRenderItem<CategorySpendRowData> = ({ item, index }) => (
+    <BudgetCategoryRow
+      item={item}
+      isFirst={index === 0}
+      isLast={index === listData.length - 1}
+      editable={isBudgetCategoryEditable(item)}
+      hasMonthlyBudget={hasMonthlyBudget}
+      monthlyBudgetAmount={monthlyBudgetAmount}
+      onOpen={openCategoryTransactions}
+      onEdit={handleEditCategory}
+    />
   );
-
-  const categoryCard = useMemo(() => {
-    if (isListLoading) {
-      return (
-        <View style={styles.categoryCard}>
-          <BudgetCategoryRowsSkeleton
-            rowCount={SKELETON_ROW_COUNT}
-            showProgress={hasMonthlyBudget}
-          />
-        </View>
-      );
-    }
-
-    if (listData.length === 0) {
-      return (
-        <View style={styles.emptyCard}>
-          <EmptyState
-            layout="inset"
-            headline={emptyStateCopy.budgetCategories.headline}
-            subtext={emptyStateCopy.budgetCategories.subtext}
-          />
-        </View>
-      );
-    }
-
-    return (
-      <View key={budgetListKey} style={styles.categoryCard}>
-        {listData.map((item, index) =>
-          renderCategoryRow(item, index, index === listData.length - 1),
-        )}
-      </View>
-    );
-  }, [
-    isListLoading,
-    hasMonthlyBudget,
-    listData,
-    budgetListKey,
-    renderCategoryRow,
-  ]);
 
   return (
     <TabScreenShell>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+      <FlashList
+        style={styles.list}
+        data={isListLoading ? NO_ROWS : listData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        extraData={{ hasMonthlyBudget, monthlyBudgetAmount }}
         showsVerticalScrollIndicator={false}
-      >
-        <BudgetSummaryCard
-          selectedMonth={selectedMonth.label}
-          canGoPrevMonth={canGoPrevMonth}
-          canGoNextMonth={canGoNextMonth}
-          onPrevMonth={goPrevMonth}
-          onNextMonth={goNextMonth}
-          hasMonthlyBudget={hasMonthlyBudget}
-          summary={monthSummary}
-          summaryLoading={summaryLoading}
-          summaryFailed={monthSummaryFailed}
-          onEditBudget={handleEditBudget}
-          onSetBudget={handleSetBudget}
-          spentValue={monthSummary?.spentValue ?? 0}
-        />
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={
+          <View>
+            <BudgetSummaryCard
+              selectedMonth={selectedMonth.label}
+              canGoPrevMonth={canGoPrevMonth}
+              canGoNextMonth={canGoNextMonth}
+              onPrevMonth={goPrevMonth}
+              onNextMonth={goNextMonth}
+              hasMonthlyBudget={hasMonthlyBudget}
+              summary={monthSummary}
+              summaryLoading={summaryLoading}
+              summaryFailed={monthSummaryFailed}
+              onEditBudget={handleEditBudget}
+              onSetBudget={handleSetBudget}
+              spentValue={monthSummary?.spentValue ?? 0}
+            />
 
-        <View style={styles.sectionHeader}>
-          <BudgetCategoriesSectionHeader
-            onAddPress={handleAddCustomCategory}
-            addDisabled={addCustomCategoryDisabled}
-          />
-        </View>
-
-        {categoryCard}
-
-        <View style={styles.footer} />
-      </ScrollView>
+            <View style={styles.sectionHeader}>
+              <BudgetCategoriesSectionHeader
+                onAddPress={handleAddCustomCategory}
+                addDisabled={addCustomCategoryDisabled}
+              />
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          isListLoading ? (
+            <View style={styles.categoryCard}>
+              <BudgetCategoryRowsSkeleton
+                rowCount={SKELETON_ROW_COUNT}
+                showProgress={hasMonthlyBudget}
+              />
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <EmptyState
+                layout="inset"
+                headline={emptyStateCopy.budgetCategories.headline}
+                subtext={emptyStateCopy.budgetCategories.subtext}
+              />
+            </View>
+          )
+        }
+      />
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  list: {
     flex: 1,
     backgroundColor: paper,
   },
   content: {
-    paddingBottom: spacing.xl * 3,
+    paddingBottom: spacing.xl * 4,
   },
   sectionHeader: {
     paddingHorizontal: spacing.lg,
     marginTop: spacing.xl,
+    // The first category segment reserves top room for its card shadow.
+    marginBottom: -CARD_SEGMENT_SHADOW_TOP_BLEED,
   },
   categoryCard: {
     backgroundColor: surface,
@@ -177,19 +152,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     ...shadows.card,
   },
-  rowDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
-    marginLeft: CATEGORY_SPEND_ROW_DIVIDER_INSET,
-  },
   emptyCard: {
     backgroundColor: surface,
     borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
     overflow: "hidden",
     ...shadows.card,
-  },
-  footer: {
-    height: spacing.xl,
   },
 });

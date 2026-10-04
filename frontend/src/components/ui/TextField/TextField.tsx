@@ -109,6 +109,7 @@ export function TextField({
         />
         {isPassword ? (
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={hidden ? "Show password" : "Hide password"}
             hitSlop={12}
             style={formStyles.iconButton}
@@ -123,6 +124,7 @@ export function TextField({
         ) : null}
         {showClearButton ? (
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Clear text"
             hitSlop={12}
             style={[formStyles.iconButton, isMultiline && styles.textareaClear]}

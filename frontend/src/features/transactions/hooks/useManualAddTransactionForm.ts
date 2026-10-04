@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 
+import { paiseToAmountString, parseAmountInputToPaise } from "@/utils/paise";
+
 import type { CreateTransactionBody } from "../api/transactionsApi";
 import {
   DEFAULT_COUNTERPARTY_TYPE,
@@ -7,18 +9,6 @@ import {
 } from "../counterpartyTypes";
 import type { TransactionType } from "../types";
 import type { ManualAddFormSnapshot } from "../utils/transactionRowToFormState";
-
-function parsePositiveAmount(raw: string): number | null {
-  const normalized = raw.replace(/,/g, "").trim();
-  if (normalized.length === 0) {
-    return null;
-  }
-  const n = Number.parseFloat(normalized);
-  if (!Number.isFinite(n) || n <= 0) {
-    return null;
-  }
-  return Math.round(n * 100) / 100;
-}
 
 export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
   const [amountText, setAmountText] = useState(initial?.amountText ?? "");
@@ -75,8 +65,8 @@ export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
   }, []);
 
   const buildPayload = useCallback((): CreateTransactionBody | null => {
-    const amount = parsePositiveAmount(amountText);
-    if (amount === null) {
+    const amountPaise = parseAmountInputToPaise(amountText);
+    if (amountPaise === null) {
       return null;
     }
     const name = counterpartyName.trim();
@@ -84,7 +74,7 @@ export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
       return null;
     }
     return {
-      amount,
+      amount: paiseToAmountString(amountPaise),
       type: txType,
       counterparty_name: name,
       counterparty_type: counterpartyType,

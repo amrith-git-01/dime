@@ -16,11 +16,14 @@ import {
   useMonthSummaryQuery,
   useTransactionsHomeQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type {
   HomeOverview,
   TransactionRow,
 } from "@/features/transactions/types";
+import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
@@ -28,6 +31,7 @@ import {
   formatNetDisplay,
   formatSpendMagnitude,
 } from "@/utils/currency";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
 type HomeScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Home">,
@@ -36,8 +40,9 @@ type HomeScreenNavigation = CompositeNavigationProp<
 
 function buildLast7DaysSpend(
   rows: HomeOverview["last_7_days_spend"] | undefined,
+  today: Date,
 ): { date: string; total: number }[] {
-  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayStr = format(today, "yyyy-MM-dd");
 
   // Only trust server rows when the window is complete AND ends on today.
   // Stale MMKV data (e.g. fetched Sunday) has rows ending on the previous day,
@@ -53,7 +58,7 @@ function buildLast7DaysSpend(
   // React Query will refetch fresh data in the background; the chart will
   // update once the response arrives.
   return Array.from({ length: 7 }, (_, index) => ({
-    date: format(subDays(new Date(), 6 - index), "yyyy-MM-dd"),
+    date: format(subDays(today, 6 - index), "yyyy-MM-dd"),
     total: 0,
   }));
 }
@@ -64,8 +69,9 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const { onManualAdd, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
-  const now = useMemo(() => new Date(), []);
+  const now = useCurrentDay();
   const queryClient = useQueryClient();
+  const { userId } = useSessionUserId();
   const { data: overview, isPending, isError } = useTransactionsHomeQuery();
 
   // If the MMKV-cached home data is from a prior calendar day (staleTime=24h
@@ -75,15 +81,15 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   useEffect(() => {
     const rows = overview?.last_7_days_spend;
     if (!rows?.length) return;
-    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const todayStr = format(now, "yyyy-MM-dd");
     const lastDate = rows[rows.length - 1]?.date;
     if (lastDate !== todayStr) {
       void queryClient.refetchQueries({
-        queryKey: ["transactions", "home"],
+        queryKey: transactionsQueryKeys.home(userId, getDeviceIanaTimezone()),
         type: "active",
       });
     }
-  }, [overview?.last_7_days_spend, queryClient]);
+  }, [now, overview?.last_7_days_spend, queryClient, userId]);
   const monthSummaryQuery = useMonthSummaryQuery(
     now.getFullYear(),
     now.getMonth(),
@@ -189,8 +195,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       : 0;
 
   const last7DaysSpend = useMemo(
-    () => buildLast7DaysSpend(overview?.last_7_days_spend),
-    [overview?.last_7_days_spend],
+    () => buildLast7DaysSpend(overview?.last_7_days_spend, now),
+    [now, overview?.last_7_days_spend],
   );
 
   const recentTransactions = overview?.recent_transactions ?? [];

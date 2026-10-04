@@ -1,19 +1,24 @@
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
-import { applyRealtimeTransactionChange } from "@/features/transactions/cache/transactionRealtimeCache";
+import { invalidateTransactionDerivedQueries } from "@/features/transactions/cache/invalidateTransactionQueries";
+import {
+  applyRealtimeTransactionChange,
+  realtimePayloadTransactionId,
+} from "@/features/transactions/cache/transactionRealtimeCache";
+import { recentTransactionMutations } from "@/features/transactions/utils/recentMutationTracker";
+import { createTrailingDebounce } from "@/features/transactions/utils/trailingDebounce";
 import { supabase } from "@/lib/supabase/client";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
-/** Coalesce summary refetches (spent totals, month summary) after list patches. */
-const SUMMARY_INVALIDATE_DEBOUNCE_MS = 450;
+/** Coalesce refetches (spent totals, month summary) after a burst of realtime changes. */
+const INVALIDATE_DEBOUNCE_MS = 300;
 
 type TransactionDbRecord = Record<string, unknown>;
 
 export function useTransactionsRealtimeSync(userId: string | null) {
   const queryClient = useQueryClient();
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -21,26 +26,25 @@ export function useTransactionsRealtimeSync(userId: string | null) {
     }
 
     const timezone = getDeviceIanaTimezone();
-
-    const scheduleSummaryInvalidate = () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        debounceTimerRef.current = null;
-        void queryClient.invalidateQueries({ refetchType: "active" });
-      }, SUMMARY_INVALIDATE_DEBOUNCE_MS);
-    };
+    const scheduleInvalidate = createTrailingDebounce(
+      () => invalidateTransactionDerivedQueries(queryClient),
+      INVALIDATE_DEBOUNCE_MS,
+    );
 
     const onChange = (
       payload: RealtimePostgresChangesPayload<TransactionDbRecord>,
     ) => {
+      const transactionId = realtimePayloadTransactionId(payload);
+      // Echo of this device's own recent edit/delete; its mutation already refreshed the caches.
+      if (transactionId && recentTransactionMutations.isRecent(transactionId)) {
+        return;
+      }
       applyRealtimeTransactionChange(queryClient, {
         userId,
         timezone,
         payload,
       });
-      scheduleSummaryInvalidate();
+      scheduleInvalidate.schedule();
     };
 
     const channel = supabase
@@ -58,10 +62,7 @@ export function useTransactionsRealtimeSync(userId: string | null) {
       .subscribe();
 
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
+      scheduleInvalidate.cancel();
       void supabase.removeChannel(channel);
     };
   }, [queryClient, userId]);

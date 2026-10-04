@@ -22,6 +22,7 @@ import { fontFamilies } from "@/constants/fonts";
 export type InsightsMonthSummary = {
   transactionCount: number;
   hasMonthlyBudget: boolean;
+  hasIncome: boolean;
   isOverBudget: boolean;
   budgetDisplay: string;
   usedPctDisplay: string;
@@ -31,6 +32,8 @@ export type InsightsMonthSummary = {
   spentDisplay: string;
   incomeDisplay: string;
   netDisplay: string;
+  /** Net when income exists; otherwise spend (unsigned). */
+  heroDisplay: string;
   netValue: number;
   savingsRatePct: number | null;
 };
@@ -51,7 +54,7 @@ function heroColor(
   summary: InsightsMonthSummary | null,
   loading: boolean,
 ): string {
-  if (loading || !summary) return accent;
+  if (loading || !summary || !summary.hasIncome) return accent;
   if (summary.netValue > 0) return success;
   if (summary.netValue < 0) return danger;
   return accent;
@@ -59,16 +62,14 @@ function heroColor(
 
 function buildSubtitle(summary: InsightsMonthSummary): string {
   const parts: string[] = [];
-  if (summary.savingsRatePct !== null && summary.incomeDisplay !== "\u2014") {
+  if (summary.hasIncome && summary.savingsRatePct !== null) {
     parts.push(`${summary.savingsRatePct}% saved`);
   }
-  if (summary.transactionCount > 0) {
-    parts.push(
-      summary.transactionCount === 1
-        ? "1 transaction"
-        : `${summary.transactionCount} transactions`,
-    );
-  }
+  parts.push(
+    summary.transactionCount === 1
+      ? "1 transaction"
+      : `${summary.transactionCount} transactions`,
+  );
   return parts.join(" · ");
 }
 
@@ -94,7 +95,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   const subtitle = summary ? buildSubtitle(summary) : "";
   const showBudgetBar = Boolean(hasMonthlyBudget ?? summary?.hasMonthlyBudget);
   const budgetProgress = summary ? budgetUsedProgress(summary) : 0;
-  const hasIncome = summary !== null && summary.incomeDisplay !== "\u2014";
+  const hasIncome = Boolean(summary?.hasIncome);
 
   return (
     <View style={styles.card}>
@@ -107,6 +108,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             disabled={!canGoPrevMonth}
             hitSlop={8}
             style={styles.navBtn}
+            accessibilityRole="button"
             accessibilityLabel="Previous month"
           >
             <ChevronLeft
@@ -121,6 +123,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             disabled={!canGoNextMonth}
             hitSlop={8}
             style={styles.navBtn}
+            accessibilityRole="button"
             accessibilityLabel="Next month"
           >
             <ChevronRight
@@ -144,7 +147,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         ) : (
           <>
             <Text style={[styles.heroAmount, { color: heroCol }]}>
-              {summary?.netDisplay ?? "\u2014"}
+              {summary?.heroDisplay ?? "₹\u202F0"}
             </Text>
             {subtitle.length > 0 ? (
               <Text style={styles.heroSubtitle}>{subtitle}</Text>
@@ -162,7 +165,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             <SkeletonBlock style={styles.statSkeleton} />
           ) : (
             <Text style={styles.statValue}>
-              {summary?.spentDisplay ?? "\u2014"}
+              {summary?.spentDisplay ?? "₹\u202F0"}
             </Text>
           )}
         </View>

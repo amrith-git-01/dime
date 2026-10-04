@@ -10,6 +10,7 @@ import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
+import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
@@ -43,6 +44,10 @@ export default function MainTabNavigator() {
   const onManualAddPress = useCallback(() => {
     stackNavigation.navigate("ManualAddTransaction");
   }, [stackNavigation]);
+  const captureReceiptAndCreate = useReceiptCameraTransaction();
+  const onCaptureReceiptPress = useCallback(() => {
+    void captureReceiptAndCreate();
+  }, [captureReceiptAndCreate]);
   const unreadQuery = useUnreadNotificationCount();
   const showUnreadNotificationDot = (unreadQuery.data ?? 0) > 0;
 
@@ -63,6 +68,7 @@ export default function MainTabNavigator() {
               {...props}
               onFirstLayout={() => setTabBarReady(true)}
               onManualAddPress={onManualAddPress}
+              onCaptureReceiptPress={onCaptureReceiptPress}
             />
           )}
           screenListeners={{

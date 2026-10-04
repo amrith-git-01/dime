@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   BUTTON_LOADER_SIZE,
   InfinityButtonLoader,
-} from "@/components/ui/InfinityButtonLoader";
+} from "@/components/ui";
 import {
   accent,
   ink,

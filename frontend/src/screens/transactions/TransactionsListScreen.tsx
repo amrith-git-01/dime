@@ -1,66 +1,86 @@
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { memo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { EmptyState, emptyStateCopy } from "@/components/shared";
+import {
+  CARD_SEGMENT_SHADOW_BLEED,
+  CARD_SEGMENT_SHADOW_TOP_BLEED,
+  EmptyState,
+  emptyStateCopy,
+  SurfaceCardSegment,
+} from "@/components/shared";
 import {
   accent,
   danger,
   inkSoft,
   line,
   paper,
-  radius,
-  shadows,
   spacing,
   success,
-  surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { TransactionRow } from "@/features/transactions/components";
 import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
-import type { TransactionListSection } from "@/features/transactions/utils/buildTransactionFlashListData";
+import type {
+  TransactionListHeaderItem,
+  TransactionListItem,
+  TransactionListRowItem,
+} from "@/features/transactions/utils/buildTransactionFlashListData";
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
 
-type SectionCardProps = {
-  section: TransactionListSection;
-  netTotal: number;
-  onTransactionPress: (transaction: TransactionRowType) => void;
+type DayHeaderProps = {
+  item: TransactionListHeaderItem;
 };
 
-const SectionCard = memo(function SectionCard({
-  section,
-  netTotal,
-  onTransactionPress,
-}: SectionCardProps) {
+const DayHeader = memo(function DayHeader({ item }: DayHeaderProps) {
+  const netTotal = item.netTotal;
   const netColor = netTotal < 0 ? danger : netTotal > 0 ? success : inkSoft;
-  const formatted = formatTransactionListAmount(netTotal);
 
   return (
-    <View style={styles.sectionGroup}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{section.title}</Text>
-        <Text style={[styles.sectionTotal, { color: netColor }]}>
-          {formatted}
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        {section.data.map((transaction, index) => (
-          <View key={transaction.id}>
-            <TransactionRow
-              transaction={transaction}
-              onPress={onTransactionPress}
-            />
-            {index < section.data.length - 1 && (
-              <View style={styles.rowDivider} />
-            )}
-          </View>
-        ))}
-      </View>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{item.title}</Text>
+      <Text style={[styles.sectionTotal, { color: netColor }]}>
+        {formatTransactionListAmount(netTotal)}
+      </Text>
     </View>
   );
 });
+
+type TransactionListRowViewProps = {
+  item: TransactionListRowItem;
+  onTransactionPress: (transaction: TransactionRowType) => void;
+};
+
+const TransactionListRowView = memo(function TransactionListRowView({
+  item,
+  onTransactionPress,
+}: TransactionListRowViewProps) {
+  return (
+    <View style={item.isLastInSection ? styles.lastRowInSection : undefined}>
+      <SurfaceCardSegment
+        isFirst={item.isFirstInSection}
+        isLast={item.isLastInSection}
+      >
+        {item.isFirstInSection ? null : <View style={styles.rowDivider} />}
+        <TransactionRow
+          transaction={item.transaction}
+          onPress={onTransactionPress}
+        />
+      </SurfaceCardSegment>
+    </View>
+  );
+});
+
+function keyExtractor(item: TransactionListItem): string {
+  return item.id;
+}
+
+function getItemType(item: TransactionListItem): TransactionListItem["kind"] {
+  return item.kind;
+}
 
 function resolveListEmptyCopy(
   filter: "day" | "category" | "payee",
@@ -81,8 +101,8 @@ function resolveListEmptyCopy(
 
 export default function TransactionsListScreen() {
   const {
-    listSections,
-    sectionNetTotals,
+    listItems,
+    stickyHeaderIndices,
     filter,
     usesRange,
     isEmpty,
@@ -90,9 +110,22 @@ export default function TransactionsListScreen() {
     openTransactionDetail,
     showInitialLoading,
     showLoadingMore,
-    transactionCount,
+    loadMore,
+    transactionCountLabel,
+    transactionCountIsPlural,
     monthLabel,
   } = useTransactionsListScreenModel();
+  const insets = useSafeAreaInsets();
+
+  const renderItem: ListRenderItem<TransactionListItem> = ({ item }) =>
+    item.kind === "header" ? (
+      <DayHeader item={item} />
+    ) : (
+      <TransactionListRowView
+        item={item}
+        onTransactionPress={openTransactionDetail}
+      />
+    );
 
   if (showInitialLoading) {
     return (
@@ -104,63 +137,71 @@ export default function TransactionsListScreen() {
 
   if (isError) {
     return (
-      <EmptyState
-        layout="centered"
-        headline={emptyStateCopy.transactionsListError.headline}
-        subtext={emptyStateCopy.transactionsListError.subtext}
-      />
+      <View style={styles.fill}>
+        <EmptyState
+          layout="centered"
+          headline={emptyStateCopy.transactionsListError.headline}
+          subtext={emptyStateCopy.transactionsListError.subtext}
+        />
+      </View>
     );
   }
 
   if (isEmpty) {
     const copy = resolveListEmptyCopy(filter, usesRange);
     return (
-      <EmptyState
-        layout="centered"
-        headline={copy.headline}
-        subtext={copy.subtext}
-      />
+      <View style={styles.fill}>
+        <EmptyState
+          layout="centered"
+          headline={copy.headline}
+          subtext={copy.subtext}
+        />
+      </View>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <View style={styles.subtitleRow}>
-        <Text style={styles.subtitle}>
-          {`${transactionCount} transaction${transactionCount !== 1 ? "s" : ""} · ${monthLabel}`}
-        </Text>
-      </View>
-
-      {listSections.map((section) => (
-        <SectionCard
-          key={section.key}
-          section={section}
-          netTotal={sectionNetTotals[section.key] ?? 0}
-          onTransactionPress={openTransactionDetail}
-        />
-      ))}
-
-      {showLoadingMore ? (
-        <View style={styles.loadingMore}>
-          <ActivityIndicator color={accent} />
+    <FlashList
+      style={styles.fill}
+      data={listItems}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      getItemType={getItemType}
+      stickyHeaderIndices={stickyHeaderIndices}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{
+        backgroundColor: paper,
+        paddingHorizontal: spacing.lg + spacing.md,
+        paddingTop: spacing.lg + spacing.md,
+        paddingBottom: spacing.xl * 3 + insets.bottom,
+      }}
+      ListHeaderComponent={
+        <View style={styles.subtitleRow}>
+          <Text style={styles.subtitle}>
+            {`${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""} · ${monthLabel}`}
+          </Text>
         </View>
-      ) : null}
-
-      <View style={styles.footer} />
-    </View>
+      }
+      ListFooterComponent={
+        showLoadingMore ? (
+          <View style={styles.loadingMore}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : null
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  fill: {
     flex: 1,
     backgroundColor: paper,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    gap: spacing.xl,
   },
   subtitleRow: {
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.xl,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
@@ -168,14 +209,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: inkSoft,
   },
-  sectionGroup: {
-    gap: spacing.md,
-  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.xs,
+    // The first row segment reserves top room for its card shadow.
+    paddingBottom: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
+    backgroundColor: paper,
   },
   sectionTitle: {
     fontFamily: fontFamilies.semiBold,
@@ -191,11 +232,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontVariant: ["tabular-nums"],
   },
-  card: {
-    backgroundColor: surface,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-    ...shadows.card,
+  lastRowInSection: {
+    // The last row segment reserves bottom room for its card shadow.
+    paddingBottom: spacing.xl - CARD_SEGMENT_SHADOW_BLEED,
   },
   rowDivider: {
     height: StyleSheet.hairlineWidth,
@@ -206,12 +245,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: paper,
   },
   loadingMore: {
     paddingVertical: spacing.lg,
     alignItems: "center",
-  },
-  footer: {
-    height: spacing.xl * 2,
   },
 });

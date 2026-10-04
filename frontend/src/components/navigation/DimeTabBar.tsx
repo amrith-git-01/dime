@@ -2,34 +2,25 @@ import {
   BottomTabBarHeightCallbackContext,
   type BottomTabBarProps,
 } from "@react-navigation/bottom-tabs";
-import { Camera, Edit3, Mic, Plus } from "lucide-react-native";
 import { useCallback, useContext, useEffect, useRef } from "react";
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
+import { LayoutChangeEvent, StyleSheet, View } from "react-native";
 import Animated, {
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
 
-import { ink, line, surface } from "@/constants/colors";
-import { fabIdleCloseMs, springs } from "@/constants/motion";
+import { line, surface } from "@/constants/colors";
+import { springs } from "@/constants/motion";
 import { radius } from "@/constants/radius";
 import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
-import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
-import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
-import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
+import { useFabIdleClose } from "@/hooks/useFabIdleClose";
 
-import { DimeTabBarItem } from "./DimeTabBarItem";
-import {
-  ACTION_BUBBLE_SIZE,
-  ACTION_PLUS_ICON_SIZE,
-  ACTIVE_BUBBLE_SIZE,
-  OPTION_BUBBLE_SIZE,
-  tabLabel,
-} from "./dimeTabBarConfig";
+import { DimeTabBarFab } from "./DimeTabBarFab";
+import { DimeTabBarFabActions } from "./DimeTabBarFabActions";
+import { DimeTabBarRouteItem } from "./DimeTabBarRouteItem";
+import { ACTIVE_BUBBLE_SIZE } from "./dimeTabBarConfig";
 
 // ─── Indicator geometry ────────────────────────────────────────────────────
 // 5 equal slots: [tab0] [tab1] [FAB] [tab2] [tab3]
@@ -53,9 +44,11 @@ export function DimeTabBar({
   insets,
   onFirstLayout,
   onManualAddPress,
+  onCaptureReceiptPress,
 }: BottomTabBarProps & {
   onFirstLayout?: () => void;
   onManualAddPress: () => void;
+  onCaptureReceiptPress: () => void;
 }) {
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
@@ -83,58 +76,7 @@ export function DimeTabBar({
     opacity: indicatorX.value < 0 ? 0 : 1,
   }));
 
-  // ── FAB ──────────────────────────────────────────────────────────────────
-  const plusRotationDeg = useSharedValue(0);
-  const actionsProgress = useSharedValue(0);
-  const idleCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
-  const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
-  const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
-  const captureReceiptAndCreate = useReceiptCameraTransaction();
-  const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
-
-  const clearFabIdleTimer = useCallback(() => {
-    if (idleCloseTimerRef.current) {
-      clearTimeout(idleCloseTimerRef.current);
-      idleCloseTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleFabIdleClose = useCallback(() => {
-    clearFabIdleTimer();
-    idleCloseTimerRef.current = setTimeout(() => {
-      idleCloseTimerRef.current = null;
-      if (useAddTransactionFabStore.getState().fabOpen) {
-        setFabOpen(false);
-      }
-    }, fabIdleCloseMs);
-  }, [clearFabIdleTimer, setFabOpen]);
-
-  const bumpFabIdleTimer = useCallback(() => {
-    if (useAddTransactionFabStore.getState().fabOpen) {
-      scheduleFabIdleClose();
-    }
-  }, [scheduleFabIdleClose]);
-
-  useEffect(() => {
-    if (!fabOpen) {
-      clearFabIdleTimer();
-      return;
-    }
-    scheduleFabIdleClose();
-    return clearFabIdleTimer;
-  }, [fabOpen, scheduleFabIdleClose, clearFabIdleTimer]);
-
-  useEffect(() => {
-    if (fabOpen) {
-      plusRotationDeg.value = withSpring(45, springs.fabOpen);
-      actionsProgress.value = withSpring(1, springs.fabActions);
-      return;
-    }
-
-    plusRotationDeg.value = withSpring(0, springs.fabOpen);
-    actionsProgress.value = withSpring(0, springs.fabActions);
-  }, [actionsProgress, fabOpen, plusRotationDeg]);
+  const bumpFabIdleTimer = useFabIdleClose();
 
   const onBarLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -150,42 +92,6 @@ export function DimeTabBar({
     },
     [barWidth, indicatorX, onFirstLayout, onTabBarHeightChange],
   );
-
-  // ── FAB animated styles ──────────────────────────────────────────────────
-  const plusIconRotationStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${plusRotationDeg.value}deg` }],
-  }));
-
-  const manualActionStyle = useAnimatedStyle(() => ({
-    opacity: actionsProgress.value,
-    transform: [
-      { translateX: interpolate(actionsProgress.value, [0, 1], [0, -52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
-      { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
-    ],
-  }));
-
-  const photoActionStyle = useAnimatedStyle(() => ({
-    opacity: actionsProgress.value,
-    transform: [
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -58]) },
-      { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
-    ],
-  }));
-
-  const voiceActionStyle = useAnimatedStyle(() => ({
-    opacity: actionsProgress.value,
-    transform: [
-      { translateX: interpolate(actionsProgress.value, [0, 1], [0, 52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
-      { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
-    ],
-  }));
-
-  const toggleAddFab = useCallback(() => {
-    void triggerHaptic();
-    toggleFab();
-  }, [toggleFab]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -206,158 +112,36 @@ export function DimeTabBar({
           style={[styles.tabIndicator, indicatorStyle]}
         />
 
-        {state.routes.slice(0, 2).map((route, index) => {
-          const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
-          const label = tabLabel(options, route.name);
-
-          const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          const onLongPress = () => {
-            navigation.emit({ type: "tabLongPress", target: route.key });
-          };
-
-          return (
-            <DimeTabBarItem
-              key={route.key}
-              routeName={route.name}
-              label={label}
-              isFocused={isFocused}
-              onPress={onPress}
-              onLongPress={onLongPress}
-            />
-          );
-        })}
+        {state.routes.slice(0, 2).map((route, index) => (
+          <DimeTabBarRouteItem
+            key={route.key}
+            route={route}
+            options={descriptors[route.key].options}
+            isFocused={state.index === index}
+            navigation={navigation}
+          />
+        ))}
 
         {/* Central FAB slot */}
-        <View style={styles.centerPlusSlot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              fabOpen ? "Close add transaction" : "Add transaction"
-            }
-            accessibilityState={{ expanded: fabOpen }}
-            onPress={toggleAddFab}
-            onPressIn={bumpFabIdleTimer}
-            hitSlop={10}
-            pressRetentionOffset={12}
-            style={({ pressed }) => [
-              styles.centerFab,
-              pressed && styles.centerFabPressed,
-            ]}
-          >
-            <Animated.View style={plusIconRotationStyle}>
-              <Plus
-                size={ACTION_PLUS_ICON_SIZE}
-                color={surface}
-                strokeWidth={2.5}
-              />
-            </Animated.View>
-          </Pressable>
-        </View>
+        <DimeTabBarFab onPressIn={bumpFabIdleTimer} />
 
-        {state.routes.slice(2).map((route, offset) => {
-          const index = offset + 2;
-          const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
-          const label = tabLabel(options, route.name);
-
-          const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          const onLongPress = () => {
-            navigation.emit({ type: "tabLongPress", target: route.key });
-          };
-
-          return (
-            <DimeTabBarItem
-              key={route.key}
-              routeName={route.name}
-              label={label}
-              isFocused={isFocused}
-              onPress={onPress}
-              onLongPress={onLongPress}
-            />
-          );
-        })}
+        {state.routes.slice(2).map((route, offset) => (
+          <DimeTabBarRouteItem
+            key={route.key}
+            route={route}
+            options={descriptors[route.key].options}
+            isFocused={state.index === offset + 2}
+            navigation={navigation}
+          />
+        ))}
       </View>
 
       {/* Radial action bubbles */}
-      <View
-        pointerEvents={fabOpen ? "box-none" : "none"}
-        style={styles.actionsRow}
-      >
-        <Animated.View style={[styles.actionBubble, manualActionStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction manually"
-            disabled={!fabOpen}
-            hitSlop={{ top: 20, bottom: 20, left: 64, right: 20 }}
-            onPressIn={bumpFabIdleTimer}
-            onPress={() => {
-              void triggerHaptic();
-              setFabOpen(false);
-              onManualAddPress();
-            }}
-            style={styles.radialActionHit}
-          >
-            <Edit3 size={20} color={surface} strokeWidth={2} />
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={[styles.actionBubble, photoActionStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction from photo"
-            disabled={!fabOpen}
-            hitSlop={{ top: 56, bottom: 4, left: 20, right: 20 }}
-            onPressIn={bumpFabIdleTimer}
-            onPress={() => {
-              void triggerHaptic();
-              setFabOpen(false);
-              void captureReceiptAndCreate();
-            }}
-            style={styles.radialActionHit}
-          >
-            <Camera size={20} color={surface} strokeWidth={2} />
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={[styles.actionBubble, voiceActionStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add transaction with voice"
-            disabled={!fabOpen}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 64 }}
-            onPressIn={bumpFabIdleTimer}
-            onPress={() => {
-              void triggerHaptic();
-              setFabOpen(false);
-              openVoiceCapture();
-            }}
-            style={styles.radialActionHit}
-          >
-            <Mic size={20} color={surface} strokeWidth={2} />
-          </Pressable>
-        </Animated.View>
-      </View>
+      <DimeTabBarFabActions
+        onManualAddPress={onManualAddPress}
+        onCaptureReceiptPress={onCaptureReceiptPress}
+        onPressIn={bumpFabIdleTimer}
+      />
     </View>
   );
 }
@@ -395,52 +179,5 @@ const styles = StyleSheet.create({
     borderColor: line,
     ...shadows.tabIndicator,
     zIndex: 0,
-  },
-  centerPlusSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-start",
-    overflow: "visible",
-  },
-  centerFab: {
-    marginTop: -(ACTION_BUBBLE_SIZE / 2),
-    width: ACTION_BUBBLE_SIZE,
-    height: ACTION_BUBBLE_SIZE,
-    borderRadius: ACTION_BUBBLE_SIZE / 2,
-    backgroundColor: ink,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 8,
-    ...shadows.fab,
-  },
-  centerFabPressed: {
-    opacity: 0.85,
-  },
-  actionsRow: {
-    position: "absolute",
-    bottom: ACTION_BUBBLE_SIZE - 14,
-    left: "50%",
-    marginLeft: -(OPTION_BUBBLE_SIZE / 2),
-    width: OPTION_BUBBLE_SIZE,
-    height: OPTION_BUBBLE_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 20,
-  },
-  actionBubble: {
-    position: "absolute",
-    width: OPTION_BUBBLE_SIZE,
-    height: OPTION_BUBBLE_SIZE,
-    borderRadius: OPTION_BUBBLE_SIZE / 2,
-    backgroundColor: ink,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadows.fab,
-  },
-  radialActionHit: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

@@ -5,6 +5,7 @@ import { Alert } from "react-native";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { refreshAppDataFromServer } from "@/lib/refreshAppData";
+import { reportError } from "@/lib/reportError";
 
 export function useRefreshAppData() {
   const queryClient = useQueryClient();
@@ -38,7 +39,7 @@ export function useRefreshAppData() {
               try {
                 await refreshAppData();
               } catch (error) {
-                console.warn("[settings] refresh app data failed", error);
+                reportError(error, "settings refresh app data failed");
                 Alert.alert(
                   "Couldn’t refresh",
                   error instanceof Error ? error.message : "Try again.",

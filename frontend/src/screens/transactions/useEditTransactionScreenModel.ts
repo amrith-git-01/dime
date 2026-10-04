@@ -9,7 +9,7 @@ import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
-import type { ManualAddDateTimePickerMode } from "@/features/transactions/components/bento/ManualAddDateField";
+import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
 import {

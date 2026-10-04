@@ -11,7 +11,7 @@ export function useCategoriesQuery() {
   const { userId, authReady } = useSessionUserId();
 
   return useQuery({
-    queryKey: categoriesQueryKeys.list(),
+    queryKey: categoriesQueryKeys.list(userId),
     queryFn: fetchCategories,
     enabled: authReady && Boolean(userId),
     select: sortCategories,

@@ -1,8 +1,7 @@
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   Bell,
   BookOpen,
+  Mail,
   MessageSquareText,
   ScanLine,
   Shield,
@@ -13,41 +12,28 @@ import { StyleSheet, Text, View } from "react-native";
 import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { fontFamilies, inkSoft, spacing } from "@/constants";
-import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import {
   SettingsHubHero,
   SettingsNavRow,
   SettingsSection,
 } from "@/features/settings/components";
 import { SETTINGS_SECTION_GAP } from "@/features/settings/constants/settingsTokens";
-import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import type { MainStackParamList } from "@/navigation/types";
+
+import { useSettingsScreenModel } from "./useSettingsScreenModel";
 
 export default function SettingsScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { displayName, email, avatarUrl } = useUserProfile();
-  const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
-    useConfirmSignOut();
-  const { confirmRefreshAppData, loading: refreshLoading } =
-    useRefreshAppData();
-
-  const openAccount = () => navigation.navigate("SettingsAccount");
-
-  const handleRefreshPress = () => {
-    confirmRefreshAppData();
-  };
+  const model = useSettingsScreenModel();
+  const { openDestination } = model;
 
   return (
     <View style={styles.root}>
       <SettingsSection title="Account">
         <View style={styles.accountInner}>
           <SettingsHubHero
-            displayName={displayName}
-            email={email}
-            avatarUrl={avatarUrl}
-            onPress={openAccount}
+            displayName={model.displayName}
+            email={model.email}
+            avatarUrl={model.avatarUrl}
+            onPress={() => openDestination("SettingsAccount")}
           />
         </View>
       </SettingsSection>
@@ -58,21 +44,28 @@ export default function SettingsScreen() {
             icon={Vibrate}
             label="Haptic feedback"
             subtitle="Tap feedback on buttons and actions"
-            onPress={() => navigation.navigate("SettingsHaptic")}
+            onPress={() => openDestination("SettingsHaptic")}
             showSeparator
           />
           <SettingsNavRow
             icon={Bell}
             label="Notifications & alerts"
             subtitle="Device permission, budget limits, and capture alerts"
-            onPress={() => navigation.navigate("SettingsNotifications")}
+            onPress={() => openDestination("SettingsNotifications")}
             showSeparator
           />
           <SettingsNavRow
             icon={ScanLine}
             label="Automatic capture"
             subtitle="Bank SMS review on this device"
-            onPress={() => navigation.navigate("SettingsCapture")}
+            onPress={() => openDestination("SettingsCapture")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Mail}
+            label="Email summaries"
+            subtitle="Weekly Monday and monthly 1st, 08:00 IST"
+            onPress={() => openDestination("SettingsEmail")}
           />
         </View>
       </SettingsSection>
@@ -83,14 +76,14 @@ export default function SettingsScreen() {
             icon={BookOpen}
             label="Glossary"
             subtitle="What Debit, Payee, and other labels mean"
-            onPress={() => navigation.navigate("SettingsGlossary")}
+            onPress={() => openDestination("SettingsGlossary")}
             showSeparator
           />
           <SettingsNavRow
             icon={Shield}
             label="Permissions"
             subtitle="What we ask for, how we use it, and why"
-            onPress={() => navigation.navigate("SettingsPermissions")}
+            onPress={() => openDestination("SettingsPermissions")}
           />
         </View>
       </SettingsSection>
@@ -101,7 +94,7 @@ export default function SettingsScreen() {
             icon={MessageSquareText}
             label="Send feedback"
             subtitle="Bugs, ideas, and enhancements"
-            onPress={() => navigation.navigate("SettingsFeedback")}
+            onPress={() => openDestination("SettingsFeedback")}
           />
         </View>
       </SettingsSection>
@@ -115,9 +108,9 @@ export default function SettingsScreen() {
           <Button
             title="Refresh from server"
             variant="ghost"
-            loading={refreshLoading}
-            disabled={refreshLoading || signOutLoading}
-            onPress={handleRefreshPress}
+            loading={model.refreshLoading}
+            disabled={model.refreshLoading || model.signOutLoading}
+            onPress={model.onRefreshPress}
           />
         </View>
       </SettingsSection>
@@ -126,14 +119,14 @@ export default function SettingsScreen() {
         <Button
           title="Sign out"
           variant="danger"
-          loading={signOutLoading}
-          disabled={signOutLoading || refreshLoading}
-          onPress={confirmSignOut}
+          loading={model.signOutLoading}
+          disabled={model.signOutLoading || model.refreshLoading}
+          onPress={model.onSignOut}
         />
       </View>
 
       <ConfirmModal
-        {...signOutConfirmModalProps}
+        {...model.signOutConfirmModalProps}
         title="Sign out?"
         message="You'll need to sign in again to use the app."
         cancelLabel="Cancel"

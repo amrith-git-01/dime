@@ -1,19 +1,25 @@
+import NetInfo from "@react-native-community/netinfo";
 import { hydrate } from "@tanstack/query-core";
 import {
+  focusManager,
   MutationCache,
+  onlineManager,
   QueryCache,
   QueryClient,
   type Query,
   type QueryKey,
 } from "@tanstack/react-query";
 import type { PersistedClient } from "@tanstack/react-query-persist-client";
+import { AppState } from "react-native";
 
 import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights";
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { fetchBudget } from "@/features/budgets/api/budgetsApi";
 import { fetchCategoryBudgets } from "@/features/budgets/api/categoryBudgetsApi";
-import { budgetQueryKey } from "@/features/budgets/hooks/useBudget";
-import { categoryBudgetsQueryKey } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import {
+  budgetQueryKeys,
+  categoryBudgetsQueryKeys,
+} from "@/features/budgets/queryKeys";
 import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { hydrateNotificationsFromMmkv } from "@/features/notifications/cache/syncNotificationsMmkv";
@@ -29,9 +35,15 @@ import {
   TX_PAGE_LIMIT,
 } from "@/features/transactions/api/transactionsApi";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
-import { APP_QUERY_GC_MS, APP_QUERY_STALE_MS } from "@/lib/queryDefaults";
+import {
+  APP_QUERY_GC_MS,
+  APP_QUERY_STALE_MS,
+  TRANSACTIONS_QUERY_STALE_MS,
+} from "@/lib/queryDefaults";
 import { QUERY_CACHE_MAX_AGE_MS, queryPersister } from "@/lib/queryPersister";
+import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+import { reportError } from "@/lib/reportError";
 
 export const appQueryPersistOptions = {
   persister: queryPersister,
@@ -39,7 +51,12 @@ export const appQueryPersistOptions = {
   dehydrateOptions: {
     shouldDehydrateQuery: (query: Query) =>
       query.state.status === "success" &&
-      query.queryKey[0] !== notificationQueryKeys.all[0],
+      query.queryKey[0] !== notificationQueryKeys.all[0] &&
+      // Detail rows carry short-lived signed media URLs (C7); never restore them from disk.
+      !(
+        query.queryKey[0] === transactionsQueryKeys.all[0] &&
+        query.queryKey[1] === "detail"
+      ),
   },
 } as const;
 
@@ -61,9 +78,9 @@ function restoreQueryCache(queryClient: QueryClient): boolean {
     hydrate(queryClient, persisted.clientState);
     return true;
   } catch (error) {
-    console.error(
-      "[appBootstrap] corrupt or incompatible query cache — clearing MMKV",
+    reportError(
       error,
+      "appBootstrap corrupt or incompatible query cache, clearing MMKV",
     );
     queryPersister.removeClient();
     return false;
@@ -74,7 +91,10 @@ function restoreQueryCache(queryClient: QueryClient): boolean {
 export function hydrateAppFromMmkv(queryClient: QueryClient): void {
   const queryCacheRestored = restoreQueryCache(queryClient);
   const notificationsRestored = hydrateNotificationsFromMmkv(queryClient);
-  const userSettingsRestored = hydrateUserSettingsFromMmkv(queryClient);
+  const userSettingsRestored = hydrateUserSettingsFromMmkv(
+    queryClient,
+    readStoredAuthSession()?.user.id,
+  );
 
   if (__DEV__) {
     console.log("[appBootstrap] hydrated from MMKV", {
@@ -89,17 +109,17 @@ export function createAppQueryClient(): QueryClient {
   const queryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
-        console.error(
-          `[QueryCache] fetch failed — key: ${JSON.stringify(query.queryKey)}`,
+        reportError(
           error,
+          `QueryCache fetch failed, key: ${JSON.stringify(query.queryKey)}`,
         );
       },
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
-        console.error(
-          `[MutationCache] mutation failed — key: ${JSON.stringify(mutation.options.mutationKey ?? "unnamed")}`,
+        reportError(
           error,
+          `MutationCache mutation failed, key: ${JSON.stringify(mutation.options.mutationKey ?? "unnamed")}`,
         );
       },
     }),
@@ -116,12 +136,32 @@ export function createAppQueryClient(): QueryClient {
   return queryClient;
 }
 
-function isCacheFresh(queryClient: QueryClient, queryKey: QueryKey): boolean {
+/**
+ * Feeds React Query the app's real focus/online signals so stale queries refetch when the
+ * app returns to the foreground or the network comes back. Returns an unsubscribe function.
+ */
+export function subscribeQueryClientLifecycle(): () => void {
+  const appStateSub = AppState.addEventListener("change", (status) => {
+    focusManager.setFocused(status === "active");
+  });
+  onlineManager.setEventListener((setOnline) =>
+    NetInfo.addEventListener((state) => {
+      setOnline(state.isConnected !== false);
+    }),
+  );
+  return () => appStateSub.remove();
+}
+
+function isCacheFresh(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  staleMs: number = APP_QUERY_STALE_MS,
+): boolean {
   const state = queryClient.getQueryState(queryKey);
   if (state?.data === undefined || !state.dataUpdatedAt) {
     return false;
   }
-  return Date.now() - state.dataUpdatedAt < APP_QUERY_STALE_MS;
+  return Date.now() - state.dataUpdatedAt < staleMs;
 }
 
 function prefetchIfStale<T>(
@@ -156,14 +196,22 @@ export function prefetchSiblingTabQueries(
     insightsQueryKeys.month(userId, year, month, timezone),
     () => fetchMonthInsights({ year, month, timezone }),
   );
-  prefetchIfStale(queryClient, categoriesQueryKeys.list(), fetchCategories);
-  prefetchIfStale(queryClient, budgetQueryKey, fetchBudget);
-  prefetchIfStale(queryClient, categoryBudgetsQueryKey, fetchCategoryBudgets);
+  prefetchIfStale(
+    queryClient,
+    categoriesQueryKeys.list(userId),
+    fetchCategories,
+  );
+  prefetchIfStale(queryClient, budgetQueryKeys.current(userId), fetchBudget);
+  prefetchIfStale(
+    queryClient,
+    categoryBudgetsQueryKeys.list(userId),
+    fetchCategoryBudgets,
+  );
 
   void (async () => {
     try {
       const settings = await queryClient.fetchQuery({
-        queryKey: settingsQueryKeys.user(),
+        queryKey: settingsQueryKeys.user(userId),
         queryFn: fetchUserSettings,
       });
 
@@ -177,9 +225,9 @@ export function prefetchSiblingTabQueries(
         deviceNotificationsEnabled: settings.deviceNotificationsEnabled,
       });
     } catch (error) {
-      console.warn(
-        "[appBootstrap] Failed to sync notification schedules on bootstrap",
+      reportError(
         error,
+        "appBootstrap failed to sync notification schedules",
       );
     }
   })();
@@ -191,7 +239,7 @@ export function prefetchSiblingTabQueries(
     timezone,
   );
 
-  if (!isCacheFresh(queryClient, monthPagesKey)) {
+  if (!isCacheFresh(queryClient, monthPagesKey, TRANSACTIONS_QUERY_STALE_MS)) {
     void queryClient.prefetchInfiniteQuery({
       queryKey: monthPagesKey,
       queryFn: ({ pageParam }) =>
@@ -202,7 +250,7 @@ export function prefetchSiblingTabQueries(
           offset: pageParam as number,
         }),
       initialPageParam: 0,
-      staleTime: APP_QUERY_STALE_MS,
+      staleTime: TRANSACTIONS_QUERY_STALE_MS,
     });
   }
 }

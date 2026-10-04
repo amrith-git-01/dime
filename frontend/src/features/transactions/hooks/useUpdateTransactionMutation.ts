@@ -6,6 +6,8 @@ import {
   updateTransaction,
   type UpdateTransactionBody,
 } from "../api/transactionsApi";
+import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
+import { recentTransactionMutations } from "../utils/recentMutationTracker";
 
 export type UpdateTransactionVariables = {
   id: string;
@@ -17,14 +19,17 @@ export function useUpdateTransactionMutation() {
 
   return useMutation({
     mutationFn: async ({ id, body }: UpdateTransactionVariables) => {
+      // Realtime echoes this change back; the invalidation below already covers it.
+      recentTransactionMutations.mark(id);
       try {
         await updateTransaction(id, body);
       } catch (error) {
         throw new Error(parseFastApiError(error));
       }
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ refetchType: "active" });
+    onSuccess: (_data, { id }) => {
+      recentTransactionMutations.mark(id);
+      invalidateTransactionDerivedQueries(qc);
     },
   });
 }

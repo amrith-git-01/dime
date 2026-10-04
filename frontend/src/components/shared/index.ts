@@ -5,7 +5,6 @@ export {
   netTone,
   type BentoStatCellTone,
 } from "./BentoStatCell";
-export { BentoTransactionTile } from "./BentoTransactionTile";
 export {
   CATEGORY_SPEND_ROW_DIVIDER_INSET,
   CategorySpendRowSkeleton,
@@ -45,3 +44,11 @@ export {
 export { SkeletonListRow } from "./SkeletonListRow";
 export { TransactionRowListSkeleton } from "./TransactionRowListSkeleton";
 export { TwoToneCard, type TwoToneCardProps } from "./TwoToneCard";
+export {
+  CARD_SEGMENT_SHADOW_BLEED,
+  CARD_SEGMENT_SHADOW_TOP_BLEED,
+} from "./CardSegmentShadowFrame";
+export {
+  SurfaceCardSegment,
+  type SurfaceCardSegmentProps,
+} from "./SurfaceCardSegment";

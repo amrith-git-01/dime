@@ -4,11 +4,14 @@ import { readPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
 
 import { settingsQueryKeys } from "../queryKeys";
 
-export function hydrateUserSettingsFromMmkv(queryClient: QueryClient): boolean {
+export function hydrateUserSettingsFromMmkv(
+  queryClient: QueryClient,
+  userId: string | undefined,
+): boolean {
   const settings = readPersistedUserSettings();
-  if (!settings) {
+  if (!settings || !userId) {
     return false;
   }
-  queryClient.setQueryData(settingsQueryKeys.user(), settings);
+  queryClient.setQueryData(settingsQueryKeys.user(userId), settings);
   return true;
 }

@@ -5,6 +5,7 @@ export { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
 export { SettingsAccountEditor } from "./SettingsAccountEditor";
 export { SettingsCaptureEditor } from "./SettingsCaptureEditor";
 export { SettingsEditorFooter } from "./SettingsEditorFooter";
+export { SettingsEmailEditor } from "./SettingsEmailEditor";
 export { SettingsFeedbackEditor } from "./SettingsFeedbackEditor";
 export { SettingsFormCard } from "./SettingsFormCard";
 export { SettingsGlossaryEditor } from "./SettingsGlossaryEditor";

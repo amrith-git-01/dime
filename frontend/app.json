@@ -10,15 +10,9 @@
     "backgroundColor": "#FAFAFA",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        }
-      }
+      "supportsTablet": true
     },
     "android": {
-      "usesCleartextTraffic": true,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -46,16 +40,9 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          }
-        }
-      ],
       "@react-native-google-signin/google-signin",
       "expo-system-ui",
+      "expo-secure-store",
       [
         "expo-splash-screen",
         {
@@ -76,16 +63,10 @@
       "expo-web-browser",
       "expo-notifications",
       [
-        "expo-camera",
-        {
-          "cameraPermission": "Dime uses the camera to scan receipts and capture expense details.",
-          "recordAudioAndroid": false
-        }
-      ],
-      [
         "expo-image-picker",
         {
-          "photosPermission": "Dime can read photos you pick for receipts and expense attachments."
+          "photosPermission": "Dime can read photos you pick for receipts and expense attachments.",
+          "cameraPermission": "Dime uses the camera to scan receipts and capture expense details."
         }
       ],
       [

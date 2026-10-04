@@ -17,9 +17,8 @@ import { spacing } from "@/constants/spacing";
 
 type HeroMonthCardProps = {
   monthLabel: string;
-  /** Remaining budget (if set) or spent amount (if no budget). */
+  /** Month spent — leftover and % used live in the subtitle when a budget exists. */
   heroAmount: string;
-  /** True if heroAmount represents remaining budget; false = spent. */
   hasBudget: boolean;
   /** "₹1.2k / ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
@@ -65,8 +64,12 @@ export const HeroMonthCard = memo(function HeroMonthCard({
           </Text>
         </Text>
       ) : (
-        <Pressable onPress={onAddBudget} hitSlop={4}>
-          <Text style={styles.ctaLine}>spent this month · Set a budget ›</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAddBudget}
+          hitSlop={4}
+        >
+          <Text style={styles.ctaLine}>Set a budget ›</Text>
         </Pressable>
       )}
 

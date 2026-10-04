@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { postAgentChat } from "@/features/agent/api/agentApi";
 import type {
@@ -14,7 +14,9 @@ function newLocalId(): string {
 
 function toApiHistory(messages: ChatMessage[]): AgentChatHistoryMessage[] {
   return messages
-    .filter((msg) => !msg.isPending && msg.content.trim().length > 0)
+    .filter(
+      (msg) => !msg.isPending && !msg.isError && msg.content.trim().length > 0,
+    )
     .map((msg) => ({
       role: msg.role,
       content: msg.content.trim(),
@@ -25,15 +27,21 @@ export function useAgentChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isPending, setIsPending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  // Always-current refs so sendMessage stays stable (no [messages, isPending] dep).
+  // Refs so sendMessage stays stable (no [messages] dep). Written in effects/handlers, never in render.
   const messagesRef = useRef(messages);
-  const isPendingRef = useRef(isPending);
-  messagesRef.current = messages;
-  isPendingRef.current = isPending;
+  const isPendingRef = useRef(false);
+  // Identifies the in-flight request so a stale `finally` cannot clear a newer one.
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const resetConversation = useCallback(() => {
+    requestIdRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
+    isPendingRef.current = false;
     setMessages([]);
     setIsPending(false);
   }, []);
@@ -64,6 +72,8 @@ export function useAgentChat() {
         isPending: true,
       };
 
+      const requestId = ++requestIdRef.current;
+      isPendingRef.current = true;
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsPending(true);
 
@@ -103,16 +113,18 @@ export function useAgentChat() {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantId
-              ? { ...msg, content: message, isPending: false }
+              ? { ...msg, content: message, isPending: false, isError: true }
               : msg,
           ),
         );
       } finally {
-        setIsPending(false);
-        abortRef.current = null;
+        if (requestIdRef.current === requestId) {
+          isPendingRef.current = false;
+          setIsPending(false);
+          abortRef.current = null;
+        }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads via refs
     [],
   );
 

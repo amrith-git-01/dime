@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, type PressableProps } from "react-native";
 import {
   BUTTON_LOADER_SIZE,
   InfinityButtonLoader,
-} from "@/components/ui/InfinityButtonLoader";
+} from "../InfinityButtonLoader";
 import { colors, danger, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";

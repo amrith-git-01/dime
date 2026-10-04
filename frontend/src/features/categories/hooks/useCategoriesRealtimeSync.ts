@@ -21,10 +21,15 @@ export function useCategoriesRealtimeSync(userId: string | null) {
     };
 
     const channel = supabase
-      .channel("categories:global")
+      .channel(`categories:${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "categories" },
+        {
+          event: "*",
+          schema: "public",
+          table: "categories",
+          filter: `user_id=eq.${userId}`,
+        },
         invalidate,
       )
       .subscribe();

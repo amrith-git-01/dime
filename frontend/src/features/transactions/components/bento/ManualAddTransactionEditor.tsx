@@ -14,7 +14,7 @@ import {
 import {
   BUTTON_LOADER_SIZE,
   InfinityButtonLoader,
-} from "@/components/ui/InfinityButtonLoader";
+} from "@/components/ui";
 import {
   accent,
   accentTint,
@@ -265,10 +265,15 @@ export const ManualAddTransactionEditor = memo(
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Pressable style={styles.clearBtn} onPress={onClear}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.clearBtn}
+            onPress={onClear}
+          >
             <Text style={styles.clearText}>Clear</Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
             style={[styles.saveBtn, saveDisabled && styles.saveBtnDisabled]}
             onPress={onSave}
             disabled={saveDisabled}

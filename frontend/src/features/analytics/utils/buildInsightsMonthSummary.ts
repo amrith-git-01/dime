@@ -47,10 +47,13 @@ export function buildInsightsMonthSummary(
   const savingsRatePct = hasIncome
     ? Math.round((netValue / incomeNum) * 100)
     : null;
+  const spentDisplay = formatSpendMagnitude(data.debit_total);
+  const netDisplay = formatNetDisplay(data.net);
 
   return {
     transactionCount: data.transaction_count,
     hasMonthlyBudget,
+    hasIncome,
     isOverBudget,
     budgetDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
@@ -67,9 +70,10 @@ export function buildInsightsMonthSummary(
       : isOverBudget
         ? formatInrCompact(overageValue)
         : formatInrCompact(remainingValue),
-    spentDisplay: formatSpendMagnitude(data.debit_total),
+    spentDisplay,
     incomeDisplay: formatSpendMagnitude(data.credit_total),
-    netDisplay: formatNetDisplay(data.net),
+    netDisplay,
+    heroDisplay: hasIncome ? netDisplay : spentDisplay,
     netValue,
     savingsRatePct,
   };

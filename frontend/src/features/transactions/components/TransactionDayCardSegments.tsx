@@ -2,7 +2,11 @@ import { format, isToday, parseISO } from "date-fns";
 import { memo } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { EmptyState, emptyStateCopy } from "@/components/shared";
+import {
+  EmptyState,
+  emptyStateCopy,
+  SurfaceCardSegment,
+} from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import {
   danger,
@@ -11,11 +15,9 @@ import {
   inkSoft,
   line,
   success,
-  surface,
 } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
@@ -23,23 +25,13 @@ import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalend
 
 import { TransactionRow } from "./TransactionRow";
 
-const SKELETON_COUNT = 4;
+/**
+ * The selected-day card on the Transactions tab, split into list segments so the rows can be
+ * virtualized by a FlashList: header (list header), one row per item, footer or placeholder
+ * (list footer / empty component). Together they read as a single rounded card.
+ */
 
-export type TransactionDayListCardProps = {
-  dayKey: string;
-  transactions: TransactionRowData[];
-  /** Backend day summary totals for the selected day. */
-  dayNetTotal: number;
-  dayIncomeTotal: number;
-  dayExpenseTotal: number;
-  transactionCount: number;
-  /** True while the month is loading for the first time. */
-  isLoading: boolean;
-  /** True while prefetching older pages to satisfy the selected day. */
-  isFetching: boolean;
-  onTransactionPress: (tx: TransactionRowData) => void;
-  onManualAdd?: () => void;
-};
+const SKELETON_COUNT = 4;
 
 function formatDayLabel(dayKey: string): string {
   const date = parseISO(`${dayKey}T12:00:00`);
@@ -47,22 +39,20 @@ function formatDayLabel(dayKey: string): string {
   return isToday(date) ? `${formatted} · Today` : formatted;
 }
 
-export const TransactionDayListCard = memo(function TransactionDayListCard({
-  dayKey,
-  transactions,
-  dayNetTotal,
-  dayIncomeTotal,
-  dayExpenseTotal,
-  transactionCount,
-  isLoading,
-  isFetching,
-  onTransactionPress,
-  onManualAdd,
-}: TransactionDayListCardProps) {
-  const dayLabel = formatDayLabel(dayKey);
-  const netDisplay = formatTransactionListAmount(dayNetTotal);
-  const hasActivity = transactionCount > 0;
+export type TransactionDayCardHeaderProps = {
+  dayKey: string;
+  dayNetTotal: number;
+  hasActivity: boolean;
+  /** True while prefetching older pages to satisfy the selected day. */
+  isFetching: boolean;
+};
 
+export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
+  dayKey,
+  dayNetTotal,
+  hasActivity,
+  isFetching,
+}: TransactionDayCardHeaderProps) {
   const netToneStyle =
     dayNetTotal > 0
       ? styles.netPositive
@@ -71,67 +61,109 @@ export const TransactionDayListCard = memo(function TransactionDayListCard({
         : styles.netZero;
 
   return (
-    <View style={[styles.card, shadows.card]}>
-      {/* Card header: date label + day net total */}
+    <SurfaceCardSegment isFirst isLast={false}>
       <View style={styles.header}>
         <Text style={styles.dayLabel} numberOfLines={1}>
-          {dayLabel}
+          {formatDayLabel(dayKey)}
         </Text>
         {isFetching ? (
           <ActivityIndicator size="small" color={inkFaint} />
         ) : hasActivity ? (
           <Text style={[styles.dayNet, netToneStyle]} numberOfLines={1}>
-            {netDisplay} net
+            {formatTransactionListAmount(dayNetTotal)} net
           </Text>
         ) : null}
       </View>
       <View style={styles.headerDivider} />
-
-      {/* Transaction rows */}
-      {isLoading ? (
-        <SkeletonRows />
-      ) : !hasActivity ? (
-        <EmptyDayState dayKey={dayKey} onManualAdd={onManualAdd} />
-      ) : (
-        transactions.map((tx, index) => (
-          <View key={tx.id}>
-            {index > 0 && <View style={styles.rowDivider} />}
-            <TransactionRow transaction={tx} onPress={onTransactionPress} />
-          </View>
-        ))
-      )}
-
-      {/* Footer */}
-      {hasActivity && !isLoading && (
-        <>
-          <View style={styles.footerDivider} />
-          <View style={styles.footer}>
-            <Text style={styles.footerCount}>
-              {transactionCount === 1
-                ? "1 transaction"
-                : `${transactionCount} transactions`}
-            </Text>
-            <View style={styles.footerTotals}>
-              {dayIncomeTotal > 0 ? (
-                <Text style={styles.footerIncome}>
-                  {formatTransactionListAmount(dayIncomeTotal)}
-                </Text>
-              ) : null}
-              {dayIncomeTotal > 0 && dayExpenseTotal > 0 ? (
-                <View style={styles.footerTotalsDivider} />
-              ) : null}
-              {dayExpenseTotal > 0 ? (
-                <Text style={styles.footerExpense}>
-                  {formatTransactionListAmount(-dayExpenseTotal)}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        </>
-      )}
-    </View>
+    </SurfaceCardSegment>
   );
 });
+
+export type TransactionDayCardRowProps = {
+  transaction: TransactionRowData;
+  /** False for the first row, which sits directly under the header divider. */
+  showDivider: boolean;
+  onPress: (tx: TransactionRowData) => void;
+};
+
+export const TransactionDayCardRow = memo(function TransactionDayCardRow({
+  transaction,
+  showDivider,
+  onPress,
+}: TransactionDayCardRowProps) {
+  return (
+    <SurfaceCardSegment isFirst={false} isLast={false}>
+      {showDivider ? <View style={styles.rowDivider} /> : null}
+      <TransactionRow transaction={transaction} onPress={onPress} />
+    </SurfaceCardSegment>
+  );
+});
+
+export type TransactionDayCardFooterProps = {
+  transactionCount: number;
+  dayIncomeTotal: number;
+  dayExpenseTotal: number;
+};
+
+export const TransactionDayCardFooter = memo(function TransactionDayCardFooter({
+  transactionCount,
+  dayIncomeTotal,
+  dayExpenseTotal,
+}: TransactionDayCardFooterProps) {
+  return (
+    <SurfaceCardSegment isFirst={false} isLast>
+      <View style={styles.footerDivider} />
+      <View style={styles.footer}>
+        <Text style={styles.footerCount}>
+          {transactionCount === 1
+            ? "1 transaction"
+            : `${transactionCount} transactions`}
+        </Text>
+        <View style={styles.footerTotals}>
+          {dayIncomeTotal > 0 ? (
+            <Text style={styles.footerIncome}>
+              {formatTransactionListAmount(dayIncomeTotal)}
+            </Text>
+          ) : null}
+          {dayIncomeTotal > 0 && dayExpenseTotal > 0 ? (
+            <View style={styles.footerTotalsDivider} />
+          ) : null}
+          {dayExpenseTotal > 0 ? (
+            <Text style={styles.footerExpense}>
+              {formatTransactionListAmount(-dayExpenseTotal)}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    </SurfaceCardSegment>
+  );
+});
+
+export type TransactionDayCardPlaceholderProps = {
+  dayKey: string;
+  /** Skeleton rows while the month loads; otherwise the empty-day message. */
+  isLoading: boolean;
+  onManualAdd?: () => void;
+};
+
+/** Card body (and bottom edge) when there are no rows to show. */
+export const TransactionDayCardPlaceholder = memo(
+  function TransactionDayCardPlaceholder({
+    dayKey,
+    isLoading,
+    onManualAdd,
+  }: TransactionDayCardPlaceholderProps) {
+    return (
+      <SurfaceCardSegment isFirst={false} isLast>
+        {isLoading ? (
+          <SkeletonRows />
+        ) : (
+          <EmptyDayState dayKey={dayKey} onManualAdd={onManualAdd} />
+        )}
+      </SurfaceCardSegment>
+    );
+  },
+);
 
 function SkeletonRows() {
   return (
@@ -181,11 +213,6 @@ function EmptyDayState({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: surface,
-    borderRadius: radius.lg,
-    overflow: "hidden",
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",

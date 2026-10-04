@@ -14,5 +14,6 @@ export {
   type BudgetMonthBentoSummary,
 } from "./bento";
 export { BudgetCategoriesSectionHeader } from "./BudgetCategoriesSectionHeader";
+export { BudgetCategoryRow } from "./BudgetCategoryRow";
 export { BudgetSummaryBodySkeleton } from "./BudgetSummaryBodySkeleton";
 export { BudgetSummaryCard } from "./BudgetSummaryCard";

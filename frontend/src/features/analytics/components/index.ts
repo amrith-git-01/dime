@@ -1,8 +1,16 @@
+export { CompareCashflowSection } from "./compare/CompareCashflowSection";
+export { ComparePaceSection } from "./compare/ComparePaceSection";
+export { ComparePayeeSection } from "./compare/ComparePayeeSection";
+export { CompareSnapshotCard } from "./compare/CompareSnapshotCard";
+export { CompareSummarySection } from "./compare/CompareSummarySection";
 export { InsightsBurnRateMetricCard } from "./InsightsBurnRateMetricCard";
 export { InsightsCard } from "./InsightsCard";
 export { InsightsCategoryBreakdownCard } from "./InsightsCategoryBreakdownCard";
 export { InsightsCounterpartyDonutCard } from "./InsightsCounterpartyDonutCard";
-export { InsightsDailyCashflowChart } from "./InsightsDailyCashflowChart";
+export {
+  InsightsDailyCashflowChart,
+  type InsightsCashflowDaySelection,
+} from "./InsightsDailyCashflowChart";
 export { InsightsHeavyChartsPlaceholder } from "./InsightsHeavyChartsPlaceholder";
 export { InsightsIncomeSourcesCard } from "./InsightsIncomeSourcesCard";
 export { InsightsMonthCompareLauncherCard } from "./InsightsMonthCompareLauncherCard";

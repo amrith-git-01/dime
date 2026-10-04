@@ -146,7 +146,7 @@ export function scaleCashflowVictoryRow(
 }
 
 export function collectCashflowRowValues(
-  rows: Array<{ day: number } & CashflowChartRowY>,
+  rows: ({ day: number } & CashflowChartRowY)[],
 ): number[] {
   const values: number[] = [];
   for (const row of rows) {

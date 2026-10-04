@@ -40,7 +40,11 @@ export const DailyCapStrip = memo(function DailyCapStrip({
         ) : (
           <View style={styles.noBudgetRow}>
             <Text style={styles.spentOnly}>{spentDisplay} today</Text>
-            <Pressable onPress={onAddBudget} hitSlop={6}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onAddBudget}
+              hitSlop={6}
+            >
               <Text style={styles.cta}>Set limit ›</Text>
             </Pressable>
           </View>

@@ -1,5 +1,5 @@
 import { Check, Trash2 } from "lucide-react-native";
-import { memo, useCallback, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -68,6 +68,12 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
   }
 
   const draggedRef = useRef(false);
+
+  // FlashList recycles this component for other notifications: never carry an open swipe over.
+  useEffect(() => {
+    swipeableRef.current?.close();
+    draggedRef.current = false;
+  }, [notification.id]);
 
   const handlePress = useCallback(() => {
     void triggerHaptic();

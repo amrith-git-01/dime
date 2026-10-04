@@ -2,6 +2,12 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { notificationQueryKeys } from "../queryKeys";
 import type { AppNotification } from "../types";
+import {
+  patchNotificationInPages,
+  removeNotificationFromPages,
+  restoreNotificationInPages,
+  type NotificationsInboxData,
+} from "../utils/notificationPages";
 import { persistNotificationsMmkvFromQueryClient } from "./syncNotificationsMmkv";
 
 function syncMmkv(queryClient: QueryClient): void {
@@ -10,9 +16,9 @@ function syncMmkv(queryClient: QueryClient): void {
 
 export function setInboxListCache(
   queryClient: QueryClient,
-  items: AppNotification[],
+  data: NotificationsInboxData,
 ): void {
-  queryClient.setQueryData(notificationQueryKeys.inboxList(), items);
+  queryClient.setQueryData(notificationQueryKeys.inboxList(), data);
   syncMmkv(queryClient);
 }
 
@@ -21,14 +27,9 @@ export function patchInboxNotification(
   id: string,
   patch: Partial<AppNotification>,
 ): void {
-  queryClient.setQueryData<AppNotification[]>(
+  queryClient.setQueryData<NotificationsInboxData>(
     notificationQueryKeys.inboxList(),
-    (prev) => {
-      if (!prev) return prev;
-      return prev.map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      );
-    },
+    (prev) => (prev ? patchNotificationInPages(prev, id, patch) : prev),
   );
   syncMmkv(queryClient);
 }
@@ -37,9 +38,21 @@ export function removeInboxNotification(
   queryClient: QueryClient,
   id: string,
 ): void {
-  queryClient.setQueryData<AppNotification[]>(
+  queryClient.setQueryData<NotificationsInboxData>(
     notificationQueryKeys.inboxList(),
-    (prev) => (prev ? prev.filter((item) => item.id !== id) : prev),
+    (prev) => (prev ? removeNotificationFromPages(prev, id) : prev),
+  );
+  syncMmkv(queryClient);
+}
+
+/** Undoes an optimistic delete. */
+export function restoreInboxNotification(
+  queryClient: QueryClient,
+  notification: AppNotification,
+): void {
+  queryClient.setQueryData<NotificationsInboxData>(
+    notificationQueryKeys.inboxList(),
+    (prev) => (prev ? restoreNotificationInPages(prev, notification) : prev),
   );
   syncMmkv(queryClient);
 }

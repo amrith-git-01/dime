@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { colors, hexToRgba } from "@/constants";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
+import { toPaise } from "@/utils/paise";
 
 export type TransactionCategory = {
   name: string;
@@ -29,6 +30,12 @@ export function signedAmount(tx: TransactionRow): number {
     return 0;
   }
   return tx.type === "credit" ? n : -n;
+}
+
+/** Signed amount in integer paise (credits positive), for exact summing. */
+export function signedAmountPaise(tx: TransactionRow): number {
+  const paise = toPaise(tx.amount);
+  return tx.type === "credit" ? paise : -paise;
 }
 
 export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
