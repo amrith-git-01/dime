@@ -33,13 +33,16 @@ Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend a
 **Code-complete and verified locally:**
 - Audit phases 0–2 and 5–7.
 - Rewrite R0–R5.
-  - `api/` has 684 tests passing.
-  - The frontend has 55 tests passing.
-  - The Python backend has 303 tests passing.
+- Agent v2: a bounded tool-calling agent. See `docs/rewrite/agent-v2.md`.
+- Caching fixes.
+- Test counts:
+  - `api/`: 744 tests passing.
+  - Frontend: 132 tests passing.
+  - Python backend: 303 tests passing.
 
 **Not yet done:**
-- Nothing has been deployed or committed.
-- The 8 migrations in `supabase/migrations/` are unapplied.
+- Nothing has been deployed. Work is committed on the branch `feat/audit-and-workers-rewrite`, not pushed.
+- The 9 migrations in `supabase/migrations/` are unapplied. The new secret `AGENT_MEMORY_SECRET` is not set yet.
 
 **Next steps:** the user follows `docs/rewrite/GO-LIVE.md` and `api/DEPLOY.md`. Behavioural reference: `docs/rewrite/parity-spec.md`. Parity tools are in `api/scripts/parity/`.
 
