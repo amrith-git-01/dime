@@ -1,0 +1,115 @@
+name: Deploy API
+
+# Staging: automatic after the CI workflow succeeds on a push to main.
+# Production: manual only (Actions -> Deploy API -> Run workflow -> production).
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   token with Workers Scripts:Edit, Queues:Edit, Hyperdrive:Edit, Account Settings:Read
+#   CLOUDFLARE_ACCOUNT_ID  the account id (`npx wrangler whoami`)
+#
+# Create two GitHub Environments, `staging` and `production`. On `production` enable
+# "Required reviewers" (Settings -> Environments -> production) so a person approves every
+# production deploy; the job below uses that environment, so it waits for the approval.
+#
+# Worker secrets (SUPABASE_SECRET_KEY, DEEPSEEK_API_KEY, ...) are NOT managed here: set them once with
+# `wrangler secret put` (see api/DEPLOY.md). Queues and the Hyperdrive config must already exist.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+# One deploy per environment at a time; never cancel a deploy that is already running.
+concurrency:
+  group: deploy-api-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    name: Deploy to staging
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For workflow_run, deploy exactly the commit CI validated.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Install
+        working-directory: api
+        run: npm ci
+      - name: Refuse to deploy placeholder config
+        working-directory: api
+        run: |
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (SUPABASE_URL / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q '"id": "00000000000000000000000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder Hyperdrive id"; exit 1; fi
+      - name: Deploy (staging)
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: deploy --env staging
+      - name: Smoke test
+        if: steps.deploy.outputs.deployment-url != ''
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "${{ steps.deploy.outputs.deployment-url }}/api/v1/health"
+
+  production:
+    name: Deploy to production
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    # Protected environment: add required reviewers in the repository settings.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Install
+        working-directory: api
+        run: npm ci
+      - name: Typecheck, lint and test the exact commit being shipped
+        working-directory: api
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+      - name: Refuse to deploy placeholder config
+        working-directory: api
+        run: |
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (SUPABASE_URL / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q '"id": "00000000000000000000000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder Hyperdrive id"; exit 1; fi
+      - name: Deploy (production)
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: deploy
+      - name: Smoke test
+        if: steps.deploy.outputs.deployment-url != ''
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "${{ steps.deploy.outputs.deployment-url }}/api/v1/health"

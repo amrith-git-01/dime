@@ -3,7 +3,8 @@
 .cursor
 .vscode
 .codex/
-.github/
+.github/*
+!.github/workflows/
 AGENTS.md
 
 # Superpowers agent specs, plans, and mockups
