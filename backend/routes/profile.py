@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from urllib.error import URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from supabase import Client
@@ -13,7 +9,9 @@ from supabase import Client
 from core.async_utils import run_sync
 from core.config import get_settings
 from deps import get_current_user_id, get_supabase_service_client
-from features.profile_avatar.service import ProfileAvatarService
+from features.profile_avatar.fetch import fetch_avatar_image
+from features.profile_avatar.service import MAX_AVATAR_BYTES, ProfileAvatarService
+from features.uploads.validation import read_upload_capped
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -33,7 +31,7 @@ async def upload_profile_avatar(
     file: UploadFile = File(..., description="JPEG, PNG, or WebP image."),
 ) -> ProfileAvatarUploadResponse:
     settings = get_settings()
-    data = await file.read()
+    data = await read_upload_capped(file, max_bytes=MAX_AVATAR_BYTES)
     try:
         service = ProfileAvatarService(supabase)
         url = await run_sync(
@@ -56,25 +54,13 @@ async def upload_profile_avatar_from_url(
     supabase: Client = Depends(get_supabase_service_client),
 ) -> ProfileAvatarUploadResponse:
     settings = get_settings()
-    parsed = urlparse(body.image_url.strip())
-    if parsed.scheme not in {"http", "https"}:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid image URL.")
-
-    request = Request(
-        body.image_url.strip(),
-        headers={"User-Agent": "DimeAvatarFetcher/1.0"},
-    )
-    def _fetch_image() -> bytes:
-        with urlopen(request, timeout=12) as response:
-            return response.read()
-
     try:
-        data = await run_sync(_fetch_image)
-    except URLError as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Could not fetch selected avatar image.",
-        ) from exc
+        data = await fetch_avatar_image(
+            body.image_url,
+            allowed_hosts=settings.avatar_url_allowed_hosts,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     try:
         service = ProfileAvatarService(supabase)

@@ -14,6 +14,8 @@ class UserSettingsResponse(BaseModel):
     device_notifications_enabled: bool = True
     daily_expense_reminder_enabled: bool = True
     daily_expense_reminder_time: str = "20:00"
+    weekly_email_enabled: bool = True
+    monthly_email_enabled: bool = True
 
 
 class UserSettingsPatchBody(BaseModel):
@@ -34,3 +36,5 @@ class UserSettingsPatchBody(BaseModel):
         default=None,
         pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$",
     )
+    weekly_email_enabled: bool | None = None
+    monthly_email_enabled: bool | None = None

@@ -109,5 +109,4 @@ def test_delete_custom_category_reassigns_then_deletes(service: CategoryService)
         user_id=_USER,
         from_category_id=_CAT,
         to_category_id=target,
-        to_category_name="Food",
     )

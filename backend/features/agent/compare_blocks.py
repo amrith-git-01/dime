@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from features.agent.schemas import AgentBlockMiniChart, CompareSeriesItem, DonutSeriesItem, MiniChartPayload
+from features.agent.schemas import (
+    AgentBlockMiniChart,
+    CompareSeriesItem,
+    DonutSeriesItem,
+    MiniChartPayload,
+)
 
 _MAX_COMPARE_ROWS = 8
 

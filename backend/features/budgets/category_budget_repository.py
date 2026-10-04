@@ -7,7 +7,6 @@ from typing import Any
 
 from supabase import Client
 
-
 _SELECT = "id,user_id,category_id,monthly_amount,created_at,updated_at"
 
 

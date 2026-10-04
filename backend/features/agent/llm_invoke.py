@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage

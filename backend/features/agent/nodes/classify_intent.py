@@ -12,7 +12,6 @@ fill the schema via tool-calling — no regex, no JSON extraction.
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage

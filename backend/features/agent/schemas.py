@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+
 class SqlAttempt(BaseModel):
     sql: str
     row_count: int

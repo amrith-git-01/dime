@@ -23,6 +23,8 @@ def _full_row(**overrides: object) -> dict[str, object]:
         "device_notifications_enabled": True,
         "daily_expense_reminder_enabled": True,
         "daily_expense_reminder_time": "20:00",
+        "weekly_email_enabled": True,
+        "monthly_email_enabled": True,
     }
     row.update(overrides)
     return row

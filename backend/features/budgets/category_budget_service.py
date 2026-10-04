@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 
 from fastapi import HTTPException, status
 from supabase import Client

@@ -125,7 +125,7 @@ def test_enrich_cashflow_blocks_gap_fills() -> None:
     assert block.payload["end_date"] == "2026-05-17"
 
 
-def test_daily_comparison_asks_when_range_exceeds_30_days() -> None:
+def test_daily_comparison_asks_when_range_exceeds_max_days() -> None:
     fixed = datetime(2026, 6, 13, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
     resolved = resolve_time_range(
         "daily spending for the last 60 days",
@@ -146,7 +146,7 @@ def test_daily_comparison_asks_when_range_exceeds_30_days() -> None:
     assert time_range is not None
     assert time_range["day_count"] == 60
     assert clarification is not None
-    assert "30 days" in clarification
+    assert f"{MAX_DAILY_COMPARISON_DAYS} days" in clarification
     assert "60 days" in clarification
 
 
@@ -170,7 +170,7 @@ def test_aggregate_last_60_days_not_clamped() -> None:
     assert clarification is None
 
 
-def test_daily_without_range_defaults_to_30_days() -> None:
+def test_daily_without_range_defaults_to_max_days() -> None:
     fixed = datetime(2026, 6, 13, 12, 0, tzinfo=ZoneInfo("UTC"))
     time_range, clarification = resolve_daily_comparison_range(
         user_text="Show my daily spending",
@@ -194,9 +194,9 @@ def test_build_daily_range_clarification_mentions_requested_window() -> None:
         }
     )
 
-    assert "30 days" in message
+    assert f"{MAX_DAILY_COMPARISON_DAYS} days" in message
     assert "61 days" in message
-    assert "last 30 days" in message
+    assert f"last {MAX_DAILY_COMPARISON_DAYS} days" in message
 
 
 def test_is_daily_comparison_text_detects_keywords() -> None:

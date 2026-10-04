@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from supabase import Client
 
 from core.async_utils import run_sync
+from core.errors import NotFoundError
 from deps import get_current_user_id, get_supabase_service_client
 from features.notifications.schemas import (
     NotificationFilter,
@@ -17,8 +17,6 @@ from features.notifications.schemas import (
     UnreadCountResponse,
 )
 from features.notifications.service import NotificationService
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -29,15 +27,7 @@ async def list_notifications(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> NotificationListResponse:
-    try:
-        service = NotificationService(supabase)
-        return await run_sync(service.list_inbox, user_id, filter=filter)
-    except Exception as exc:
-        logger.exception("Failed to list notifications for user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load notifications.",
-        ) from exc
+    return await run_sync(NotificationService(supabase).list_inbox, user_id, filter=filter)
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
@@ -45,15 +35,7 @@ async def unread_count(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> UnreadCountResponse:
-    try:
-        service = NotificationService(supabase)
-        return await run_sync(service.unread_count, user_id)
-    except Exception as exc:
-        logger.exception("Failed unread count for user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load unread count.",
-        ) from exc
+    return await run_sync(NotificationService(supabase).unread_count, user_id)
 
 
 @router.patch("/{notification_id}/read", response_model=NotificationResponse)
@@ -62,21 +44,9 @@ async def mark_notification_read(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> NotificationResponse:
-    try:
-        service = NotificationService(supabase)
-        row = await run_sync(service.mark_read, user_id, str(notification_id))
-    except Exception as exc:
-        logger.exception(
-            "Failed to mark notification read user_id=%s id=%s",
-            user_id,
-            notification_id,
-        )
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not mark notification read.",
-        ) from exc
+    row = await run_sync(NotificationService(supabase).mark_read, user_id, str(notification_id))
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notification not found.")
+        raise NotFoundError("Notification not found.")
     return row
 
 
@@ -86,18 +56,6 @@ async def delete_notification(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> None:
-    try:
-        service = NotificationService(supabase)
-        deleted = await run_sync(service.delete, user_id, str(notification_id))
-    except Exception as exc:
-        logger.exception(
-            "Failed to delete notification user_id=%s id=%s",
-            user_id,
-            notification_id,
-        )
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not delete notification.",
-        ) from exc
+    deleted = await run_sync(NotificationService(supabase).delete, user_id, str(notification_id))
     if not deleted:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notification not found.")
+        raise NotFoundError("Notification not found.")

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from features.user_feedback.schemas import FeedbackCreateBody
 from features.user_feedback.service import UserFeedbackService

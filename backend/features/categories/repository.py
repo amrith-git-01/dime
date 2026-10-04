@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from supabase import Client
-
 
 _SELECT = "id,user_id,name,icon_name,color,is_system,created_at"
 
@@ -84,7 +84,7 @@ class CategoryRepository:
         out: dict[str, dict[str, Any]] = {}
         ids = list(category_ids)
 
-        query = db.table("categories").select("id,name,icon_name,color").in_("id", ids)
+        query = db.table("categories").select("id,name,icon_name,color,is_system").in_("id", ids)
         if user_id:
             query = query.or_(f"is_system.eq.true,user_id.eq.{user_id}")
         res = query.execute()
@@ -159,6 +159,38 @@ class CategoryRepository:
         first = data[0]
         return first if isinstance(first, dict) else None
 
+    def update_category_with_budget(
+        self,
+        *,
+        user_id: str,
+        category_id: str,
+        name: str | None,
+        icon_name: str | None,
+        color: str | None,
+        set_budget: bool,
+        budget_amount: Decimal | None,
+    ) -> dict[str, Any]:
+        """Atomic category + budget update via the ``update_category_with_budget`` function."""
+        res = self._db.rpc(
+            "update_category_with_budget",
+            {
+                "p_user_id": user_id,
+                "p_category_id": category_id,
+                "p_name": name,
+                "p_icon_name": icon_name,
+                "p_color": color,
+                "p_set_budget": set_budget,
+                "p_budget_amount": str(budget_amount) if budget_amount is not None else None,
+            },
+        ).execute()
+        data = res.data
+        if isinstance(data, list) and data:
+            data = data[0]
+        if not isinstance(data, dict) or not isinstance(data.get("category"), dict):
+            msg = "update_category_with_budget returned an unexpected payload."
+            raise RuntimeError(msg)
+        return data
+
     def count_transactions_for_category(
         self,
         *,
@@ -182,16 +214,15 @@ class CategoryRepository:
         user_id: str,
         from_category_id: str,
         to_category_id: str,
-        to_category_name: str,
     ) -> None:
+        """Move transactions between categories.
+
+        ``transactions`` has no ``category`` name column (it only stores ``category_id``; the
+        display name is resolved on read), so writing one would fail the whole update.
+        """
         (
             self._db.table("transactions")
-            .update(
-                {
-                    "category_id": to_category_id,
-                    "category": to_category_name,
-                },
-            )
+            .update({"category_id": to_category_id})
             .eq("user_id", user_id)
             .eq("category_id", from_category_id)
             .is_("deleted_at", "null")

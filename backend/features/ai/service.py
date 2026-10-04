@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -50,9 +50,10 @@ class AIOrchestratorService:
         try:
             ocr = await extract_receipt_text(image_bytes, mime_type)
         except OcrError as exc:
+            logger.warning("[ai] receipt-ocr-failed error=%s", exc)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
+                detail="Could not read text from the uploaded receipt.",
             ) from exc
 
         return await self._parse_with_deepseek(
@@ -74,9 +75,10 @@ class AIOrchestratorService:
         try:
             transcript = await transcribe_audio(audio_bytes, mime_type)
         except TranscriptionError as exc:
+            logger.warning("[ai] voice-transcription-failed error=%s", exc)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
+                detail="Could not transcribe the uploaded audio.",
             ) from exc
 
         return await self._parse_with_deepseek(
@@ -197,7 +199,7 @@ class AIOrchestratorService:
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI_PARSE_UNAVAILABLE: mode={mode.value}, error={last_msg}",
+            detail="AI_PARSE_UNAVAILABLE",
         )
 
     async def _call_deepseek(

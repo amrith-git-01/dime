@@ -33,6 +33,29 @@ def month_bounds_iso(year: int, month: int, tz_name: str) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def month_range_iso(year: int, month: int, tz_name: str) -> tuple[str, str]:
+    """Half-open ``[month_start, next_month_start)`` in ``tz_name`` (preferred for queries)."""
+    tz = parse_tz(tz_name)
+    start = datetime.combine(date(year, month, 1), time.min, tzinfo=tz)
+    next_year, next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    next_start = datetime.combine(date(next_year, next_month, 1), time.min, tzinfo=tz)
+    return start.isoformat(), next_start.isoformat()
+
+
+def current_month_range_iso(tz_name: str) -> tuple[str, str]:
+    now = datetime.now(parse_tz(tz_name))
+    return month_range_iso(now.year, now.month, tz_name)
+
+
+def today_range_iso(tz_name: str) -> tuple[str, str]:
+    """Half-open ``[today 00:00, tomorrow 00:00)`` in ``tz_name``."""
+    tz = parse_tz(tz_name)
+    today = datetime.now(tz).date()
+    start = datetime.combine(today, time.min, tzinfo=tz)
+    end = datetime.combine(today + timedelta(days=1), time.min, tzinfo=tz)
+    return start.isoformat(), end.isoformat()
+
+
 def day_bounds_iso(day: date, tz_name: str) -> tuple[str, str]:
     """Inclusive bounds for one calendar day in ``tz_name``."""
     tz = parse_tz(tz_name)

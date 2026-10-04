@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -14,8 +15,9 @@ class Settings(BaseSettings):
     ``SUPABASE_JWT_SECRET`` (Dashboard: Project Settings → API → JWT Secret) is required only
     when verifying user JWTs in this API.
 
-    ``API_LISTEN_HOST`` / ``API_LISTEN_PORT`` (defaults ``0.0.0.0`` / ``8000``) are used when
-    starting the app with ``python main.py`` from the backend directory.
+    ``API_LISTEN_HOST`` / ``API_LISTEN_PORT`` are kept for tooling; the app has no built-in
+    server entrypoint. Run it with ``uv run python -m uvicorn main:app --reload`` (dev) or plain
+    ``uvicorn main:app`` (production).
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -43,6 +45,10 @@ class Settings(BaseSettings):
     storage_bucket: str = Field(
         default="Dime",
         validation_alias=AliasChoices("STORAGE_BUCKET", "AVATAR_STORAGE_BUCKET"),
+    )
+    private_storage_bucket: str = Field(
+        default="Dime-private",
+        validation_alias=AliasChoices("PRIVATE_STORAGE_BUCKET"),
     )
     ai_base_url: str = Field(
         default="https://api.deepseek.com/chat/completions",
@@ -96,17 +102,49 @@ class Settings(BaseSettings):
         default=2,
         validation_alias=AliasChoices("VOICE_WORKER_COUNT"),
     )
-    manual_worker_count: int = Field(
-        default=2,
-        validation_alias=AliasChoices("MANUAL_WORKER_COUNT"),
-    )
     sms_worker_count: int = Field(
         default=2,
         validation_alias=AliasChoices("SMS_WORKER_COUNT"),
     )
+    jobs_recovery_min_age_seconds: int = Field(
+        default=120,
+        validation_alias=AliasChoices("JOBS_RECOVERY_MIN_AGE_SECONDS"),
+    )
+    jobs_sweep_interval_seconds: float = Field(
+        default=30.0,
+        validation_alias=AliasChoices("JOBS_SWEEP_INTERVAL_SECONDS"),
+    )
+    jobs_max_attempts: int = Field(
+        default=3,
+        validation_alias=AliasChoices("JOBS_MAX_ATTEMPTS"),
+    )
+    jobs_shutdown_grace_seconds: float = Field(
+        default=20.0,
+        validation_alias=AliasChoices("JOBS_SHUTDOWN_GRACE_SECONDS"),
+    )
     worker_queue_maxsize: int = Field(
-        default=32,
+        default=8,
         validation_alias=AliasChoices("WORKER_QUEUE_MAXSIZE"),
+    )
+    max_receipt_upload_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        validation_alias=AliasChoices("MAX_RECEIPT_UPLOAD_BYTES"),
+    )
+    max_voice_upload_bytes: int = Field(
+        default=15 * 1024 * 1024,
+        validation_alias=AliasChoices("MAX_VOICE_UPLOAD_BYTES"),
+    )
+    signed_url_ttl_seconds: int = Field(
+        default=6 * 60 * 60,
+        validation_alias=AliasChoices("SIGNED_URL_TTL_SECONDS"),
+    )
+    avatar_url_allowed_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["api.dicebear.com"],
+        validation_alias=AliasChoices("AVATAR_URL_ALLOWED_HOSTS"),
+    )
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("CORS_ORIGINS"),
     )
     agent_base_url: str = Field(
         default = "https://api.deepseek.com",
@@ -161,7 +199,45 @@ class Settings(BaseSettings):
         default=10,
         validation_alias=AliasChoices("AGENT_SQL_POOL_MAX"),
     )
+    brevo_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("BREVO_API_KEY"),
+    )
+    email_from: str = Field(
+        default="Dime <hello@localhost>",
+        validation_alias=AliasChoices("EMAIL_FROM"),
+    )
+    email_unsubscribe_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("EMAIL_UNSUBSCRIBE_SECRET"),
+    )
+    email_app_link: str = Field(
+        default="https://play.google.com/store",
+        validation_alias=AliasChoices("EMAIL_APP_LINK"),
+    )
+    email_cron_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("EMAIL_CRON_SECRET"),
+    )
+    email_public_base_url: str = Field(
+        default="http://127.0.0.1:8000",
+        validation_alias=AliasChoices("EMAIL_PUBLIC_BASE_URL"),
+    )
+    email_asset_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("EMAIL_ASSET_BASE_URL"),
+    )
+    favqs_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FAVQS_API_KEY"),
+    )
 
+    @field_validator("cors_origins", "avatar_url_allowed_hosts", mode="before")
+    @classmethod
+    def _split_comma_separated(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
 
 @lru_cache

@@ -28,9 +28,6 @@ class TransactionCreate(BaseModel):
     category_id: UUID | None = None
     note: str | None = Field(default=None, max_length=2000)
     transaction_at: datetime
-    detected_via: DetectedViaType | None = None
-    receipt_url: str | None = Field(default=None, max_length=2048)
-    voice_url: str | None = Field(default=None, max_length=2048)
 
     @field_validator("counterparty_type", mode="before")
     @classmethod
@@ -62,6 +59,18 @@ class TransactionCreate(BaseModel):
             stripped = value.strip()
             return stripped if stripped else None
         return None
+
+
+class InternalTransactionCreate(TransactionCreate):
+    """Server-side create payload (workers). Never exposed on the public API.
+
+    ``detected_via`` and the media object paths are set only by trusted code paths; the public
+    ``TransactionCreate`` ignores any client-supplied values for them.
+    """
+
+    detected_via: DetectedViaType | None = None
+    receipt_url: str | None = Field(default=None, max_length=2048)
+    voice_url: str | None = Field(default=None, max_length=2048)
 
     @field_validator("detected_via", mode="before")
     @classmethod

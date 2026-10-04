@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from deps import get_current_user_id
 from features.agent.schemas import ChatRequest, ChatResponse
 from features.agent.service import AgentService
+from features.agent.sql_executor import ensure_sql_pool
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent", tags=["agent"])
 _bearer = HTTPBearer()
 
@@ -26,18 +24,15 @@ async def chat(
     user_id: str = Depends(get_current_user_id),
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> ChatResponse:
-    token = credentials.credentials
-    service = _service()
-
-    try:
-        return await service.chat(
-            user_id=user_id,
-            user_jwt=token,
-            body=body,
-        )
-    except Exception as exc:
-        logger.exception("Agent chat failed user_id=%s", user_id)
+    # The pool may have failed at startup; retry lazily and answer 503 until it is up.
+    if not await ensure_sql_pool():
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Agent request failed. Please try again.",
-        ) from exc
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Assistant is temporarily unavailable. Try again shortly.",
+            headers={"Retry-After": "10"},
+        )
+    return await _service().chat(
+        user_id=user_id,
+        user_jwt=credentials.credentials,
+        body=body,
+    )

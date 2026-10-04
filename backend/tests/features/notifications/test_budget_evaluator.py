@@ -6,7 +6,6 @@ from features.notifications.budget_evaluator import BudgetThresholdEvaluator
 from features.notifications.emitter import NotificationEmitter
 from features.user_settings.snapshot import UserSettingsSnapshot
 
-
 _USER = "11111111-1111-1111-1111-111111111111"
 _TX_AT = "2026-05-31T14:30:00+05:30"
 _TZ = "Asia/Kolkata"

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from supabase import Client
 
 from core.security import CurrentUser
 from features.user_profile.repository import UserProfileRepository
 from features.user_profile.schemas import MeResponse, ProfileUpdateBody
+
+logger = logging.getLogger(__name__)
 
 
 class UserProfileService:
@@ -14,8 +18,27 @@ class UserProfileService:
         self._repo = UserProfileRepository(supabase)
 
     def get_me(self, user: CurrentUser) -> MeResponse:
+        return self.get_me_with_welcome_flag(user)[0]
+
+    def get_me_with_welcome_flag(self, user: CurrentUser) -> tuple[MeResponse, bool]:
+        """Read the profile; write the email only when it changed (no write per call).
+
+        The flag says whether a welcome email should be attempted: the users row is missing
+        (new account) or its stored email just changed. ``email_sends`` still guarantees once.
+        """
         row = self._repo.fetch_by_id(user.id)
-        return self._row_to_me(user, row)
+        should_welcome = False
+        if user.email:
+            stored = row.get("email") if row is not None else None
+            if row is None:
+                should_welcome = True
+            elif stored != user.email:
+                should_welcome = True
+                try:
+                    self._repo.update_email_if_row_exists(user.id, user.email)
+                except Exception:
+                    logger.exception("Could not persist email for user id=%s", user.id)
+        return self._row_to_me(user, row), should_welcome
 
     def update_profile(self, user: CurrentUser, body: ProfileUpdateBody) -> MeResponse:
         avatar_url: str | None = None

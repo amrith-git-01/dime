@@ -80,7 +80,7 @@ class TransactionRepository:
         if from_iso is not None:
             q = q.gte("transaction_at", from_iso)
         if to_iso is not None:
-            q = q.lte("transaction_at", to_iso)
+            q = q.lt("transaction_at", to_iso)
         end = offset + fetch_n - 1
         res = execute_with_http_retry(
             lambda: q.order("transaction_at", desc=True).range(offset, end).execute()
@@ -102,6 +102,10 @@ class TransactionRepository:
         to_iso: str | None,
     ) -> dict[str, Any] | None:
         """Single RPC round-trip for credit/debit totals, count, and debit-by-category.
+
+        Callers pass a half-open ``[from, to)`` range (``to`` = start of the next period). The
+        RPC body is not in this repo: if it filters ``<= p_to`` a row stamped exactly at ``to``
+        would be counted in both adjacent periods; verify it uses ``< p_to``.
 
         Returns ``None`` if the RPC is missing or fails (caller may fall back to paging).
         """
@@ -149,7 +153,7 @@ class TransactionRepository:
             if from_iso is not None:
                 q = q.gte("transaction_at", from_iso)
             if to_iso is not None:
-                q = q.lte("transaction_at", to_iso)
+                q = q.lt("transaction_at", to_iso)
             res = execute_with_http_retry(
                 lambda: q.order("transaction_at", desc=True)
                 .range(offset, offset + page_size - 1)
@@ -189,7 +193,7 @@ class TransactionRepository:
             if from_iso is not None:
                 q = q.gte("transaction_at", from_iso)
             if to_iso is not None:
-                q = q.lte("transaction_at", to_iso)
+                q = q.lt("transaction_at", to_iso)
             res = execute_with_http_retry(
                 lambda: q.order("transaction_at", desc=True)
                 .range(offset, offset + page_size - 1)
@@ -230,7 +234,7 @@ class TransactionRepository:
             if from_iso is not None:
                 q = q.gte("transaction_at", from_iso)
             if to_iso is not None:
-                q = q.lte("transaction_at", to_iso)
+                q = q.lt("transaction_at", to_iso)
             res = execute_with_http_retry(
                 lambda: q.order("transaction_at", desc=True)
                 .range(offset, offset + page_size - 1)
@@ -271,7 +275,7 @@ class TransactionRepository:
             if from_iso is not None:
                 q = q.gte("transaction_at", from_iso)
             if to_iso is not None:
-                q = q.lte("transaction_at", to_iso)
+                q = q.lt("transaction_at", to_iso)
             res = execute_with_http_retry(
                 lambda: q.order("transaction_at", desc=True)
                 .range(offset, offset + page_size - 1)
@@ -309,7 +313,7 @@ class TransactionRepository:
         if from_iso is not None:
             q = q.gte("transaction_at", from_iso)
         if to_iso is not None:
-            q = q.lte("transaction_at", to_iso)
+            q = q.lt("transaction_at", to_iso)
         res = execute_with_http_retry(
             lambda: q.order("amount", desc=True)
             .order("transaction_at", desc=True)

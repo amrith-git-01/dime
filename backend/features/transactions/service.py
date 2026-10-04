@@ -13,6 +13,9 @@ from fastapi import HTTPException, status
 from supabase import Client
 
 from core.async_utils import run_sync
+from core.config import get_settings
+from core.db_errors import is_unique_violation
+from core.errors import ConflictError, NotFoundError
 from core.security import CurrentUser
 from features.budgets.category_budget_repository import CategoryBudgetRepository
 from features.budgets.repository import BudgetRepository
@@ -25,10 +28,8 @@ from features.notifications.emitter import (
 )
 from features.notifications.push_tokens_repository import PushTokensRepository
 from features.notifications.repository import NotificationRepository
-from features.user_settings.repository import UserSettingsRepository
-from features.user_settings.service import UserSettingsService
-from features.transactions.repository import TransactionRepository
 from features.transactions.dedupe import build_payment_hash, build_sparse_merge_patch
+from features.transactions.repository import TransactionRepository
 from features.transactions.schemas import (
     DailySpendRow,
     DayTransactionSummary,
@@ -41,15 +42,22 @@ from features.transactions.schemas import (
     TransactionUpdate,
 )
 from features.transactions.time_bounds import (
-    current_month_bounds_iso,
+    current_month_range_iso,
     last_n_days_bounds_iso,
-    month_bounds_iso,
+    month_range_iso,
     parse_tz,
-    today_bounds_iso,
+    today_range_iso,
 )
-
+from features.uploads.storage import sign_media_urls
+from features.user_settings.repository import UserSettingsRepository
+from features.user_settings.service import UserSettingsService
 
 logger = logging.getLogger(__name__)
+
+
+def _internal_field(body: TransactionCreate, name: str) -> Any:
+    """Read server-set fields (``detected_via``, media paths) that only ``InternalTransactionCreate`` has."""
+    return getattr(body, name, None)
 
 
 def _to_decimal(value: object) -> Decimal:
@@ -165,8 +173,9 @@ def _build_day_summaries(
     all_days = set(credit_by_day) | set(debit_by_day) | set(count_by_day)
     summaries: dict[str, DayTransactionSummary] = {}
     for day_key in sorted(all_days):
-        credit = credit_by_day.get(day_key, Decimal("0"))
-        debit = debit_by_day.get(day_key, Decimal("0"))
+        # Quantized zero keeps every total at two decimals (e.g. "0.00", not "0").
+        credit = credit_by_day.get(day_key, Decimal("0.00"))
+        debit = debit_by_day.get(day_key, Decimal("0.00"))
         net = credit - debit
         summaries[day_key] = DayTransactionSummary(
             date=day_key,
@@ -280,7 +289,7 @@ class TransactionService:
         month: int,
         timezone: str,
     ) -> MonthSummaryResponse:
-        start, end = month_bounds_iso(year, month, timezone)
+        start, end = month_range_iso(year, month, timezone)
         blob = self._repo.fetch_transactions_period_summary(
             user.id,
             from_iso=start,
@@ -326,8 +335,8 @@ class TransactionService:
 
     async def home_overview(self, user: CurrentUser, *, timezone: str) -> HomeOverviewResponse:
         """Home dashboard aggregates — parallel Supabase round-trips (audit 4.2)."""
-        t_start, t_end = today_bounds_iso(timezone)
-        m_start, m_end = current_month_bounds_iso(timezone)
+        t_start, t_end = today_range_iso(timezone)
+        m_start, m_end = current_month_range_iso(timezone)
         w_start, w_end = last_n_days_bounds_iso(7, timezone)
         user_id = user.id
 
@@ -518,6 +527,38 @@ class TransactionService:
         return None, None
 
     def _enrich_rows(self, user_id: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        enriched = self._enrich_category_fields(user_id, rows)
+        self._sign_media_urls(enriched)
+        return enriched
+
+    def _sign_media_urls(self, rows: list[dict[str, Any]]) -> None:
+        """Replace stored object paths in ``receipt_url`` / ``voice_url`` with short-lived signed URLs."""
+        stored = [
+            value
+            for row in rows
+            for value in (row.get("receipt_url"), row.get("voice_url"))
+            if isinstance(value, str) and value
+        ]
+        if not stored:
+            return
+        settings = get_settings()
+        signed = sign_media_urls(
+            self._repo._db,  # type: ignore[attr-defined]
+            stored,
+            default_bucket=settings.private_storage_bucket,
+            expires_in=settings.signed_url_ttl_seconds,
+        )
+        for row in rows:
+            for key in ("receipt_url", "voice_url"):
+                value = row.get(key)
+                if isinstance(value, str) and value:
+                    row[key] = signed.get(value)
+
+    def _enrich_category_fields(
+        self,
+        user_id: str,
+        rows: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         flattened = [_flatten_embed(r) for r in rows]
         missing_ids: set[str] = set()
         for row in flattened:
@@ -576,11 +617,11 @@ class TransactionService:
             "amount": amount_str,
             "type": body.type,
             "note": body.note,
-            "detected_via": body.detected_via or "manual",
+            "detected_via": _internal_field(body, "detected_via") or "manual",
             "transaction_at": body.transaction_at.isoformat(),
             "category_id": category_id,
-            "receipt_url": body.receipt_url,
-            "voice_url": body.voice_url,
+            "receipt_url": _internal_field(body, "receipt_url"),
+            "voice_url": _internal_field(body, "voice_url"),
             "counterparty_name": name_stripped,
             "counterparty_normalized": counterparty_normalized,
             "payment_hash": payment_hash,
@@ -613,8 +654,7 @@ class TransactionService:
 
     @staticmethod
     def _is_unique_violation(exc: BaseException) -> bool:
-        message = str(exc).lower()
-        return "duplicate key" in message or "unique constraint" in message
+        return is_unique_violation(exc)
 
     def _find_existing_duplicate(
         self,
@@ -687,7 +727,7 @@ class TransactionService:
                 category_id=category_id,
             )
 
-        detected = body.detected_via or "manual"
+        detected = _internal_field(body, "detected_via") or "manual"
         if detected in AUTO_DETECTED:
             notifier.emit_transaction_auto(
                 user_id=user.id,
@@ -697,6 +737,12 @@ class TransactionService:
             )
 
         return TransactionResponse.model_validate(enriched_row)
+
+    def get_one(self, user: CurrentUser, transaction_id: str) -> TransactionResponse:
+        row = self._repo.fetch_active_for_user(user.id, transaction_id)
+        if row is None:
+            raise NotFoundError("Transaction not found.")
+        return self._response_from_existing(user.id, row)
 
     def update_manual(
         self,
@@ -731,6 +777,26 @@ class TransactionService:
         }
         if body.counterparty_type is not None:
             patch["counterparty_type"] = body.counterparty_type
+
+        # B2: keep the duplicate-detection fingerprint in step with the editable fields
+        # (amount, type, payee, minute of transaction_at).
+        new_hash = build_payment_hash(
+            amount=body.amount,
+            tx_type=body.type,
+            counterparty_normalized=counterparty_normalized,
+            counterparty_name=name_stripped,
+            transaction_at=body.transaction_at,
+        )
+        if new_hash != existing.get("payment_hash"):
+            clash = self._repo.find_by_payment_hash(user.id, new_hash)
+            if clash is not None and str(clash.get("id")) != transaction_id:
+                if existing.get("payment_hash"):
+                    raise ConflictError(
+                        "Another transaction already has the same amount, payee, type and time."
+                    )
+                # Legacy row without a hash that would collide: leave the hash unset.
+            else:
+                patch["payment_hash"] = new_hash
 
         updated = self._repo.update_for_user(
             user_id=user.id,

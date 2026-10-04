@@ -38,19 +38,13 @@ class NotificationRepository:
             msg = "insert_deduped requires user_id and dedupe_key"
             raise ValueError(msg)
 
-        existing = (
+        # Race-free dedupe (unique index on user_id, dedupe_key): a conflict inserts nothing
+        # and returns no row.
+        res = (
             self._db.table("notifications")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("dedupe_key", dedupe_key)
-            .is_("deleted_at", "null")
-            .limit(1)
+            .upsert(row, on_conflict="user_id,dedupe_key", ignore_duplicates=True)
             .execute()
         )
-        if isinstance(existing.data, list) and existing.data:
-            return None
-
-        res = self._db.table("notifications").insert(row).execute()
         data = res.data
         if not isinstance(data, list) or not data:
             return None

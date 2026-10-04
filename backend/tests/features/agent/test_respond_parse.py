@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from features.agent.respond_parse import parse_respond_json
 
 

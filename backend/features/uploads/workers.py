@@ -1,3 +1,9 @@
+"""Job handlers for capture pipelines (receipt / voice / SMS).
+
+Handlers are invoked by ``features.jobs.manager.JobManager`` workers. Media is never carried in
+the job: the request path uploads it to the private bucket and the job stores the object path.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,20 +16,21 @@ import httpx
 from fastapi import HTTPException
 from supabase import Client
 
+from core.async_utils import run_sync
 from core.security import CurrentUser
 from features.ai.preprocess.errors import OcrError, PreprocessError, TranscriptionError
 from features.ai.schemas import ParseExpenseResult
-from features.ai.service import AIParseError, AIOrchestratorService
+from features.ai.service import AIOrchestratorService, AIParseError
 from features.ai.voice_audio import VoiceAudioNormalizeError, normalize_audio_for_transcription
 from features.notifications.emitter import NotificationEmitter
 from features.notifications.push_tokens_repository import PushTokensRepository
 from features.notifications.repository import NotificationRepository
+from features.transactions.schemas import InternalTransactionCreate, TransactionResponse
+from features.transactions.service import TransactionService
 from features.user_settings.repository import UserSettingsRepository
 from features.user_settings.service import UserSettingsService
-from features.transactions.schemas import TransactionCreate
-from features.transactions.service import TransactionService
 
-from .storage import upload_bytes
+from .storage import download_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +40,26 @@ MAX_JOB_ATTEMPTS = 3
 @dataclass(slots=True, frozen=True)
 class ManualTransactionJob:
     user_id: str
-    payload: TransactionCreate
+    payload: InternalTransactionCreate
     timezone: str
 
 
 @dataclass(slots=True, frozen=True)
 class ReceiptJob:
+    """Receipt already uploaded to the private bucket; the job stores only the object path."""
+
     user_id: str
-    file_bytes: bytes
+    object_path: str
     mime_type: str
     timezone: str
 
 
 @dataclass(slots=True, frozen=True)
 class VoiceJob:
+    """Voice note already uploaded to the private bucket; the job stores only the object path."""
+
     user_id: str
-    file_bytes: bytes
+    object_path: str
     mime_type: str
     timezone: str
 
@@ -65,7 +76,7 @@ def _build_user(user_id: str) -> CurrentUser:
     return CurrentUser(id=user_id)
 
 
-def _extract_upload_extension_from_mime(mime: str, *, fallback: str) -> str:
+def extract_upload_extension_from_mime(mime: str, *, fallback: str) -> str:
     lowered = mime.strip().lower()
     if "/" not in lowered:
         return fallback
@@ -132,9 +143,9 @@ def _build_transaction_payload(
     receipt_url: str | None = None,
     voice_url: str | None = None,
     fallback_at: datetime | None = None,
-) -> TransactionCreate:
+) -> InternalTransactionCreate:
     transaction_at = parsed.date or fallback_at or datetime.now(UTC)
-    return TransactionCreate(
+    return InternalTransactionCreate(
         amount=parsed.amount,
         type=parsed.type.value,
         counterparty_name=parsed.counterparty_name,
@@ -164,17 +175,16 @@ def _is_retryable_worker_error(exc: BaseException) -> bool:
     return False
 
 
-async def _run_with_retries(
+async def _run_with_retries[T](
     *,
     label: str,
     user_id: str,
-    step: Callable[[], Awaitable[None]],
-) -> None:
+    step: Callable[[], Awaitable[T]],
+) -> T:
     last_exc: BaseException | None = None
     for attempt in range(MAX_JOB_ATTEMPTS):
         try:
-            await step()
-            return
+            return await step()
         except Exception as exc:
             last_exc = exc
             if not _is_retryable_worker_error(exc):
@@ -197,14 +207,13 @@ async def _run_with_retries(
                 exc,
             )
             await asyncio.sleep(delay_s)
-    if last_exc is not None:
-        raise last_exc
+    raise last_exc if last_exc is not None else RuntimeError("retry loop exited")
 
 
-async def process_manual_job(*, client: Client, job: ManualTransactionJob) -> None:
+async def process_manual_job(*, client: Client, job: ManualTransactionJob) -> TransactionResponse:
     service = TransactionService(client)
     user = _build_user(job.user_id)
-    await asyncio.to_thread(
+    return await asyncio.to_thread(
         service.create_manual,
         user,
         job.payload,
@@ -212,28 +221,65 @@ async def process_manual_job(*, client: Client, job: ManualTransactionJob) -> No
     )
 
 
+def _notify_capture_failed_sync(
+    client: Client,
+    *,
+    user_id: str,
+    source: str,
+    title: str,
+    body: str,
+) -> None:
+    settings_snapshot = UserSettingsService(UserSettingsRepository(client)).get_snapshot(user_id)
+    NotificationEmitter(
+        NotificationRepository(client),
+        settings=settings_snapshot,
+        push_tokens_repo=PushTokensRepository(client),
+    ).emit_capture_failed(
+        user_id=user_id,
+        source=source,  # type: ignore[arg-type]
+        title=title,
+        body=body,
+        day_key=datetime.now(UTC).date().isoformat(),
+    )
+
+
+async def _notify_capture_failed(
+    client: Client,
+    *,
+    user_id: str,
+    source: str,
+    title: str,
+    body: str,
+) -> None:
+    """Blocking Supabase/Expo calls run in a thread; a notification failure never masks the job error."""
+    try:
+        await run_sync(
+            _notify_capture_failed_sync,
+            client,
+            user_id=user_id,
+            source=source,
+            title=title,
+            body=body,
+        )
+    except Exception:
+        logger.exception("capture_failed notification failed user_id=%s", user_id)
+
+
 async def process_receipt_job(
     *,
     client: Client,
     bucket: str,
     job: ReceiptJob,
-) -> None:
+) -> TransactionResponse:
     try:
-        await _process_receipt_job_inner(client=client, bucket=bucket, job=job)
+        return await _process_receipt_job_inner(client=client, bucket=bucket, job=job)
     except Exception:
-        settings_snapshot = UserSettingsService(
-            UserSettingsRepository(client)
-        ).get_snapshot(job.user_id)
-        NotificationEmitter(
-            NotificationRepository(client),
-            settings=settings_snapshot,
-            push_tokens_repo=PushTokensRepository(client),
-        ).emit_capture_failed(
+        await _notify_capture_failed(
+            client,
             user_id=job.user_id,
             source="scan",
             title="Receipt scan failed",
             body="We couldn't read this receipt. Try again or add manually.",
-            day_key=datetime.now(UTC).date().isoformat(),
         )
         raise
 
@@ -243,26 +289,18 @@ async def _process_receipt_job_inner(
     client: Client,
     bucket: str,
     job: ReceiptJob,
-) -> None:
-    upload = await upload_bytes(
-        client=client,
-        bucket=bucket,
-        user_id=job.user_id,
-        kind="receipts",
-        file_bytes=job.file_bytes,
-        content_type=job.mime_type,
-        extension=_extract_upload_extension_from_mime(job.mime_type, fallback="jpg"),
-    )
+) -> TransactionResponse:
+    file_bytes = await download_bytes(client=client, bucket=bucket, object_path=job.object_path)
 
     allowed_categories, category_options = await load_category_options(
         client,
         job.user_id,
     )
 
-    async def _parse_and_save() -> None:
+    async def _parse_and_save() -> TransactionResponse:
         try:
             parsed = await AIOrchestratorService().parse_receipt(
-                job.file_bytes,
+                file_bytes,
                 job.mime_type,
                 allowed_categories,
                 category_options,
@@ -277,9 +315,9 @@ async def _process_receipt_job_inner(
         payload = _build_transaction_payload(
             parsed,
             detected_via="scan",
-            receipt_url=upload.public_url,
+            receipt_url=job.object_path,
         )
-        await process_manual_job(
+        return await process_manual_job(
             client=client,
             job=ManualTransactionJob(
                 user_id=job.user_id,
@@ -288,7 +326,7 @@ async def _process_receipt_job_inner(
             ),
         )
 
-    await _run_with_retries(
+    return await _run_with_retries(
         label="receipt_parse",
         user_id=job.user_id,
         step=_parse_and_save,
@@ -300,17 +338,18 @@ async def process_voice_job(
     client: Client,
     bucket: str,
     job: VoiceJob,
-) -> None:
+) -> TransactionResponse:
+    file_bytes = await download_bytes(client=client, bucket=bucket, object_path=job.object_path)
     logger.info(
         "[voice-pipeline] job-start user_id=%s mime=%s in_bytes=%d",
         job.user_id,
         job.mime_type,
-        len(job.file_bytes),
+        len(file_bytes),
     )
 
     normalized_bytes, normalized_format = await asyncio.to_thread(
         normalize_audio_for_transcription,
-        job.file_bytes,
+        file_bytes,
         job.mime_type,
     )
     normalized_mime = "audio/wav" if normalized_format == "wav" else "audio/mpeg"
@@ -319,21 +358,6 @@ async def process_voice_job(
         normalized_format,
         normalized_mime,
         len(normalized_bytes),
-    )
-
-    upload = await upload_bytes(
-        client=client,
-        bucket=bucket,
-        user_id=job.user_id,
-        kind="voice_inputs",
-        file_bytes=normalized_bytes,
-        content_type=normalized_mime,
-        extension=normalized_format,
-    )
-    logger.info(
-        "[voice-pipeline] uploaded path=%s public_url=%s",
-        upload.object_path,
-        upload.public_url,
     )
 
     allowed_categories, category_options = await load_category_options(
@@ -346,7 +370,7 @@ async def process_voice_job(
         allowed_categories[:5],
     )
 
-    async def _parse_and_save() -> None:
+    async def _parse_and_save() -> TransactionResponse:
         logger.info(
             "[voice-pipeline] ai-call-start mode=voice mime=%s audio_bytes=%d",
             normalized_mime,
@@ -381,7 +405,7 @@ async def process_voice_job(
         payload = _build_transaction_payload(
             parsed,
             detected_via="voice",
-            voice_url=upload.public_url,
+            voice_url=job.object_path,
         )
         logger.info(
             "[voice-pipeline] db-insert-start user_id=%s amount=%s type=%s voice_url=%s",
@@ -390,7 +414,7 @@ async def process_voice_job(
             payload.type,
             payload.voice_url,
         )
-        await process_manual_job(
+        created = await process_manual_job(
             client=client,
             job=ManualTransactionJob(
                 user_id=job.user_id,
@@ -399,42 +423,36 @@ async def process_voice_job(
             ),
         )
         logger.info("[voice-pipeline] db-insert-done user_id=%s", job.user_id)
+        return created
 
-    await _run_with_retries(
+    return await _run_with_retries(
         label="voice_parse",
         user_id=job.user_id,
         step=_parse_and_save,
     )
 
 
-async def process_sms_job(*, client: Client, job: SmsJob) -> None:
+async def process_sms_job(*, client: Client, job: SmsJob) -> TransactionResponse:
     try:
-        await _process_sms_job_inner(client=client, job=job)
+        return await _process_sms_job_inner(client=client, job=job)
     except Exception:
-        settings_snapshot = UserSettingsService(
-            UserSettingsRepository(client)
-        ).get_snapshot(job.user_id)
-        NotificationEmitter(
-            NotificationRepository(client),
-            settings=settings_snapshot,
-            push_tokens_repo=PushTokensRepository(client),
-        ).emit_capture_failed(
+        await _notify_capture_failed(
+            client,
             user_id=job.user_id,
             source="sms",
             title="SMS capture failed",
             body="We couldn't read this bank message. Try again or add manually.",
-            day_key=datetime.now(UTC).date().isoformat(),
         )
         raise
 
 
-async def _process_sms_job_inner(*, client: Client, job: SmsJob) -> None:
+async def _process_sms_job_inner(*, client: Client, job: SmsJob) -> TransactionResponse:
     allowed_categories, category_options = await load_category_options(
         client,
         job.user_id,
     )
 
-    async def _parse_and_save() -> None:
+    async def _parse_and_save() -> TransactionResponse:
         parsed = await AIOrchestratorService().parse_sms(
             job.body,
             allowed_categories,
@@ -445,7 +463,7 @@ async def _process_sms_job_inner(*, client: Client, job: SmsJob) -> None:
             detected_via="sms",
             fallback_at=job.received_at,
         )
-        await process_manual_job(
+        return await process_manual_job(
             client=client,
             job=ManualTransactionJob(
                 user_id=job.user_id,
@@ -454,74 +472,8 @@ async def _process_sms_job_inner(*, client: Client, job: SmsJob) -> None:
             ),
         )
 
-    await _run_with_retries(
+    return await _run_with_retries(
         label="sms_parse",
         user_id=job.user_id,
         step=_parse_and_save,
     )
-
-
-async def run_manual_worker(
-    *,
-    worker_name: str,
-    queue: asyncio.Queue[ManualTransactionJob],
-    client: Client,
-) -> None:
-    while True:
-        job = await queue.get()
-        try:
-            await process_manual_job(client=client, job=job)
-        except Exception:
-            logger.exception("%s failed to process manual transaction", worker_name)
-        finally:
-            queue.task_done()
-
-
-async def run_receipt_worker(
-    *,
-    worker_name: str,
-    queue: asyncio.Queue[ReceiptJob],
-    client: Client,
-    bucket: str,
-) -> None:
-    while True:
-        job = await queue.get()
-        try:
-            await process_receipt_job(client=client, bucket=bucket, job=job)
-        except Exception:
-            logger.exception("%s failed to process receipt transaction", worker_name)
-        finally:
-            queue.task_done()
-
-
-async def run_voice_worker(
-    *,
-    worker_name: str,
-    queue: asyncio.Queue[VoiceJob],
-    client: Client,
-    bucket: str,
-) -> None:
-    while True:
-        job = await queue.get()
-        try:
-            await process_voice_job(client=client, bucket=bucket, job=job)
-        except Exception:
-            logger.exception("%s failed to process voice transaction", worker_name)
-        finally:
-            queue.task_done()
-
-
-async def run_sms_worker(
-    *,
-    worker_name: str,
-    queue: asyncio.Queue[SmsJob],
-    client: Client,
-) -> None:
-    while True:
-        job = await queue.get()
-        try:
-            await process_sms_job(client=client, job=job)
-        except Exception:
-            logger.exception("%s failed to process SMS transaction", worker_name)
-        finally:
-            queue.task_done()

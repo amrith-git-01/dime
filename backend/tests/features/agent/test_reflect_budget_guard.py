@@ -18,9 +18,9 @@ def test_budget_guard_retries_when_sql_omits_transactions() -> None:
 
     guard = _budget_spend_guard(state)
 
-    assert guard is not None
-    assert guard.status == "retry"
-    assert "transactions" in (guard.next_sql_hint or "").lower()
+    # The guard returns a retry hint string (reflect is deterministic, no LLM result object).
+    assert isinstance(guard, str)
+    assert "transactions" in guard.lower()
 
 
 def test_budget_guard_passes_when_spent_present() -> None:

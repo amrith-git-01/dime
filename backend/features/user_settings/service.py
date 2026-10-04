@@ -36,6 +36,8 @@ class UserSettingsService:
             ("device_notifications_enabled", body.device_notifications_enabled),
             ("daily_expense_reminder_enabled", body.daily_expense_reminder_enabled),
             ("daily_expense_reminder_time", body.daily_expense_reminder_time),
+            ("weekly_email_enabled", body.weekly_email_enabled),
+            ("monthly_email_enabled", body.monthly_email_enabled),
         )
         for key, value in mapping:
             if value is not None:
@@ -67,4 +69,6 @@ class UserSettingsService:
             device_notifications_enabled=snap.device_notifications_enabled,
             daily_expense_reminder_enabled=snap.daily_expense_reminder_enabled,
             daily_expense_reminder_time=snap.daily_expense_reminder_time,
+            weekly_email_enabled=snap.weekly_email_enabled,
+            monthly_email_enabled=snap.monthly_email_enabled,
         )

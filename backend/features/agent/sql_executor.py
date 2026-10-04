@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -20,23 +21,51 @@ logger = logging.getLogger(__name__)
 _pool: asyncpg.Pool | None = None
 
 
-async def init_sql_pool() -> None:
-    """Create the asyncpg connection pool. Called once at application startup."""
-    global _pool
+_POOL_RETRY_SECONDS = 10.0
+_pool_lock = asyncio.Lock()
+_last_pool_attempt = 0.0
+
+
+async def init_sql_pool() -> bool:
+    """Create the asyncpg pool. Never raises: a DB outage at boot must not stop the API.
+
+    Returns ``True`` when a pool exists afterwards. ``ensure_sql_pool`` retries lazily.
+    """
+    global _pool, _last_pool_attempt
     settings = get_settings()
+    if _pool is not None:
+        return True
     if not settings.database_url:
-        logger.warning("DATABASE_URL not set — agent SQL pool not initialised")
-        return
-    _pool = await asyncpg.create_pool(
-        settings.database_url,
-        min_size=settings.agent_sql_pool_min,
-        max_size=settings.agent_sql_pool_max,
-    )
+        logger.warning("DATABASE_URL not set - agent SQL pool not initialised")
+        return False
+    _last_pool_attempt = time.monotonic()
+    try:
+        _pool = await asyncpg.create_pool(
+            settings.database_url,
+            min_size=settings.agent_sql_pool_min,
+            max_size=settings.agent_sql_pool_max,
+        )
+    except Exception:
+        logger.exception("Agent SQL pool init failed; agent returns 503 until it succeeds")
+        return False
     logger.info(
         "Agent SQL pool ready (min=%d max=%d)",
         settings.agent_sql_pool_min,
         settings.agent_sql_pool_max,
     )
+    return True
+
+
+async def ensure_sql_pool() -> bool:
+    """True when the pool is usable; otherwise retry init (at most every 10 s)."""
+    if _pool is not None:
+        return True
+    async with _pool_lock:
+        if _pool is not None:
+            return True
+        if time.monotonic() - _last_pool_attempt < _POOL_RETRY_SECONDS:
+            return False
+        return await init_sql_pool()
 
 
 async def close_sql_pool() -> None:
@@ -80,8 +109,8 @@ async def _run_query(
     start: float,
     max_rows: int,
 ) -> SQLExecutionResult:
-    """Execute one validated SELECT inside a transaction with RLS applied."""
-    async with conn.transaction():
+    """Execute one validated SELECT inside a read-only transaction with RLS applied."""
+    async with conn.transaction(readonly=True):
         await conn.execute("SELECT set_config('request.jwt.claims', $1, true)", claims)
         await conn.execute("SET LOCAL role authenticated")
         await conn.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")

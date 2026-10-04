@@ -17,7 +17,9 @@ _SELECT = (
     "capture_failed_alerts_enabled,"
     "device_notifications_enabled,"
     "daily_expense_reminder_enabled,"
-    "daily_expense_reminder_time"
+    "daily_expense_reminder_time,"
+    "weekly_email_enabled,"
+    "monthly_email_enabled"
 )
 
 _DEFAULTS: dict[str, Any] = {
@@ -33,6 +35,8 @@ _DEFAULTS: dict[str, Any] = {
     "device_notifications_enabled": True,
     "daily_expense_reminder_enabled": True,
     "daily_expense_reminder_time": "20:00",
+    "weekly_email_enabled": True,
+    "monthly_email_enabled": True,
 }
 
 

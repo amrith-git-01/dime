@@ -8,7 +8,7 @@ from features.agent.sql_validator import validate_select_sql
 def test_accepts_simple_select() -> None:
     result = validate_select_sql("SELECT id FROM transactions")
     assert result.ok is True
-    assert "LIMIT 500" in result.sql
+    assert result.sql == "SELECT * FROM (SELECT id FROM transactions) AS _q LIMIT 500"
 
 
 def test_rejects_empty_sql() -> None:
@@ -41,10 +41,11 @@ def test_rejects_disallowed_table() -> None:
     assert "Disallowed tables" in (result.error or "")
 
 
-def test_preserves_existing_limit() -> None:
-    result = validate_select_sql("SELECT id FROM transactions LIMIT 10")
+def test_wraps_query_with_row_limit_even_when_limit_present() -> None:
+    result = validate_select_sql("SELECT id FROM transactions LIMIT 10", max_rows=50)
     assert result.ok is True
-    assert result.sql.count("LIMIT") == 1
+    # Inner LIMIT is kept; the outer wrapper enforces the cap.
+    assert result.sql.endswith("AS _q LIMIT 50")
     assert "LIMIT 10" in result.sql
 
 

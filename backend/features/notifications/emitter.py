@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 import logging
-from typing import Any, Callable, Literal
+from collections.abc import Callable
+from decimal import Decimal
+from typing import Any, Literal
 
 from features.notifications.push import send_expo_push
 from features.notifications.push_tokens_repository import PushTokensRepository

@@ -1,10 +1,8 @@
-"""Authenticated monthly budget (v1: single row per user)."""
+"""Authenticated monthly budget (v1: single row per user) and per-category budgets."""
 
 from __future__ import annotations
 
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from supabase import Client
 
 from core.async_utils import run_sync
@@ -18,8 +16,6 @@ from features.budgets.category_budget_service import CategoryBudgetService
 from features.budgets.schemas import BudgetGetResponse, BudgetResponse, BudgetUpsertBody
 from features.budgets.service import BudgetService
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/budget", tags=["budget"])
 
 
@@ -28,15 +24,7 @@ async def read_budget(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> BudgetGetResponse:
-    try:
-        service = BudgetService(supabase)
-        return await run_sync(service.get_budget, user_id)
-    except Exception as exc:
-        logger.exception("Failed to read budget for user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load budget.",
-        ) from exc
+    return await run_sync(BudgetService(supabase).get_budget, user_id)
 
 
 @router.patch("", response_model=BudgetResponse)
@@ -45,15 +33,7 @@ async def patch_budget(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> BudgetResponse:
-    try:
-        service = BudgetService(supabase)
-        return await run_sync(service.upsert_budget, user_id, body)
-    except Exception as exc:
-        logger.exception("Failed to upsert budget for user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not save budget.",
-        ) from exc
+    return await run_sync(BudgetService(supabase).upsert_budget, user_id, body)
 
 
 @router.get("/categories", response_model=CategoryBudgetListResponse)
@@ -61,15 +41,7 @@ async def list_category_budgets(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> CategoryBudgetListResponse:
-    try:
-        service = CategoryBudgetService(supabase)
-        return await run_sync(service.list_category_budgets, user_id)
-    except Exception as exc:
-        logger.exception("Failed to list category budgets for user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load category budgets.",
-        ) from exc
+    return await run_sync(CategoryBudgetService(supabase).list_category_budgets, user_id)
 
 
 @router.put("/categories/{category_id}", response_model=CategoryBudgetItem)
@@ -79,22 +51,9 @@ async def put_category_budget(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> CategoryBudgetItem:
-    try:
-        service = CategoryBudgetService(supabase)
-        return await run_sync(
-            service.upsert_category_budget,
-            user_id,
-            category_id,
-            body,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to upsert category budget user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not save category budget.",
-        ) from exc
+    return await run_sync(
+        CategoryBudgetService(supabase).upsert_category_budget, user_id, category_id, body
+    )
 
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -103,14 +62,4 @@ async def delete_category_budget(
     user_id: str = Depends(get_current_user_id),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> None:
-    try:
-        service = CategoryBudgetService(supabase)
-        await run_sync(service.delete_category_budget, user_id, category_id)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to delete category budget user_id=%s", user_id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not remove category budget.",
-        ) from exc
+    await run_sync(CategoryBudgetService(supabase).delete_category_budget, user_id, category_id)

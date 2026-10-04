@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import calendar
 import re
-from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -24,7 +23,7 @@ from features.insights.schemas import (
 from features.transactions.repository import TransactionRepository
 from features.transactions.schemas import TransactionResponse
 from features.transactions.service import TransactionService, _to_decimal
-from features.transactions.time_bounds import month_bounds_iso, parse_tz
+from features.transactions.time_bounds import month_range_iso, parse_tz
 
 _TOP_PAYEES = 4
 _TOP_EXPENSES = 5
@@ -248,7 +247,7 @@ class InsightsService:
         month: int,
         timezone: str,
     ) -> MonthInsightsResponse:
-        start, end = month_bounds_iso(year, month, timezone)
+        start, end = month_range_iso(year, month, timezone)
         blob = self._repo.fetch_transactions_period_summary(
             user.id,
             from_iso=start,

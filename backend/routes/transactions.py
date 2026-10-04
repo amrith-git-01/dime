@@ -1,20 +1,31 @@
-"""Authenticated transaction list and manual create."""
+"""Authenticated transaction list, manual create, and queued capture (receipt / voice / SMS).
+
+Unexpected errors propagate to the global handler (500 + request ID); domain errors raised by
+services (``core.errors``) map to 404/409/422/503. ``ValueError`` from bad timezone input stays
+a 400.
+"""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
+from fastapi.responses import JSONResponse
 from supabase import Client
 
 from core.async_utils import run_sync
-from core.job_runner import enqueue_receipt, enqueue_sms, enqueue_voice
+from core.config import get_settings
+from core.job_runner import get_job_manager
 from core.security import CurrentUser
 from deps import get_current_user, get_supabase_service_client
 from features.insights.schemas import MonthInsightsResponse
 from features.insights.service import InsightsService
+from features.jobs.idempotency import derived_keys, parse_idempotency_key, run_idempotent
+from features.jobs.manager import JobManager
+from features.jobs.repository import JobsRepository
 from features.transactions.schemas import (
     HomeOverviewResponse,
     MonthSummaryResponse,
@@ -25,11 +36,25 @@ from features.transactions.schemas import (
     TransactionUpdate,
 )
 from features.transactions.service import TransactionService
-from features.uploads.workers import ReceiptJob, SmsJob, VoiceJob
+from features.uploads.storage import delete_object_quietly, upload_bytes
+from features.uploads.validation import (
+    read_upload_capped,
+    sniff_receipt_content_type,
+    sniff_voice_content_type,
+)
+from features.uploads.workers import extract_upload_extension_from_mime
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+IdempotencyKeyHeader = Annotated[
+    str | None,
+    Header(
+        alias="Idempotency-Key",
+        description="Optional UUID. The same user + key returns the original result.",
+    ),
+]
 
 
 @router.get("/home", response_model=HomeOverviewResponse)
@@ -42,12 +67,6 @@ async def transactions_home(
         return await TransactionService(supabase).home_overview(user, timezone=timezone)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Failed home overview for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load home overview.",
-        ) from exc
 
 
 @router.get("/month-summary", response_model=MonthSummaryResponse)
@@ -59,9 +78,8 @@ async def transactions_month_summary(
     timezone: str = Query(..., min_length=2, max_length=80),
 ) -> MonthSummaryResponse:
     try:
-        service = TransactionService(supabase)
         return await run_sync(
-            service.month_summary,
+            TransactionService(supabase).month_summary,
             user,
             year=year,
             month=month,
@@ -69,12 +87,6 @@ async def transactions_month_summary(
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Failed month summary for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load month summary.",
-        ) from exc
 
 
 @router.get("/month-insights", response_model=MonthInsightsResponse)
@@ -86,9 +98,8 @@ async def transactions_month_insights(
     timezone: str = Query(..., min_length=2, max_length=80),
 ) -> MonthInsightsResponse:
     try:
-        service = InsightsService(supabase)
         return await run_sync(
-            service.month_insights,
+            InsightsService(supabase).month_insights,
             user,
             year=year,
             month=month,
@@ -96,43 +107,37 @@ async def transactions_month_insights(
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Failed month insights for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load month insights.",
-        ) from exc
 
 
 @router.get("", response_model=TransactionListResponse)
 async def list_transactions(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
-    from_: datetime | None = Query(None, alias="from"),
-    to: datetime | None = Query(None, alias="to"),
+    from_: datetime | None = Query(None, alias="from", description="Inclusive lower bound."),
+    to: datetime | None = Query(None, alias="to", description="Exclusive upper bound."),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     timezone: str | None = Query(None, min_length=2, max_length=80),
 ) -> TransactionListResponse:
-    try:
-        from_iso = from_.isoformat() if from_ is not None else None
-        to_iso = to.isoformat() if to is not None else None
-        service = TransactionService(supabase)
-        return await run_sync(
-            service.list_mine_paginated,
-            user,
-            from_iso=from_iso,
-            to_iso=to_iso,
-            limit=limit,
-            offset=offset,
-            timezone=timezone,
-        )
-    except Exception as exc:
-        logger.exception("Failed to list transactions for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not load transactions.",
-        ) from exc
+    return await run_sync(
+        TransactionService(supabase).list_mine_paginated,
+        user,
+        from_iso=from_.isoformat() if from_ is not None else None,
+        to_iso=to.isoformat() if to is not None else None,
+        limit=limit,
+        offset=offset,
+        timezone=timezone,
+    )
+
+
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+async def get_transaction(
+    transaction_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_service_client),
+) -> TransactionResponse:
+    """One transaction (same shape as list items, with fresh signed media URLs)."""
+    return await run_sync(TransactionService(supabase).get_one, user, str(transaction_id))
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -141,21 +146,31 @@ async def create_transaction(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
     timezone: str = Query(..., min_length=2, max_length=80),
-) -> dict[str, bool]:
-    """Manual transactions need no AI processing — insert synchronously so the client
-    can refetch immediately after receiving 201 and see the new transaction."""
-    try:
-        service = TransactionService(supabase)
-        await run_sync(service.create_manual, user, body, timezone=timezone)
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> JSONResponse:
+    """Manual transactions need no AI processing: insert synchronously so the client can refetch
+    immediately after receiving 201 and see the new transaction."""
+    key = parse_idempotency_key(idempotency_key)
+    service = TransactionService(supabase)
+
+    def _create() -> dict[str, bool]:
+        service.create_manual(user, body, timezone=timezone)
         return {"accepted": True}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to create manual transaction for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not save transaction.",
-        ) from exc
+
+    if key is None:
+        content = await run_sync(_create)
+        return JSONResponse(content, status_code=status.HTTP_201_CREATED)
+
+    status_code, content = await run_sync(
+        run_idempotent,
+        JobsRepository(supabase),
+        user_id=user.id,
+        key=key,
+        kind="manual_create",
+        action=_create,
+        status_code=status.HTTP_201_CREATED,
+    )
+    return JSONResponse(content, status_code=status_code)
 
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)
@@ -165,21 +180,9 @@ async def update_transaction(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> TransactionResponse:
-    try:
-        service = TransactionService(supabase)
-        return await run_sync(service.update_manual, user, str(transaction_id), body)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception(
-            "Failed to update transaction id=%s user id=%s",
-            transaction_id,
-            user.id,
-        )
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not update transaction.",
-        ) from exc
+    return await run_sync(
+        TransactionService(supabase).update_manual, user, str(transaction_id), body
+    )
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -188,112 +191,169 @@ async def delete_transaction(
     user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_service_client),
 ) -> None:
+    await run_sync(TransactionService(supabase).soft_delete, user, str(transaction_id))
+
+
+_ACCEPTED = {"accepted": True}
+
+
+async def _upload_and_submit(
+    *,
+    kind: str,
+    storage_kind: str,
+    content: bytes,
+    content_type: str,
+    fallback_ext: str,
+    user: CurrentUser,
+    supabase: Client,
+    manager: JobManager,
+    timezone: str,
+    key: str | None,
+) -> None:
+    """Store the raw media in the private bucket, then persist + enqueue the job (path only)."""
+    manager.ensure_capacity(kind, 1)
+    bucket = get_settings().private_storage_bucket
+    upload = await upload_bytes(
+        client=supabase,
+        bucket=bucket,
+        user_id=user.id,
+        kind=storage_kind,  # type: ignore[arg-type]
+        file_bytes=content,
+        content_type=content_type,
+        extension=extract_upload_extension_from_mime(content_type, fallback=fallback_ext),
+    )
     try:
-        service = TransactionService(supabase)
-        await run_sync(service.soft_delete, user, str(transaction_id))
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception(
-            "Failed to delete transaction id=%s user id=%s",
-            transaction_id,
-            user.id,
+        result = await manager.submit(
+            user_id=user.id,
+            kind=kind,
+            payloads=[
+                {
+                    "object_path": upload.object_path,
+                    "mime_type": content_type,
+                    "timezone": timezone,
+                }
+            ],
+            idempotency_keys=[key] if key else None,
         )
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not delete transaction.",
-        ) from exc
+    except BaseException:
+        await delete_object_quietly(
+            client=supabase, bucket=bucket, object_path=upload.object_path
+        )
+        raise
+    if result.replayed:  # lost a race with an identical request: drop the duplicate upload
+        await delete_object_quietly(
+            client=supabase, bucket=bucket, object_path=upload.object_path
+        )
 
 
 @router.post("/receipt", status_code=status.HTTP_202_ACCEPTED)
 async def create_transaction_from_receipt(
-    request: Request,
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
-    _supabase: Client = Depends(get_supabase_service_client),
+    supabase: Client = Depends(get_supabase_service_client),
+    manager: JobManager = Depends(get_job_manager),
     timezone: str = Query(..., min_length=2, max_length=80),
+    idempotency_key: IdempotencyKeyHeader = None,
 ) -> dict[str, bool]:
-    try:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="uploaded file is empty")
-        enqueue_receipt(
-            request.app,
-            ReceiptJob(
-                user_id=user.id,
-                file_bytes=content,
-                mime_type=file.content_type or "application/octet-stream",
-                timezone=timezone,
-            ),
-        )
-        return {"accepted": True}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to enqueue receipt transaction for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not queue receipt transaction.",
-        ) from exc
+    key = parse_idempotency_key(idempotency_key)
+    if key and await manager.lookup(user.id, [key]):
+        return dict(_ACCEPTED)
+    content = await read_upload_capped(file, max_bytes=get_settings().max_receipt_upload_bytes)
+    if not content:
+        raise HTTPException(status_code=400, detail="uploaded file is empty")
+    content_type = sniff_receipt_content_type(content)
+    await _upload_and_submit(
+        kind="receipt",
+        storage_kind="receipts",
+        content=content,
+        content_type=content_type,
+        fallback_ext="jpg",
+        user=user,
+        supabase=supabase,
+        manager=manager,
+        timezone=timezone,
+        key=key,
+    )
+    return dict(_ACCEPTED)
 
 
 @router.post("/voice", status_code=status.HTTP_202_ACCEPTED)
 async def create_transaction_from_voice(
-    request: Request,
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
-    _supabase: Client = Depends(get_supabase_service_client),
+    supabase: Client = Depends(get_supabase_service_client),
+    manager: JobManager = Depends(get_job_manager),
     timezone: str = Query(..., min_length=2, max_length=80),
+    idempotency_key: IdempotencyKeyHeader = None,
 ) -> dict[str, bool]:
-    try:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="uploaded file is empty")
-        enqueue_voice(
-            request.app,
-            VoiceJob(
-                user_id=user.id,
-                file_bytes=content,
-                mime_type=file.content_type or "application/octet-stream",
-                timezone=timezone,
-            ),
-        )
-        return {"accepted": True}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to enqueue voice transaction for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not queue voice transaction.",
-        ) from exc
+    key = parse_idempotency_key(idempotency_key)
+    if key and await manager.lookup(user.id, [key]):
+        return dict(_ACCEPTED)
+    content = await read_upload_capped(file, max_bytes=get_settings().max_voice_upload_bytes)
+    if not content:
+        raise HTTPException(status_code=400, detail="uploaded file is empty")
+    content_type = sniff_voice_content_type(content)
+    await _upload_and_submit(
+        kind="voice",
+        storage_kind="voice_inputs",
+        content=content,
+        content_type=content_type,
+        fallback_ext="wav",
+        user=user,
+        supabase=supabase,
+        manager=manager,
+        timezone=timezone,
+        key=key,
+    )
+    return dict(_ACCEPTED)
 
 
 @router.post("/sms", status_code=status.HTTP_202_ACCEPTED)
 async def create_transactions_from_sms(
-    request: Request,
     body: SmsBatchRequest,
     user: CurrentUser = Depends(get_current_user),
-    _supabase: Client = Depends(get_supabase_service_client),
+    manager: JobManager = Depends(get_job_manager),
     timezone: str = Query(..., min_length=2, max_length=80),
-) -> dict[str, bool]:
-    try:
-        for item in body.messages:
-            enqueue_sms(
-                request.app,
-                SmsJob(
-                    user_id=user.id,
-                    body=item.body,
-                    received_at=item.received_at,
-                    timezone=timezone,
-                ),
+    idempotency_key: IdempotencyKeyHeader = None,
+) -> dict[str, object]:
+    """Queue a batch of SMS messages, all or nothing.
+
+    Every item was validated by the request schema (422 names the bad item) before anything is
+    queued; the whole batch's capacity is reserved up front (503 with nothing queued otherwise).
+    The response lists a per-message outcome: ``queued`` (with ``job_id``) or ``duplicate``
+    (identical body + timestamp earlier in the same batch).
+    """
+    key = parse_idempotency_key(idempotency_key)
+
+    first_index: dict[tuple[str, str], int] = {}
+    outcomes: list[dict[str, object]] = []
+    to_queue: list[int] = []
+    for index, item in enumerate(body.messages):
+        fingerprint = (item.body, item.received_at.isoformat())
+        if fingerprint in first_index:
+            outcomes.append(
+                {"index": index, "status": "duplicate", "duplicate_of": first_index[fingerprint]}
             )
-        return {"accepted": True}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to enqueue SMS transactions for user id=%s", user.id)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            detail="Could not queue SMS transactions.",
-        ) from exc
+            continue
+        first_index[fingerprint] = index
+        outcomes.append({"index": index, "status": "queued"})
+        to_queue.append(index)
+
+    keys = derived_keys(key, len(body.messages)) if key else None
+    queue_keys = [keys[i] for i in to_queue] if keys else None
+    result = await manager.submit(
+        user_id=user.id,
+        kind="sms",
+        payloads=[
+            {
+                "body": body.messages[i].body,
+                "received_at": body.messages[i].received_at.isoformat(),
+                "timezone": timezone,
+            }
+            for i in to_queue
+        ],
+        idempotency_keys=queue_keys,
+    )
+    for index, job in zip(to_queue, result.jobs, strict=False):
+        outcomes[index]["job_id"] = job.id
+    return {"accepted": True, "results": outcomes}

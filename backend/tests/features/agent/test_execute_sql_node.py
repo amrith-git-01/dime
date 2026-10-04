@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.messages import AIMessage
 
 from features.agent.nodes.execute_sql import _extract_run_sql_call, execute_sql
+from features.agent.sql_executor import SQLExecutionResult
 from features.agent.state import initial_agent_state
 
 
@@ -52,12 +53,17 @@ async def test_execute_sql_updates_state(monkeypatch: pytest.MonkeyPatch) -> Non
     ]
     state["query_rounds"] = 0
 
-    mock_tool = MagicMock()
-    mock_tool.ainvoke = AsyncMock(
-        return_value='{"rows":[{"amount":100}],"row_count":1,"columns":["amount"],'
-        '"truncated":false,"error":null,"elapsed_ms":12}'
+    mock_execute = AsyncMock(
+        return_value=SQLExecutionResult(
+            rows=[{"amount": 100}],
+            row_count=1,
+            columns=["amount"],
+            truncated=False,
+            error=None,
+            elapsed_ms=12,
+        )
     )
-    monkeypatch.setattr("features.agent.nodes.execute_sql.run_sql", mock_tool)
+    monkeypatch.setattr("features.agent.nodes.execute_sql.execute_readonly_sql", mock_execute)
 
     update = await execute_sql(state, config={"configurable": {"user_id": "u1"}})
 
