@@ -1,13 +1,13 @@
 import type { TransactionResponse } from '../transactions/schemas';
 
-export interface InsightsSummary {
+interface InsightsSummary {
   credit_total: string;
   debit_total: string;
   net: string;
   transaction_count: number;
 }
 
-export interface DailyCashflowRow {
+interface DailyCashflowRow {
   date: string;
   debit_total: string;
   credit_total: string;

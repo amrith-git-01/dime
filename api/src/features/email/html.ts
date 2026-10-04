@@ -123,7 +123,7 @@ function postcard(input: { kicker: string; title: string; body: string; imageUrl
   return card(img + copy);
 }
 
-export const WELCOME_POSTCARDS = [
+const WELCOME_POSTCARDS = [
   {
     kicker: '01 · CAPTURE',
     title: 'Bank SMS can become expenses.',

@@ -3,7 +3,7 @@ import * as z from 'zod';
 import { decimalInput, quantizeMoney } from '../../core/decimal';
 import { uuidString } from '../../core/validation';
 
-export const TRANSACTION_TYPES = ['debit', 'credit'] as const;
+const TRANSACTION_TYPES = ['debit', 'credit'] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 const COUNTERPARTY_TYPES = ['merchant', 'person', 'self_transfer', 'unknown'] as const;
@@ -243,7 +243,7 @@ export interface TopCategoryRow {
   total: string;
 }
 
-export interface DailySpendRow {
+interface DailySpendRow {
   date: string;
   total: string;
 }

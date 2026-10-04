@@ -2,7 +2,7 @@ export type UploadKind = 'receipts' | 'voice_inputs';
 
 const DEFAULT_EXTENSION: Record<UploadKind, string> = { receipts: 'jpg', voice_inputs: 'wav' };
 
-export function normalizeExtension(ext: string | null | undefined, kind: UploadKind): string {
+function normalizeExtension(ext: string | null | undefined, kind: UploadKind): string {
   const cleaned = (ext ?? '').trim().replace(/^\.+/, '').toLowerCase();
   return cleaned || DEFAULT_EXTENSION[kind];
 }

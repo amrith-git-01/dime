@@ -17,9 +17,11 @@ export function useUserSettingsQuery() {
     enabled: Boolean(userId),
     queryFn: async () => {
       const settings = await fetchUserSettings();
-      writePersistedUserSettings(settings);
+      if (userId) {
+        writePersistedUserSettings(userId, settings);
+      }
       return settings;
     },
-    placeholderData: () => readPersistedUserSettings() ?? undefined,
+    placeholderData: () => readPersistedUserSettings(userId) ?? undefined,
   });
 }

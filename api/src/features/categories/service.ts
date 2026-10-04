@@ -24,7 +24,7 @@ const DUPLICATE_NAME = 'You already have a category with this name.';
 const NOT_FOUND = 'Category not found.';
 
 /** Row -> response; null when the row lacks a required display field (such rows are skipped). */
-export function rowToResponse(row: Partial<CategoryRow> | null | undefined): CategoryResponse | null {
+function rowToResponse(row: Partial<CategoryRow> | null | undefined): CategoryResponse | null {
   if (!row) return null;
   const text = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null);
   const id = text(row.id);

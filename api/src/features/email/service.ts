@@ -31,11 +31,6 @@ export interface EmailService {
   sendWelcomeIfNeeded(input: WelcomeEmailInput): Promise<void>;
 }
 
-/** Test double / disabled mode: accepts the call and does nothing. */
-export const noopEmailService: EmailService = {
-  sendWelcomeIfNeeded: () => Promise.resolve(),
-};
-
 export interface EmailDeps {
   db: DimeSupabaseClient;
   config: AppConfig;

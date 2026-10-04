@@ -2,8 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { supabase } from "@/lib/supabase/client";
+import { createResubscribeHandler } from "@/lib/supabase/realtimeResubscribe";
 
-import { categoriesQueryKeys } from "../queryKeys";
+import { invalidateCategoryDerivedQueries } from "../cache/invalidateCategoryQueries";
 
 export function useCategoriesRealtimeSync(userId: string | null) {
   const queryClient = useQueryClient();
@@ -13,12 +14,7 @@ export function useCategoriesRealtimeSync(userId: string | null) {
       return;
     }
 
-    const invalidate = () => {
-      void queryClient.invalidateQueries({
-        queryKey: categoriesQueryKeys.all,
-        refetchType: "all",
-      });
-    };
+    const invalidate = () => invalidateCategoryDerivedQueries(queryClient);
 
     const channel = supabase
       .channel(`categories:${userId}`)
@@ -32,7 +28,8 @@ export function useCategoriesRealtimeSync(userId: string | null) {
         },
         invalidate,
       )
-      .subscribe();
+      // Changes made while the socket was down were never delivered.
+      .subscribe(createResubscribeHandler(invalidate));
 
     return () => {
       void supabase.removeChannel(channel);

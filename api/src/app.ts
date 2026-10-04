@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { noStore } from './core/cache-control';
 import { corsFromEnv } from './core/cors';
 import type { AppBindings } from './core/env';
 import { notFound, onError } from './core/errors';
@@ -23,6 +24,7 @@ export function createApp() {
 
   // Order matters: request id first so every response (CORS preflights, errors, 404s) carries it.
   app.use(requestId);
+  app.use('/api/v1/*', noStore);
   app.use(corsFromEnv);
   app.onError(onError);
   app.notFound(notFound);

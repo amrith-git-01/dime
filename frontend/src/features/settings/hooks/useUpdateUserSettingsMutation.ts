@@ -21,19 +21,25 @@ export function useUpdateUserSettingsMutation() {
       if (previous) {
         const optimistic = { ...previous, ...patch };
         queryClient.setQueryData(settingsQueryKeys.user(userId), optimistic);
-        writePersistedUserSettings(optimistic);
+        if (userId) {
+          writePersistedUserSettings(userId, optimistic);
+        }
       }
       return { previous };
     },
     onError: (_err, _patch, context) => {
       if (context?.previous) {
         queryClient.setQueryData(settingsQueryKeys.user(userId), context.previous);
-        writePersistedUserSettings(context.previous);
+        if (userId) {
+          writePersistedUserSettings(userId, context.previous);
+        }
       }
     },
     onSuccess: (data) => {
       queryClient.setQueryData(settingsQueryKeys.user(userId), data);
-      writePersistedUserSettings(data);
+      if (userId) {
+        writePersistedUserSettings(userId, data);
+      }
     },
   });
 }

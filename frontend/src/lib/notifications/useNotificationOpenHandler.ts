@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
 
+import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
 import {
   isUnhandledNotificationResponseStamp,
@@ -190,6 +191,16 @@ export function useNotificationOpenHandler(): {
       subscription.remove();
     };
   }, [maybeHandleOrQueueResponse]);
+
+  // A push that arrives while the app is open: the inbox and badge are now behind the server.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(() => {
+      void queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.all,
+      });
+    });
+    return () => subscription.remove();
+  }, [queryClient]);
 
   useEffect(() => {
     const unsubscribe = navigationRef.addListener("state", () => {

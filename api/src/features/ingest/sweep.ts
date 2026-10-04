@@ -3,6 +3,7 @@ import { log } from '../../core/logging';
 import { createServiceClient } from '../../core/supabase';
 import type { DimeSupabaseClient } from '../../core/supabase';
 import * as jobs from '../jobs/repository';
+import { isPurgeSlot, purgeOldJobs } from '../jobs/purge';
 import { enqueueJobs } from './queue';
 import { INGEST_KINDS } from './schemas';
 import type { IngestMessage } from './schemas';
@@ -10,9 +11,9 @@ import type { IngestMessage } from './schemas';
 /** Cron expression of the recovery sweep (keep in sync with `triggers.crons` in wrangler.jsonc). */
 export const SWEEP_CRON = '*/5 * * * *';
 /** A pending/processing job untouched for this long is considered lost. */
-export const RECOVERY_AGE_SECONDS = 120;
+const RECOVERY_AGE_SECONDS = 120;
 /** Jobs re-sent per kind per run (oldest first); the rest wait for the next run. */
-export const SWEEP_LIMIT_PER_KIND = 50;
+const SWEEP_LIMIT_PER_KIND = 50;
 const REQUEUE_CONCURRENCY = 10;
 
 export interface SweepResult {
@@ -58,7 +59,13 @@ export async function sweepJobs(db: DimeSupabaseClient, queue: Queue, nowMs: num
   return { requeued, resent: sent ? toSend.length : 0 };
 }
 
-/** Scheduled entry point: builds the DB client from the environment. */
-export function runSweep(env: Bindings): Promise<SweepResult> {
-  return sweepJobs(createServiceClient(env), env.INGEST_QUEUE);
+/**
+ * Scheduled entry point: builds the DB client from the environment. The first run of each hour
+ * also purges old job rows, after the recovery pass so a purge failure never delays recovery.
+ */
+export async function runSweep(env: Bindings, scheduledTimeMs: number = Date.now()): Promise<SweepResult> {
+  const db = createServiceClient(env);
+  const result = await sweepJobs(db, env.INGEST_QUEUE);
+  if (isPurgeSlot(scheduledTimeMs)) await purgeOldJobs(db, scheduledTimeMs);
+  return result;
 }

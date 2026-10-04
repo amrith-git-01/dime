@@ -3,16 +3,16 @@ import { normalizeCounterparty } from '../transactions/dedupe';
 import type { PayeeRow, PayeeSourceRow } from '../transactions/repository';
 import type { CounterpartyIncomeRow, CounterpartySpendRow } from './schemas';
 
-export const TOP_PAYEES = 4;
-export const TOP_INCOME_SOURCES = 5;
-export const OTHER_KEY = '__other__';
+const TOP_PAYEES = 4;
+const TOP_INCOME_SOURCES = 5;
+const OTHER_KEY = '__other__';
 
 /** Same normalization the client uses for payee keys; "unknown" when nothing alphanumeric is left. */
-export function normalizePayeeKey(raw: string): string {
+function normalizePayeeKey(raw: string): string {
   return normalizeCounterparty(raw) || 'unknown';
 }
 
-export function payeeKeyFromRow(row: Pick<PayeeSourceRow, 'counterparty_name' | 'counterparty_normalized'>): string {
+function payeeKeyFromRow(row: Pick<PayeeSourceRow, 'counterparty_name' | 'counterparty_normalized'>): string {
   const norm = row.counterparty_normalized;
   if (typeof norm === 'string' && norm.trim()) return norm.trim();
   const name = row.counterparty_name;

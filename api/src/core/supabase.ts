@@ -56,12 +56,3 @@ export function getSupabase(c: Context<AppBindings>): DimeSupabaseClient {
   }
   return client;
 }
-
-/** Client that acts as the user (RLS applies): publishable key + the user's access token. */
-export function createUserClient(env: Bindings, accessToken: string): DimeSupabaseClient {
-  const config = getConfig(env);
-  if (!config.supabasePublishableKey) {
-    throw new ServiceUnavailableError('Server missing SUPABASE_PUBLISHABLE_KEY.');
-  }
-  return createClient(config.supabaseUrl, config.supabasePublishableKey, accessToken);
-}

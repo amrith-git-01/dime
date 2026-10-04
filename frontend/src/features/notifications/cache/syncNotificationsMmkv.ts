@@ -16,14 +16,15 @@ import {
 /** Seeds React Query from the dedicated notifications MMKV key at cold start. */
 export function hydrateNotificationsFromMmkv(
   queryClient: QueryClient,
+  userId: string | undefined,
 ): boolean {
-  const snapshot = readPersistedNotifications();
+  const snapshot = readPersistedNotifications(userId);
   if (!snapshot) {
     return false;
   }
 
   queryClient.setQueryData(
-    notificationQueryKeys.inboxList(),
+    notificationQueryKeys.inboxList(userId),
     buildInboxData(
       snapshot.inbox,
       resolveSeedCursor(
@@ -34,7 +35,7 @@ export function hydrateNotificationsFromMmkv(
     ),
   );
   queryClient.setQueryData(
-    notificationQueryKeys.unreadCount(),
+    notificationQueryKeys.unreadCount(userId),
     snapshot.unreadCount,
   );
   return true;
@@ -46,22 +47,23 @@ export function hydrateNotificationsFromMmkv(
  */
 export function persistNotificationsMmkvFromQueryClient(
   queryClient: QueryClient,
+  userId: string,
 ): void {
   const inbox = queryClient.getQueryData<NotificationsInboxData>(
-    notificationQueryKeys.inboxList(),
+    notificationQueryKeys.inboxList(userId),
   );
   const unreadCount = queryClient.getQueryData<number>(
-    notificationQueryKeys.unreadCount(),
+    notificationQueryKeys.unreadCount(userId),
   );
 
   if (inbox === undefined && unreadCount === undefined) {
     return;
   }
 
-  const existing = readPersistedNotifications();
+  const existing = readPersistedNotifications(userId);
   const firstPage = inbox?.pages[0];
 
-  writePersistedNotifications({
+  writePersistedNotifications(userId, {
     inbox: firstPage?.items ?? existing?.inbox ?? [],
     unreadCount: unreadCount ?? existing?.unreadCount ?? 0,
     nextCursor: firstPage ? firstPage.nextCursor : existing?.nextCursor,

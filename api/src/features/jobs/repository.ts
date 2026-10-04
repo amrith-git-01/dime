@@ -1,7 +1,7 @@
 import { isUniqueViolation } from '../../core/db-errors';
 import type { DimeSupabaseClient } from '../../core/supabase';
 
-export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
+type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
 export type JobKind = 'receipt' | 'voice' | 'sms' | 'manual_create';
 
 export interface JobRow {
@@ -28,7 +28,7 @@ export interface NewJob {
 }
 
 /** Cutoff after which a `processing` idempotency record is considered abandoned and may be re-claimed. */
-export const STALE_PROCESSING_SECONDS = 600;
+const STALE_PROCESSING_SECONDS = 600;
 
 const nowIso = () => new Date().toISOString();
 const agoIso = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
@@ -39,7 +39,7 @@ export async function insertMany(db: DimeSupabaseClient, rows: NewJob[]): Promis
   return data;
 }
 
-export async function getJob(db: DimeSupabaseClient, jobId: string): Promise<JobRow | null> {
+async function getJob(db: DimeSupabaseClient, jobId: string): Promise<JobRow | null> {
   const { data } = await db
     .from('jobs')
     .select('*')
@@ -157,7 +157,39 @@ export async function requeueStaleProcessing(db: DimeSupabaseClient, jobId: stri
   return data.length > 0;
 }
 
-export type ClaimState = 'new' | 'replay' | 'in_progress' | 'retry';
+/** Which rows `deleteOldBatch` may remove: `updated_at` before the cutoff, optionally by status and kind. */
+export interface PurgeRule {
+  cutoffIso: string;
+  statuses?: JobStatus[];
+  kind?: JobKind;
+}
+
+/**
+ * Delete up to `limit` rows matching `rule`, oldest first; returns how many went. Two statements
+ * (ids, then delete by id) keep each one bounded: PostgREST cannot `limit` a delete directly.
+ */
+export async function deleteOldBatch(db: DimeSupabaseClient, rule: PurgeRule, limit: number): Promise<number> {
+  let select = db.from('jobs').select('id').lt('updated_at', rule.cutoffIso);
+  if (rule.statuses) select = select.in('status', rule.statuses);
+  if (rule.kind) select = select.eq('kind', rule.kind);
+  const { data } = await select
+    .order('updated_at', { ascending: true })
+    .limit(limit)
+    .throwOnError()
+    .overrideTypes<{ id: string }[], { merge: false }>();
+  if (data.length === 0) return 0;
+  await db
+    .from('jobs')
+    .delete()
+    .in(
+      'id',
+      data.map((row) => row.id),
+    )
+    .throwOnError();
+  return data.length;
+}
+
+type ClaimState = 'new' | 'replay' | 'in_progress' | 'retry';
 
 export interface ClaimResult {
   state: ClaimState;

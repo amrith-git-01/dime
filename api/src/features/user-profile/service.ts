@@ -8,7 +8,7 @@ import type { MeResponse, ProfileUpdateBody, UserRow } from './schemas';
 /** Schedules work that must not delay the response (`ctx.waitUntil`). */
 export type Background = (task: Promise<unknown>, name: string) => void;
 
-export function rowToMe(user: Pick<AuthUser, 'id' | 'email'>, row: UserRow | null): MeResponse {
+function rowToMe(user: Pick<AuthUser, 'id' | 'email'>, row: UserRow | null): MeResponse {
   return {
     id: user.id,
     email: user.email ?? null,

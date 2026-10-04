@@ -1,0 +1,8 @@
+# Workers Static Assets response headers (this file is not served itself).
+#
+# The email images are referenced from emails already delivered, under fixed names (slide-1.png ...),
+# so a changed image keeps its URL. That rules out "immutable": a year-long cache would leave
+# stale artwork in browsers and proxies with no way to refresh it. One day is long enough to
+# absorb every open of a digest and still lets a replaced image roll out within 24 hours.
+/email/*
+  Cache-Control: public, max-age=86400

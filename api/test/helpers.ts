@@ -11,8 +11,8 @@ export function makeEnv(overrides: Record<string, string | undefined> = {}): Bin
   return { ...baseEnv, ...overrides };
 }
 
-export const SUPABASE_URL = 'https://test-project.supabase.co';
-export const ISSUER = `${SUPABASE_URL}/auth/v1`;
+const SUPABASE_URL = 'https://test-project.supabase.co';
+const ISSUER = `${SUPABASE_URL}/auth/v1`;
 
 export interface TokenOptions {
   sub?: string | null;

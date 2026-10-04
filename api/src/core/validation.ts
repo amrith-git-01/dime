@@ -92,7 +92,7 @@ function describe(issue: Issue): { type: string; msg: string } {
 }
 
 /** Convert a ZodError to FastAPI/Pydantic-style `detail` items: `{type, loc, msg}`. */
-export function toDetail(error: { issues: ZodError['issues'] }, target: keyof ValidationTargets): ValidationDetail[] {
+function toDetail(error: { issues: ZodError['issues'] }, target: keyof ValidationTargets): ValidationDetail[] {
   const out: ValidationDetail[] = [];
   for (const issue of error.issues) {
     const base = [LOC[target], ...issue.path.map((p) => (typeof p === 'symbol' ? String(p) : p))];

@@ -15,6 +15,9 @@ export function useCurrentUserProfileQuery(userId: string | undefined) {
       setProfile(me);
       return me;
     },
-    placeholderData: () => useCurrentUserStore.getState().profile ?? undefined,
+    placeholderData: () => {
+      const profile = useCurrentUserStore.getState().profile;
+      return profile && profile.id === userId ? profile : undefined;
+    },
   });
 }

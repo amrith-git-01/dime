@@ -52,7 +52,7 @@ const COUNTERPARTY_TYPES: ReadonlySet<string> = new Set(['merchant', 'person', '
  * Row -> response (category display fields + signed media URLs)
  * -------------------------------------------------------------------------------------------- */
 
-export interface Enrichment {
+interface Enrichment {
   meta: Map<string, CategoryMeta>;
   signed: Map<string, string | null>;
 }
@@ -70,7 +70,7 @@ function categoryIdsOf(rows: readonly TransactionRow[]): string[] {
  * categories query, one signing call per bucket). `extraCategoryIds` lets a caller (home) resolve
  * more categories in the same query.
  */
-export async function loadEnrichment(
+async function loadEnrichment(
   ctx: TxContext,
   rows: readonly TransactionRow[],
   extraCategoryIds: readonly string[] = [],
@@ -91,7 +91,7 @@ function normalizeDetectedVia(value: unknown): string | null {
   return s === 'upi' ? 'notification' : s;
 }
 
-export function toResponse(row: TransactionRow, enrichment: Enrichment): TransactionResponse {
+function toResponse(row: TransactionRow, enrichment: Enrichment): TransactionResponse {
   const name = typeof row.counterparty_name === 'string' ? row.counterparty_name : null;
   const cid = blank(row.category_id) ? null : String(row.category_id);
   const cat = cid ? enrichment.meta.get(cid.trim().toLowerCase()) : undefined;
@@ -250,7 +250,7 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
  * case-insensitively against the categories visible to the user. One query serves both, and none
  * is made when the request names no category.
  */
-export async function resolveCategoryId(
+async function resolveCategoryId(
   ctx: TxContext,
   input: { categoryId?: string | null | undefined; categoryName?: string | null | undefined },
 ): Promise<string | null> {

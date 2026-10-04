@@ -11,7 +11,7 @@ export async function getOrCreate(db: DimeSupabaseClient, userId: string): Promi
 }
 
 /** Fields present and non-null in the patch (null = unchanged, as in Python). */
-export function patchFields(body: SettingsPatch): Record<string, unknown> {
+function patchFields(body: SettingsPatch): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
     if (value !== null && value !== undefined) out[key] = value;

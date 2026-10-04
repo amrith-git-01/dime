@@ -5,9 +5,9 @@ import { log } from '../../core/logging';
 
 export type Quote = readonly [text: string, author: string];
 
-export const MAX_BODY_LEN = 180;
-export const FAVQS_URL = 'https://favqs.com/api/quotes';
-export const FAVQS_TIMEOUT_MS = 2000;
+const MAX_BODY_LEN = 180;
+const FAVQS_URL = 'https://favqs.com/api/quotes';
+const FAVQS_TIMEOUT_MS = 2000;
 
 export const FALLBACK_QUOTES: readonly Quote[] = [
   ['Beware of little expenses; a small leak will sink a great ship.', 'Benjamin Franklin'],

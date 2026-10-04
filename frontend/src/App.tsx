@@ -33,12 +33,12 @@ import {
   VoiceCaptureBar,
 } from "@/features/transactions/components";
 import {
-  appQueryPersistOptions,
   createAppQueryClient,
   subscribeQueryClientLifecycle,
 } from "@/lib/appBootstrap";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
+import { appQueryPersistOptions } from "@/lib/queryPersister";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
@@ -117,7 +117,7 @@ export default function App() {
     configureExpoNotifications();
   }, []);
 
-  useEffect(() => subscribeQueryClientLifecycle(), []);
+  useEffect(() => subscribeQueryClientLifecycle(queryClient), [queryClient]);
 
   useEffect(() => {
     return persistQueryClientSubscribe({

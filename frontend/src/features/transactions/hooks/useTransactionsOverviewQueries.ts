@@ -1,10 +1,7 @@
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { useSessionUserId } from "@/hooks/useSessionUserId";
+import { keepPreviousDataForUser } from "@/lib/keepPreviousDataForUser";
 import { TRANSACTIONS_QUERY_STALE_MS } from "@/lib/queryDefaults";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
@@ -28,7 +25,7 @@ export function useTransactionsHomeQuery(options?: { enabled?: boolean }) {
     queryFn: () => fetchHomeOverview(timezone),
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataForUser(userId),
   });
 }
 
@@ -51,7 +48,7 @@ export function useMonthSummaryQuery(
     queryFn: () => fetchMonthSummary({ year, month: calendarMonth, timezone }),
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataForUser(userId),
   });
 }
 
@@ -76,7 +73,7 @@ export function useMonthDebitTotalsByCategoryQuery(
     select: monthSummaryDebitByCategory,
     enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataForUser(userId),
   });
 }
 

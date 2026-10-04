@@ -4,7 +4,7 @@ import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
 import * as repo from './repository';
 import type { ListQuery, NotificationListResponse, NotificationResponse, NotificationRow } from './schemas';
 
-export function rowToResponse(row: NotificationRow): NotificationResponse {
+function rowToResponse(row: NotificationRow): NotificationResponse {
   return {
     id: String(row.id).toLowerCase(),
     kind: row.kind,

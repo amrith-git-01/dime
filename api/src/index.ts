@@ -28,7 +28,7 @@ export default {
   async scheduled(controller, env, _ctx) {
     switch (controller.cron) {
       case SWEEP_CRON:
-        await runSweep(env);
+        await runSweep(env, controller.scheduledTime);
         return;
       case EMAIL_DIGEST_CRON:
         await runDigestCron(env, controller.scheduledTime);

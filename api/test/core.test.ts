@@ -268,8 +268,7 @@ describe('config', () => {
     expect(cfg.maxVoiceUploadBytes).toBe(15 * 1024 * 1024);
     expect(cfg.signedUrlTtlSeconds).toBe(6 * 60 * 60);
     expect(cfg.avatarUrlAllowedHosts).toEqual(['api.dicebear.com']);
-    expect(cfg.agent.thinkingEnabled).toBe(false);
-    expect(cfg.agent.strictTools).toBe(true);
+    expect(cfg.agent).toMatchObject({ enabled: true, maxSteps: 4, turnTimeoutMs: 25_000, llmTimeoutMs: 12_000, dailyTokenBudget: 200_000 });
   });
 
   it('fails clearly when SUPABASE_URL is invalid', () => {

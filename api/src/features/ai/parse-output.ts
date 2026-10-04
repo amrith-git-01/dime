@@ -5,8 +5,8 @@ import { parseDatetime } from '../transactions/schemas';
 import type { Instant } from '../transactions/schemas';
 import type { ParseMode } from './prompts';
 
-export const COUNTERPARTY_TYPES = ['merchant', 'person', 'self_transfer', 'unknown'] as const;
-export type ParsedCounterpartyType = (typeof COUNTERPARTY_TYPES)[number];
+const COUNTERPARTY_TYPES = ['merchant', 'person', 'self_transfer', 'unknown'] as const;
+type ParsedCounterpartyType = (typeof COUNTERPARTY_TYPES)[number];
 const COUNTERPARTY_SET: ReadonlySet<string> = new Set(COUNTERPARTY_TYPES);
 
 export interface CategoryOption {
@@ -126,7 +126,7 @@ export function parseModelDate(raw: unknown): Instant | null {
 const SOURCE_LABEL: Record<ParseMode, string> = { receipt: 'receipt', sms: 'SMS', voice: 'voice input' };
 
 /** `Auto-parsed from receipt for X.` used when the model gives no note. */
-export function defaultNote(mode: ParseMode, counterpartyName: unknown): string {
+function defaultNote(mode: ParseMode, counterpartyName: unknown): string {
   const name = nonBlankString(counterpartyName) ? counterpartyName.trim() : 'counterparty';
   return `Auto-parsed from ${SOURCE_LABEL[mode]} for ${name}.`;
 }

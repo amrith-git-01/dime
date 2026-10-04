@@ -10,7 +10,7 @@ interface LogContext {
 /** Request-scoped context so `log.*` anywhere (services, repositories) tags the request id. */
 export const logContext = new AsyncLocalStorage<LogContext>();
 
-export function serializeError(err: unknown): Fields {
+function serializeError(err: unknown): Fields {
   if (err instanceof Error) {
     const out: Fields = { name: err.name, message: err.message, stack: err.stack };
     if (err.cause !== undefined) out.cause = serializeError(err.cause);

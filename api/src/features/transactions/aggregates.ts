@@ -152,7 +152,7 @@ export function periodSummaryFromRows(rows: readonly AmountTypeCategoryRow[]): P
   return { creditCents, debitCents, count: rows.length, debitByCategory };
 }
 
-export const UNCATEGORIZED_KEY = '__uncategorized__';
+const UNCATEGORIZED_KEY = '__uncategorized__';
 
 /** month-summary `debit_by_category`: blank category -> `__uncategorized__`. */
 export function debitByCategoryResponse(summary: PeriodSummary): Record<string, string> {

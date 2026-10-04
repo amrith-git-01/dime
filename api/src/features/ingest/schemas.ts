@@ -3,7 +3,6 @@ import * as z from 'zod';
 import { datetimeInput } from '../transactions/schemas';
 
 export const INGEST_KINDS = ['receipt', 'voice', 'sms'] as const;
-export type IngestKind = (typeof INGEST_KINDS)[number];
 
 /** A job claim is attempted at most this often (contract: Jobs lifecycle). */
 export const MAX_JOB_ATTEMPTS = 3;
@@ -21,7 +20,6 @@ export const mediaPayloadSchema = z.object({
   mime_type: z.string().min(1),
   timezone: z.string().min(1),
 });
-export type MediaPayload = z.infer<typeof mediaPayloadSchema>;
 
 /** `jobs.payload` of sms jobs. */
 export const smsPayloadSchema = z.object({
@@ -29,7 +27,6 @@ export const smsPayloadSchema = z.object({
   received_at: z.string().min(1),
   timezone: z.string().min(1),
 });
-export type SmsPayload = z.infer<typeof smsPayloadSchema>;
 
 /** One SMS of a batch: body trimmed (1-2000 chars, not blank), `received_at` any datetime the app sends. */
 const smsItemSchema = z.object({

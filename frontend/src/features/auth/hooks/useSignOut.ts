@@ -2,16 +2,12 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 import { clearDimeAuthTokenCache } from "@/lib/api/dimeApi";
 import { cancelDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
-import { clearPersistedNotifications } from "@/lib/notifications/notificationsMmkv";
-import { clearQueryMmkv } from "@/lib/queryPersister";
-import { clearPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
+import { wipeUserData } from "@/lib/userDataWipe";
 import { supabase } from "@/lib/supabase/client";
 import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
-import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 import { reportError } from "@/lib/reportError";
 
@@ -52,13 +48,8 @@ export function useSignOut() {
       // Always wipe the previous user's local data, even when the network calls above failed.
       clearSupabaseAuthMmkv();
       clearDimeAuthTokenCache();
-      clearQueryMmkv();
-      clearPersistedNotifications();
-      clearPersistedUserSettings();
-      useCurrentUserStore.getState().clearProfile();
+      wipeUserData(queryClient);
       usePermissionsPromptStore.getState().clearPendingAfterGoogleSignIn();
-      queryClient.removeQueries({ queryKey: settingsQueryKeys.all });
-      queryClient.clear();
       setLoading(false);
     }
   }, [queryClient]);

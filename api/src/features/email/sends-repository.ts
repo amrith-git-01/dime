@@ -3,7 +3,7 @@ import { log } from '../../core/logging';
 import type { DimeSupabaseClient } from '../../core/supabase';
 import type { DigestKind } from './tokens';
 
-export type EmailKind = 'welcome' | DigestKind;
+type EmailKind = 'welcome' | DigestKind;
 
 /** A `pending` claim older than this belongs to a worker that died between claim and send. */
 export const PENDING_RECLAIM_AFTER_MS = 30 * 60 * 1000;

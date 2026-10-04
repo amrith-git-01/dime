@@ -3,7 +3,7 @@ import { createMiddleware } from 'hono/factory';
 import type { AppBindings } from './env';
 import { log, logContext } from './logging';
 
-export const REQUEST_ID_HEADER = 'X-Request-ID';
+const REQUEST_ID_HEADER = 'X-Request-ID';
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
 

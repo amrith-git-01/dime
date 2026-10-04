@@ -43,7 +43,7 @@ function hsKey(secret: string): Uint8Array {
 const INVALID = 'Invalid or expired token.';
 
 /** Verify a Supabase access token. Mirrors backend/core/security.py. */
-export async function verifyAccessToken(
+async function verifyAccessToken(
   token: string,
   config: { supabaseUrl: string; supabaseJwtSecret: string | undefined },
 ): Promise<JWTPayload> {

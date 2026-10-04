@@ -37,9 +37,6 @@ export const json = (data: unknown, init: ResponseInit = {}) =>
 export const rows = (data: unknown[], total?: number) =>
   json(data, total === undefined ? {} : { headers: { 'content-type': 'application/json', 'content-range': `0-${Math.max(data.length - 1, 0)}/${total}` } });
 
-export const countOnly = (total: number) =>
-  new Response(null, { status: 200, headers: { 'content-range': `*/${total}` } });
-
 export const pgError = (code: string, message: string, status = 400) =>
   json({ code, message, details: null, hint: null }, { status });
 

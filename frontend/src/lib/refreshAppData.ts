@@ -27,38 +27,20 @@ import {
   TX_PAGE_LIMIT,
 } from "@/features/transactions/api/transactionsApi";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
-import {
-  clearPersistedNotifications,
-  writePersistedNotifications,
-} from "@/lib/notifications/notificationsMmkv";
-import { clearQueryMmkv } from "@/lib/queryPersister";
-import {
-  clearPersistedUserSettings,
-  writePersistedUserSettings,
-} from "@/lib/settings/userSettingsMmkv";
+import { writePersistedNotifications } from "@/lib/notifications/notificationsMmkv";
+import { writePersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
+import { wipeUserData } from "@/lib/userDataWipe";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
-
-/**
- * Clears API-derived MMKV (React Query cache blob, notifications, profile).
- * Does not touch auth, capture preferences, or other device settings.
- */
-export function clearAppDataMmkv(): void {
-  clearQueryMmkv();
-  clearPersistedNotifications();
-  clearPersistedUserSettings();
-  useCurrentUserStore.getState().clearProfile();
-}
 
 /** Wipe local API cache and pull fresh data from the backend. */
 export async function refreshAppDataFromServer(
   queryClient: QueryClient,
   userId: string,
 ): Promise<void> {
-  clearAppDataMmkv();
-
+  // Let in-flight fetches settle before their results can land in the storage being wiped.
   await queryClient.cancelQueries();
-  queryClient.clear();
+  wipeUserData(queryClient);
 
   const now = new Date();
   const year = now.getFullYear();
@@ -74,17 +56,17 @@ export async function refreshAppDataFromServer(
   ]);
 
   queryClient.setQueryData(
-    notificationQueryKeys.inboxList(),
+    notificationQueryKeys.inboxList(userId),
     buildInboxData(inboxPage.items, inboxPage.nextCursor),
   );
-  queryClient.setQueryData(notificationQueryKeys.unreadCount(), unreadCount);
-  writePersistedNotifications({
+  queryClient.setQueryData(notificationQueryKeys.unreadCount(userId), unreadCount);
+  writePersistedNotifications(userId, {
     inbox: inboxPage.items,
     unreadCount,
     nextCursor: inboxPage.nextCursor,
   });
   queryClient.setQueryData(settingsQueryKeys.user(userId), userSettings);
-  writePersistedUserSettings(userSettings);
+  writePersistedUserSettings(userId, userSettings);
 
   await Promise.all([
     queryClient.fetchQuery({

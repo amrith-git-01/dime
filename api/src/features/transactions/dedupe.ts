@@ -6,7 +6,7 @@ import { quantizeMoney } from '../../core/decimal';
  * either backend dedupe against each other.
  */
 
-export const MERGEABLE_FIELDS = ['category_id', 'note', 'receipt_url', 'voice_url', 'counterparty_type'] as const;
+const MERGEABLE_FIELDS = ['category_id', 'note', 'receipt_url', 'voice_url', 'counterparty_type'] as const;
 
 /** lower-case, runs of non `[a-z0-9]` become one space, trimmed. */
 export function normalizeCounterparty(raw: string): string {

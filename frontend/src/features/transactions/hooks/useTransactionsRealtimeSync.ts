@@ -7,9 +7,13 @@ import {
   applyRealtimeTransactionChange,
   realtimePayloadTransactionId,
 } from "@/features/transactions/cache/transactionRealtimeCache";
-import { recentTransactionMutations } from "@/features/transactions/utils/recentMutationTracker";
+import {
+  OWN_CREATE_MARKER,
+  recentTransactionMutations,
+} from "@/features/transactions/utils/recentMutationTracker";
 import { createTrailingDebounce } from "@/features/transactions/utils/trailingDebounce";
 import { supabase } from "@/lib/supabase/client";
+import { createResubscribeHandler } from "@/lib/supabase/realtimeResubscribe";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
 /** Coalesce refetches (spent totals, month summary) after a burst of realtime changes. */
@@ -35,8 +39,12 @@ export function useTransactionsRealtimeSync(userId: string | null) {
       payload: RealtimePostgresChangesPayload<TransactionDbRecord>,
     ) => {
       const transactionId = realtimePayloadTransactionId(payload);
-      // Echo of this device's own recent edit/delete; its mutation already refreshed the caches.
-      if (transactionId && recentTransactionMutations.isRecent(transactionId)) {
+      // Echo of this device's own recent create/edit/delete; its mutation already refreshed the caches.
+      if (
+        (transactionId && recentTransactionMutations.isRecent(transactionId)) ||
+        (payload.eventType === "INSERT" &&
+          recentTransactionMutations.isRecent(OWN_CREATE_MARKER))
+      ) {
         return;
       }
       applyRealtimeTransactionChange(queryClient, {
@@ -59,7 +67,12 @@ export function useTransactionsRealtimeSync(userId: string | null) {
         },
         onChange,
       )
-      .subscribe();
+      .subscribe(
+        createResubscribeHandler(() =>
+          // Changes made while the socket was down were never delivered.
+          invalidateTransactionDerivedQueries(queryClient),
+        ),
+      );
 
     return () => {
       scheduleInvalidate.cancel();

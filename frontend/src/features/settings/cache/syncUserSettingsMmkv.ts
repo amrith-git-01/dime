@@ -8,7 +8,7 @@ export function hydrateUserSettingsFromMmkv(
   queryClient: QueryClient,
   userId: string | undefined,
 ): boolean {
-  const settings = readPersistedUserSettings();
+  const settings = readPersistedUserSettings(userId);
   if (!settings || !userId) {
     return false;
   }

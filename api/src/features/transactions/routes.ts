@@ -22,7 +22,7 @@ export const transactionRoutes = new Hono<AppBindings>();
 transactionRoutes.use(requireAuth);
 
 /** DB client, user and media-signing config for one request. */
-export function txContext(c: Context<AppBindings>): TxContext {
+function txContext(c: Context<AppBindings>): TxContext {
   const config = getConfig(c.env);
   return {
     db: getSupabase(c),

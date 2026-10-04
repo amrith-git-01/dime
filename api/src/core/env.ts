@@ -7,7 +7,7 @@ import type { DimeSupabaseClient } from './supabase';
  * Secrets are not in wrangler.jsonc, so `wrangler types` does not know them in CI.
  * They are declared here (optional: a missing one is reported by the feature that needs it).
  */
-export interface SecretBindings {
+interface SecretBindings {
   SUPABASE_PUBLISHABLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_JWT_SECRET?: string;
@@ -17,12 +17,14 @@ export interface SecretBindings {
   EMAIL_UNSUBSCRIBE_SECRET?: string;
   EMAIL_CRON_SECRET?: string;
   FAVQS_API_KEY?: string;
+  /** HMAC key for the agent's conversation-memory token (AGENT_MEMORY_SECRET). Missing = no follow-up memory. */
+  AGENT_MEMORY_SECRET?: string;
 }
 
 /** Generated `Env` (wrangler types) plus secrets. Use this everywhere instead of `Env`. */
 export type Bindings = Env & SecretBindings;
 
-export interface Variables {
+interface Variables {
   requestId: string;
   /** Set by `requireAuth`. Read it with `currentUser(c)`. */
   user?: AuthUser;
@@ -71,16 +73,17 @@ const configSchema = z.object({
   GROQ_WHISPER_FALLBACK: z.string().default('whisper-large-v3'),
   GROQ_VISION_OCR_MODEL: z.string().default('meta-llama/llama-4-scout-17b-16e-instruct'),
 
+  AGENT_ENABLED: z.stringbool().default(true),
   AGENT_BASE_URL: z.string().default('https://api.deepseek.com'),
   AGENT_MODEL: z.string().default('deepseek-v4-flash'),
   AGENT_MODEL_FALLBACK: z.string().optional(),
-  AGENT_THINKING_ENABLED: z.stringbool().default(false),
-  AGENT_STRICT_TOOLS: z.stringbool().default(true),
-  AGENT_MAX_TOOL_ROUNDS: int(5),
-  AGENT_TIMEOUT_SECONDS: num(45),
-  AGENT_CONTEXT_MAX_MESSAGES: int(20),
+  AGENT_MAX_STEPS: int(4),
+  AGENT_TURN_TIMEOUT_SECONDS: num(25),
+  AGENT_LLM_TIMEOUT_SECONDS: num(12),
+  AGENT_DAILY_TOKEN_BUDGET: int(200_000),
   AGENT_SQL_TIMEOUT_SECONDS: num(3),
   AGENT_SQL_MAX_ROWS: int(500),
+  AGENT_MEMORY_SECRET: z.string().optional(),
 
   BREVO_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('Dime <hello@localhost>'),
@@ -123,16 +126,17 @@ export interface AppConfig {
     visionOcrModel: string;
   };
   agent: {
+    enabled: boolean;
     baseUrl: string;
     model: string;
     modelFallback: string | undefined;
-    thinkingEnabled: boolean;
-    strictTools: boolean;
-    maxToolRounds: number;
-    timeoutMs: number;
-    contextMaxMessages: number;
+    maxSteps: number;
+    turnTimeoutMs: number;
+    llmTimeoutMs: number;
+    dailyTokenBudget: number;
     sqlTimeoutMs: number;
     sqlMaxRows: number;
+    memorySecret: string | undefined;
   };
   email: {
     brevoApiKey: string | undefined;
@@ -180,16 +184,17 @@ function build(p: Parsed): AppConfig {
       visionOcrModel: p.GROQ_VISION_OCR_MODEL,
     },
     agent: {
+      enabled: p.AGENT_ENABLED,
       baseUrl: p.AGENT_BASE_URL,
       model: p.AGENT_MODEL,
       modelFallback: p.AGENT_MODEL_FALLBACK,
-      thinkingEnabled: p.AGENT_THINKING_ENABLED,
-      strictTools: p.AGENT_STRICT_TOOLS,
-      maxToolRounds: p.AGENT_MAX_TOOL_ROUNDS,
-      timeoutMs: p.AGENT_TIMEOUT_SECONDS * 1000,
-      contextMaxMessages: p.AGENT_CONTEXT_MAX_MESSAGES,
+      maxSteps: p.AGENT_MAX_STEPS,
+      turnTimeoutMs: p.AGENT_TURN_TIMEOUT_SECONDS * 1000,
+      llmTimeoutMs: p.AGENT_LLM_TIMEOUT_SECONDS * 1000,
+      dailyTokenBudget: p.AGENT_DAILY_TOKEN_BUDGET,
       sqlTimeoutMs: p.AGENT_SQL_TIMEOUT_SECONDS * 1000,
       sqlMaxRows: p.AGENT_SQL_MAX_ROWS,
+      memorySecret: p.AGENT_MEMORY_SECRET,
     },
     email: {
       brevoApiKey: p.BREVO_API_KEY,

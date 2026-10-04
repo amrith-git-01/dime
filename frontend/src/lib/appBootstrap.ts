@@ -1,15 +1,12 @@
 import NetInfo from "@react-native-community/netinfo";
-import { hydrate } from "@tanstack/query-core";
 import {
   focusManager,
   MutationCache,
   onlineManager,
   QueryCache,
   QueryClient,
-  type Query,
   type QueryKey,
 } from "@tanstack/react-query";
-import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { AppState } from "react-native";
 
 import { fetchMonthInsights } from "@/features/analytics/api/fetchMonthInsights";
@@ -40,61 +37,21 @@ import {
   APP_QUERY_STALE_MS,
   TRANSACTIONS_QUERY_STALE_MS,
 } from "@/lib/queryDefaults";
-import { QUERY_CACHE_MAX_AGE_MS, queryPersister } from "@/lib/queryPersister";
+import { restoreQueryCache } from "@/lib/queryPersister";
 import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
+import { subscribeUserTransitionWipe } from "@/lib/userTransitionWipe";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 import { reportError } from "@/lib/reportError";
 
-export const appQueryPersistOptions = {
-  persister: queryPersister,
-  maxAge: QUERY_CACHE_MAX_AGE_MS,
-  dehydrateOptions: {
-    shouldDehydrateQuery: (query: Query) =>
-      query.state.status === "success" &&
-      query.queryKey[0] !== notificationQueryKeys.all[0] &&
-      // Detail rows carry short-lived signed media URLs (C7); never restore them from disk.
-      !(
-        query.queryKey[0] === transactionsQueryKeys.all[0] &&
-        query.queryKey[1] === "detail"
-      ),
-  },
-} as const;
-
-function restoreQueryCache(queryClient: QueryClient): boolean {
-  try {
-    const persisted = queryPersister.restoreClient() as
-      | PersistedClient
-      | undefined;
-
-    if (!persisted?.timestamp) {
-      return false;
-    }
-
-    if (Date.now() - persisted.timestamp > QUERY_CACHE_MAX_AGE_MS) {
-      queryPersister.removeClient();
-      return false;
-    }
-
-    hydrate(queryClient, persisted.clientState);
-    return true;
-  } catch (error) {
-    reportError(
-      error,
-      "appBootstrap corrupt or incompatible query cache, clearing MMKV",
-    );
-    queryPersister.removeClient();
-    return false;
-  }
-}
-
 /** Sync MMKV → React Query (main cache blob + notifications). Runs once at launch. */
 export function hydrateAppFromMmkv(queryClient: QueryClient): void {
+  const userId = readStoredAuthSession()?.user.id;
   const queryCacheRestored = restoreQueryCache(queryClient);
-  const notificationsRestored = hydrateNotificationsFromMmkv(queryClient);
-  const userSettingsRestored = hydrateUserSettingsFromMmkv(
+  const notificationsRestored = hydrateNotificationsFromMmkv(
     queryClient,
-    readStoredAuthSession()?.user.id,
+    userId,
   );
+  const userSettingsRestored = hydrateUserSettingsFromMmkv(queryClient, userId);
 
   if (__DEV__) {
     console.log("[appBootstrap] hydrated from MMKV", {
@@ -133,16 +90,36 @@ export function createAppQueryClient(): QueryClient {
   });
 
   hydrateAppFromMmkv(queryClient);
+  // Registered synchronously, before any async auth event can arrive; lives as long as the app.
+  subscribeUserTransitionWipe(queryClient);
   return queryClient;
 }
 
+/** After this long in the background, server-side changes (alerts, pushes) are likely. */
+const LONG_BACKGROUND_MS = 60_000;
+
 /**
  * Feeds React Query the app's real focus/online signals so stale queries refetch when the
- * app returns to the foreground or the network comes back. Returns an unsubscribe function.
+ * app returns to the foreground or the network comes back. After a long background stay it also
+ * invalidates data the server changes on its own (realtime is not delivered while suspended).
+ * Returns an unsubscribe function.
  */
-export function subscribeQueryClientLifecycle(): () => void {
+export function subscribeQueryClientLifecycle(
+  queryClient: QueryClient,
+): () => void {
+  let backgroundedAt: number | null = null;
   const appStateSub = AppState.addEventListener("change", (status) => {
     focusManager.setFocused(status === "active");
+    if (status !== "active") {
+      backgroundedAt ??= Date.now();
+      return;
+    }
+    const wasLong =
+      backgroundedAt !== null && Date.now() - backgroundedAt > LONG_BACKGROUND_MS;
+    backgroundedAt = null;
+    if (wasLong) {
+      invalidateServerDrivenQueries(queryClient);
+    }
   });
   onlineManager.setEventListener((setOnline) =>
     NetInfo.addEventListener((state) => {
@@ -150,6 +127,17 @@ export function subscribeQueryClientLifecycle(): () => void {
     }),
   );
   return () => appStateSub.remove();
+}
+
+function invalidateServerDrivenQueries(queryClient: QueryClient): void {
+  for (const queryKey of [
+    insightsQueryKeys.all,
+    notificationQueryKeys.all,
+    budgetQueryKeys.all,
+    categoryBudgetsQueryKeys.all,
+  ]) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
 }
 
 function isCacheFresh(
@@ -168,14 +156,15 @@ function prefetchIfStale<T>(
   queryClient: QueryClient,
   queryKey: QueryKey,
   queryFn: () => Promise<T>,
+  staleMs: number = APP_QUERY_STALE_MS,
 ): void {
-  if (isCacheFresh(queryClient, queryKey)) {
+  if (isCacheFresh(queryClient, queryKey, staleMs)) {
     return;
   }
   void queryClient.prefetchQuery({
     queryKey,
     queryFn,
-    staleTime: APP_QUERY_STALE_MS,
+    staleTime: staleMs,
   });
 }
 
@@ -195,6 +184,7 @@ export function prefetchSiblingTabQueries(
     queryClient,
     insightsQueryKeys.month(userId, year, month, timezone),
     () => fetchMonthInsights({ year, month, timezone }),
+    TRANSACTIONS_QUERY_STALE_MS,
   );
   prefetchIfStale(
     queryClient,

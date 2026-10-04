@@ -7,7 +7,7 @@ import { isoUtc } from '../../core/timestamps';
 import * as repo from './repository';
 import type { BudgetResponse, BudgetRow, BudgetUpsertBody, CategoryBudgetItem } from './schemas';
 
-export function rowToBudget(row: BudgetRow): BudgetResponse {
+function rowToBudget(row: BudgetRow): BudgetResponse {
   return {
     id: String(row.id),
     user_id: String(row.user_id),

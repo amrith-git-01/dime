@@ -5,10 +5,12 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
   readPersistedNotifications,
   writePersistedNotifications,
 } from "@/lib/notifications/notificationsMmkv";
+import { NOTIFICATIONS_QUERY_STALE_MS } from "@/lib/queryDefaults";
 import {
   deleteNotification,
   fetchNotificationsPage,
@@ -39,23 +41,26 @@ const MIN_FILTERED_ITEMS = 20;
 
 export function useNotificationsFeed() {
   const queryClient = useQueryClient();
+  const { userId } = useSessionUserId();
   const [filter, setFilter] = useState<NotificationInboxFilter>("all");
 
   const listQuery = useInfiniteQuery({
-    queryKey: notificationQueryKeys.inboxList(),
+    queryKey: notificationQueryKeys.inboxList(userId),
+    enabled: Boolean(userId),
+    staleTime: NOTIFICATIONS_QUERY_STALE_MS,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const before = pageParam as string | undefined;
       const page = await fetchNotificationsPage({ before });
-      if (before === undefined) {
+      if (before === undefined && userId) {
         // Only the first page is persisted: it seeds the next cold start.
         const unreadCount =
           queryClient.getQueryData<number>(
-            notificationQueryKeys.unreadCount(),
+            notificationQueryKeys.unreadCount(userId),
           ) ??
-          readPersistedNotifications()?.unreadCount ??
+          readPersistedNotifications(userId)?.unreadCount ??
           page.items.filter((item) => item.readAt == null).length;
-        writePersistedNotifications({
+        writePersistedNotifications(userId, {
           inbox: page.items,
           unreadCount,
           nextCursor: page.nextCursor,
@@ -65,7 +70,7 @@ export function useNotificationsFeed() {
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     placeholderData: (): NotificationsInboxData | undefined => {
-      const snapshot = readPersistedNotifications();
+      const snapshot = readPersistedNotifications(userId);
       if (!snapshot) {
         return undefined;
       }
@@ -121,26 +126,26 @@ export function useNotificationsFeed() {
     onMutate: async (id) => {
       const prev = findNotificationInPages(
         queryClient.getQueryData<NotificationsInboxData>(
-          notificationQueryKeys.inboxList(),
+          notificationQueryKeys.inboxList(userId),
         ),
         id,
       );
       if (prev?.readAt != null) return { prev: undefined };
       const readAt = new Date().toISOString();
-      patchInboxNotification(queryClient, id, { readAt });
-      adjustUnreadCountCache(queryClient, -1);
+      patchInboxNotification(queryClient, userId, id, { readAt });
+      adjustUnreadCountCache(queryClient, userId, -1);
       return { prev };
     },
     onError: (_err, id, context) => {
       if (!context?.prev) return;
-      patchInboxNotification(queryClient, id, {
+      patchInboxNotification(queryClient, userId, id, {
         readAt: context.prev.readAt,
       });
-      adjustUnreadCountCache(queryClient, 1);
+      adjustUnreadCountCache(queryClient, userId, 1);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: notificationQueryKeys.unreadCount(),
+        queryKey: notificationQueryKeys.unreadCount(userId),
       });
     },
   });
@@ -150,27 +155,27 @@ export function useNotificationsFeed() {
     onMutate: async (id) => {
       const prev = findNotificationInPages(
         queryClient.getQueryData<NotificationsInboxData>(
-          notificationQueryKeys.inboxList(),
+          notificationQueryKeys.inboxList(userId),
         ),
         id,
       );
-      removeInboxNotification(queryClient, id);
+      removeInboxNotification(queryClient, userId, id);
       if (prev?.readAt == null) {
-        adjustUnreadCountCache(queryClient, -1);
+        adjustUnreadCountCache(queryClient, userId, -1);
       }
       return { prev };
     },
     onError: (_err, id, context) => {
       const prev = context?.prev;
       if (!prev) return;
-      restoreInboxNotification(queryClient, prev);
+      restoreInboxNotification(queryClient, userId, prev);
       if (prev.readAt == null) {
-        adjustUnreadCountCache(queryClient, 1);
+        adjustUnreadCountCache(queryClient, userId, 1);
       }
     },
     onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: notificationQueryKeys.unreadCount(),
+        queryKey: notificationQueryKeys.unreadCount(userId),
       });
     },
   });
