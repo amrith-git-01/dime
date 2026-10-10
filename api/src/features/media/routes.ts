@@ -41,7 +41,7 @@ mediaRoutes.on(['GET', 'HEAD'], '/*', async (c) => {
     cacheControl = url.searchParams.has('v') ? AVATAR_VERSIONED : AVATAR_UNVERSIONED;
   } else {
     const store = mediaStore(c.env);
-    if (!store.secret) throw new ServiceUnavailableError('Server missing MEDIA_URL_SECRET (required for private media).');
+    if (!store.secret) throw new ServiceUnavailableError('Private media is unavailable.');
     const expParam = url.searchParams.get('exp') ?? '';
     const sig = url.searchParams.get('sig') ?? '';
     if (!/^\d{1,12}$/.test(expParam) || !sig) return c.json(FORBIDDEN, 403);

@@ -1,6 +1,12 @@
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -107,6 +113,9 @@ export default function TransactionsListScreen() {
     usesRange,
     isEmpty,
     isError,
+    hasLoadedRows,
+    isRetrying,
+    retry,
     openTransactionDetail,
     showInitialLoading,
     showLoadingMore,
@@ -135,7 +144,8 @@ export default function TransactionsListScreen() {
     );
   }
 
-  if (isError) {
+  // Only a failure with nothing loaded replaces the list; otherwise the rows stay and the footer retries.
+  if (isError && !hasLoadedRows) {
     return (
       <View style={styles.fill}>
         <EmptyState
@@ -185,7 +195,24 @@ export default function TransactionsListScreen() {
         </View>
       }
       ListFooterComponent={
-        showLoadingMore ? (
+        isError ? (
+          <View style={styles.loadingMore}>
+            <Text style={styles.footerError}>
+              {emptyStateCopy.transactionsListError.headline}
+            </Text>
+            <Pressable
+              onPress={retry}
+              disabled={isRetrying}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading transactions"
+              hitSlop={8}
+            >
+              <Text style={styles.footerRetry}>
+                {isRetrying ? "Retrying…" : "Retry"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : showLoadingMore ? (
           <View style={styles.loadingMore}>
             <ActivityIndicator color={accent} />
           </View>
@@ -250,5 +277,18 @@ const styles = StyleSheet.create({
   loadingMore: {
     paddingVertical: spacing.lg,
     alignItems: "center",
+  },
+  footerError: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+  },
+  footerRetry: {
+    marginTop: spacing.sm,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: accent,
   },
 });

@@ -25,9 +25,9 @@ Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend a
 
 **Code-complete and verified locally:** audit phases 0–2 and 5–7, the Hono rewrite, agent v2, caching fixes, and the Cloudflare migration phases 1–7 (D1, auth, R2, Workers AI with the cost cap, agent on D1, live updates and frontend, config and docs). Work is **uncommitted** on the branch `feat/audit-and-workers-rewrite`. Nothing has been deployed.
 
-Test counts: `api/` 827 tests passing, frontend 173 tests passing, Python backend 303 (reference only).
+Test counts: `api/` 854 tests passing, frontend 173 tests passing, Python backend 303 (reference only).
 
-**Next steps:** the user follows `api/DEPLOY.md` (create D1 / R2 / queues, secrets, migrations, deploy) and `docs/rewrite/GO-LIVE.md` (staging device test, production, new app build, then pause and delete Supabase). Parity tools are in `api/scripts/parity/` (usable only if the same test data is loaded into the Python backend and the Worker).
+**Next steps:** the user follows `api/DEPLOY.md` (create D1 / R2 / queues, secrets, migrations, deploy) and `docs/rewrite/GO-LIVE.md` (production deploy, device test, new app build, then pause and delete Supabase). Parity tools are in `api/scripts/parity/` (usable only if the same test data is loaded into the Python backend and the Worker).
 
 **`EXPO_PUBLIC_API_BASE_URL` is origin-only.** Do not include `/api/v1`, because the app's paths already include it. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must also be listed in the Worker's `GOOGLE_WEB_CLIENT_ID`.
 

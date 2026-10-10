@@ -2,10 +2,8 @@ name: Agent evals
 
 # Never runs on pushes or pull requests: it calls a real LLM (DeepSeek) and a deployed or local API, so it
 # costs money and takes ~15 minutes (the AI rate limit allows 10 requests per user per minute).
-# Runs weekly and on demand.
+# Runs on demand only (it spends DeepSeek credit).
 on:
-  schedule:
-    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       filter:
@@ -36,10 +34,10 @@ jobs:
       run:
         working-directory: api
     env:
-      # Required repository secrets (a STAGING API whose D1 database holds api/evals/seed.sql,
+      # Required repository secrets (a non-production API whose D1 database holds api/evals/seed.sql,
       # with a real DEEPSEEK_API_KEY and AGENT_MEMORY_SECRET set on that Worker):
-      #   EVAL_BASE_URL       e.g. https://dime-api-staging.<subdomain>.workers.dev
-      #   EVAL_JWT_SECRET     the staging Worker's AUTH_JWT_SECRET (the runner mints the fixture user's token), OR
+      #   EVAL_BASE_URL       e.g. https://<temporary-worker>.<subdomain>.workers.dev
+      #   EVAL_JWT_SECRET     that Worker's AUTH_JWT_SECRET (the runner mints the fixture user's token), OR
       #   EVAL_ACCESS_TOKEN   an access token of the fixture user (expires: prefer the secret)
       EVAL_BASE_URL: ${{ secrets.EVAL_BASE_URL }}
       EVAL_JWT_SECRET: ${{ secrets.EVAL_JWT_SECRET }}

@@ -12,7 +12,8 @@ import { useCurrentUserStore } from "@/stores/currentUserStore";
 
 export function useSettingsAccountScreenModel() {
   const { userId } = useSessionUserId();
-  const cachedProfile = useCurrentUserStore((s) => s.profile);
+  const storedProfile = useCurrentUserStore((s) => s.profile);
+  const cachedProfile = storedProfile?.id === userId ? storedProfile : null;
   const { data: queryProfile } = useCurrentUserProfileQuery(userId);
   const profile = queryProfile ?? cachedProfile;
 

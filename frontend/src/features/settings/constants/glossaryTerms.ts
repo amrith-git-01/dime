@@ -25,7 +25,7 @@ export const GLOSSARY_GROUPS: readonly GlossaryGroup[] = [
         id: "transaction",
         term: "Transaction",
         description:
-          "One debit or credit — from a bank SMS, a receipt, voice, or typing it in.",
+          "One debit or credit — from a receipt, voice, or typing it in.",
       },
       {
         id: "amount",
@@ -110,23 +110,6 @@ export const GLOSSARY_GROUPS: readonly GlossaryGroup[] = [
     title: "Capture",
     terms: [
       {
-        id: "automatic-capture",
-        term: "Automatic capture",
-        description:
-          "Reading bank SMS on this phone so you can review them as expenses.",
-      },
-      {
-        id: "bank-sms",
-        term: "Bank SMS",
-        description: "A bank text that may be a debit or credit.",
-      },
-      {
-        id: "review-inbox",
-        term: "Review inbox",
-        description:
-          "The list of SMS Dime found when you open the app. Keep, edit, or skip each one.",
-      },
-      {
         id: "receipt",
         term: "Receipt",
         description: "A photo Dime reads to fill in a transaction.",
@@ -199,7 +182,7 @@ export const GLOSSARY_GROUPS: readonly GlossaryGroup[] = [
         id: "transaction-added",
         term: "Transaction added",
         description:
-          "A notification when Dime logs something from SMS, a scan, or voice.",
+          "A notification when Dime logs something from a scan or voice.",
       },
       {
         id: "capture-failure",

@@ -12,7 +12,7 @@ export interface AfterInsertInput {
   timezone: string;
   transactionId: string;
   type: 'debit' | 'credit';
-  /** `manual` | `sms` | `voice` | `scan` | `notification`; auto-detected sources get a `transaction_auto` notification. */
+  /** `manual` | `voice` | `scan`; auto-detected sources get a `transaction_auto` notification. */
   detectedVia: string;
   /** Instant of the transaction (epoch ms), used to pick the budget periods. */
   transactionAtMs: number;

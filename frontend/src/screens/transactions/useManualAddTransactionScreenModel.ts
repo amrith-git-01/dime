@@ -25,7 +25,7 @@ export function useManualAddTransactionScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const route = useRoute<ManualAddRoute>();
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const submitMutation = useSubmitManualTransactionMutation();
   const { showToast } = useToast();
   const form = useManualAddTransactionForm();
@@ -158,7 +158,7 @@ export function useManualAddTransactionScreenModel() {
   }, [openAndroidTimePicker]);
 
   const onSave = useCallback(async () => {
-    if (!authReady || !userId) {
+    if (!userId) {
       Alert.alert("Sign in required", "Sign in to add a transaction.");
       return;
     }
@@ -191,7 +191,7 @@ export function useManualAddTransactionScreenModel() {
         },
       });
     }
-  }, [authReady, buildPayload, navigation, showToast, submitMutation, userId]);
+  }, [buildPayload, navigation, showToast, submitMutation, userId]);
 
   const setExpenseType = useCallback(() => {
     void triggerHaptic();

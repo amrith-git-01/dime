@@ -217,7 +217,7 @@ describe('worker entry points', () => {
     expect(queue.sent).toHaveLength(0);
   });
 
-  it.each(['dime-email', 'dime-email-staging'])('routes the %s queue to the email consumer', async (queueName) => {
+  it.each(['dime-email'])('routes the %s queue to the email consumer', async (queueName) => {
     const { env } = emailEnv();
     const bad = new FakeMessage({ nonsense: true });
     await worker.queue(fakeBatch(queueName, [bad]), env, makeCtx().ctx);
@@ -225,7 +225,7 @@ describe('worker entry points', () => {
     expect(bad.retried).toBeUndefined();
   });
 
-  it.each(['dime-email-dlq', 'dime-email-dlq-staging'])('the %s DLQ logs and acks (valid or malformed), touching no service', async (queueName) => {
+  it.each(['dime-email-dlq'])('the %s DLQ logs and acks (valid or malformed), touching no service', async (queueName) => {
     const { env } = emailEnv();
     const dead = new FakeMessage({ type: 'digest', user_id: 'u-1', kind: 'weekly', period_key: '2026-W40' }, 4);
     const bad = new FakeMessage({ nonsense: true });

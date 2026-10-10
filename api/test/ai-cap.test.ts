@@ -6,9 +6,9 @@ import type { Bindings } from '../src/core/env';
 import { PermanentAiError } from '../src/features/ai/errors';
 import {
   addNeurons,
-  addUserCapture,
   assertJobAllowed,
-  assertUploadAllowed,
+  claimCapture,
+  claimUpload,
   estimateCaptureNeurons,
   estimateOcrNeurons,
   estimateWhisperNeurons,
@@ -22,8 +22,8 @@ import { processIngestMessage } from '../src/features/ingest/consumer';
 import type { IngestDeps } from '../src/features/ingest/consumer';
 import { mediaStore } from '../src/features/media/storage';
 import { USER_ID, call, makeEnv } from './helpers';
-import { oneRow, rowsOf, seedCategory, seedJob, testDb } from './db';
-import { CAT_FOOD, FakeAi, FakeMessage, FakeQueue, JOB, JPEG, M4A, TZ, completion, mediaPayload, parsedSms, smsPayload, uploadForm } from './ingest-fixtures';
+import { failingOn, oneRow, rowsOf, seedCategory, seedJob, testDb } from './db';
+import { CAT_FOOD, FakeAi, FakeMessage, FakeQueue, JOB, JPEG, M4A, TZ, completion, mediaPayload, parsedSms, uploadForm } from './ingest-fixtures';
 import { json, useSupabaseStub } from './supabase-stub';
 
 const stub = useSupabaseStub();
@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 
 const db = () => testDb();
-const LIMITS = { dailyNeuronCap: 1000, userDailyCaptures: 3 };
+const LIMITS = { dailyNeuronCap: 1000, userDailyReceipts: 3, userDailyVoice: 2 };
 const NOON = Date.UTC(2026, 9, 10, 12, 0, 0);
 
 describe('estimates', () => {
@@ -77,28 +77,40 @@ describe('counters', () => {
     expect(secondsUntilUtcMidnight(NOON)).toBe(12 * 3600);
   });
 
-  it('user captures count per user and day', async () => {
-    await addUserCapture(db(), USER_ID, NOON);
-    await addUserCapture(db(), USER_ID, NOON);
-    expect(await userCapturesToday(db(), USER_ID, NOON)).toBe(2);
-    expect(await userCapturesToday(db(), USER_ID, NOON + 24 * 3600 * 1000)).toBe(0);
+  it('user captures count per user, kind and day', async () => {
+    await claimCapture(db(), USER_ID, 'receipt', NOON, 10);
+    await claimCapture(db(), USER_ID, 'receipt', NOON, 10);
+    await claimCapture(db(), USER_ID, 'voice', NOON, 10);
+    expect(await userCapturesToday(db(), USER_ID, NOON)).toEqual({ receipts: 2, voices: 1 });
+    expect(await userCapturesToday(db(), USER_ID, NOON + 24 * 3600 * 1000)).toEqual({ receipts: 0, voices: 0 });
   });
 });
 
 describe('guards', () => {
   it('upload: allowed while used + estimate <= cap, 429 with Retry-After beyond it', async () => {
     await addNeurons(db(), NOON, 900);
-    await assertUploadAllowed(db(), USER_ID, LIMITS, 100, NOON); // exactly at the cap
-    const err = await assertUploadAllowed(db(), USER_ID, LIMITS, 101, NOON).catch((e: unknown) => e);
+    await claimUpload(db(), USER_ID, 'receipt', LIMITS, 100, NOON); // exactly at the cap
+    const err = await claimUpload(db(), USER_ID, 'receipt', LIMITS, 101, NOON).catch((e: unknown) => e);
     expect(err).toMatchObject({ status: 429, message: 'Scanning is paused for today. Try again tomorrow.', headers: { 'Retry-After': String(12 * 3600) } });
     // The next UTC day starts empty.
-    await assertUploadAllowed(db(), USER_ID, LIMITS, 101, NOON + 12 * 3600 * 1000);
+    await claimUpload(db(), USER_ID, 'receipt', LIMITS, 101, NOON + 12 * 3600 * 1000);
   });
 
-  it('upload: the per-user daily capture limit', async () => {
-    for (let i = 0; i < 3; i++) await addUserCapture(db(), USER_ID, NOON);
-    const err = await assertUploadAllowed(db(), USER_ID, LIMITS, 1, NOON).catch((e: unknown) => e);
-    expect(err).toMatchObject({ status: 429, message: "You've reached today's limit of 3 scans and voice notes. Try again tomorrow." });
+  it('upload: each kind has its own daily limit, with its own message and Retry-After', async () => {
+    for (let i = 0; i < 3; i++) await claimUpload(db(), USER_ID, 'receipt', LIMITS, 1, NOON);
+    const receipt = await claimUpload(db(), USER_ID, 'receipt', LIMITS, 1, NOON).catch((e: unknown) => e);
+    expect(receipt).toMatchObject({ status: 429, message: "You've used today's 3 receipt scans. Try again tomorrow.", headers: { 'Retry-After': String(12 * 3600) } });
+    // Voice is untouched by the receipts.
+    for (let i = 0; i < 2; i++) await claimUpload(db(), USER_ID, 'voice', LIMITS, 1, NOON);
+    const voice = await claimUpload(db(), USER_ID, 'voice', LIMITS, 1, NOON).catch((e: unknown) => e);
+    expect(voice).toMatchObject({ status: 429, message: "You've used today's 2 voice captures. Try again tomorrow." });
+    expect(await userCapturesToday(db(), USER_ID, NOON)).toEqual({ receipts: 3, voices: 2 });
+  });
+
+  it('claims are atomic: concurrent uploads cannot pass the limit', async () => {
+    const results = await Promise.all(Array.from({ length: 12 }, () => claimCapture(db(), USER_ID, 'voice', NOON, 5)));
+    expect(results.filter(Boolean)).toHaveLength(5);
+    expect((await userCapturesToday(db(), USER_ID, NOON)).voices).toBe(5);
   });
 
   it('job: a permanent AI error once the day is used up', async () => {
@@ -128,7 +140,7 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     expect(await storedKeys()).toEqual([]);
     expect(await rowsOf('jobs')).toHaveLength(0);
     expect(queue.sent).toEqual([]);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toBe(0);
+    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 0, voices: 0 });
   });
 
   it('under the cap the upload is accepted and counted against the user', async () => {
@@ -136,7 +148,14 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     const res = await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG), env: ingestEnv(queue) });
     expect(res.status).toBe(202);
     expect(queue.sent).toHaveLength(1);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toBe(1);
+    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 1, voices: 0 });
+  });
+
+  it('a failed job insert gives the claim back', async () => {
+    const env = { ...ingestEnv(new FakeQueue()), DB: failingOn(/INSERT INTO jobs/) } as unknown as Bindings;
+    const res = await call(`/api/v1/transactions/voice?${TZ}`, { method: 'POST', body: uploadForm(M4A), env });
+    expect(res.status).toBe(500);
+    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 0, voices: 0 });
   });
 
   it('the AI_DAILY_NEURON_CAP var is honoured', async () => {
@@ -148,28 +167,34 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     expect(res.status).toBe(429);
   });
 
-  it('the per-user limit answers 429 with its own message', async () => {
-    for (let i = 0; i < 2; i++) await addUserCapture(db(), USER_ID, Date.now());
+  it('the per-user limits answer 429 with their own message, per kind', async () => {
     const queue = new FakeQueue();
-    const env = ingestEnv(queue, { AI_USER_DAILY_CAPTURES: '2' });
-    const res = await call(`/api/v1/transactions/voice?${TZ}`, { method: 'POST', body: uploadForm(M4A), env });
+    const env = ingestEnv(queue, { AI_USER_DAILY_VOICE: '2', AI_USER_DAILY_RECEIPTS: '1' });
+    const send = (kind: 'voice' | 'receipt', bytes: Uint8Array, headers: Record<string, string> = {}) =>
+      call(`/api/v1/transactions/${kind}?${TZ}`, { method: 'POST', body: uploadForm(bytes), env, headers });
+    expect((await send('voice', M4A)).status).toBe(202);
+    expect((await send('voice', M4A)).status).toBe(202);
+    const res = await send('voice', M4A);
     expect(res.status).toBe(429);
-    expect(await res.json()).toEqual({ detail: expect.stringContaining('limit of 2') as string });
-    expect(queue.sent).toEqual([]);
+    expect(await res.json()).toEqual({ detail: "You've used today's 2 voice captures. Try again tomorrow." });
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1);
+    expect(queue.sent).toHaveLength(2);
+    // The receipt counter is separate.
+    expect((await send('receipt', JPEG)).status).toBe(202);
+    const second = await send('receipt', JPEG);
+    expect(second.status).toBe(429);
+    expect(await second.json()).toEqual({ detail: "You've used today's 1 receipt scan. Try again tomorrow." });
   });
 
-  it('SMS (DeepSeek) is neither blocked by nor counted against the cap', async () => {
-    await addNeurons(db(), Date.now(), 100_000);
+  it('a replayed Idempotency-Key is answered 202 without counting', async () => {
     const queue = new FakeQueue();
-    const res = await call(`/api/v1/transactions/sms?${TZ}`, {
-      method: 'POST',
-      json: { messages: [{ body: 'INR 5 debited', received_at: '2026-10-04T10:00:00+00:00' }] },
-      env: ingestEnv(queue),
-    });
-    expect(res.status).toBe(202);
+    const env = ingestEnv(queue, { AI_USER_DAILY_RECEIPTS: '5' });
+    const headers = { 'Idempotency-Key': '5c0e7d9e-3b0f-4f3c-9a55-0c1d2e3f4a5b' };
+    for (let i = 0; i < 3; i++) {
+      expect((await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG), env, headers })).status).toBe(202);
+    }
+    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 1, voices: 0 });
     expect(queue.sent).toHaveLength(1);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toBe(0);
-    expect(await neuronsUsedToday(db(), Date.now())).toBe(100_000);
   });
 });
 
@@ -236,18 +261,5 @@ describe('ingest consumer and the cap', () => {
     await processIngestMessage(m, deps());
     expect(m.retried).toBeDefined(); // transient: queue retry
     expect(await neuronsUsedToday(db(), Date.now())).toBe(0);
-  });
-
-  it('SMS jobs run at any usage: DeepSeek only, no Workers AI call, nothing booked', async () => {
-    await seedFood();
-    await addNeurons(db(), Date.now(), 1_000_000);
-    await seedJob({ id: JOB, kind: 'sms', payload: smsPayload() });
-    stub.on('POST', '/chat/completions', () => json(completion(parsedSms())));
-    const m = new FakeMessage({ job_id: JOB, kind: 'sms' });
-    await processIngestMessage(m, deps());
-    expect(m.acked).toBe(true);
-    expect(await job()).toMatchObject({ status: 'done' });
-    expect(fakeAi.calls).toHaveLength(0);
-    expect(await neuronsUsedToday(db(), Date.now())).toBe(1_000_000);
   });
 });

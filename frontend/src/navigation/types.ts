@@ -1,5 +1,6 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
+import type { RecurringKind } from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type MainTabParamList = {
@@ -13,13 +14,14 @@ export type MainStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Settings: undefined;
   SettingsAccount: undefined;
-  SettingsCapture: undefined;
   SettingsEmail: undefined;
   SettingsFeedback: undefined;
   SettingsHaptic: undefined;
   SettingsGlossary: undefined;
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;
+  RecurringList: { kind: RecurringKind };
+  EditRecurring: { kind: RecurringKind; recurringId?: string };
   Notifications: undefined;
   ManualAddTransaction:
     | {
@@ -91,7 +93,6 @@ export type RootStackParamList = {
   WelcomeTour: undefined;
   Auth: undefined;
   ProfileSetup: undefined;
-  SmsInboxReview: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;
 };
 

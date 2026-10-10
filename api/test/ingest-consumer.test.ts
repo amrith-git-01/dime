@@ -14,7 +14,7 @@ import worker from '../src/index';
 import { UpstreamError } from '../src/core/errors';
 import { USER_ID, makeEnv } from './helpers';
 import { failingOn, oneRow, rowsOf, seedCategory, seedJob, seedSettings, seedTransaction, testDb, withBeforeExec } from './db';
-import { CAT_FOOD, FakeAi, FakeMessage, FakeQueue, JOB, JPEG, M4A, TX, completion, fakeBatch, mediaPayload, parsedSms, smsPayload } from './ingest-fixtures';
+import { CAT_FOOD, FakeAi, FakeMessage, FakeQueue, JOB, JPEG, M4A, TX, completion, fakeBatch, mediaPayload, parsedSms } from './ingest-fixtures';
 import { json, useSupabaseStub } from './supabase-stub';
 
 // Jobs, transactions and notifications are real rows in D1; media is real R2; the stub plays DeepSeek and FakeAi plays Workers AI.
@@ -27,7 +27,7 @@ beforeEach(() => {
 
 const env = (): Bindings => makeEnv({ DEEPSEEK_API_KEY: 'ds-key' });
 const deps = (over: Partial<IngestDeps> = {}): IngestDeps => ({ db: testDb(), storage: mediaStore(env()), config: getConfig(env()), ai: fakeAi.asAi(), ...over });
-const msg = (attempts = 1, jobId = JOB) => new FakeMessage({ job_id: jobId, kind: 'sms' }, attempts);
+const msg = (attempts = 1, jobId = JOB) => new FakeMessage({ job_id: jobId, kind: 'receipt' }, attempts);
 const JOB2 = 'aaaaaaaa-0000-0000-0000-00000000000d';
 
 interface JobRecord {
@@ -42,9 +42,14 @@ interface JobRecord {
 const job = (id = JOB) => oneRow<JobRecord>('jobs', 'id = ?', id);
 const result = async (id = JOB) => JSON.parse((await job(id))?.result ?? 'null') as unknown;
 
-/** The "Food" category the parsed SMS names. */
+/** The "Food" category the parsed receipt names. */
 const seedFood = () => seedCategory({ id: CAT_FOOD, name: 'Food', icon_name: 'Utensils', color: '#111111' });
-const seedPending = (over: Parameters<typeof seedJob>[0] = {}) => seedJob({ id: JOB, kind: 'sms', payload: smsPayload(), ...over });
+/** A pending receipt job whose image sits in R2 (Workers AI is the fake: it "reads" OCR TEXT SWIGGY 250.50). */
+const seedPending = async (over: Parameters<typeof seedJob>[0] = {}) => {
+  const payload = mediaPayload();
+  await workerEnv.MEDIA.put(payload.object_path, JPEG, { httpMetadata: { contentType: 'image/jpeg' } });
+  return seedJob({ id: JOB, kind: 'receipt', payload, ...over });
+};
 const notifications = () => rowsOf<Record<string, unknown>>('notifications');
 const transactions = () => rowsOf<Record<string, unknown>>('transactions');
 
@@ -55,10 +60,10 @@ const stubDeepSeek = (content: string) =>
 const swiggyHash = () =>
   buildPaymentHash({ amount: '250.50', type: 'debit', counterpartyNormalized: 'swiggy', counterpartyName: 'Swiggy', transactionAtMs: Date.parse('2026-10-03T00:00:00.000Z') });
 
-describe('processIngestMessage: sms success', () => {
+describe('processIngestMessage: success', () => {
   it('claims, parses, creates the transaction with server-set fields, notifies and marks done', async () => {
     await seedFood();
-    await seedPending({ payload: smsPayload({ body: 'INR 1,500 credited by ACME' }) });
+    await seedPending();
     stubDeepSeek(parsedSms({ type: 'credit', amount: 1500, counterparty_name: 'ACME', date: null, category: 'Food' }));
     const m = msg();
     await processIngestMessage(m, deps());
@@ -71,16 +76,16 @@ describe('processIngestMessage: sms success', () => {
       user_id: USER_ID,
       amount: 150000,
       type: 'credit',
-      detected_via: 'sms',
-      receipt_url: null,
+      detected_via: 'scan',
+      receipt_url: mediaPayload().object_path,
       voice_url: null,
       counterparty_name: 'ACME',
       category_id: CAT_FOOD,
-      // No date from the model: the SMS receive time is used.
-      transaction_at: '2026-10-04T10:00:00.000Z',
     });
 
     // pending -> processing (attempts + 1) -> done with the transaction id.
+    // No date from the model: the time of the capture is used.
+    expect(Date.now() - Date.parse(String(tx?.['transaction_at']))).toBeLessThan(60_000);
     expect(await job()).toMatchObject({ status: 'done', attempts: 1 });
     expect(await result()).toEqual({ transaction_id: tx?.['id'] });
 
@@ -267,6 +272,19 @@ describe('processIngestMessage: claiming', () => {
     expect(m.acked).toBe(true);
     expect(await job()).toMatchObject({ status: 'failed', last_error: 'max attempts exceeded', attempts: 3 });
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
+    // Same notice as the DLQ path.
+    expect(await notifications()).toEqual([expect.objectContaining({ kind: 'capture_failed', title: 'Receipt scan failed' })]);
+  });
+
+  it('a markDone failure after the transaction was created neither re-runs the pipeline nor reports a failed capture', async () => {
+    await seedPending();
+    const db = failingOn(/SET status = 'done'/, 'D1_ERROR: down');
+    const m = msg();
+    await processIngestMessage(m, deps({ db, run: () => Promise.resolve({ transactionId: TX, created: true }) }));
+    expect(m.acked).toBe(true);
+    expect(m.retried).toBeUndefined();
+    expect(await job()).toMatchObject({ status: 'processing', attempts: 1 });
+    expect(await notifications()).toHaveLength(0);
   });
 
   it('a malformed queue message is acked and dropped', async () => {
@@ -305,7 +323,7 @@ describe('processIngestMessage: failures', () => {
     expect(m.retried).toEqual({ delaySeconds: 5 });
     const row = await job();
     expect(row).toMatchObject({ status: 'pending', attempts: 1 });
-    // Backdated one second so the sweep (120 s) does not race the queue redelivery.
+    // Backdated one second so the sweep (300 s) does not race the queue redelivery.
     expect(Date.now() - Date.parse(row?.updated_at ?? '')).toBeGreaterThanOrEqual(1000);
     expect(await notifications()).toHaveLength(0);
   });
@@ -330,7 +348,7 @@ describe('processIngestMessage: failures', () => {
     expect(await notifications()).toHaveLength(1);
   });
 
-  it('permanent error: failed (last_error <= 500 chars) + capture_failed notification for sms, then ack', async () => {
+  it('permanent error: failed (last_error <= 500 chars) + capture_failed notification for a receipt, then ack', async () => {
     await seedPending();
     stub.on('POST', '/chat/completions', () => json(completion('this is not json')));
     const m = msg();
@@ -345,9 +363,9 @@ describe('processIngestMessage: failures', () => {
     expect(await notifications()).toEqual([
       expect.objectContaining({
         kind: 'capture_failed',
-        title: 'SMS capture failed',
-        body: "We couldn't read this bank message. Try again or add manually.",
-        dedupe_key: `capture_failed:sms:${today}`,
+        title: 'Receipt scan failed',
+        body: "We couldn't read this receipt. Try again or add manually.",
+        dedupe_key: `capture_failed:scan:${today}`,
         action_type: 'manual_add',
       }),
     ]);
@@ -429,7 +447,7 @@ describe('queue handlers', () => {
     await seedPending();
     stubDeepSeek(parsedSms());
     const messages = [msg(), msg(), msg()];
-    await handleIngestBatch(fakeBatch('dime-ingest', messages), env());
+    await handleIngestBatch(fakeBatch('dime-ingest', messages), { ...env(), AI: fakeAi.asAi() });
     expect(messages.every((m) => m.acked)).toBe(true);
     expect(await transactions()).toHaveLength(1);
   });
@@ -441,11 +459,11 @@ describe('queue handlers', () => {
     expect(messages.map((m) => m.retried)).toEqual([{ delaySeconds: 10 }, { delaySeconds: 10 }]);
   });
 
-  it('index.queue routes by queue name (prod and staging) and stubs the email queue', async () => {
+  it('index.queue routes by queue name and stubs the email queue', async () => {
     await seedPending({ status: 'done' });
     const ctx = {} as ExecutionContext;
     const ingest = msg();
-    await worker.queue?.(fakeBatch('dime-ingest-staging', [ingest]), env(), ctx);
+    await worker.queue?.(fakeBatch('dime-ingest', [ingest]), env(), ctx);
     expect(ingest.acked).toBe(true);
     expect(await job()).toMatchObject({ status: 'done', attempts: 0 }); // the ingest handler looked, found it finished
 
@@ -500,17 +518,17 @@ const controller = (cron: string) => ({ cron, scheduledTime: Date.now(), type: '
 
 describe('recovery sweep', () => {
   const NOW = Date.parse('2026-10-04T12:00:00.000Z');
-  const STALE = '2026-10-04T11:57:00.000Z'; // 3 minutes: stale
+  const STALE = '2026-10-04T11:54:00.000Z'; // 6 minutes: stale (the cutoff is 300 s)
   const FRESH = '2026-10-04T11:59:30.000Z'; // 30 seconds: not yet
   const id = (n: number) => `bbbbbbbb-0000-0000-0000-${String(n).padStart(12, '0')}`;
 
   it('re-sends stale pending jobs and re-queues stale processing ones, oldest first, per kind', async () => {
-    await seedJob({ id: id(2), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:57:30.000Z' });
+    await seedJob({ id: id(2), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:54:30.000Z' });
     await seedJob({ id: id(1), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
     await seedJob({ id: id(3), kind: 'receipt', status: 'processing', updated_at: STALE });
     await seedJob({ id: id(4), kind: 'receipt', status: 'pending', updated_at: FRESH }); // too fresh
     await seedJob({ id: id(5), kind: 'receipt', status: 'done', updated_at: STALE }); // finished
-    await seedJob({ id: id(6), kind: 'sms', status: 'processing', updated_at: STALE });
+    await seedJob({ id: id(6), kind: 'voice', status: 'processing', updated_at: STALE });
     const queue = new FakeQueue();
     const out = await sweepJobs(testDb(), queue.asQueue(), NOW);
 
@@ -519,7 +537,7 @@ describe('recovery sweep', () => {
       { job_id: id(1), kind: 'receipt' },
       { job_id: id(2), kind: 'receipt' },
       { job_id: id(3), kind: 'receipt' },
-      { job_id: id(6), kind: 'sms' },
+      { job_id: id(6), kind: 'voice' },
     ]);
     expect(out).toEqual({ requeued: 2, resent: 4 });
     expect(await oneRow('jobs', 'id = ?', id(3))).toMatchObject({ status: 'pending' });
@@ -529,8 +547,8 @@ describe('recovery sweep', () => {
 
   it('requeues a stale processing job (conditional update) and leaves a freshly touched one alone', async () => {
     await seedJob({ id: id(3), kind: 'receipt', status: 'processing', updated_at: STALE });
-    await seedJob({ id: id(6), kind: 'sms', status: 'processing', updated_at: STALE });
-    // The sms job is touched by its worker right before the sweep's conditional requeue.
+    await seedJob({ id: id(6), kind: 'voice', status: 'processing', updated_at: STALE });
+    // The voice job is touched by its worker right before the sweep's conditional requeue.
     let touched = false;
     const db = withBeforeExec(/UPDATE jobs SET status = 'pending', updated_at = \? WHERE id = \? AND status = 'processing'/, async () => {
       if (touched) return;
@@ -539,29 +557,30 @@ describe('recovery sweep', () => {
     });
     const queue = new FakeQueue();
     const out = await sweepJobs(db, queue.asQueue(), NOW);
-    // Kinds run receipt, voice, sms: the hook fires first for the receipt job (touching the sms job), so only the receipt job is requeued.
+    // Kinds run receipt, voice: the hook fires first for the receipt job (touching the voice job), so only the receipt job is requeued.
     expect(queue.sent).toEqual([{ job_id: id(3), kind: 'receipt' }]);
     expect(out).toEqual({ requeued: 1, resent: 1 });
     expect(await oneRow('jobs', 'id = ?', id(3))).toMatchObject({ status: 'pending' });
     expect(await oneRow('jobs', 'id = ?', id(6))).toMatchObject({ status: 'processing' });
   });
 
-  it('sends oldest first within a kind and respects the 120 s cutoff', async () => {
-    await seedJob({ id: id(2), kind: 'sms', status: 'pending', updated_at: '2026-10-04T11:57:30.000Z' });
-    await seedJob({ id: id(1), kind: 'sms', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
-    await seedJob({ id: id(4), kind: 'sms', status: 'pending', updated_at: FRESH });
-    await seedJob({ id: id(5), kind: 'sms', status: 'failed', updated_at: STALE });
+  it('sends oldest first within a kind and respects the 300 s cutoff', async () => {
+    await seedJob({ id: id(2), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:54:30.000Z' });
+    await seedJob({ id: id(1), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
+    await seedJob({ id: id(3), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:57:00.000Z' }); // 3 minutes: not yet
+    await seedJob({ id: id(4), kind: 'voice', status: 'pending', updated_at: FRESH });
+    await seedJob({ id: id(5), kind: 'voice', status: 'failed', updated_at: STALE });
     const queue = new FakeQueue();
     const out = await sweepJobs(testDb(), queue.asQueue(), NOW);
     expect(queue.sent).toEqual([
-      { job_id: id(1), kind: 'sms' },
-      { job_id: id(2), kind: 'sms' },
+      { job_id: id(1), kind: 'voice' },
+      { job_id: id(2), kind: 'voice' },
     ]);
     expect(out).toEqual({ requeued: 0, resent: 2 });
   });
 
   it('does nothing (and sends nothing) when no job is stale', async () => {
-    await seedJob({ kind: 'sms', status: 'pending', updated_at: FRESH });
+    await seedJob({ kind: 'voice', status: 'pending', updated_at: FRESH });
     const queue = new FakeQueue();
     expect(await sweepJobs(testDb(), queue.asQueue(), NOW)).toEqual({ requeued: 0, resent: 0 });
     expect(queue.sent).toEqual([]);
@@ -575,10 +594,10 @@ describe('recovery sweep', () => {
     expect(await oneRow('jobs', 'id = ?', id(1))).toMatchObject({ status: 'pending' });
   });
 
-  it('sends in batches of at most 100', async () => {
+  it('sends everything it found in one batch of at most 100', async () => {
     const db = testDb();
     const insert = db.prepare("INSERT INTO jobs (id, user_id, kind, payload, status, attempts, created_at, updated_at) VALUES (?, ?, ?, '{}', 'pending', 0, ?, ?)");
-    const rows = (['receipt', 'voice', 'sms'] as const).flatMap((kind, k) => Array.from({ length: 50 }, (_, i) => insert.bind(id(k * 100 + i), USER_ID, kind, STALE, STALE)));
+    const rows = (['receipt', 'voice'] as const).flatMap((kind, k) => Array.from({ length: 50 }, (_, i) => insert.bind(id(k * 100 + i), USER_ID, kind, STALE, STALE)));
     for (let i = 0; i < rows.length; i += 50) await db.batch(rows.slice(i, i + 50));
     const queue = new FakeQueue();
     const batches: number[] = [];
@@ -589,11 +608,11 @@ describe('recovery sweep', () => {
       return Promise.resolve();
     };
     await sweepJobs(db, queue.asQueue(), NOW);
-    expect(batches).toEqual([100, 50]); // 3 kinds x 50 stale jobs
+    expect(batches).toEqual([100]); // 2 kinds x 50 stale jobs, one full batch
   });
 
   it('scheduled() dispatches by cron: the sweep for */5, a stub for the email digest', async () => {
-    await seedJob({ kind: 'sms', status: 'pending', updated_at: STALE });
+    await seedJob({ kind: 'voice', status: 'pending', updated_at: STALE });
     const queue = new FakeQueue();
     const e = { ...env(), INGEST_QUEUE: queue.asQueue() } as Bindings;
     const ctx = {} as ExecutionContext;

@@ -1,3 +1,4 @@
+import { env as workerEnv } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import { getConfig } from '../src/core/env';
@@ -6,7 +7,7 @@ import { handleIngestBatch, processIngestMessage } from '../src/features/ingest/
 import type { IngestDeps } from '../src/features/ingest/consumer';
 import { mediaStore } from '../src/features/media/storage';
 import { envPublisher } from '../src/features/realtime/publish';
-import { CAT_FOOD, FakeAi, FakeMessage, JOB, completion, fakeBatch, parsedSms, smsPayload } from './ingest-fixtures';
+import { CAT_FOOD, FakeAi, FakeMessage, JOB, JPEG, completion, fakeBatch, mediaPayload, parsedSms } from './ingest-fixtures';
 import { USER_ID, call, makeCtx, makeEnv, signToken, testApp } from './helpers';
 import { seedCategory, seedJob, seedTransaction, seedUser, testDb, uid } from './db';
 import { json, useSupabaseStub } from './supabase-stub';
@@ -234,10 +235,11 @@ describe('broadcast from the ingest queue consumer', () => {
   it('processIngestMessage broadcasts the created transaction to the job owner', async () => {
     const env = makeEnv({ DEEPSEEK_API_KEY: 'ds-key' });
     await seedCategory({ id: CAT_FOOD, name: 'Food', icon_name: 'Utensils', color: '#111111' });
-    await seedJob({ id: JOB, kind: 'sms', payload: smsPayload() });
+    await seedJob({ id: JOB, kind: 'receipt', payload: mediaPayload() });
+    await workerEnv.MEDIA.put(mediaPayload().object_path, JPEG, { httpMetadata: { contentType: 'image/jpeg' } });
     stub.on('POST', '/chat/completions', () => json(completion(parsedSms({ category: 'Food' }))));
     const socket = await connect();
-    const m = new FakeMessage({ job_id: JOB, kind: 'sms' }, 1);
+    const m = new FakeMessage({ job_id: JOB, kind: 'receipt' }, 1);
     await processIngestMessage(m, deps(env));
     expect(m.acked).toBe(true);
     const [event] = await socket.events(1);
@@ -245,7 +247,7 @@ describe('broadcast from the ingest queue consumer', () => {
       table: 'transactions',
       eventType: 'INSERT',
       old: {},
-      new: { user_id: USER_ID, detected_via: 'sms', category_id: CAT_FOOD, deleted_at: null },
+      new: { user_id: USER_ID, detected_via: 'scan', category_id: CAT_FOOD, deleted_at: null },
     });
     expect(typeof event?.new['amount']).toBe('string');
     socket.ws.close(1000);
@@ -253,10 +255,11 @@ describe('broadcast from the ingest queue consumer', () => {
 
   it('handleIngestBatch wires the publisher from env', async () => {
     const env = makeEnv({ DEEPSEEK_API_KEY: 'ds-key', AI: fakeAi.asAi() });
-    await seedJob({ id: JOB, kind: 'sms', payload: smsPayload() });
+    await seedJob({ id: JOB, kind: 'receipt', payload: mediaPayload() });
+    await workerEnv.MEDIA.put(mediaPayload().object_path, JPEG, { httpMetadata: { contentType: 'image/jpeg' } });
     stub.on('POST', '/chat/completions', () => json(completion(parsedSms())));
     const socket = await connect();
-    await handleIngestBatch(fakeBatch('dime-ingest', [new FakeMessage({ job_id: JOB, kind: 'sms' }, 1)]), env);
+    await handleIngestBatch(fakeBatch('dime-ingest', [new FakeMessage({ job_id: JOB, kind: 'receipt' }, 1)]), env);
     const [event] = await socket.events(1);
     expect(event).toMatchObject({ table: 'transactions', eventType: 'INSERT' });
     socket.ws.close(1000);

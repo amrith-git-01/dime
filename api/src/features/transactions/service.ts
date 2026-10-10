@@ -278,6 +278,10 @@ export interface NewTransactionInput {
   detectedVia?: string | undefined;
   receiptUrl?: string | null | undefined;
   voiceUrl?: string | null | undefined;
+  /** Server-set only (recurring postings): replaces the content fingerprint, e.g. `recurring:<item>:<date>`. */
+  paymentHash?: string | undefined;
+  /** Server-set only: the recurring item that produced this row. */
+  recurringItemId?: string | undefined;
 }
 
 export type CreateResult =
@@ -292,13 +296,15 @@ export type CreateResult =
 export async function createTransaction(ctx: TxContext, input: NewTransactionInput): Promise<CreateResult> {
   const name = input.counterpartyName.trim();
   const normalized = normalizedOrNull(name);
-  const paymentHash = await buildPaymentHash({
-    amount: input.amount,
-    type: input.type,
-    counterpartyNormalized: normalized,
-    counterpartyName: name,
-    transactionAtMs: input.transactionAt.ms,
-  });
+  const paymentHash =
+    input.paymentHash ??
+    (await buildPaymentHash({
+      amount: input.amount,
+      type: input.type,
+      counterpartyNormalized: normalized,
+      counterpartyName: name,
+      transactionAtMs: input.transactionAt.ms,
+    }));
   const [categoryId, existing] = await Promise.all([
     resolveCategoryId(ctx, input),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
@@ -317,6 +323,7 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     counterparty_name: name,
     counterparty_normalized: normalized,
     payment_hash: paymentHash,
+    recurring_item_id: input.recurringItemId ?? null,
   };
   if (input.counterpartyType) row.counterparty_type = input.counterpartyType;
 

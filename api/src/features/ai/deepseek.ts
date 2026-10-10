@@ -52,7 +52,7 @@ async function callDeepSeek(config: AppConfig['ai'], model: string, prompt: stri
 
 export interface ParseInput {
   mode: ParseMode;
-  /** OCR text, transcript or SMS body. */
+  /** OCR text or transcript. */
   text: string;
   allowedCategories: readonly string[];
   categoryOptions: readonly CategoryOption[];

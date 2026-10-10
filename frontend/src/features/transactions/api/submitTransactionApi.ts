@@ -124,9 +124,30 @@ async function submitFileWithFetch(input: SubmitFileInput): Promise<void> {
   if (!response.ok) {
     const text = await response.text();
     throw new Error(
-      text.length > 0 ? text : `Submission failed (${response.status})`,
+      messageFromErrorText(text) ?? `Submission failed (${response.status})`,
     );
   }
+}
+
+/** Server error bodies are `{detail}` JSON (e.g. a 429 limit message); show the detail, not the JSON. */
+function messageFromErrorText(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    const detail =
+      typeof parsed === "object" && parsed !== null
+        ? (parsed as { detail?: unknown }).detail
+        : undefined;
+    if (typeof detail === "string" && detail.trim().length > 0) {
+      return detail.trim();
+    }
+  } catch {
+    /* plain-text body */
+  }
+  return trimmed;
 }
 
 function timezoneQuerySuffix(): string {

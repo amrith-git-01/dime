@@ -8,10 +8,13 @@ import * as z from 'zod';
 export interface DecimalOptions {
   /** Value must be > 0 instead of >= 0. */
   positive?: boolean;
-  /** Pydantic `max_digits - decimal_places`: whole digits allowed. */
+  /** Pydantic `max_digits - decimal_places`: whole digits allowed (default `DEFAULT_MAX_WHOLE_DIGITS`, so money stays inside a safe integer in cents). */
   maxWholeDigits?: number;
   maxDecimalPlaces?: number;
 }
+
+/** Every money field takes at most 10 whole digits. */
+export const DEFAULT_MAX_WHOLE_DIGITS = 10;
 
 const DECIMAL_RE = /^([+-]?)(\d*)(?:\.(\d*))?$/;
 
@@ -44,8 +47,8 @@ export function decimalInput(options: DecimalOptions = {}) {
         `Decimal input should have no more than ${maxPlaces} decimal place${maxPlaces === 1 ? '' : 's'}`,
       );
     }
-    const maxWhole = options.maxWholeDigits;
-    if (maxWhole !== undefined && whole.length > maxWhole) {
+    const maxWhole = options.maxWholeDigits ?? DEFAULT_MAX_WHOLE_DIGITS;
+    if (whole.length > maxWhole) {
       return fail(
         ctx,
         'decimal_whole_digits',

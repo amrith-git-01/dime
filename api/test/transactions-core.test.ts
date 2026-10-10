@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { formatCents, quantizeMoney, toCents } from '../src/core/decimal';
 import { BadRequestError, ValidationError } from '../src/core/errors';
 import { addDays, dayRange, lastNDaysRange, localDate, monthRange, parseTimezone, startOfLocalDay } from '../src/core/timezone';
-import { derivedKeys, parseIdempotencyKey } from '../src/features/jobs/idempotency';
+import { parseIdempotencyKey } from '../src/features/jobs/idempotency';
 import { detectAudioFormat } from '../src/features/media/audio-format';
 import { buildObjectPath } from '../src/features/media/paths';
 import { storedMediaKey } from '../src/features/media/refs';
@@ -259,9 +259,6 @@ describe('idempotency key', () => {
     for (const bad of ['short', 'a'.repeat(101), 'has space here', '-leading-dash-1', 'emoji-\u{1F600}-key-1']) {
       expect(() => parseIdempotencyKey(bad)).toThrow(ValidationError);
     }
-  });
-  it('derives per-message keys', () => {
-    expect(derivedKeys('k', 2)).toEqual(['k:0', 'k:1']);
   });
 });
 

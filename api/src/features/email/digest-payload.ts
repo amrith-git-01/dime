@@ -32,7 +32,6 @@ export interface DigestPayload {
   topExpenses: ExpenseRow[];
   budgetLine: string;
   budgetPct: number | null;
-  empty: boolean;
 }
 
 /** Top 5 by amount with bar widths relative to the largest (Python `_ranked_amounts`). */
@@ -77,7 +76,6 @@ export async function buildDigestPayload(
     }),
     budgetLine: budget.line,
     budgetPct: budget.pct,
-    empty: summary.count === 0 && debit === 0 && credit === 0,
   };
 }
 

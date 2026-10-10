@@ -17,13 +17,13 @@ import { monthSummaryDebitByCategory } from "../monthSummaryDebitByCategory";
 import { transactionsQueryKeys } from "../queryKeys";
 
 export function useTransactionsHomeQuery(options?: { enabled?: boolean }) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
 
   return useQuery({
     queryKey: transactionsQueryKeys.home(userId, timezone),
     queryFn: () => fetchHomeOverview(timezone),
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
@@ -34,7 +34,7 @@ export function useMonthSummaryQuery(
   monthIndex0: number,
   options?: { enabled?: boolean },
 ) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
@@ -46,7 +46,7 @@ export function useMonthSummaryQuery(
       timezone,
     ),
     queryFn: () => fetchMonthSummary({ year, month: calendarMonth, timezone }),
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
@@ -58,7 +58,7 @@ export function useMonthDebitTotalsByCategoryQuery(
   monthIndex0: number,
   options?: { enabled?: boolean },
 ) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
@@ -71,7 +71,7 @@ export function useMonthDebitTotalsByCategoryQuery(
     ),
     queryFn: () => fetchMonthSummary({ year, month: calendarMonth, timezone }),
     select: monthSummaryDebitByCategory,
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
@@ -86,7 +86,7 @@ export function useTransactionsMonthInfiniteQuery(
   monthIndex0: number,
   options?: { enabled?: boolean; filters?: TransactionListFilters },
 ) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
   const { from, to } = monthRangeIso(year, monthIndex0);
@@ -117,7 +117,7 @@ export function useTransactionsMonthInfiniteQuery(
       if (!lastPage.has_more) return undefined;
       return lastOffset + lastPage.items.length;
     },
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
   });
 }
 
@@ -126,7 +126,7 @@ export function useTransactionsRangeInfiniteQuery(
   toIso: string,
   options?: { enabled?: boolean; filters?: TransactionListFilters },
 ) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const filters = options?.filters;
 
   return useInfiniteQuery({
@@ -150,6 +150,6 @@ export function useTransactionsRangeInfiniteQuery(
       if (!lastPage.has_more) return undefined;
       return lastOffset + lastPage.items.length;
     },
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
   });
 }

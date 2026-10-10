@@ -23,10 +23,9 @@ module.exports = ({ config }) => {
   const previous = config.android?.permissions;
   const baseList = Array.isArray(previous) ? previous : [];
   const permissions = new Set(
-    baseList.filter((p) => p !== "RECEIVE_SMS"),
+    baseList.filter((p) => p !== "RECEIVE_SMS" && p !== "READ_SMS"),
   );
   permissions.add("POST_NOTIFICATIONS");
-  permissions.add("READ_SMS");
 
   const cleartext = allowsCleartextTraffic();
 
@@ -43,6 +42,8 @@ module.exports = ({ config }) => {
     ios,
     android: {
       ...config.android,
+      // Backups would restore the encrypted stores without their Keystore keys.
+      allowBackup: false,
       permissions: Array.from(permissions),
     },
     plugins: [

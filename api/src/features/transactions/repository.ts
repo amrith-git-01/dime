@@ -124,14 +124,11 @@ export interface NewTransactionRow {
   counterparty_normalized: string | null;
   payment_hash: string;
   counterparty_type?: string;
+  /** Set by the recurring poster only. */
+  recurring_item_id?: string | null;
 }
 
-/** Insert one row (`payee_key` is derived here); returns its id. A `(user_id, payment_hash)` clash throws a unique violation. */
-export async function insertTransaction(db: Db, row: NewTransactionRow): Promise<string> {
-  return (await insertTransactionRow(db, row)).id;
-}
-
-/** `insertTransaction`, returning the stored row (for the live-update broadcast). */
+/** Insert one row (`payee_key` is derived here) and return the stored row. A `(user_id, payment_hash)` clash throws a unique violation. */
 export async function insertTransactionRow(db: Db, row: NewTransactionRow): Promise<TransactionRow> {
   const id = newId();
   const now = nowIso();
@@ -139,8 +136,8 @@ export async function insertTransactionRow(db: Db, row: NewTransactionRow): Prom
     db,
     `INSERT INTO transactions
        (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, category_id,
-        receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${DETAIL_COLUMNS}`,
+        receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${DETAIL_COLUMNS}`,
     [
       id,
       row.user_id,
@@ -159,6 +156,7 @@ export async function insertTransactionRow(db: Db, row: NewTransactionRow): Prom
       row.counterparty_normalized,
       row.payment_hash,
       payeeKey(row.counterparty_normalized, row.counterparty_name),
+      row.recurring_item_id ?? null,
     ],
   );
   if (!stored) throw new Error('transaction insert returned no row');

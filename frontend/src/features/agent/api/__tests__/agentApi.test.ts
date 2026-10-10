@@ -207,6 +207,25 @@ describe("streamAgentChat", () => {
     expect(events).toEqual([["error", "unauthorized", ""]]);
   });
 
+  it("reports a refresh that cannot reach the server as a network error", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({}, 401));
+    mockRefreshHeaders.mockRejectedValue(new Error("Can't reach the server."));
+    const { handlers, events } = makeHandlers();
+    await streamAgentChat({ content: "q" }, handlers);
+    expect(events).toEqual([["error", "network", "Can't reach the server."]]);
+  });
+
+  it("surfaces the 429 detail as the daily limit message", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ detail: "You've used all 5 questions for today." }, 429),
+    );
+    const { handlers, events } = makeHandlers();
+    await streamAgentChat({ content: "q" }, handlers);
+    expect(events).toEqual([
+      ["error", "daily_limit", "You've used all 5 questions for today."],
+    ]);
+  });
+
   it("reports network failures", async () => {
     mockFetch.mockRejectedValue(new Error("offline"));
     const { handlers, events } = makeHandlers();

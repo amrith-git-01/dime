@@ -19,7 +19,7 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
   2. Otherwise upload, then insert the job with the key.
   3. If the insert hits a unique violation, return 202 and delete the uploaded object (best effort).
   4. If the insert fails for any other reason, delete the object and propagate the error.
-- **SMS:** one job per non-duplicate message, with derived key `"<key>:<index>"` (index = original message index). A replay rebuilds the whole batch result from the existing rows.
+- **SMS and notification capture were removed (2026-10):** no `/sms` route and no `sms` job kind. Old `sms` / `notification` values in `detected_via` stay valid for existing rows.
 - **Manual `POST /transactions`:** the key is claimed through a `jobs` row with kind `manual_create`, status `processing`, attempts 1.
   - **Success:** `status=done`, `result={"status_code":201,"body":{"accepted":true}}`. A replay returns that status and body.
   - **Concurrent duplicate:** 409 "A request with this Idempotency-Key is still being processed."
@@ -31,10 +31,9 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
 - **Table `jobs`:** `id`, `user_id`, `kind`, `payload`, `status` (pending|processing|done|failed), `attempts`, `last_error`, `idempotency_key`, `result`, `created_at`, `updated_at`.
   - `updated_at` is set explicitly on every write.
   - RLS on, no policies (service role only).
-- **Kinds:** `receipt`, `voice`, `sms` (queued) and `manual_create` (idempotency record only).
+- **Kinds:** `receipt`, `voice` (queued) and `manual_create` (idempotency record only).
 - **Payloads never contain media bytes:**
   - receipt / voice: `{object_path, mime_type, timezone}`
-  - sms: `{body, received_at (ISO), timezone}`
 - **Media upload:** media goes to the **private bucket** first. Path: `{kind}/{user}/{kind}/{YYYY-MM-DD}/{ms}-{8hex}.{ext}`, where kind is `receipts` or `voice_inputs`.
   - `receipt_url` / `voice_url` store the object path.
   - Voice stores the raw file.
@@ -49,8 +48,8 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
   - **Success:** `done`, `result={"transaction_id": ...}`.
   - **Error:** `failed`, `last_error` truncated to 500 chars.
   - **Transient upstream errors** are retried in-handler: 3 attempts, backoff 1 s then 2 s. In Workers, prefer `message.retry({delaySeconds})` with the DLQ after max retries, as long as the observable job status ends the same.
-  - **Failure notification:** handler failure emits a `capture_failed` notification (receipt source `scan`, sms source `sms`), deduped per day. Voice failures emit none.
-- **Recovery:** pending/processing rows with `updated_at < now - 120s` get re-sent, oldest first.
+  - **Failure notification:** handler failure emits a `capture_failed` notification (receipt source `scan`), deduped per day. Voice failures emit none.
+- **Recovery:** pending/processing rows with `updated_at < now - 300s` get re-sent, oldest first.
   - For `processing` rows, first run a conditional update `processing -> pending` where `updated_at < cutoff`.
   - In Workers this is a periodic sweep: a cron, e.g. every 5 min, re-sending to the queue.
 

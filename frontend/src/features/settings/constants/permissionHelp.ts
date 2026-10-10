@@ -9,12 +9,6 @@ export const PERMISSION_HELP_GROUPS: readonly HelpAccordionGroup[] = [
     title: "Capture",
     terms: [
       {
-        id: "sms",
-        term: "SMS (read)",
-        description:
-          "Dime can read SMS already on this phone. It does not send texts or listen for new ones in the background. When Automatic capture is on, opening Dime scans recent bank messages, shows you a review list, and only logs what you keep. We need this so bank SMS can become expenses without typing. Your full inbox is not uploaded.",
-      },
-      {
         id: "camera",
         term: "Camera",
         description:

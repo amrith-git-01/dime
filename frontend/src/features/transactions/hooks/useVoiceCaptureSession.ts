@@ -1,3 +1,4 @@
+import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -44,7 +45,7 @@ function recordingDurationSeconds(
 export function useVoiceCaptureSession() {
   const visible = useVoiceCaptureUiStore((s) => s.visible);
   const close = useVoiceCaptureUiStore((s) => s.close);
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const { showToast } = useToast();
   const qc = useQueryClient();
   const showBusy = useReceiptScanUiStore((s) => s.show);
@@ -110,10 +111,6 @@ export function useVoiceCaptureSession() {
 
     void (async () => {
       setPhase("preparing");
-
-      if (!authReady) {
-        return;
-      }
 
       if (!userId) {
         Alert.alert(
@@ -187,7 +184,7 @@ export function useVoiceCaptureSession() {
       sessionAbortRef.current = true;
       void cleanupRecording();
     };
-  }, [visible, authReady, userId, cleanupRecording, hardClose, recorder]);
+  }, [visible, userId, cleanupRecording, hardClose, recorder]);
 
   const stopAndSubmit = useCallback(async () => {
     void triggerHaptic();
@@ -264,6 +261,7 @@ export function useVoiceCaptureSession() {
       Alert.alert("Something went wrong", message);
     } finally {
       hideBusy();
+      invalidateLimitsQueries(qc);
     }
   }, [close, hardClose, hideBusy, qc, recorder, showBusy, showToast]);
 

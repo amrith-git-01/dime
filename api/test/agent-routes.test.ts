@@ -252,7 +252,8 @@ describe('POST /agent/chat: SSE mode', () => {
     expect(events.map((e) => e.event)).toEqual(['final']);
     expect((events[0]?.data as { answer: string }).answer).toContain('Did you mean **Swiggy** or **Swiggy Instamart**?');
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
-    expect(await rowsOf('agent_usage')).toHaveLength(0); // no tokens, nothing to record
+    // No tokens to record, but the question itself was counted.
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 0, completion_tokens: 0, turns: 1 })]);
   });
 });
 
@@ -287,6 +288,53 @@ describe('kill switch and daily budget', () => {
     await testDb().prepare("INSERT INTO agent_usage (user_id, day, prompt_tokens, completion_tokens, turns) VALUES (?, '2026-10-05', 600, 300, 1)").bind(USER_ID).run();
     expect((await (await chat('hi', { db: null, env: envWith({ AGENT_DAILY_TOKEN_BUDGET: '1000' }) })).json<{ answer?: string }>()).answer).toBe('Hello!');
     expect(await (await chat('hi', { db: null, env: envWith({ AGENT_DAILY_TOKEN_BUDGET: '900' }) })).json()).toMatchObject({ error: { code: 'daily_limit' } });
+  });
+
+  it('the sixth question of the UTC day answers 429 (Retry-After to UTC midnight) without a model call', async () => {
+    deepseek([{ content: 'Hello!' }]);
+    for (let i = 0; i < 5; i++) expect((await (await chat('hi', { db: null })).json<{ answer?: string }>()).answer).toBe('Hello!');
+    const llmCalls = stub.find('POST', '/chat/completions').length;
+
+    const res = await chat('hi', { db: null });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('70200'); // NOW is 04:30 UTC
+    expect(await res.json()).toEqual({ error: { code: 'daily_limit', message: "You've used today's 5 questions. Try again tomorrow." } });
+    expect((await chat('hi', { db: null, accept: 'text/event-stream' })).status).toBe(429);
+    expect(stub.find('POST', '/chat/completions')).toHaveLength(llmCalls);
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 5 })]);
+  });
+
+  it('counts failed turns too, and records the tokens of the calls that did finish', async () => {
+    let n = 0;
+    stub.on('POST', '/chat/completions', () => {
+      n += 1;
+      if (n === 1) {
+        const tool_calls = [{ index: 0, id: 'call_0', type: 'function', function: { name: 'spending_summary', arguments: JSON.stringify(JUNE_ARGS) } }];
+        return json({ choices: [{ message: { content: null, tool_calls }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 20 } });
+      }
+      return json({ error: 'overloaded' }, { status: 503 });
+    });
+    const { ctx, flush } = makeCtx();
+    const res = await chat('How much did I spend in June 2026?', { ctx, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) });
+    await flush();
+    expect((await res.json<{ answer?: string }>()).answer).toBeTruthy(); // answered from the tool data (template)
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 100, completion_tokens: 20, turns: 1 })]);
+    expect((await chat('again', { env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) })).status).toBe(429);
+
+    // A turn that fails outright (no tool data) is counted as well.
+    await testDb().prepare('DELETE FROM agent_usage').run();
+    stub.on('POST', '/chat/completions', () => json({ error: 'overloaded' }, { status: 503 }));
+    const failed = await chat('hi', { db: null, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) });
+    expect(await failed.json()).toMatchObject({ error: { code: 'assistant_busy' } });
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 1 })]);
+  });
+
+  it('concurrent requests cannot exceed the daily questions', async () => {
+    deepseek([{ content: 'Hello!' }]);
+    const env = envWith({ AGENT_DAILY_QUESTIONS: '3' });
+    const results = await Promise.all(Array.from({ length: 8 }, () => chat('hi', { db: null, env })));
+    expect(results.filter((r) => r.status === 429)).toHaveLength(5);
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 3 })]);
   });
 
   it('fails open when the usage table cannot be read', async () => {

@@ -19,7 +19,7 @@ export function useRefreshAppData() {
     }
     setLoading(true);
     try {
-      await refreshAppDataFromServer(queryClient, userId);
+      await refreshAppDataFromServer(queryClient);
       showToast({ message: "Data refreshed from server", variant: "success" });
     } finally {
       setLoading(false);
@@ -29,7 +29,7 @@ export function useRefreshAppData() {
   const confirmRefreshAppData = useCallback(() => {
     Alert.alert(
       "Refresh from server?",
-      "This clears offline cached data on this device and downloads the latest from Dime. Your account and settings stay as they are.",
+      "This downloads the latest data from Dime and replaces what is saved on this device. Your account and settings stay as they are.",
       [
         { text: "Cancel", style: "cancel" },
         {

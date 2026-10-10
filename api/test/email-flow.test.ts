@@ -441,7 +441,7 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
     const { db, sqls } = spyDb();
     const payload = await buildDigestPayload(db, input);
 
-    expect(payload).toMatchObject({ spent: '1000.00', income: '2000.00', net: '1000.00', empty: false });
+    expect(payload).toMatchObject({ spent: '1000.00', income: '2000.00', net: '1000.00' });
     // Python quirk kept: the "Other" bucket is the 5th row of "who you paid" (top 4 + Other).
     expect(payload.payees.map((p) => p[0])).toEqual(['Metro', 'Swiggy', 'A', 'B', 'Other']);
     expect(payload.payees[0]).toEqual(['Metro', '400.00', 1]);
@@ -486,7 +486,7 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
   it('an empty period has no ranked rows and no categories lookup', async () => {
     const { db, sqls } = spyDb();
     const payload = await buildDigestPayload(db, input);
-    expect(payload).toMatchObject({ spent: '0.00', income: '0.00', net: '0.00', payees: [], incomeSources: [], categories: [], topExpenses: [], empty: true });
+    expect(payload).toMatchObject({ spent: '0.00', income: '0.00', net: '0.00', payees: [], incomeSources: [], categories: [], topExpenses: [] });
     expect(sqls.filter((s) => s.includes('FROM categories'))).toHaveLength(0);
   });
 });

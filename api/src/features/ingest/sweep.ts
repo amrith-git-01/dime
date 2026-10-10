@@ -10,7 +10,7 @@ import type { IngestMessage } from './schemas';
 /** Cron expression of the recovery sweep (keep in sync with `triggers.crons` in wrangler.jsonc). */
 export const SWEEP_CRON = '*/5 * * * *';
 /** A pending/processing job untouched for this long is considered lost. */
-const RECOVERY_AGE_SECONDS = 120;
+const RECOVERY_AGE_SECONDS = 300;
 /** Jobs re-sent per kind per run (oldest first); the rest wait for the next run. */
 const SWEEP_LIMIT_PER_KIND = 50;
 const REQUEUE_CONCURRENCY = 10;

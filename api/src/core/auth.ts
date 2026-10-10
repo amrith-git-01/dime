@@ -11,8 +11,6 @@ import { log } from './logging';
 export interface AuthUser {
   id: string;
   email: string | undefined;
-  /** Raw bearer token (kept for callers that forward it). */
-  accessToken: string;
 }
 
 let keyCache: { secret: string; key: Uint8Array } | undefined;
@@ -79,7 +77,6 @@ export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
   c.set('user', {
     id: sub,
     email: typeof payload['email'] === 'string' ? payload['email'] : undefined,
-    accessToken: token,
   });
   if (typeof payload['sid'] === 'string') c.set('sessionId', payload['sid']);
   await next();

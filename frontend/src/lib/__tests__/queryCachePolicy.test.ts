@@ -8,6 +8,7 @@ import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { budgetQueryKeys } from "@/features/budgets/queryKeys";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
+import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 
@@ -76,6 +77,10 @@ describe("shouldDehydrateQuery", () => {
       notificationQueryKeys.unreadCount(USER),
     ];
     expect(persisted(excluded)).toEqual([]);
+  });
+
+  it("never persists today's limits", () => {
+    expect(persisted([limitsQueryKeys.current(USER)])).toEqual([]);
   });
 
   it("keeps the current and previous month of monthPages, monthSummary and insights", () => {

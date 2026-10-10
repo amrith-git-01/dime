@@ -4,7 +4,7 @@ Measures the agent (`src/features/agent`, design: `docs/rewrite/agent-v2.md`) on
 
 | File | What it is |
 | --- | --- |
-| `seed.sql` | One fixture user (`d1e0eeee-0000-4000-8000-000000000001`) with 384 transactions from 2026-04-01 to 2026-10-03 (Asia/Kolkata), ten categories (four own, six of the system categories, because names are unique across users), a monthly and a daily budget and five category budgets. Near-duplicate payees on purpose (Swiggy / Swiggy Instamart, Zomato / Zomato Gold, Cafe Coffee Day / Coffee Day Express, Amazon / Amazon Prime, "SWIGGY" spellings), a transaction on local midnight (`2026-07-01 00:00:00+05:30`) and one a second before it. Written for D1: one statement per line, money in cents, ISO-8601 UTC timestamps, `payee_key` precomputed. Re-runnable (it deletes the fixture user first). |
+| `seed.sql` | One fixture user (`d1e0eeee-0000-4000-8000-000000000001`) with 384 transactions from 2026-04-01 to 2026-10-03 (Asia/Kolkata), ten categories (four own, six of the system categories, so the fixture never needs a custom name that clashes with a system one), a monthly and a daily budget and five category budgets. Near-duplicate payees on purpose (Swiggy / Swiggy Instamart, Zomato / Zomato Gold, Cafe Coffee Day / Coffee Day Express, Amazon / Amazon Prime, "SWIGGY" spellings), a transaction on local midnight (`2026-07-01 00:00:00+05:30`) and one a second before it. Written for D1: one statement per line, money in cents, ISO-8601 UTC timestamps, `payee_key` precomputed. Re-runnable (it deletes the fixture user first). |
 | `golden.jsonl` | 109 conversations (117 turns). Each turn has the expected tools, expected numeric facts computed from the seed, or `expect_clarification` (+ the names it must offer). Multi-turn lines exercise the memory token ("and July?"). |
 | `run.ts` | The runner (`npm run evals`). |
 | `../test/agent-evals.test.ts` | Proves the seed, the tools and the golden facts agree on a local D1 (`npm run evals:validate`, also part of `npm test`). No LLM. |
@@ -29,12 +29,11 @@ Scoring: **tool accuracy** (turns with expected tools or `expect_no_tools`), **n
 
 ## Running against a real model
 
-You need a Worker with the D1 migrations applied, `seed.sql` loaded and real `DEEPSEEK_API_KEY` and `AGENT_MEMORY_SECRET`: a local `wrangler dev` (see `../README.md`) or the staging Worker. Load the seed into that D1 once (it is re-runnable):
+You need a Worker with the D1 migrations applied, `seed.sql` loaded and real `DEEPSEEK_API_KEY` and `AGENT_MEMORY_SECRET`: a local `wrangler dev` (see `../README.md`). Don't load the fixture into the production database. Load the seed into the local D1 once (it is re-runnable):
 
 ```bash
 cd api
-npx wrangler d1 execute dime-db-staging --remote --env staging --file evals/seed.sql   # staging
-npx wrangler d1 execute dime-db --local --file evals/seed.sql                          # wrangler dev
+npx wrangler d1 execute DB --local --file evals/seed.sql
 ```
 
 Then run the evals with a token for the fixture user:
@@ -43,7 +42,7 @@ Then run the evals with a token for the fixture user:
 # mint it from the Worker's AUTH_JWT_SECRET (HS256, iss dime-api, aud authenticated) ...
 npm run evals -- --url http://127.0.0.1:8787 --jwt-secret "$AUTH_JWT_SECRET"
 # ... or pass a token you made yourself
-npm run evals -- --url https://dime-api-staging.<subdomain>.workers.dev --token "$FIXTURE_USER_ACCESS_TOKEN"
+npm run evals -- --url http://127.0.0.1:8787 --token "$FIXTURE_USER_ACCESS_TOKEN"
 ```
 
 Useful options: `--filter swigy`, `--limit 10`, `--mode json` (no time-to-first-token), `--rate 8` (requests per minute; the AI limiter allows 10 per user per minute and the runner also waits out a 429), `--min-tool 0.85 --min-numeric 0.9` (exit 1 below that). Pricing for the cost estimate: `EVAL_PRICE_INPUT_HIT`, `EVAL_PRICE_INPUT_MISS`, `EVAL_PRICE_OUTPUT` (USD per million tokens, defaults are DeepSeek's published rates when this was written: check them). A full run is ~118 requests, about 15 minutes at the default rate.
@@ -65,7 +64,7 @@ npm run evals:validate     # vitest run test/agent-evals.test.ts
 
 ## CI
 
-`.github/workflows/agent-evals.yml` runs weekly (Monday 03:00 UTC) and on demand (`workflow_dispatch`); never on pushes or pull requests. It needs the repository secrets `EVAL_BASE_URL` and either `EVAL_JWT_SECRET` (the staging Worker's `AUTH_JWT_SECRET`; the runner mints the token) or `EVAL_ACCESS_TOKEN`, pointing at a staging Worker whose D1 database has the migrations and `seed.sql`. The report is attached as an artifact and written to the job summary.
+`.github/workflows/agent-evals.yml` runs only on demand (`workflow_dispatch`); never on pushes, pull requests or a schedule (it spends DeepSeek credit). It needs the repository secrets `EVAL_BASE_URL` and either `EVAL_JWT_SECRET` (that Worker's `AUTH_JWT_SECRET`; the runner mints the token) or `EVAL_ACCESS_TOKEN`, pointing at a reachable Worker whose D1 database has the migrations and `seed.sql` (not production: there is no separate eval environment, so this is for a temporary Worker you deploy yourself). The report is attached as an artifact and written to the job summary.
 
 ## Unit tests
 

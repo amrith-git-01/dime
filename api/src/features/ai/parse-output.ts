@@ -21,7 +21,7 @@ export interface ParseContext {
   categoryOptions: readonly CategoryOption[];
 }
 
-/** What the model understood from a receipt / voice note / SMS, after validation and normalization. */
+/** What the model understood from a receipt / voice note, after validation and normalization. */
 export interface ParsedExpense {
   counterpartyName: string;
   counterpartyType: ParsedCounterpartyType;
@@ -123,7 +123,7 @@ export function parseModelDate(raw: unknown): Instant | null {
   return { ms, iso: check.toISOString() };
 }
 
-const SOURCE_LABEL: Record<ParseMode, string> = { receipt: 'receipt', sms: 'SMS', voice: 'voice input' };
+const SOURCE_LABEL: Record<ParseMode, string> = { receipt: 'receipt', voice: 'voice input' };
 
 /** `Auto-parsed from receipt for X.` used when the model gives no note. */
 function defaultNote(mode: ParseMode, counterpartyName: unknown): string {

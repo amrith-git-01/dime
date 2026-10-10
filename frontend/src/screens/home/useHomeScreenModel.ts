@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { colors } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { useUpcomingRecurring } from "@/features/recurring/hooks/useUpcomingRecurring";
+import type { RecurringItem } from "@/features/recurring/types";
 import type { HomeBentoContentProps } from "@/features/home/components";
 import { HOME_MAX_CATEGORIES } from "@/features/home/components";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
@@ -95,6 +97,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     now.getMonth(),
   );
   const { data: budgetResp } = useBudgetQuery();
+  const { items: upcomingItems, today: upcomingToday } = useUpcomingRecurring();
 
   const budget = budgetResp?.budget ?? null;
 
@@ -216,6 +219,13 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     navigation.navigate("Transactions");
   }, [navigation]);
 
+  const onUpcomingPress = useCallback(
+    (item: RecurringItem) => {
+      navigation.navigate("RecurringList", { kind: item.kind });
+    },
+    [navigation],
+  );
+
   const onTransactionPress = useCallback(
     (tx: TransactionRow) => {
       navigation.navigate("TransactionDetail", { transaction: tx });
@@ -271,5 +281,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     spentMonthValue,
     spentTodayDisplay,
     topCategories,
+    upcomingItems,
+    upcomingToday,
+    onUpcomingPress,
   };
 }

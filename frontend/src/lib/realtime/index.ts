@@ -1,7 +1,7 @@
 import { AppState } from "react-native";
 
 import { getDimeApiBaseUrl } from "@/lib/api/baseUrl";
-import { getAccessToken } from "@/lib/auth/session";
+import { getAccessToken, refreshSession } from "@/lib/auth/session";
 import { reportError } from "@/lib/reportError";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
 
@@ -30,6 +30,9 @@ const SUBPROTOCOL = "dime.v1";
  */
 export const realtimeClient = new RealtimeClient({
   getAccessToken,
+  refreshAccessToken: async (staleToken) =>
+    (await refreshSession({ staleAccessToken: staleToken ?? undefined }))
+      ?.access_token ?? null,
   baseUrl: getDimeApiBaseUrl,
   createSocket: (url, token) =>
     new RnWebSocket(url, [SUBPROTOCOL], {

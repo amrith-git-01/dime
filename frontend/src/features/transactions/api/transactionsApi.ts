@@ -60,15 +60,6 @@ export async function fetchTransactionsPage(input: {
   return data;
 }
 
-/** @deprecated Prefer fetchTransactionsPage — kept for any legacy callers expecting a flat list. */
-export async function fetchTransactions(): Promise<TransactionRow[]> {
-  const page = await fetchTransactionsPage({
-    limit: 100,
-    offset: 0,
-  });
-  return page.items;
-}
-
 /** Single transaction with fresh signed media URLs (C7). */
 export async function fetchTransactionById(
   id: string,

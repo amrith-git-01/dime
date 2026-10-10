@@ -1,4 +1,6 @@
 export {
+  ManualAddAmountSection,
+  ManualAddCategorySection,
   ManualAddTransactionEditor,
   type ManualAddDateTimePickerMode,
   TransactionsBentoHeader,

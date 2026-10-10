@@ -35,12 +35,18 @@ export type SocketLike = {
   onopen: (() => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
   onclose: ((event: { code?: number }) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event?: { message?: string }) => void) | null;
 };
 
 export type RealtimeDeps = {
   /** A usable access token (refreshing if needed); null when signed out; rejects when offline. */
   getAccessToken: () => Promise<string | null>;
+  /**
+   * Force a token rotation (used after a rejected handshake, where the token may be revoked or
+   * expired despite looking fresh). `staleToken` is the token that was rejected. Null when signed
+   * out; rejects when offline.
+   */
+  refreshAccessToken?: (staleToken: string | null) => Promise<string | null>;
   /** Opens the socket with `Authorization: Bearer <token>`. */
   createSocket: (url: string, token: string) => SocketLike;
   /** API origin, e.g. `https://api.example.com` (empty when not configured). */
@@ -79,6 +85,10 @@ export class RealtimeClient {
   private attempt = 0;
   private everOpened = false;
   private connectedToken: string | null = null;
+  /** The last handshake looked rejected (401): rotate the token before the next attempt. */
+  private forceRefresh = false;
+  /** One forced rotation per run of failed attempts, so an unreachable server cannot burn tokens. */
+  private refreshedThisStreak = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setTimeout> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,6 +120,8 @@ export class RealtimeClient {
     this.running = true;
     this.attempt = 0;
     this.everOpened = false;
+    this.forceRefresh = false;
+    this.refreshedThisStreak = false;
     this.unsubscribeToken = this.deps.onAccessTokenChange((token) => {
       // A refreshed token: reconnect so the socket always carries a live one.
       if (this.running && token && token !== this.connectedToken) {
@@ -177,7 +189,13 @@ export class RealtimeClient {
 
     let token: string | null;
     try {
-      token = await this.deps.getAccessToken();
+      if (this.forceRefresh && this.deps.refreshAccessToken) {
+        this.forceRefresh = false;
+        this.refreshedThisStreak = true;
+        token = await this.deps.refreshAccessToken(this.connectedToken);
+      } else {
+        token = await this.deps.getAccessToken();
+      }
     } catch {
       // Offline (the refresh could not reach the server): the session is kept, try again later.
       if (generation === this.generation) {
@@ -203,11 +221,14 @@ export class RealtimeClient {
     this.socket = socket;
     this.connectedToken = token;
 
+    let opened = false;
     socket.onopen = () => {
       if (generation !== this.generation) {
         return;
       }
       this.attempt = 0;
+      opened = true;
+      this.refreshedThisStreak = false;
       const wasDown = this.everOpened;
       this.everOpened = true;
       this.schedulePing();
@@ -223,8 +244,12 @@ export class RealtimeClient {
       }
       this.onFrame(event.data);
     };
-    socket.onerror = () => {
-      // A close event follows; reconnecting is handled there.
+    socket.onerror = (event) => {
+      // A close event follows; reconnecting is handled there. React Native reports a rejected
+      // handshake as "Expected HTTP 101 response but was '401 ...'".
+      if (generation === this.generation && /401/.test(event?.message ?? "")) {
+        this.markHandshakeRejected();
+      }
     };
     socket.onclose = (event) => {
       if (generation !== this.generation) {
@@ -235,6 +260,10 @@ export class RealtimeClient {
       if (!this.running) {
         return;
       }
+      if (!opened) {
+        // Closed before ever opening: the handshake was refused (the platform hides the status).
+        this.markHandshakeRejected();
+      }
       if (event.code === CLOSE_TOKEN_EXPIRED) {
         this.attempt = 0;
         void this.connect(); // getAccessToken refreshes the expired token first
@@ -242,6 +271,12 @@ export class RealtimeClient {
       }
       this.scheduleReconnect();
     };
+  }
+
+  private markHandshakeRejected(): void {
+    if (!this.refreshedThisStreak) {
+      this.forceRefresh = true;
+    }
   }
 
   private onFrame(data: unknown): void {

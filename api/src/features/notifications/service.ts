@@ -26,7 +26,7 @@ export async function listInbox(db: Db, userId: string, q: ListQuery): Promise<N
   const last = page[page.length - 1];
   return {
     items: page.map(rowToResponse),
-    next_cursor: hasMore && last ? isoUtc(last.created_at) : null,
+    next_cursor: hasMore && last ? `${isoUtc(last.created_at)}|${String(last.id).toLowerCase()}` : null,
   };
 }
 

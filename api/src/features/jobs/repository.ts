@@ -3,7 +3,7 @@ import type { Db, SqlParam } from '../../core/db';
 import { isUniqueViolation } from '../../core/db-errors';
 
 type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
-export type JobKind = 'receipt' | 'voice' | 'sms' | 'manual_create';
+export type JobKind = 'receipt' | 'voice' | 'manual_create';
 
 export interface JobRow {
   id: string;
@@ -126,13 +126,20 @@ export async function failIfUnfinished(
 /**
  * pending -> processing (attempts + 1) guarded by `status = 'pending'`, so only one claimant wins and
  * duplicate queue messages are harmless. Null when someone else holds the job or it is spent
- * (a spent job is marked failed with "max attempts exceeded").
+ * (a spent job is marked failed with "max attempts exceeded" and `onExhausted` is told, so the caller can
+ * notify the user).
  */
-export async function claimJob(db: Db, jobId: string, maxAttempts: number): Promise<JobRow | null> {
+export async function claimJob(
+  db: Db,
+  jobId: string,
+  maxAttempts: number,
+  onExhausted?: (job: JobRow) => Promise<void>,
+): Promise<JobRow | null> {
   const row = await getJob(db, jobId);
   if (!row || row.status !== 'pending') return null;
   if ((Number(row.attempts) || 0) >= maxAttempts) {
     await markFailed(db, jobId, 'max attempts exceeded');
+    await onExhausted?.(row);
     return null;
   }
   const claimed = await first<JobDbRow>(
@@ -152,7 +159,7 @@ export async function releaseJob(db: Db, jobId: string, eligibleAfterSeconds = 0
   ]);
 }
 
-/** Oldest first. Used by the recovery sweep (cutoff = now - 120 s). */
+/** Oldest first. Used by the recovery sweep (cutoff = now - 300 s). */
 export async function listRecoverable(
   db: Db,
   input: { kind: JobKind; cutoffIso: string; limit: number },

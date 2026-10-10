@@ -32,17 +32,45 @@ export async function tokensUsedToday(db: Db, userId: string, nowMs: number): Pr
   }
 }
 
-/** Atomic upsert-increment of the day's totals: one more turn. */
+/** Seconds until the next UTC midnight (when the daily question count resets). */
+export function secondsToUtcMidnight(nowMs: number): number {
+  const next = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate() + 1);
+  return Math.max(1, Math.ceil((next - nowMs) / 1000));
+}
+
+/**
+ * Counts one question for today, atomically: the upsert only increments while `turns < limit`, so
+ * concurrent requests cannot exceed it. `false` = the limit is used up. A failing write fails OPEN
+ * (the turn runs), like the token budget.
+ */
+export async function claimQuestion(db: Db, userId: string, nowMs: number, limit: number): Promise<boolean> {
+  if (limit <= 0) return false;
+  try {
+    const row = await first<{ turns: number }>(
+      db,
+      `INSERT INTO agent_usage (user_id, day, turns, updated_at) VALUES (?, ?, 1, ?)
+       ON CONFLICT (user_id, day) DO UPDATE SET turns = turns + 1, updated_at = excluded.updated_at
+       WHERE turns < ?
+       RETURNING turns`,
+      [userId, utcDay(nowMs), nowIso(), limit],
+    );
+    return row !== null;
+  } catch (err) {
+    log.warn('agent_usage_claim_failed', { err: String(err) });
+    return true;
+  }
+}
+
+/** Atomic upsert-increment of the day's token totals (the question itself was counted by `claimQuestion`). */
 export async function recordUsage(db: Db, userId: string, nowMs: number, usage: Usage): Promise<void> {
   try {
     await run(
       db,
       `INSERT INTO agent_usage (user_id, day, prompt_tokens, completion_tokens, turns, updated_at)
-       VALUES (?, ?, ?, ?, 1, ?)
+       VALUES (?, ?, ?, ?, 0, ?)
        ON CONFLICT (user_id, day) DO UPDATE SET
          prompt_tokens = prompt_tokens + excluded.prompt_tokens,
          completion_tokens = completion_tokens + excluded.completion_tokens,
-         turns = turns + 1,
          updated_at = excluded.updated_at`,
       [userId, utcDay(nowMs), Math.max(usage.promptTokens || 0, 0), Math.max(usage.completionTokens || 0, 0), nowIso()],
     );

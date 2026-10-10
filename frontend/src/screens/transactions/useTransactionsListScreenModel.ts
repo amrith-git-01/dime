@@ -109,6 +109,9 @@ export function useTransactionsListScreenModel() {
     isFetchingNextPage,
     isPending,
     isError,
+    isFetchNextPageError,
+    isRefetching,
+    refetch,
   } = activeQuery;
 
   const flatRows = useMemo(() => {
@@ -153,6 +156,7 @@ export function useTransactionsListScreenModel() {
   const shouldAutoLoadPages =
     hasMore &&
     !isFetchingNextPage &&
+    !isError &&
     (needsClientSidePaging || transactionCount < MIN_LOADED_ROWS);
 
   useEffect(() => {
@@ -163,10 +167,19 @@ export function useTransactionsListScreenModel() {
   }, [fetchNextPage, shouldAutoLoadPages, flatRows.length]);
 
   const loadMore = useCallback(() => {
-    if (hasMore && !isFetchingNextPage) {
+    if (hasMore && !isFetchingNextPage && !isError) {
       void fetchNextPage();
     }
-  }, [fetchNextPage, hasMore, isFetchingNextPage]);
+  }, [fetchNextPage, hasMore, isError, isFetchingNextPage]);
+
+  /** Inline retry for a failed page or refresh while rows are still on screen. */
+  const retry = useCallback(() => {
+    if (isFetchNextPageError) {
+      void fetchNextPage();
+    } else {
+      void refetch();
+    }
+  }, [fetchNextPage, isFetchNextPageError, refetch]);
 
   // While more pages remain the loaded count is a lower bound.
   const transactionCountLabel = `${transactionCount}${hasMore ? "+" : ""}`;
@@ -210,6 +223,7 @@ export function useTransactionsListScreenModel() {
 
   const showInitialLoading = isPending && flatRows.length === 0;
   const showLoadingMore = Boolean(hasNextPage) && isFetchingNextPage;
+  const hasLoadedRows = flatRows.length > 0;
   const isEmpty =
     !isPending && !isError && transactionCount === 0 && !showLoadingMore;
 
@@ -225,6 +239,9 @@ export function useTransactionsListScreenModel() {
     usesRange,
     isEmpty,
     isError,
+    hasLoadedRows,
+    isRetrying: isFetchingNextPage || isRefetching,
+    retry,
     openTransactionDetail,
     showInitialLoading,
     showLoadingMore,

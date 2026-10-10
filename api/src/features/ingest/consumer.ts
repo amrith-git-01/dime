@@ -19,8 +19,10 @@ import { InvalidJobError, runIngestJob } from './pipeline';
 import type { IngestStores, JobOutcome } from './pipeline';
 import { MAX_JOB_ATTEMPTS, ingestMessageSchema } from './schemas';
 
-/** Messages of one batch processed at the same time (the work is I/O bound). */
-const BATCH_CONCURRENCY = 3;
+/** Ingest messages (receipt / voice) are processed one at a time: they hold the whole media file in memory. */
+const INGEST_CONCURRENCY = 1;
+/** Dead-letter messages only touch the database, so a few at once is fine. */
+const DLQ_CONCURRENCY = 3;
 /** Queue redelivery delay after a transient failure, indexed by the attempt that just failed. */
 const RETRY_DELAYS_SECONDS = [5, 10, 30] as const;
 const CLAIM_ERROR_RETRY_SECONDS = 10;
@@ -68,12 +70,11 @@ function describeError(err: unknown): string {
 
 const FAILURE_COPY = {
   receipt: { source: 'scan', title: 'Receipt scan failed', body: "We couldn't read this receipt. Try again or add manually." },
-  sms: { source: 'sms', title: 'SMS capture failed', body: "We couldn't read this bank message. Try again or add manually." },
 } as const;
 
 /** `capture_failed` notification (deduped per day by the emitter). Voice failures raise none. Never throws. */
 async function notifyCaptureFailed(db: Db, userId: string, kind: JobKind): Promise<void> {
-  if (kind !== 'receipt' && kind !== 'sms') return;
+  if (kind !== 'receipt') return;
   const copy = FAILURE_COPY[kind];
   try {
     const settings = settingsFromRow(await fetchByUserId(db, userId));
@@ -102,7 +103,7 @@ async function forEachLimited<T>(items: readonly T[], limit: number, fn: (item: 
  * harmless, run the pipeline, then:
  * - success: `done` with `{transaction_id}`;
  * - transient error on a non-final attempt: release to `pending` and `retry` with backoff;
- * - permanent error or final attempt: `failed` + `capture_failed` notification (receipt, sms).
+ * - permanent error or final attempt: `failed` + `capture_failed` notification (receipt).
  * Every path acks or retries the message; nothing throws.
  */
 export async function processIngestMessage(message: IngestMessageHandle, deps: IngestDeps): Promise<void> {
@@ -117,7 +118,7 @@ export async function processIngestMessage(message: IngestMessageHandle, deps: I
 
   let job: JobRow | null;
   try {
-    job = await jobs.claimJob(db, jobId, MAX_JOB_ATTEMPTS);
+    job = await jobs.claimJob(db, jobId, MAX_JOB_ATTEMPTS, (spent) => notifyCaptureFailed(db, spent.user_id, spent.kind));
   } catch (err) {
     log.warn('ingest_claim_failed', { err, jobId });
     message.retry({ delaySeconds: CLAIM_ERROR_RETRY_SECONDS });
@@ -128,14 +129,25 @@ export async function processIngestMessage(message: IngestMessageHandle, deps: I
     return;
   }
 
+  let outcome: JobOutcome;
   try {
-    const outcome = await (deps.run ?? runIngestJob)({ db, storage: deps.storage, ai: deps.ai, publisher: deps.publisher }, config, job);
-    await jobs.markDone(db, job.id, { transaction_id: outcome.transactionId });
-    message.ack();
-    return;
+    outcome = await (deps.run ?? runIngestJob)({ db, storage: deps.storage, ai: deps.ai, publisher: deps.publisher }, config, job);
   } catch (err) {
     await handleFailure(message, deps, job, err);
+    return;
   }
+
+  // The transaction exists now: a failing `markDone` must not re-run the AI pipeline or tell the user the capture failed.
+  // One quick second try; if the database is still down the row stays `processing` and the sweep deals with it.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await jobs.markDone(db, job.id, { transaction_id: outcome.transactionId });
+      break;
+    } catch (err) {
+      log.error('ingest_mark_done_failed', { err, jobId: job.id, transactionId: outcome.transactionId, attempt });
+    }
+  }
+  message.ack();
 }
 
 async function handleFailure(message: IngestMessageHandle, deps: IngestDeps, job: JobRow, err: unknown): Promise<void> {
@@ -149,7 +161,7 @@ async function handleFailure(message: IngestMessageHandle, deps: IngestDeps, job
     try {
       await jobs.releaseJob(db, job.id); // back to pending so the redelivery can claim it
     } catch (releaseErr) {
-      // Still `processing`: the sweep requeues it after 120 s; the redelivery below finds it held and acks.
+      // Still `processing`: the sweep requeues it after 300 s; the redelivery below finds it held and acks.
       log.error('ingest_release_failed', { err: releaseErr, jobId: job.id });
     }
     message.retry({ delaySeconds });
@@ -168,7 +180,7 @@ async function handleFailure(message: IngestMessageHandle, deps: IngestDeps, job
 /** `queue()` handler for `dime-ingest`. */
 export async function handleIngestBatch(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
   const deps: IngestDeps = { db: env.DB, storage: mediaStore(env), ai: env.AI, config: getConfig(env), publisher: envPublisher(env) };
-  await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
+  await forEachLimited(batch.messages, INGEST_CONCURRENCY, async (message) => {
     try {
       await processIngestMessage(message, deps);
     } catch (err) {
@@ -186,7 +198,7 @@ export async function handleIngestBatch(batch: MessageBatch<unknown>, env: Bindi
  */
 export async function handleIngestDlq(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
   const db = env.DB;
-  await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
+  await forEachLimited(batch.messages, DLQ_CONCURRENCY, async (message) => {
     const parsed = ingestMessageSchema.safeParse(message.body);
     if (!parsed.success) {
       log.error('ingest_dlq_message_invalid', { messageId: message.id });

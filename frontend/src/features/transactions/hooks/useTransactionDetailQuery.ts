@@ -13,7 +13,7 @@ import type { TransactionRow } from "../types";
  * If the refetch fails the seeded row stays on screen.
  */
 export function useTransactionDetailQuery(initial: TransactionRow) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
 
   return useQuery({
     queryKey: transactionsQueryKeys.detail(userId, initial.id),
@@ -23,6 +23,6 @@ export function useTransactionDetailQuery(initial: TransactionRow) {
     staleTime: 0,
     retry: false,
     enabled:
-      authReady && Boolean(userId) && !isOptimisticTransactionId(initial.id),
+      Boolean(userId) && !isOptimisticTransactionId(initial.id),
   });
 }

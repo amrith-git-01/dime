@@ -135,7 +135,7 @@ export const SettingsNotificationsEditor = memo(
         <SettingsFormCard>
           <SettingsToggleRow
             label="Transaction added alerts"
-            subtitle="When Dime auto-adds a transaction from SMS, scan, or voice."
+            subtitle="When Dime auto-adds a transaction from a scan or voice."
             value={autoCaptureAlertsEnabled}
             onValueChange={onAutoCaptureAlertsChange}
             disabled={togglesDisabled}

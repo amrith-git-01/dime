@@ -12,14 +12,14 @@ export function useMonthInsightsQuery(
   monthIndex0: number,
   options?: { enabled?: boolean },
 ) {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
   return useQuery({
     queryKey: insightsQueryKeys.month(userId, year, calendarMonth, timezone),
     queryFn: () => fetchMonthInsights({ year, month: calendarMonth, timezone }),
-    enabled: (options?.enabled ?? true) && authReady && Boolean(userId),
+    enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });

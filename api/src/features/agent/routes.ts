@@ -14,13 +14,13 @@ import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { PermanentAiError, TransientAiError } from '../ai/errors';
 import { resolveTimezone } from './dates';
-import { createDeepSeekClient, TurnAbortedError } from './llm';
+import { createDeepSeekClient, emptyUsage, TurnAbortedError } from './llm';
 import { chatRequestSchema, feedbackRequestSchema } from './schemas';
 import type { AgentErrorBody } from './schemas';
 import { runAgentTurn, TurnTimeoutError } from './service';
 import type { AgentDeps, AgentEvent, TurnResult } from './service';
 import type { AgentQueries } from './queries';
-import { recordUsage, saveFeedback, tokensUsedToday } from './usage';
+import { claimQuestion, recordUsage, saveFeedback, secondsToUtcMidnight, tokensUsedToday } from './usage';
 
 /** Seams for tests; production uses the defaults. */
 export interface AgentRouteDeps {
@@ -74,6 +74,12 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
         : c.json({ error: refused });
     }
 
+    // The question is counted before the turn runs (atomic), so failed or aborted turns count too.
+    if (!(await claimQuestion(getDb(c), user.id, routeDeps.now(), config.agent.dailyQuestions))) {
+      const message = `You've used today's ${config.agent.dailyQuestions} questions. Try again tomorrow.`;
+      return c.json({ error: { code: 'daily_limit', message } }, 429, { 'Retry-After': String(secondsToUtcMidnight(routeDeps.now())) });
+    }
+
     const deps: AgentDeps = {
       config: config.agent,
       llm: createDeepSeekClient({ baseUrl: config.agent.baseUrl, apiKey: config.ai.apiKey }),
@@ -84,21 +90,24 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
     // Evals only: `X-Agent-Debug: 1` adds what the turn did (tools, model calls, tokens). It carries no user data.
     const debug = c.req.header('x-agent-debug') === '1';
     const payload = (result: TurnResult) => (debug ? { ...result.response, debug: { ...result.trace, tokens: result.usage } } : result.response);
-    const track = (result: TurnResult) => {
-      if (result.usage.promptTokens + result.usage.completionTokens > 0) {
-        defer(c, recordUsage(getDb(c), user.id, routeDeps.now(), result.usage), 'agent-usage');
+    // Filled while the turn runs and recorded in `finally`, so every path (success, error, abort, timeout) is charged.
+    const usage = emptyUsage();
+    const track = () => {
+      if (usage.promptTokens + usage.completionTokens > 0) {
+        defer(c, recordUsage(getDb(c), user.id, routeDeps.now(), usage), 'agent-usage');
       }
     };
 
     if (!wantsStream) {
       try {
-        const result = await runAgentTurn(deps, { userId: user.id, body, signal: c.req.raw.signal });
-        track(result);
+        const result = await runAgentTurn(deps, { userId: user.id, body, signal: c.req.raw.signal, usage });
         return c.json(payload(result));
       } catch (err) {
         if (err instanceof AppError) throw err; // e.g. a missing service key (503)
         log.error('agent_turn_failed', { err, userId: user.id });
         return c.json(agentErrorBody(err));
+      } finally {
+        track();
       }
     }
 
@@ -112,13 +121,13 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
       };
       const emit = (e: AgentEvent) => send(e.type, e.type === 'step' ? { tool: e.tool, label: e.label } : { text: e.text });
       try {
-        const result = await runAgentTurn(deps, { userId: user.id, body, signal: controller.signal, emit });
-        track(result);
+        const result = await runAgentTurn(deps, { userId: user.id, body, signal: controller.signal, emit, usage });
         send('final', payload(result));
       } catch (err) {
         if (!(err instanceof TurnAbortedError)) log.error('agent_turn_failed', { err, userId: user.id });
         send('error', agentErrorBody(err).error);
       } finally {
+        track();
         await queue;
       }
     });

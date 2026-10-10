@@ -54,12 +54,11 @@ describe('POST /categories', () => {
     expect(await color.json()).toEqual({ detail: 'Color must be a hex value like #94A3B8.' });
   });
 
-  it("409 when another user's custom category already has the name (names are unique across users)", async () => {
+  it("allows a name another user's custom category already has (names are unique per user)", async () => {
     await seedUser(OTHER);
     await seedCategory({ id: STRANGER, user_id: OTHER, name: 'Coffee' });
     const res = await call('/api/v1/categories', { method: 'POST', json: { name: 'coffee' } });
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ detail: 'You already have a category with this name.' });
+    expect(res.status).toBe(201);
   });
 
   it('enforces the 15 custom category cap', async () => {
@@ -146,19 +145,16 @@ describe('PATCH /categories/{id} (C1)', () => {
     expect(await rowsOf('category_budgets')).toHaveLength(0);
   });
 
-  it('409 when renaming to an existing name (visible, or only taken by another user)', async () => {
+  it('409 when renaming to a name you can already see; free when only another user has it', async () => {
     await seedCustom();
     await seedCategory({ name: 'Coffee' });
     expect((await patch(CAT, { name: 'coffee' })).status).toBe(409);
-    // Taken by another user: invisible to the pre-check, caught by the unique index (plain and budget paths).
+    // A name only another user has is free (names are unique per user), on the plain and the budget path.
     await seedUser(OTHER);
     await seedCategory({ user_id: OTHER, name: 'Hidden' });
-    const plain = await patch(CAT, { name: 'HIDDEN' });
-    expect(plain.status).toBe(409);
-    expect(await plain.json()).toEqual({ detail: 'You already have a category with this name.' });
-    expect((await patch(CAT, { name: 'hidden', budget_amount: '5' })).status).toBe(409);
-    expect(await oneRow('categories', 'id = ?', CAT)).toMatchObject({ name: 'Snacks' });
-    expect(await rowsOf('category_budgets')).toHaveLength(0);
+    expect((await patch(CAT, { name: 'HIDDEN' })).status).toBe(200);
+    expect((await patch(CAT, { name: 'hidden', budget_amount: '5' })).status).toBe(200);
+    expect(await oneRow('categories', 'id = ?', CAT)).toMatchObject({ name: 'hidden' });
   });
 });
 

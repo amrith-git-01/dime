@@ -446,6 +446,18 @@ const hashFor = (over: { amount?: string; type?: string; at?: string } = {}) =>
     transactionAtMs: Date.parse(over.at ?? '2026-10-04T10:00:00+05:30'),
   });
 
+describe('POST /transactions: size limits', () => {
+  it('422 for an amount with more than 10 whole digits; 10 are fine', async () => {
+    expect((await postTx(createBody({ amount: '12345678901' }))).status).toBe(422);
+    expect((await postTx(createBody({ amount: '1234567890.50' }))).status).toBe(201);
+  });
+
+  it('413 for a JSON body over 64 KB', async () => {
+    const res = await postTx(createBody({ note: 'x'.repeat(70 * 1024) }));
+    expect(res.status).toBe(413);
+  });
+});
+
 describe('POST /transactions', () => {
   it('inserts a manual transaction, ignores server-only fields (S7) and answers 201 {accepted}', async () => {
     await seedCategory({ id: CAT, name: 'Salary', user_id: USER_ID });
@@ -484,6 +496,7 @@ describe('POST /transactions', () => {
       counterparty_normalized: 'acme corp',
       payment_hash: await hashFor(),
       payee_key: 'acme corp',
+      recurring_item_id: null,
     });
   });
 

@@ -85,13 +85,6 @@ export function fakeBatch(queue: string, messages: FakeMessage[]): MessageBatch<
   return { queue, messages, ackAll: () => messages.forEach((m) => m.ack()), retryAll: () => undefined } as unknown as MessageBatch<unknown>;
 }
 
-export const smsPayload = (over: Record<string, unknown> = {}) => ({
-  body: 'INR 250.50 debited at SWIGGY',
-  received_at: '2026-10-04T10:00:00.000Z',
-  timezone: 'Asia/Kolkata',
-  ...over,
-});
-
 export const mediaPayload = (over: Record<string, unknown> = {}) => ({
   object_path: `receipts/${USER_ID}/receipts/2026-10-04/1-abcd1234.jpg`,
   mime_type: 'image/jpeg',
@@ -102,8 +95,8 @@ export const mediaPayload = (over: Record<string, unknown> = {}) => ({
 export const jobRow = (over: Record<string, unknown> = {}) => ({
   id: JOB,
   user_id: USER_ID,
-  kind: 'sms',
-  payload: smsPayload(),
+  kind: 'receipt',
+  payload: mediaPayload(),
   status: 'pending',
   attempts: 0,
   last_error: null,

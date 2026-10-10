@@ -17,8 +17,9 @@ export type UseUserProfileResult = {
 };
 
 export function useUserProfile(): UseUserProfileResult {
-  const { userId, authReady } = useSessionUserId();
-  const cachedProfile = useCurrentUserStore((s) => s.profile);
+  const { userId } = useSessionUserId();
+  const storedProfile = useCurrentUserStore((s) => s.profile);
+  const cachedProfile = storedProfile?.id === userId ? storedProfile : null;
   const {
     data: queryProfile,
     isLoading,
@@ -26,7 +27,7 @@ export function useUserProfile(): UseUserProfileResult {
   } = useCurrentUserProfileQuery(userId);
 
   const profile = queryProfile ?? cachedProfile;
-  const loading = !authReady || (!!userId && !profile && isLoading);
+  const loading = !!userId && !profile && isLoading;
   const fetchError = Boolean(userId && isError && !profile);
 
   const username = profile?.username ?? null;

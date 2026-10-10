@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isTransientDbError, isUniqueViolation } from '../src/core/db-errors';
 import { claimJob, claimKey, failIfUnfinished, findByKeys, insertMany, listRecoverable, markDone, releaseJob, requeueStaleProcessing } from '../src/features/jobs/repository';
-import { fetchActive, findByPaymentHash, insertTransaction, payeeTotals, periodSummary, softDelete, updateForUser } from '../src/features/transactions/repository';
+import { fetchActive, findByPaymentHash, insertTransactionRow, payeeTotals, periodSummary, softDelete, updateForUser } from '../src/features/transactions/repository';
 import { insertDefaults } from '../src/features/user-settings/repository';
 import { USER_ID } from './helpers';
 import { oneRow, rowsOf, seedCategory, seedJob, seedTransaction, seedUser, testDb } from './db';
@@ -31,13 +31,13 @@ describe('migration 0001: seed and constraints', () => {
     expect(rows.every((r) => r.user_id === null && r.created_at === '2026-06-11T17:30:06.824Z')).toBe(true);
   });
 
-  it('category names are unique across users, case-insensitively (categories_name_uniq)', async () => {
+  it('category names are unique per user, case-insensitively (categories_user_name_uniq), not across users (0004)', async () => {
     await seedUser(OTHER);
     await seedCategory({ name: 'Coffee' });
-    for (const [user, name] of [[OTHER, 'COFFEE'], [USER_ID, 'coffee'], [OTHER, 'food & dining']] as const) {
-      const err = await seedCategory({ user_id: user, name }).catch((e: unknown) => e);
-      expect(isUniqueViolation(err), name).toBe(true);
-    }
+    const err = await seedCategory({ user_id: USER_ID, name: 'COFFEE' }).catch((e: unknown) => e);
+    expect(isUniqueViolation(err)).toBe(true);
+    // Another user may use the same name; clashes with system names are refused by the service (409), not the database.
+    await seedCategory({ user_id: OTHER, name: 'coffee' });
   });
 
   it('deleting a user cascades to everything they own', async () => {
@@ -62,12 +62,15 @@ describe('migration 0001: seed and constraints', () => {
     expect(await bad("INSERT INTO user_settings (user_id, daily_expense_reminder_time) VALUES (?, '24:00')", USER_ID)).toBe(true);
     expect(await bad("INSERT INTO user_settings (user_id, daily_expense_reminder_time) VALUES (?, '23:59')", USER_ID)).toBe(false);
     expect(await bad("INSERT INTO email_sends (id, user_id, kind, period_key) VALUES ('x', ?, 'daily', 'k')", USER_ID)).toBe(true);
-    expect(await bad("INSERT INTO jobs (id, user_id, kind, status) VALUES ('x', ?, 'sms', 'weird')", USER_ID)).toBe(true);
+    expect(await bad("INSERT INTO jobs (id, user_id, kind, status) VALUES ('x', ?, 'receipt', 'weird')", USER_ID)).toBe(true);
   });
 });
 
+/** The id of the stored row. */
+const insertTransaction = async (db: Parameters<typeof insertTransactionRow>[0], row: Parameters<typeof insertTransactionRow>[1]) => (await insertTransactionRow(db, row)).id;
+
 describe('transactions: partial unique payment_hash and payee_key', () => {
-  const row = (over: Partial<Parameters<typeof insertTransaction>[1]> = {}) => ({
+  const row = (over: Partial<Parameters<typeof insertTransactionRow>[1]> = {}) => ({
     user_id: USER_ID,
     amount: '10.50',
     type: 'debit',
@@ -216,18 +219,18 @@ describe('jobs: compare-and-set paths', () => {
   });
 
   it('listRecoverable returns pending / processing jobs of one kind, oldest first', async () => {
-    await seedJob({ id: 'b', kind: 'sms', status: 'pending', updated_at: '2026-10-04T09:30:00.000Z' });
-    await seedJob({ id: 'a', kind: 'sms', status: 'processing', updated_at: '2026-10-04T09:00:00.000Z' });
+    await seedJob({ id: 'b', kind: 'receipt', status: 'pending', updated_at: '2026-10-04T09:30:00.000Z' });
+    await seedJob({ id: 'a', kind: 'receipt', status: 'processing', updated_at: '2026-10-04T09:00:00.000Z' });
     await seedJob({ id: 'c', kind: 'voice', status: 'pending', updated_at: '2026-10-04T09:00:00.000Z' });
-    await seedJob({ id: 'd', kind: 'sms', status: 'done', updated_at: '2026-10-04T09:00:00.000Z' });
-    await seedJob({ id: 'e', kind: 'sms', status: 'pending', updated_at: '2026-10-04T11:00:00.000Z' });
-    const rows = await listRecoverable(testDb(), { kind: 'sms', cutoffIso: '2026-10-04T10:00:00.000Z', limit: 10 });
+    await seedJob({ id: 'd', kind: 'receipt', status: 'done', updated_at: '2026-10-04T09:00:00.000Z' });
+    await seedJob({ id: 'e', kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:00:00.000Z' });
+    const rows = await listRecoverable(testDb(), { kind: 'receipt', cutoffIso: '2026-10-04T10:00:00.000Z', limit: 10 });
     expect(rows.map((r) => r.id)).toEqual(['a', 'b']);
-    expect((await listRecoverable(testDb(), { kind: 'sms', cutoffIso: '2026-10-04T10:00:00.000Z', limit: 1 })).map((r) => r.id)).toEqual(['a']);
+    expect((await listRecoverable(testDb(), { kind: 'receipt', cutoffIso: '2026-10-04T10:00:00.000Z', limit: 1 })).map((r) => r.id)).toEqual(['a']);
   });
 
   it('insertMany is atomic: a unique violation anywhere in the batch writes nothing', async () => {
-    const job = (key: string | null) => ({ user_id: USER_ID, kind: 'sms' as const, payload: { n: 1 }, idempotency_key: key });
+    const job = (key: string | null) => ({ user_id: USER_ID, kind: 'receipt' as const, payload: { n: 1 }, idempotency_key: key });
     const err = await insertMany(testDb(), [job('k:0'), job('k:1'), job('k:0')]).catch((e: unknown) => e);
     expect(isUniqueViolation(err)).toBe(true);
     expect(await rowsOf('jobs')).toHaveLength(0);

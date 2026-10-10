@@ -2,7 +2,7 @@
  * Parse prompts (ports of backend `features/ai/prompts/transaction_parse_prompts.py` and
  * `preprocess/prompts.py`). Wording is kept identical so model behaviour matches the Python backend.
  */
-export type ParseMode = 'receipt' | 'voice' | 'sms';
+export type ParseMode = 'receipt' | 'voice';
 
 const SCHEMA =
   '{"counterparty_name":string,' +
@@ -24,7 +24,7 @@ const TYPE_RULES =
   '- type=credit: money ARRIVED in your account (refund, salary, incoming transfer).\n' +
   "- CRITICAL: 'paid by credit card' / 'credit card payment' = debit (you spent money). " +
   "'credit card' is the payment method, NOT the direction.\n" +
-  "- CRITICAL: 'debited' in SMS = debit. 'credited' in SMS = credit.\n";
+  "- CRITICAL: 'debited' = debit. 'credited' = credit.\n";
 
 const COUNTERPARTY_RULES =
   '- counterparty_type=person: payment to/from a named individual or family member.\n' +
@@ -73,27 +73,6 @@ export function buildReceiptParsePrompt(ocrText: string | null | undefined, allo
   );
 }
 
-export function buildSmsParsePrompt(smsText: string | null | undefined, allowedCategories?: readonly string[] | null): string {
-  return (
-    'Extract transaction from an Indian bank or UPI SMS below. Return ONLY valid JSON, no markdown.\n' +
-    `Schema: ${SCHEMA}\n` +
-    'Rules:\n' +
-    TYPE_RULES +
-    DATE_RULES +
-    COUNTERPARTY_RULES +
-    categoryBlock(allowedCategories) +
-    NOTE_RULES +
-    '- Primary source: SMS body. Account numbers may already be masked.\n' +
-    '- Prefer merchant / UPI payee as counterparty_name, not the bank name.\n' +
-    '- Use SMS timestamp only if a calendar date is present; else null.\n' +
-    '- Failed or reversed still extract amount and type when present.\n' +
-    '- Use null for unknown fields. Never invent values.\n' +
-    'SMS text:\n---\n' +
-    orNa(smsText) +
-    '\n---'
-  );
-}
-
 export function buildVoiceParsePrompt(transcript: string | null | undefined, allowedCategories?: readonly string[] | null): string {
   return (
     'Extract transaction from voice transcript below. Return ONLY valid JSON, no markdown.\n' +
@@ -115,7 +94,6 @@ export function buildVoiceParsePrompt(transcript: string | null | undefined, all
 
 export function buildParsePrompt(mode: ParseMode, text: string, allowedCategories: readonly string[]): string {
   if (mode === 'receipt') return buildReceiptParsePrompt(text, allowedCategories);
-  if (mode === 'sms') return buildSmsParsePrompt(text, allowedCategories);
   return buildVoiceParsePrompt(text, allowedCategories);
 }
 

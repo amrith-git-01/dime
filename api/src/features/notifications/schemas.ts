@@ -4,11 +4,13 @@ import { uuidString } from '../../core/validation';
 
 export const NOTIFICATION_COLUMNS = 'id,kind,title,body,created_at,read_at,action_type,action_transaction_id';
 
+const CURSOR_ID = /^[0-9a-fA-F-]{8,40}$/;
+
 export const listQuerySchema = z.object({
   filter: z.enum(['all', 'unread', 'read']).default('all'),
   /** C4: page size. */
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  /** C4: ISO timestamp cursor (the previous page's `next_cursor`). */
+  /** C4: opaque cursor, the previous page's `next_cursor` (`<created_at ISO>|<id>`; a bare ISO timestamp is still accepted). */
   before: z
     .string()
     .optional()
@@ -16,7 +18,8 @@ export const listQuerySchema = z.object({
       if (value === undefined) return undefined;
       // A literal `+` in a query string arrives as a space.
       const normalized = value.trim().replace(' ', '+');
-      if (Number.isNaN(Date.parse(normalized))) {
+      const [time = '', id, ...extra] = normalized.split('|');
+      if (Number.isNaN(Date.parse(time)) || extra.length > 0 || (id !== undefined && !CURSOR_ID.test(id))) {
         ctx.addIssue({
           code: 'custom',
           message: 'Input should be a valid datetime',
@@ -55,7 +58,7 @@ export interface NotificationResponse {
 
 export interface NotificationListResponse {
   items: NotificationResponse[];
-  /** C4: `created_at` of the last item when more pages exist, otherwise null. */
+  /** C4: `<created_at>|<id>` of the last item when more pages exist, otherwise null. */
   next_cursor: string | null;
 }
 

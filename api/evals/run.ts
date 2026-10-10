@@ -8,7 +8,7 @@
  * as a table on stdout plus `reports/<timestamp>.json` and `reports/<timestamp>.md`.
  *
  *   npx tsx evals/run.ts --url http://127.0.0.1:8787 --jwt-secret <AUTH_JWT_SECRET>
- *   npx tsx evals/run.ts --url https://dime-api-staging.<sub>.workers.dev --token <access token of the fixture user>
+ *   npx tsx evals/run.ts --url http://127.0.0.1:8787 --token <access token of the fixture user>
  *
  * Options (each also as an EVAL_* environment variable):
  *   --url            API origin                                   EVAL_BASE_URL       (default http://127.0.0.1:8787)

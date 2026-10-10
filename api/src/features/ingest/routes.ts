@@ -1,25 +1,25 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { currentUser, requireAuth } from '../../core/auth';
-import { limitBody, limitUpload } from '../../core/body-limit';
+import { limitUpload } from '../../core/body-limit';
 import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { BadRequestError, PayloadTooLargeError, UnsupportedMediaTypeError } from '../../core/errors';
 import { detectReceiptImageFormat } from '../../core/image-format';
 import { rateLimit } from '../../core/rate-limit';
+import { parseTimezone } from '../../core/timezone';
 import { getDb } from '../../core/db';
 import { unprocessable, validate } from '../../core/validation';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../jobs/idempotency';
 import { detectAudioFormat } from '../media/audio-format';
 import { mediaStore } from '../media/storage';
 import { timezoneQuerySchema } from '../transactions/schemas';
-import { smsBatchSchema } from './schemas';
-import { acceptMedia, acceptSms, isReplay } from './service';
+import { acceptMedia, isReplay } from './service';
 import type { IngestContext } from './service';
 
 /**
- * Capture endpoints, mounted at `/transactions` next to the transaction router: receipt, voice and
- * SMS are accepted with 202 and processed by the queue consumer (`consumer.ts`).
+ * Capture endpoints, mounted at `/transactions` next to the transaction router: receipt and voice
+ * uploads are accepted with 202 and processed by the queue consumer (`consumer.ts`).
  */
 export const ingestRoutes = new Hono<AppBindings>();
 
@@ -27,8 +27,6 @@ ingestRoutes.use(requireAuth);
 
 /** Bytes inspected for magic-byte sniffing. */
 const SNIFF_BYTES = 32;
-/** An SMS batch is at most 50 x 2000 chars; this leaves room for JSON escapes. */
-const SMS_BODY_LIMIT_BYTES = 1024 * 1024;
 const ACCEPTED = { accepted: true } as const;
 
 function ingestContext(c: Context<AppBindings>): IngestContext {
@@ -38,7 +36,7 @@ function ingestContext(c: Context<AppBindings>): IngestContext {
     storage: mediaStore(c.env),
     userId: currentUser(c).id,
     queue: c.env.INGEST_QUEUE,
-    limits: { dailyNeuronCap: workersAi.dailyNeuronCap, userDailyCaptures: workersAi.userDailyCaptures },
+    limits: { dailyNeuronCap: workersAi.dailyNeuronCap, userDailyReceipts: workersAi.userDailyReceipts, userDailyVoice: workersAi.userDailyVoice },
   };
 }
 
@@ -73,6 +71,7 @@ ingestRoutes.post(
   limitUpload((cfg) => cfg.maxReceiptUploadBytes),
   validate('query', timezoneQuerySchema),
   async (c) => {
+    const timezone = parseTimezone(c.req.valid('query').timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = ingestContext(c);
     // C2: a known key is answered before the body is read or anything is uploaded.
@@ -86,7 +85,7 @@ ingestRoutes.post(
       bytes: new Uint8Array(await file.arrayBuffer()),
       contentType: detected.contentType,
       extension: detected.ext,
-      timezone: c.req.valid('query').timezone,
+      timezone,
       key,
     });
     return c.json(ACCEPTED, 202);
@@ -100,6 +99,7 @@ ingestRoutes.post(
   limitUpload((cfg) => cfg.maxVoiceUploadBytes),
   validate('query', timezoneQuerySchema),
   async (c) => {
+    const timezone = parseTimezone(c.req.valid('query').timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = ingestContext(c);
     if (await isReplay(ctx.db, ctx.userId, key)) return c.json(ACCEPTED, 202);
@@ -114,27 +114,9 @@ ingestRoutes.post(
       bytes: new Uint8Array(await file.arrayBuffer()),
       contentType: detected.contentType,
       extension: detected.ext,
-      timezone: c.req.valid('query').timezone,
+      timezone,
       key,
     });
     return c.json(ACCEPTED, 202);
-  },
-);
-
-ingestRoutes.post(
-  '/sms',
-  rateLimit('WRITE_LIMITER'),
-  rateLimit('AI_LIMITER'),
-  limitBody(SMS_BODY_LIMIT_BYTES),
-  validate('query', timezoneQuerySchema),
-  validate('json', smsBatchSchema),
-  async (c) => {
-    const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
-    const response = await acceptSms(ingestContext(c), {
-      body: c.req.valid('json'),
-      timezone: c.req.valid('query').timezone,
-      key,
-    });
-    return c.json(response, 202);
   },
 );

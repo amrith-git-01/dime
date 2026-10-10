@@ -6,7 +6,7 @@ const SEND_BATCH_LIMIT = 100;
 
 /**
  * Put job ids on the ingest queue. The jobs are already persisted as `pending`, so a failure here is
- * logged and swallowed: the recovery sweep (cron) re-sends anything still pending after 120 s.
+ * logged and swallowed: the recovery sweep (cron) re-sends anything still pending after 300 s.
  * Returns whether every message was accepted by the queue.
  */
 export async function enqueueJobs(queue: Queue, jobs: readonly IngestMessage[]): Promise<boolean> {

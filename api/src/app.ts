@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { limitJsonBody } from './core/body-limit';
 import { noStore } from './core/cache-control';
 import { corsFromEnv } from './core/cors';
 import type { AppBindings } from './core/env';
@@ -12,11 +13,13 @@ import { categoriesRoutes } from './features/categories/routes';
 import { emailRoutes } from './features/email/routes';
 import { healthRoutes } from './features/health/routes';
 import { ingestRoutes } from './features/ingest/routes';
+import { limitsRoutes } from './features/limits/routes';
 import { mediaRoutes } from './features/media/routes';
 import { notificationsRoutes } from './features/notifications/routes';
 import { profileAvatarRoutes } from './features/profile-avatar/routes';
 import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
+import { recurringRoutes } from './features/recurring/routes';
 import { transactionRoutes } from './features/transactions/routes';
 import { userFeedbackRoutes } from './features/user-feedback/routes';
 import { userProfileRoutes } from './features/user-profile/routes';
@@ -28,11 +31,12 @@ export function createApp() {
   // Order matters: request id first so every response (CORS preflights, errors, 404s) carries it.
   app.use(requestId);
   app.use('/api/v1/*', noStore);
+  app.use('/api/v1/*', limitJsonBody);
   app.use(corsFromEnv);
   app.onError(onError);
   app.notFound(notFound);
 
-  app.get('/', (c) => c.json({ message: 'Dime API', docs: '/docs', openapi: '/openapi.json' }));
+  app.get('/', (c) => c.json({ message: 'Dime API' }));
 
   // Python served the email images at /static/email; they live at /email/* now (Workers Static Assets).
   // Old emails that point at the old path keep working through this redirect.
@@ -53,7 +57,9 @@ export function createApp() {
   api.route('/budget', budgetRoutes);
   api.route('/notifications', notificationsRoutes);
   api.route('/transactions', transactionRoutes);
-  api.route('/transactions', ingestRoutes); // receipt / voice / sms capture (R3)
+  api.route('/transactions', ingestRoutes); // receipt / voice capture (R3)
+  api.route('/recurring', recurringRoutes);
+  api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);
   api.route('/agent', agentRoutes);
   api.route('/realtime', realtimeRoutes); // WebSocket upgrade, forwarded to the user's UserHub

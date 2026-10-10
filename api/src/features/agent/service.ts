@@ -58,6 +58,8 @@ export interface TurnOptions {
   signal: AbortSignal;
   /** Receives progress events (SSE mode). Without it model calls do not stream. */
   emit?: (event: AgentEvent) => void;
+  /** Token totals are added here as model calls finish, so a failed or aborted turn still reports what it spent. */
+  usage?: Usage;
 }
 
 type Outcome = 'ok' | 'clarification' | 'template' | 'deadline' | 'aborted' | 'error';
@@ -146,7 +148,7 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
   const tz = resolveTimezone(body.timezone);
   const question = body.content.trim();
   const ctx: ToolContext = { tz, nowMs: started };
-  const usage = emptyUsage();
+  const usage = opts.usage ?? emptyUsage();
   const results: ToolResult[] = [];
   const queries: AgentQueries = { ...defaultQueries, ...deps.queries };
 

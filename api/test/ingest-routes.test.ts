@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Bindings } from '../src/core/env';
 import { USER_ID, call, makeEnv } from './helpers';
-import { failingDb, failingOn, rowsOf, seedJob } from './db';
+import { failingOn, rowsOf, seedJob } from './db';
 import { CAF, FakeQueue, JPEG, KEY, M4A, TEXT, TZ, uploadForm } from './ingest-fixtures';
 import { useSupabaseStub } from './supabase-stub';
 
@@ -33,11 +33,9 @@ async function jobs(): Promise<JobRecord[]> {
   return (await rowsOf<Omit<JobRecord, 'payload'> & { payload: string }>('jobs')).map((j) => ({ ...j, payload: JSON.parse(j.payload) as Record<string, unknown> }));
 }
 
-const sms = (body: string, at = '2026-10-04T10:00:00+00:00') => ({ body, received_at: at });
-
 describe('auth and validation', () => {
   it('401 without a token', async () => {
-    for (const path of ['receipt', 'voice', 'sms']) {
+    for (const path of ['receipt', 'voice']) {
       expect((await call(`/api/v1/transactions/${path}?${TZ}`, { method: 'POST', token: false })).status, path).toBe(401);
     }
     expect(stub.calls).toHaveLength(0);
@@ -47,6 +45,18 @@ describe('auth and validation', () => {
     const res = await call('/api/v1/transactions/receipt', { method: 'POST', body: uploadForm(JPEG), env: ingestEnv(new FakeQueue()) });
     expect(res.status).toBe(422);
     expect(stub.calls).toHaveLength(0);
+  });
+
+  it('400 for an unknown timezone, before the body is read or anything is stored', async () => {
+    for (const path of ['receipt', 'voice']) {
+      const res = await call(`/api/v1/transactions/${path}?timezone=Mars/Base`, { method: 'POST', body: uploadForm(path === 'voice' ? M4A : JPEG), env: ingestEnv(new FakeQueue()) });
+      expect(res.status, path).toBe(400);
+    }
+    expect(await storedKeys()).toEqual([]);
+  });
+
+  it('404 for the removed SMS endpoint', async () => {
+    expect((await call(`/api/v1/transactions/sms?${TZ}`, { method: 'POST', json: { messages: [] } })).status).toBe(404);
   });
 
   it('422 for a malformed Idempotency-Key', async () => {
@@ -62,7 +72,7 @@ describe('auth and validation', () => {
   it('429 when a rate limiter rejects', async () => {
     const limiter = { limit: () => Promise.resolve({ success: false }) };
     const env = { ...ingestEnv(new FakeQueue()), AI_LIMITER: limiter } as unknown as Bindings;
-    const res = await call(`/api/v1/transactions/sms?${TZ}`, { method: 'POST', json: { messages: [sms('a')] }, env });
+    const res = await call(`/api/v1/transactions/voice?${TZ}`, { method: 'POST', body: uploadForm(M4A), env });
     expect(res.status).toBe(429);
   });
 });
@@ -252,125 +262,5 @@ describe('POST /transactions/voice', () => {
     });
     expect(replay.status).toBe(202);
     expect(await storedKeys()).toEqual([]);
-  });
-});
-
-describe('POST /transactions/sms', () => {
-  const post = (messages: unknown[], opts: { key?: string; env?: Bindings; query?: string } = {}) =>
-    call(`/api/v1/transactions/sms?${opts.query ?? TZ}`, {
-      method: 'POST',
-      json: { messages },
-      headers: opts.key ? { 'Idempotency-Key': opts.key } : {},
-      env: opts.env ?? ingestEnv(new FakeQueue()),
-    });
-
-  interface SmsBody {
-    accepted: boolean;
-    results: { index: number; status: string; duplicate_of?: number; job_id?: string }[];
-  }
-
-  it('queues each message with per-item results; in-batch duplicates are reported, not queued', async () => {
-    const queue = new FakeQueue();
-    const res = await post([sms('a'), sms('b'), sms('a', '2026-10-04T10:00:00Z')], { env: ingestEnv(queue) });
-    expect(res.status).toBe(202);
-    const stored = await jobs();
-    expect(stored).toHaveLength(2);
-    expect(await res.json<SmsBody>()).toEqual({
-      accepted: true,
-      results: [
-        { index: 0, status: 'queued', job_id: stored[0]?.id },
-        { index: 1, status: 'queued', job_id: stored[1]?.id },
-        { index: 2, status: 'duplicate', duplicate_of: 0 },
-      ],
-    });
-    expect(stored[0]).toMatchObject({
-      user_id: USER_ID,
-      kind: 'sms',
-      status: 'pending',
-      attempts: 0,
-      idempotency_key: null,
-      payload: { body: 'a', received_at: '2026-10-04T10:00:00.000Z', timezone: 'Asia/Kolkata' },
-    });
-    expect(queue.sent).toEqual([
-      { job_id: stored[0]?.id, kind: 'sms' },
-      { job_id: stored[1]?.id, kind: 'sms' },
-    ]);
-  });
-
-  it('derives "<key>:<index>" per message using the ORIGINAL index (duplicates keep their slot)', async () => {
-    await post([sms('a'), sms('a'), sms('b')], { key: KEY });
-    expect((await jobs()).map((r) => r.idempotency_key)).toEqual([`${KEY}:0`, `${KEY}:2`]);
-  });
-
-  it('a replay rebuilds the batch result from the existing rows, creating nothing', async () => {
-    const j0 = await seedJob({ kind: 'sms', idempotency_key: `${KEY}:0` });
-    const j2 = await seedJob({ kind: 'sms', idempotency_key: `${KEY}:2` });
-    const queue = new FakeQueue();
-    const res = await post([sms('a'), sms('a'), sms('b')], { key: KEY, env: ingestEnv(queue) });
-    expect(res.status).toBe(202);
-    expect(await res.json<SmsBody>()).toEqual({
-      accepted: true,
-      results: [
-        { index: 0, status: 'queued', job_id: j0 },
-        { index: 1, status: 'duplicate', duplicate_of: 0 },
-        { index: 2, status: 'queued', job_id: j2 },
-      ],
-    });
-    expect(await jobs()).toHaveLength(2);
-    expect(queue.sent).toEqual([]);
-  });
-
-  it('a concurrent identical request resolves to the same jobs: one set of rows, queued once', async () => {
-    const queue = new FakeQueue();
-    const [a, b] = await Promise.all([post([sms('a')], { key: KEY, env: ingestEnv(queue) }), post([sms('a')], { key: KEY, env: ingestEnv(queue) })]);
-    expect([a.status, b.status]).toEqual([202, 202]);
-    const stored = await jobs();
-    expect(stored).toHaveLength(1);
-    expect((await a.json<SmsBody>()).results).toEqual([{ index: 0, status: 'queued', job_id: stored[0]?.id }]);
-    expect((await b.json<SmsBody>()).results).toEqual([{ index: 0, status: 'queued', job_id: stored[0]?.id }]);
-    expect(queue.sent).toHaveLength(1);
-  });
-
-  it('all or nothing: a failed insert queues nothing and returns a generic 500', async () => {
-    const queue = new FakeQueue();
-    const res = await post([sms('a'), sms('b')], { env: { ...ingestEnv(queue), DB: failingDb('batch', 'D1_ERROR: internal detail') } as unknown as Bindings });
-    expect(res.status).toBe(500);
-    expect(JSON.stringify(await res.json())).not.toContain('detail":"D1');
-    expect(queue.sent).toEqual([]);
-    expect(await jobs()).toHaveLength(0);
-  });
-
-  it('a failing queue send leaves the inserted jobs pending and still answers 202', async () => {
-    const queue = new FakeQueue();
-    queue.failWith = new Error('queue down');
-    const res = await post([sms('a'), sms('b')], { env: ingestEnv(queue) });
-    expect(res.status).toBe(202);
-    const stored = await jobs();
-    expect((await res.json<SmsBody>()).results.map((r) => r.job_id)).toEqual(stored.map((j) => j.id));
-    expect(stored.map((j) => j.status)).toEqual(['pending', 'pending']);
-  });
-
-  it('validates the batch: blank body, empty list, too many, bad date, bad timezone, bad key', async () => {
-    const blank = await post([sms('ok'), sms('   ')]);
-    expect(blank.status).toBe(422);
-    expect(await blank.json()).toEqual({
-      detail: [{ type: 'value_error', loc: ['body', 'messages', 1, 'body'], msg: 'Value error, body must not be blank' }],
-    });
-    expect((await post([])).status).toBe(422);
-    expect((await post(Array.from({ length: 51 }, (_, i) => sms(`m${i}`)))).status).toBe(422);
-    expect((await post([{ body: 'x', received_at: 'yesterday' }])).status).toBe(422);
-    expect((await post([sms('x')], { query: '' })).status).toBe(422);
-    expect((await post([sms('x')], { key: 'bad' })).status).toBe(422);
-    expect((await post([sms('x'.repeat(2001))])).status).toBe(422);
-    expect(stub.calls).toHaveLength(0);
-    expect(await jobs()).toHaveLength(0);
-  });
-
-  it('accepts the body trimmed and a 50-message batch', async () => {
-    const res = await post(Array.from({ length: 50 }, (_, i) => sms(`  msg ${i}  `)));
-    expect(res.status).toBe(202);
-    const stored = await jobs();
-    expect(stored).toHaveLength(50);
-    expect(stored[0]?.payload['body']).toBe('msg 0');
   });
 });

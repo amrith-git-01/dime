@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
 
+import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
@@ -14,14 +15,14 @@ import { prepareReceiptImageForUpload } from "../receipt/prepareReceiptImageForU
 
 /** Opens camera and queues receipt processing on backend. */
 export function useReceiptCameraTransaction() {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
   const { showToast } = useToast();
   const qc = useQueryClient();
 
   return useCallback(async () => {
-    if (!authReady || !userId) {
+    if (!userId) {
       Alert.alert(
         "Sign in required",
         "Sign in to add a transaction from a photo.",
@@ -99,6 +100,7 @@ export function useReceiptCameraTransaction() {
       Alert.alert("Something went wrong", message);
     } finally {
       hideBusy();
+      invalidateLimitsQueries(qc);
     }
-  }, [authReady, hideBusy, qc, showBusy, showToast, userId]);
+  }, [hideBusy, qc, showBusy, showToast, userId]);
 }

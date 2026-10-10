@@ -6,13 +6,15 @@ import {
   stackVirtualizedListShellConfig,
 } from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
+import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
+import EditRecurringScreenBase from "@/screens/recurring/EditRecurringScreen";
+import RecurringListScreenBase from "@/screens/recurring/RecurringListScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
-import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
 import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
 import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
@@ -38,7 +40,6 @@ const SettingsScreen = withStackScreen(
   settingsStackShellConfig,
 );
 const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
-const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
 const SettingsEmailScreen = withStackScreen(SettingsEmailScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
 const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
@@ -53,6 +54,8 @@ const SettingsPermissionsScreen = withStackScreen(
 const SettingsNotificationsScreen = withStackScreen(
   SettingsNotificationsScreenBase,
 );
+const RecurringListScreen = withStackScreen(RecurringListScreenBase);
+const EditRecurringScreen = withStackScreen(EditRecurringScreenBase);
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
   notificationsInboxShellConfig,
@@ -96,11 +99,6 @@ export default function MainStackNavigator() {
         options={{ ...stackScreenOptions, title: "Account" }}
       />
       <Stack.Screen
-        name="SettingsCapture"
-        component={SettingsCaptureScreen}
-        options={{ ...stackScreenOptions, title: "Capture" }}
-      />
-      <Stack.Screen
         name="SettingsEmail"
         component={SettingsEmailScreen}
         options={{ ...stackScreenOptions, title: "Email summaries" }}
@@ -129,6 +127,24 @@ export default function MainStackNavigator() {
         name="SettingsNotifications"
         component={SettingsNotificationsScreen}
         options={{ ...stackScreenOptions, title: "Notifications & alerts" }}
+      />
+      <Stack.Screen
+        name="RecurringList"
+        component={RecurringListScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: RECURRING_COPY[route.params.kind].screenTitle,
+        })}
+      />
+      <Stack.Screen
+        name="EditRecurring"
+        component={EditRecurringScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: route.params.recurringId
+            ? RECURRING_COPY[route.params.kind].editTitle
+            : RECURRING_COPY[route.params.kind].addTitle,
+        })}
       />
       <Stack.Screen
         name="Notifications"

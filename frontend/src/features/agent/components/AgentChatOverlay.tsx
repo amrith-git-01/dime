@@ -31,7 +31,12 @@ import {
   surface,
   timings,
 } from "@/constants";
-import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
+import {
+  useAgentChat,
+  useAgentDailyLimitReached,
+} from "@/features/agent/hooks/useAgentChat";
+import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
+import { getAgentAvailability } from "@/features/limits/utils/limitsFormat";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
@@ -108,6 +113,10 @@ export function AgentChatOverlay({
     resetConversation,
     submitFeedback,
   } = useAgentChat();
+  const storeLimitReached = useAgentDailyLimitReached();
+  const { data: limits } = useLimitsQuery();
+  const agentAvailability = getAgentAvailability(limits);
+  const limitReached = storeLimitReached || agentAvailability.exhausted;
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
@@ -189,24 +198,24 @@ export function AgentChatOverlay({
 
   const handleSend = useCallback(
     (text: string) => {
-      if (isPending) {
+      if (isPending || limitReached) {
         return;
       }
       void triggerHaptic();
       void sendMessage(text);
     },
-    [isPending, sendMessage],
+    [isPending, limitReached, sendMessage],
   );
 
   const handleSuggestedPrompt = useCallback(
     (prompt: string) => {
-      if (isPending) {
+      if (isPending || limitReached) {
         return;
       }
       void triggerHaptic();
       void sendMessage(prompt);
     },
-    [isPending, sendMessage],
+    [isPending, limitReached, sendMessage],
   );
 
   const handleDeepLink = useCallback(
@@ -385,6 +394,8 @@ export function AgentChatOverlay({
 
                 <AgentChatComposer
                   disabled={isPending}
+                  limitReached={limitReached}
+                  caption={agentAvailability.caption}
                   onSend={handleSend}
                   resetToken={composerResetToken}
                 />

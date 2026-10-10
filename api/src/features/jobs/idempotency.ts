@@ -7,8 +7,7 @@ import type { JobKind } from './repository';
 /**
  * `Idempotency-Key` handling (contract C2). Port of backend `features/jobs/idempotency.py`.
  *
- * - Queued endpoints (receipt / voice / sms, R3) store the key on their `jobs` rows; SMS batches use
- *   one derived key per message (`"<key>:<index>"`).
+ * - Queued endpoints (receipt / voice, R3) store the key on their `jobs` rows.
  * - `POST /transactions` claims the key with a `manual_create` job (processing -> done) whose `result`
  *   is `{status_code, body}`; a repeat returns that stored response.
  * - Re-using a key with a different payload is not detected: the original response is replayed.
@@ -26,10 +25,6 @@ export function parseIdempotencyKey(raw: string | null | undefined): string | nu
     throw new ValidationError("Invalid Idempotency-Key (use a UUID or 8-100 chars of letters, digits, '-', '_', '.').");
   }
   return key;
-}
-
-export function derivedKeys(key: string, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `${key}:${i}`);
 }
 
 export interface IdempotentResponse<T> {

@@ -10,7 +10,7 @@ import { extractReceiptText, mapWorkersAiError, transcribeAudio } from '../src/f
 import type { WorkersAiClient } from '../src/features/ai/workers-ai';
 import { ModelOutputError, normalizeCategory, parseModelDate, parseModelOutput, stripJsonFences } from '../src/features/ai/parse-output';
 import type { ParseContext } from '../src/features/ai/parse-output';
-import { buildReceiptOcrPrompt, buildReceiptParsePrompt, buildSmsParsePrompt, buildVoiceParsePrompt } from '../src/features/ai/prompts';
+import { buildReceiptOcrPrompt, buildReceiptParsePrompt, buildVoiceParsePrompt } from '../src/features/ai/prompts';
 import { parseReceipt, parseVoice } from '../src/features/ai/service';
 import { makeEnv } from './helpers';
 import { FakeAi, JPEG, M4A, completion, parsedSms } from './ingest-fixtures';
@@ -28,19 +28,10 @@ const categories = {
     { id: '33333333-aaaa-aaaa-aaaa-333333333333', name: 'Transport' },
   ],
 };
-const ctx = (over: Partial<ParseContext> = {}): ParseContext => ({ mode: 'sms', model: 'm1', ...categories, ...over });
+const ctx = (over: Partial<ParseContext> = {}): ParseContext => ({ mode: 'voice', model: 'm1', ...categories, ...over });
 const config = (extra: Record<string, string> = {}) => getConfig(makeEnv({ DEEPSEEK_API_KEY: 'ds-key', ...extra }));
 
-describe('prompts (port of test_sms_parse_prompt.py)', () => {
-  it('SMS prompt embeds the body, the schema and the categories', () => {
-    const prompt = buildSmsParsePrompt('INR 250.00 debited from A/c **** at SWIGGY', ['Food', 'Other']);
-    expect(prompt).toContain('SWIGGY');
-    expect(prompt.toLowerCase()).toContain('debited');
-    expect(prompt).toContain('Food, Other');
-    expect(prompt).toContain('ONLY valid JSON');
-    expect(prompt).toContain('"confidence":0-1');
-  });
-
+describe('prompts', () => {
   it('receipt and voice prompts, with N/A and "Other" fallbacks', () => {
     expect(buildReceiptParsePrompt('  TOTAL 99  ', ['Food'])).toContain('Receipt OCR text:\n---\nTOTAL 99\n---');
     expect(buildReceiptParsePrompt(null)).toContain('---\nN/A\n---');
@@ -79,7 +70,7 @@ describe('model output normalization (port of _parse_and_validate)', () => {
   });
 
   it('builds the default note per source when the model gives none', () => {
-    expect(parseModelOutput(parsedSms({ note: null }), ctx()).note).toBe('Auto-parsed from SMS for Swiggy.');
+    expect(parseModelOutput(parsedSms({ note: null }), ctx()).note).toBe('Auto-parsed from voice input for Swiggy.');
     expect(parseModelOutput(parsedSms({ note: '' }), ctx({ mode: 'receipt' })).note).toBe('Auto-parsed from receipt for Swiggy.');
     expect(parseModelOutput(parsedSms({ note: null }), ctx({ mode: 'voice' })).note).toBe('Auto-parsed from voice input for Swiggy.');
   });
@@ -96,7 +87,7 @@ describe('model output normalization (port of _parse_and_validate)', () => {
 
   it('maps a category id the model returned instead of a name (only when the name is not in the options)', () => {
     const out = parseModelOutput(parsedSms({ category: FOOD.toUpperCase() }), {
-      mode: 'sms',
+      mode: 'voice',
       model: 'm',
       allowedCategories: ['Zzz'],
       categoryOptions: [{ id: FOOD, name: 'Food' }],
@@ -105,7 +96,7 @@ describe('model output normalization (port of _parse_and_validate)', () => {
   });
 
   it('a blank category id (the "Other" placeholder) becomes null', () => {
-    const out = parseModelOutput(parsedSms({ category: 'Other' }), { mode: 'sms', model: 'm', allowedCategories: ['Other'], categoryOptions: [{ id: '', name: 'Other' }] });
+    const out = parseModelOutput(parsedSms({ category: 'Other' }), { mode: 'voice', model: 'm', allowedCategories: ['Other'], categoryOptions: [{ id: '', name: 'Other' }] });
     expect([out.category, out.categoryId]).toEqual(['Other', null]);
   });
 
@@ -164,7 +155,7 @@ describe('DeepSeek parse with the model fallback chain', () => {
 
   it('sends the documented request and returns the parse', async () => {
     stub.on('POST', '/chat/completions', () => json(completion(parsedSms())));
-    const out = await parseWithFallback(config().ai, { mode: 'sms', text: 'INR 250.50 debited at SWIGGY', ...categories });
+    const out = await parseWithFallback(config().ai, { mode: 'voice', text: 'INR 250.50 debited at SWIGGY', ...categories });
     expect(out.amount).toBe('250.50');
     const call = deepseekCalls()[0];
     expect(call?.headers.get('authorization')).toBe('Bearer ds-key');
@@ -184,7 +175,7 @@ describe('DeepSeek parse with the model fallback chain', () => {
       if (n === 1) return json({ error: 'overloaded' }, { status: 503 });
       return json(completion(parsedSms()));
     });
-    const out = await parseWithFallback(config().ai, { mode: 'sms', text: 'x', ...categories });
+    const out = await parseWithFallback(config().ai, { mode: 'voice', text: 'x', ...categories });
     expect(out.rawModel).toBe('deepseek-chat');
     expect(deepseekCalls().map((c) => (c.body as { model: string }).model)).toEqual(['deepseek-v4-flash', 'deepseek-chat']);
 
@@ -195,7 +186,7 @@ describe('DeepSeek parse with the model fallback chain', () => {
       n += 1;
       return json(completion(n === 1 ? 'not json' : parsedSms()));
     });
-    expect((await parseWithFallback(config().ai, { mode: 'sms', text: 'x', ...categories })).rawModel).toBe('deepseek-chat');
+    expect((await parseWithFallback(config().ai, { mode: 'voice', text: 'x', ...categories })).rawModel).toBe('deepseek-chat');
   });
 
   it('gives each candidate an equal share of AI_TIMEOUT_SECONDS', () => {
@@ -206,12 +197,12 @@ describe('DeepSeek parse with the model fallback chain', () => {
   it('is transient when every model fails and at least one failure was retryable', async () => {
     let n = 0;
     stub.on('POST', '/chat/completions', () => (++n === 1 ? json({}, { status: 429 }) : json(completion('garbage'))));
-    await expect(parseWithFallback(config().ai, { mode: 'sms', text: 'x', ...categories })).rejects.toBeInstanceOf(TransientAiError);
+    await expect(parseWithFallback(config().ai, { mode: 'voice', text: 'x', ...categories })).rejects.toBeInstanceOf(TransientAiError);
   });
 
   it('is permanent when every failure is permanent (bad key, unusable output)', async () => {
     stub.on('POST', '/chat/completions', () => json({ error: 'bad key' }, { status: 401 }));
-    const err = await parseWithFallback(config().ai, { mode: 'sms', text: 'x', ...categories }).catch((e: unknown) => e);
+    const err = await parseWithFallback(config().ai, { mode: 'voice', text: 'x', ...categories }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PermanentAiError);
     // S9: provider detail is not in the message.
     expect((err as Error).message).toBe('AI_PARSE_UNAVAILABLE');
@@ -219,7 +210,7 @@ describe('DeepSeek parse with the model fallback chain', () => {
 
   it('a missing API key is permanent and makes no call', async () => {
     const cfg = getConfig(makeEnv({ DEEPSEEK_API_KEY: undefined }));
-    await expect(parseWithFallback(cfg.ai, { mode: 'sms', text: 'x', ...categories })).rejects.toBeInstanceOf(PermanentAiError);
+    await expect(parseWithFallback(cfg.ai, { mode: 'voice', text: 'x', ...categories })).rejects.toBeInstanceOf(PermanentAiError);
     expect(stub.calls).toHaveLength(0);
   });
 
@@ -227,7 +218,7 @@ describe('DeepSeek parse with the model fallback chain', () => {
     stub.on('POST', '/chat/completions', () => {
       throw new TypeError('fetch failed');
     });
-    await expect(parseWithFallback(config().ai, { mode: 'sms', text: 'x', ...categories })).rejects.toBeInstanceOf(TransientAiError);
+    await expect(parseWithFallback(config().ai, { mode: 'voice', text: 'x', ...categories })).rejects.toBeInstanceOf(TransientAiError);
   });
 });
 
@@ -350,7 +341,7 @@ describe('Workers AI OCR and Whisper', () => {
 
   it('config: models come from WORKERS_AI_* vars and the caps have their defaults', () => {
     const cfg = config().workersAi;
-    expect(cfg).toMatchObject({ whisperModel: '@cf/openai/whisper-large-v3-turbo', visionModel: '@cf/meta/llama-4-scout-17b-16e-instruct', dailyNeuronCap: 8000, userDailyCaptures: 30 });
+    expect(cfg).toMatchObject({ whisperModel: '@cf/openai/whisper-large-v3-turbo', visionModel: '@cf/meta/llama-4-scout-17b-16e-instruct', dailyNeuronCap: 8000, userDailyReceipts: 10, userDailyVoice: 10 });
     expect(cfg.gatewayId).toBeUndefined();
     expect(config({ WORKERS_AI_WHISPER_MODEL: '@cf/openai/whisper', AI_DAILY_NEURON_CAP: '500' }).workersAi).toMatchObject({ whisperModel: '@cf/openai/whisper', dailyNeuronCap: 500 });
   });

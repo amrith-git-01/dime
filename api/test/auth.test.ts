@@ -109,7 +109,7 @@ describe('POST /auth/google', () => {
     const welcomed: string[] = [];
     const me = await getMe(
       testDb(),
-      { id: s.user.id, email: 'welcome@example.com', accessToken: s.access_token },
+      { id: s.user.id, email: 'welcome@example.com' },
       {
         email: { sendWelcomeIfNeeded: (i) => (welcomed.push(i.email), Promise.resolve()) },
         background: (task) => void task,
@@ -218,21 +218,39 @@ describe('POST /auth/refresh', () => {
     expect((await refresh(a.refresh_token)).status).toBe(401);
   });
 
-  it('two concurrent refreshes of one token: exactly one wins and one live session is minted', async () => {
+  it('two concurrent refreshes of one token: both succeed (the second is a grace replay) in one family', async () => {
     const a = await signIn();
     const [r1, r2] = await Promise.all([refresh(a.refresh_token), refresh(a.refresh_token)]);
-    expect([r1.status, r2.status].sort()).toEqual([200, 401]);
-    expect(await rowsOf('auth_sessions', 'revoked_at IS NULL')).toHaveLength(1);
-    // The loser did not kill the family: the winner's token still rotates.
-    const b = await (r1.status === 200 ? r1 : r2).json<Session>();
-    expect((await refresh(b.refresh_token)).status).toBe(200);
+    expect([r1.status, r2.status]).toEqual([200, 200]);
+    const [s1, s2] = [await r1.json<Session>(), await r2.json<Session>()];
+    expect(s1.refresh_token).not.toBe(s2.refresh_token);
+    const live = await rowsOf<{ family_id: string }>('auth_sessions', 'revoked_at IS NULL');
+    expect(live).toHaveLength(2);
+    expect(new Set((await rowsOf<{ family_id: string }>('auth_sessions')).map((r) => r.family_id)).size).toBe(1);
+    // Both chains keep working.
+    expect((await refresh(s1.refresh_token)).status).toBe(200);
+    expect((await refresh(s2.refresh_token)).status).toBe(200);
   });
 
-  it('replaying a just-rotated token (retry/double-fire) is 401 but keeps the family alive', async () => {
+  it('replaying a just-rotated token (lost response / double-fire) mints a fresh session in the same family', async () => {
     const a = await signIn();
     const b = await (await refresh(a.refresh_token)).json<Session>();
-    expect((await refresh(a.refresh_token)).status).toBe(401);
+    const replay = await refresh(a.refresh_token);
+    expect(replay.status).toBe(200);
+    const c = await replay.json<Session>();
+    expect(c.refresh_token).not.toBe(b.refresh_token);
+    expect(c.user).toEqual(a.user);
+    expect(new Set((await rowsOf<{ family_id: string }>('auth_sessions')).map((r) => r.family_id)).size).toBe(1);
     expect((await refresh(b.refresh_token)).status).toBe(200);
+    expect((await refresh(c.refresh_token)).status).toBe(200);
+  });
+
+  it('a grace replay after the family was signed out is 401', async () => {
+    const a = await signIn();
+    const b = await (await refresh(a.refresh_token)).json<Session>();
+    await postAuth('sign-out', { scope: 'global' }, { token: b.access_token });
+    expect((await refresh(a.refresh_token)).status).toBe(401);
+    expect(await rowsOf('auth_sessions', 'revoked_at IS NULL')).toHaveLength(0);
   });
 
   it('reuse detection: replaying an old rotated token revokes the whole family', async () => {

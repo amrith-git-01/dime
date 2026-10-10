@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import { postAgentFeedback, streamAgentChat } from "@/features/agent/api/agentApi";
@@ -9,6 +10,24 @@ import {
 } from "@/features/agent/utils/agentChatState";
 import { getAgentErrorMessage } from "@/features/agent/utils/agentErrorMessage";
 import { createDeltaBatcher } from "@/features/agent/utils/createDeltaBatcher";
+import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
+import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
+
+const ONE_DAY_S = 24 * 60 * 60;
+
+/** Seconds until the next UTC midnight, when the server resets the daily allowance. */
+function secondsToUtcMidnight(now: number): number {
+  return Math.max(1, ONE_DAY_S - Math.floor((now / 1000) % ONE_DAY_S));
+}
+
+function selectDailyLimitReached(s: { limitedUntil: number | null }): boolean {
+  return s.limitedUntil !== null && s.limitedUntil > Date.now();
+}
+
+/** True while today's agent allowance is used up (input should stay disabled). */
+export function useAgentDailyLimitReached(): boolean {
+  return useAgentChatUiStore(selectDailyLimitReached);
+}
 
 function newLocalId(): string {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -16,6 +35,7 @@ function newLocalId(): string {
 
 export function useAgentChat() {
   const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
+  const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
   // Mirror of `state` so the callbacks stay stable. Written in an effect, never in render.
   const stateRef = useRef(state);
@@ -97,10 +117,20 @@ export function useAgentChat() {
         onDelta: batcher.push,
         onFinal: (response) => {
           finish();
+          invalidateLimitsQueries(queryClient);
           dispatch({ type: "final", requestId, response });
         },
-        onError: ({ code, message }) => {
+        onError: ({ code, message, retryAfterSeconds }) => {
           finish();
+          invalidateLimitsQueries(queryClient);
+          if (code === "daily_limit") {
+            const now = Date.now();
+            useAgentChatUiStore
+              .getState()
+              .setLimitedUntil(
+                now + (retryAfterSeconds ?? secondsToUtcMidnight(now)) * 1000,
+              );
+          }
           dispatch({
             type: "error",
             requestId,
@@ -113,7 +143,7 @@ export function useAgentChat() {
     if (controller.signal.aborted) {
       dispatch({ type: "abort", requestId });
     }
-  }, []);
+  }, [queryClient]);
 
   const submitFeedback = useCallback(
     (messageId: string, rating: AgentFeedbackRating) => {

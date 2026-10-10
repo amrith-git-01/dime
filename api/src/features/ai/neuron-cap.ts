@@ -5,9 +5,9 @@ import { PermanentAiError } from './errors';
 
 /**
  * Workers AI cost cap. Workers AI is free up to 10,000 neurons per UTC day for the whole account and
- * billed above that, so the app counts its own spend (voice + receipt OCR only; DeepSeek parsing, SMS
+ * billed above that, so the app counts its own spend (voice + receipt OCR only; DeepSeek parsing
  * and the agent are not Workers AI) and stops before the free allowance:
- * - at upload (`assertUploadAllowed`): 429 + Retry-After, nothing stored or queued;
+ * - at upload (`claimUpload`): 429 + Retry-After, nothing stored or queued;
  * - in the queue consumer (`assertJobAllowed`): a job queued earlier fails permanently when the day is used up;
  * - after each successful AI call (`addNeurons`): one atomic upsert-increment.
  */
@@ -82,44 +82,75 @@ export async function addNeurons(db: Db, nowMs: number, neurons: number): Promis
   );
 }
 
-export async function userCapturesToday(db: Db, userId: string, nowMs: number): Promise<number> {
-  const row = await first<{ captures: number }>(db, 'SELECT captures FROM ai_user_usage WHERE user_id = ? AND day = ?', [userId, utcDay(nowMs)]);
-  return row?.captures ?? 0;
+/** Per-user daily limits apply per kind; the column that counts each. */
+export type CaptureKind = 'receipt' | 'voice';
+const KIND_COLUMN: Record<CaptureKind, 'receipts' | 'voices'> = { receipt: 'receipts', voice: 'voices' };
+
+export interface UserCaptureCounts {
+  receipts: number;
+  voices: number;
 }
 
-/** One more accepted upload for this user today. */
-export async function addUserCapture(db: Db, userId: string, nowMs: number): Promise<void> {
-  await run(
+export async function userCapturesToday(db: Db, userId: string, nowMs: number): Promise<UserCaptureCounts> {
+  const row = await first<UserCaptureCounts>(db, 'SELECT receipts, voices FROM ai_user_usage WHERE user_id = ? AND day = ?', [userId, utcDay(nowMs)]);
+  return { receipts: row?.receipts ?? 0, voices: row?.voices ?? 0 };
+}
+
+/**
+ * Counts one accepted upload of `kind` for this user today, atomically: the upsert only increments while the
+ * counter is below `limit`, so concurrent requests cannot pass it. `false` = the limit is used up.
+ */
+export async function claimCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number, limit: number): Promise<boolean> {
+  if (limit <= 0) return false;
+  const col = KIND_COLUMN[kind]; // from the fixed map above, never user input
+  const row = await first<{ n: number }>(
     db,
-    `INSERT INTO ai_user_usage (user_id, day, captures, updated_at) VALUES (?, ?, 1, ?)
-     ON CONFLICT (user_id, day) DO UPDATE SET captures = captures + 1, updated_at = excluded.updated_at`,
-    [userId, utcDay(nowMs), new Date(nowMs).toISOString()],
+    `INSERT INTO ai_user_usage (user_id, day, ${col}, updated_at) VALUES (?, ?, 1, ?)
+     ON CONFLICT (user_id, day) DO UPDATE SET ${col} = ${col} + 1, updated_at = excluded.updated_at
+     WHERE ${col} < ?
+     RETURNING ${col} AS n`,
+    [userId, utcDay(nowMs), new Date(nowMs).toISOString(), limit],
   );
+  return row !== null;
+}
+
+/** Gives back a claim whose upload did not become a job (lost idempotency race, failed insert). Never goes below 0. */
+export async function releaseCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number): Promise<void> {
+  const col = KIND_COLUMN[kind];
+  await run(db, `UPDATE ai_user_usage SET ${col} = MAX(${col} - 1, 0) WHERE user_id = ? AND day = ?`, [userId, utcDay(nowMs)]);
 }
 
 export interface NeuronLimits {
   dailyNeuronCap: number;
-  userDailyCaptures: number;
+  userDailyReceipts: number;
+  userDailyVoice: number;
 }
+
+/** The user's daily limit for a kind of upload. */
+export const limitFor = (limits: NeuronLimits, kind: CaptureKind): number => (kind === 'receipt' ? limits.userDailyReceipts : limits.userDailyVoice);
+
+const KIND_LABEL: Record<CaptureKind, string> = { receipt: 'receipt scan', voice: 'voice capture' };
 
 /**
  * Upload guard: 429 (+ `Retry-After` until 00:00 UTC) when today's neurons plus this capture's estimate would pass
- * the cap, or the user already made their daily captures. Throws before anything is stored or queued.
+ * the cap, or the user already used their daily uploads of this kind. On success the upload IS counted (atomic claim),
+ * so the caller must `releaseCapture` if it then fails to create the job. Throws before anything is stored or queued.
  */
-export async function assertUploadAllowed(
+export async function claimUpload(
   db: Db,
   userId: string,
+  kind: CaptureKind,
   limits: NeuronLimits,
   estimate: number,
   nowMs = Date.now(),
 ): Promise<void> {
-  const [used, captures] = await Promise.all([neuronsUsedToday(db, nowMs), userCapturesToday(db, userId, nowMs)]);
   const retryAfter = secondsUntilUtcMidnight(nowMs);
-  if (used + estimate > limits.dailyNeuronCap) {
+  if ((await neuronsUsedToday(db, nowMs)) + estimate > limits.dailyNeuronCap) {
     throw new TooManyRequestsError('Scanning is paused for today. Try again tomorrow.', retryAfter);
   }
-  if (captures >= limits.userDailyCaptures) {
-    throw new TooManyRequestsError(`You've reached today's limit of ${limits.userDailyCaptures} scans and voice notes. Try again tomorrow.`, retryAfter);
+  const limit = limitFor(limits, kind);
+  if (!(await claimCapture(db, userId, kind, nowMs, limit))) {
+    throw new TooManyRequestsError(`You've used today's ${limit} ${KIND_LABEL[kind]}${limit === 1 ? '' : 's'}. Try again tomorrow.`, retryAfter);
   }
 }
 

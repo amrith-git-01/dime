@@ -1,9 +1,10 @@
 import {
+  Banknote,
   Bell,
   BookOpen,
   Mail,
   MessageSquareText,
-  ScanLine,
+  Repeat,
   Shield,
   Vibrate,
 } from "lucide-react-native";
@@ -17,13 +18,15 @@ import {
   SettingsNavRow,
   SettingsSection,
 } from "@/features/settings/components";
+import { TodaysLimitsSection } from "@/features/limits/components";
+import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 import { SETTINGS_SECTION_GAP } from "@/features/settings/constants/settingsTokens";
 
 import { useSettingsScreenModel } from "./useSettingsScreenModel";
 
 export default function SettingsScreen() {
   const model = useSettingsScreenModel();
-  const { openDestination } = model;
+  const { openDestination, openRecurring } = model;
 
   return (
     <View style={styles.root}>
@@ -34,6 +37,24 @@ export default function SettingsScreen() {
             email={model.email}
             avatarUrl={model.avatarUrl}
             onPress={() => openDestination("SettingsAccount")}
+          />
+        </View>
+      </SettingsSection>
+
+      <SettingsSection title="Money">
+        <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={Banknote}
+            label={RECURRING_COPY.income.hubLabel}
+            subtitle={RECURRING_COPY.income.hubSubtitle}
+            onPress={() => openRecurring("income")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Repeat}
+            label={RECURRING_COPY.subscription.hubLabel}
+            subtitle={RECURRING_COPY.subscription.hubSubtitle}
+            onPress={() => openRecurring("subscription")}
           />
         </View>
       </SettingsSection>
@@ -55,13 +76,6 @@ export default function SettingsScreen() {
             showSeparator
           />
           <SettingsNavRow
-            icon={ScanLine}
-            label="Automatic capture"
-            subtitle="Bank SMS review on this device"
-            onPress={() => openDestination("SettingsCapture")}
-            showSeparator
-          />
-          <SettingsNavRow
             icon={Mail}
             label="Email summaries"
             subtitle="Weekly Monday and monthly 1st, 08:00 IST"
@@ -69,6 +83,8 @@ export default function SettingsScreen() {
           />
         </View>
       </SettingsSection>
+
+      <TodaysLimitsSection />
 
       <SettingsSection title="Help">
         <View style={styles.preferencesInner}>

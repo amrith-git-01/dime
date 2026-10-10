@@ -12,7 +12,7 @@ const chatHistoryMessageSchema = z.object({
 export const chatRequestSchema = z.object({
   content: z.string().min(1).max(4000),
   /** IANA timezone from the app, e.g. Asia/Kolkata. */
-  timezone: z.string().nullish(),
+  timezone: z.string().max(80).nullish(),
   /** Prior turns from the client session. Only the user's text is ever used (never the assistant's). */
   history: z.array(chatHistoryMessageSchema).default([]),
   /** The `memory` token of the previous response, returned unchanged. */

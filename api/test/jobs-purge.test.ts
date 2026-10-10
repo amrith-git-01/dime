@@ -17,7 +17,7 @@ async function seedMany(n: number, over: { status: string; kind?: string; update
   const stmt = db.prepare(
     "INSERT INTO jobs (id, user_id, kind, payload, status, attempts, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, 0, ?, ?)",
   );
-  const batch = Array.from({ length: n }, () => stmt.bind(uid(), USER_ID, over.kind ?? 'sms', over.status, over.updated_at, over.updated_at));
+  const batch = Array.from({ length: n }, () => stmt.bind(uid(), USER_ID, over.kind ?? 'receipt', over.status, over.updated_at, over.updated_at));
   for (let i = 0; i < batch.length; i += 100) await db.batch(batch.slice(i, i + 100));
 }
 
@@ -60,6 +60,42 @@ describe('purgeOldJobs', () => {
     await seedMany(1100, { status: 'failed', updated_at: ago(45) });
     expect(await purgeOldJobs(testDb(), NOW)).toBe(1000);
     expect(await rowsOf('jobs')).toHaveLength(100);
+  });
+
+  it('also purges dead sessions, old usage counters and old soft-deleted notifications', async () => {
+    const db = testDb();
+    const session = (id: string, expires: string, revoked: string | null) =>
+      db
+        .prepare('INSERT INTO auth_sessions (id, user_id, refresh_hash, family_id, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, USER_ID, `hash-${id}`, 'fam', ago(100), expires, revoked)
+        .run();
+    await session('expired-old', ago(8), null);
+    await session('revoked-old', ago(1), ago(8));
+    await session('expired-recent', ago(6), null);
+    await session('revoked-recent', ago(1), ago(6));
+    await session('live', new Date(NOW + DAY).toISOString(), null);
+
+    const day = (daysAgo: number) => new Date(NOW - daysAgo * DAY).toISOString().slice(0, 10);
+    await db.batch([
+      db.prepare('INSERT INTO ai_usage (day, neurons) VALUES (?, 1)').bind(day(91)),
+      db.prepare('INSERT INTO ai_usage (day, neurons) VALUES (?, 1)').bind(day(89)),
+      db.prepare('INSERT INTO ai_user_usage (user_id, day, captures) VALUES (?, ?, 1)').bind(USER_ID, day(91)),
+      db.prepare('INSERT INTO ai_user_usage (user_id, day, captures) VALUES (?, ?, 1)').bind(USER_ID, day(1)),
+      db.prepare('INSERT INTO agent_usage (user_id, day, turns) VALUES (?, ?, 1)').bind(USER_ID, day(120)),
+      db.prepare('INSERT INTO agent_usage (user_id, day, turns) VALUES (?, ?, 1)').bind(USER_ID, day(0)),
+    ]);
+    const note = (id: string, deletedAt: string | null) =>
+      db
+        .prepare("INSERT INTO notifications (id, user_id, kind, title, body, dedupe_key, deleted_at, created_at) VALUES (?, ?, 'capture_failed', 't', 'b', ?, ?, ?)")
+        .bind(id, USER_ID, `k-${id}`, deletedAt, ago(100));
+    await db.batch([note('gone', ago(31)), note('recent-delete', ago(29)), note('kept', null)]);
+
+    expect(await purgeOldJobs(db, NOW)).toBe(2 + 1 + 1 + 1 + 1);
+    expect((await rowsOf<{ id: string }>('auth_sessions')).map((r) => r.id).sort()).toEqual(['expired-recent', 'live', 'revoked-recent']);
+    expect(await rowsOf('ai_usage')).toHaveLength(1);
+    expect(await rowsOf('ai_user_usage')).toHaveLength(1);
+    expect(await rowsOf('agent_usage')).toHaveLength(1);
+    expect((await rowsOf<{ id: string }>('notifications')).map((r) => r.id).sort()).toEqual(['kept', 'recent-delete']);
   });
 
   it('never throws: a database error ends the purge and is retried next hour', async () => {

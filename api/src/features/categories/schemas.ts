@@ -35,7 +35,7 @@ export function hasBudgetChange(body: object): boolean {
   return Object.hasOwn(body, 'budget_amount');
 }
 
-export const deleteQuerySchema = z.object({ reassign_to_category_id: z.string().optional() });
+export const deleteQuerySchema = z.object({ reassign_to_category_id: z.string().max(64).optional() });
 
 export interface CategoryRow {
   id: string;

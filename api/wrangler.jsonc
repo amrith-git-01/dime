@@ -13,11 +13,10 @@
   "placement": { "mode": "smart" },
 
   // Non-secret config. Secrets (AUTH_JWT_SECRET, MEDIA_URL_SECRET, DEEPSEEK_API_KEY, BREVO_API_KEY, ...) are set with
-  // `wrangler secret put` and listed in .dev.vars.example. Env sections do NOT inherit bindings or vars: every
-  // binding and var below is repeated under `env.staging`.
+  // `wrangler secret put` and listed in .dev.vars.example. One environment only (production).
   "vars": {
     // Comma-separated OAuth client ids accepted as the Google ID token audience (web client, plus Android/iOS ids if used).
-    "GOOGLE_WEB_CLIENT_ID": "REPLACE-ME.apps.googleusercontent.com",
+    "GOOGLE_WEB_CLIENT_ID": "741156555327-ou0q00gcponvdc4mnibi1bko4gabbg3a.apps.googleusercontent.com",
     "SIGNED_URL_TTL_SECONDS": "21600",
     "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
     "MAX_VOICE_UPLOAD_BYTES": "15728640",
@@ -31,7 +30,8 @@
     "WORKERS_AI_WHISPER_MODEL": "@cf/openai/whisper-large-v3-turbo",
     "WORKERS_AI_VISION_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct",
     "AI_DAILY_NEURON_CAP": "8000",
-    "AI_USER_DAILY_CAPTURES": "30",
+    "AI_USER_DAILY_RECEIPTS": "10",
+    "AI_USER_DAILY_VOICE": "10",
     "AI_GATEWAY_ID": "",
     "CF_ACCOUNT_ID": "",
     "AGENT_ENABLED": "true",
@@ -42,6 +42,7 @@
     "AGENT_TURN_TIMEOUT_SECONDS": "25",
     "AGENT_LLM_TIMEOUT_SECONDS": "12",
     "AGENT_DAILY_TOKEN_BUDGET": "200000",
+    "AGENT_DAILY_QUESTIONS": "5",
     "EMAIL_FROM": "Dime <hello@localhost>",
     "EMAIL_APP_LINK": "https://play.google.com/store",
     "EMAIL_PUBLIC_BASE_URL": "https://dime-api.REPLACE-ME.workers.dev"
@@ -57,6 +58,8 @@
         "queue": "dime-ingest",
         "max_batch_size": 5,
         "max_batch_timeout": 2,
+        // Few at once: each job holds a whole receipt / voice file in memory.
+        "max_concurrency": 2,
         "max_retries": 3,
         "retry_delay": 10,
         "dead_letter_queue": "dime-ingest-dlq"
@@ -86,10 +89,10 @@
     ]
   },
 
-  // Create with `npx wrangler d1 create dime-db --location apac` and replace the database_id (REPLACE-ME while it is all zeros).
+  // Created with `npx wrangler d1 create dime-db --location apac`.
   // Schema: `migrations/` (`npx wrangler d1 migrations apply DB --remote`).
   "d1_databases": [
-    { "binding": "DB", "database_name": "dime-db", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "dime-db", "database_id": "90488ec3-1099-4fb0-8bbe-0d05b8584b09", "migrations_dir": "migrations" }
   ],
 
   // Media (avatars public, receipts and voice via HMAC-signed links, see features/media/routes.ts).
@@ -116,91 +119,5 @@
   "ratelimits": [
     { "name": "WRITE_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
     { "name": "AI_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
-  ],
-
-  "env": {
-    "staging": {
-      "name": "dime-api-staging",
-      "vars": {
-        "GOOGLE_WEB_CLIENT_ID": "REPLACE-ME.apps.googleusercontent.com",
-        "SIGNED_URL_TTL_SECONDS": "21600",
-        "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
-        "MAX_VOICE_UPLOAD_BYTES": "15728640",
-        "AVATAR_URL_ALLOWED_HOSTS": "api.dicebear.com",
-        "CORS_ORIGINS": "",
-        "AI_BASE_URL": "https://api.deepseek.com/chat/completions",
-        "AI_MODEL": "deepseek-v4-flash",
-        "AI_PARSE_FALLBACK": "deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
-        "AI_TIMEOUT_SECONDS": "45",
-        "AI_TEMPERATURE": "0.1",
-        "WORKERS_AI_WHISPER_MODEL": "@cf/openai/whisper-large-v3-turbo",
-        "WORKERS_AI_VISION_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct",
-        "AI_DAILY_NEURON_CAP": "8000",
-        "AI_USER_DAILY_CAPTURES": "30",
-        "AI_GATEWAY_ID": "",
-        "CF_ACCOUNT_ID": "",
-        "AGENT_ENABLED": "true",
-        "AGENT_BASE_URL": "https://api.deepseek.com",
-        "AGENT_MODEL": "deepseek-v4-flash",
-        "AGENT_MODEL_FALLBACK": "deepseek-v4-pro",
-        "AGENT_MAX_STEPS": "4",
-        "AGENT_TURN_TIMEOUT_SECONDS": "25",
-        "AGENT_LLM_TIMEOUT_SECONDS": "12",
-        "AGENT_DAILY_TOKEN_BUDGET": "200000",
-        "EMAIL_FROM": "Dime <hello@localhost>",
-        "EMAIL_APP_LINK": "https://play.google.com/store",
-        "EMAIL_PUBLIC_BASE_URL": "https://dime-api-staging.REPLACE-ME.workers.dev"
-      },
-      "queues": {
-        "producers": [
-          { "binding": "INGEST_QUEUE", "queue": "dime-ingest-staging" },
-          { "binding": "EMAIL_QUEUE", "queue": "dime-email-staging" }
-        ],
-        "consumers": [
-          {
-            "queue": "dime-ingest-staging",
-            "max_batch_size": 5,
-            "max_batch_timeout": 2,
-            "max_retries": 3,
-            "retry_delay": 10,
-            "dead_letter_queue": "dime-ingest-dlq-staging"
-          },
-          {
-            "queue": "dime-ingest-dlq-staging",
-            "max_batch_size": 10,
-            "max_batch_timeout": 5,
-            "max_retries": 2
-          },
-          {
-            "queue": "dime-email-staging",
-            "max_batch_size": 10,
-            "max_batch_timeout": 5,
-            "max_retries": 3,
-            "retry_delay": 30,
-            "dead_letter_queue": "dime-email-dlq-staging"
-          },
-          // Digests the queue gave up on: logged as email_digest_dead_lettered and acked (handleEmailDlq).
-          {
-            "queue": "dime-email-dlq-staging",
-            "max_batch_size": 10,
-            "max_batch_timeout": 5,
-            "max_retries": 2
-          }
-        ]
-      },
-      "d1_databases": [
-        { "binding": "DB", "database_name": "dime-db-staging", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
-      ],
-      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "dime-media-staging" }],
-      "durable_objects": { "bindings": [{ "name": "USER_HUB", "class_name": "UserHub" }] },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserHub"] }],
-      "ai": { "binding": "AI", "remote": true },
-      "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
-      "assets": { "directory": "./public", "binding": "ASSETS" },
-      "ratelimits": [
-        { "name": "WRITE_LIMITER", "namespace_id": "2001", "simple": { "limit": 60, "period": 60 } },
-        { "name": "AI_LIMITER", "namespace_id": "2002", "simple": { "limit": 10, "period": 60 } }
-      ]
-    }
-  }
+  ]
 }

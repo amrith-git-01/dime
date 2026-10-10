@@ -7,16 +7,24 @@ import type { NewNotification, NotificationFilter, NotificationRow } from './sch
 export async function listForUser(
   db: Db,
   userId: string,
-  opts: { filter: NotificationFilter; limit: number; before?: string },
+  opts: { filter: NotificationFilter; limit: number; before?: string | undefined },
 ): Promise<NotificationRow[]> {
   const where = ['user_id = ?', 'deleted_at IS NULL'];
   const params: SqlParam[] = [userId];
   if (opts.filter === 'unread') where.push('read_at IS NULL');
   else if (opts.filter === 'read') where.push('read_at IS NOT NULL');
   if (opts.before) {
-    // Stored timestamps are canonical ISO text, so the cursor is canonicalized before comparing.
-    where.push('created_at < ?');
-    params.push(new Date(Date.parse(opts.before)).toISOString());
+    // Stored timestamps are canonical ISO text, so the cursor is canonicalized before comparing. The cursor is
+    // `<created_at>|<id>`: ties on created_at are broken by id, matching the ORDER BY (a bare timestamp skips ties).
+    const [time = '', id] = opts.before.split('|');
+    const at = new Date(Date.parse(time)).toISOString();
+    if (id) {
+      where.push('(created_at < ? OR (created_at = ? AND id < ?))');
+      params.push(at, at, id.toLowerCase());
+    } else {
+      where.push('created_at < ?');
+      params.push(at);
+    }
   }
   params.push(opts.limit);
   return all<NotificationRow>(

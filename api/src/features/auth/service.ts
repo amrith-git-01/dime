@@ -156,22 +156,36 @@ export async function signInWithGoogle(
  * Refresh-token rotation with reuse detection.
  *
  * ponytail: a rotated token presented again is either theft or a mobile retry/double-fire (response
- * lost, or two requests raced). Within ROTATION_GRACE_MS of the rotation it is answered 401 WITHOUT
- * touching the family, so the winner's new session survives; an older replay revokes the whole family.
- * A replay never mints a second child: a stolen token must not yield a session. The app must single-flight
- * refreshes and persist the new pair before using it; a lost response means signing in again.
+ * lost, or two requests raced). Within ROTATION_GRACE_MS of the rotation it is answered like a normal
+ * refresh: a fresh child in the same family (only while the family still has a live session, so a sign-out
+ * in between wins), so a client that never saw the first response stays signed in. An older replay
+ * revokes the whole family. Cost: a token stolen and replayed inside the 30 s window gets a session too.
  */
 export async function refresh(db: Db, secret: string | undefined, refreshToken: string): Promise<SessionResponse> {
   jwtKey(secret);
   const row = await repo.findByRefreshHash(db, await sha256Hex(refreshToken));
   if (!row) throw new UnauthorizedError(INVALID_REFRESH);
 
+  const now = new Date().toISOString();
   if (row.revoked_at) {
     const recentRotation = row.replaced_by !== null && Date.now() - Date.parse(row.revoked_at) < ROTATION_GRACE_MS;
-    if (!recentRotation) await repo.revokeFamily(db, row.family_id);
-    throw new UnauthorizedError(INVALID_REFRESH);
+    if (!recentRotation || row.expires_at <= now) {
+      if (!recentRotation) await repo.revokeFamily(db, row.family_id);
+      throw new UnauthorizedError(INVALID_REFRESH);
+    }
+    const email = await repo.userEmail(db, row.user_id);
+    const child = await mint();
+    const minted = await repo.insertGraceChild(db, {
+      id: child.id,
+      userId: row.user_id,
+      refreshHash: child.refreshHash,
+      familyId: row.family_id,
+      expiresAt: child.expiresAt,
+    });
+    if (!minted) throw new UnauthorizedError(INVALID_REFRESH); // the family was signed out meanwhile
+    return toResponse(secret, { id: row.user_id, email }, child.id, child.refreshToken);
   }
-  if (row.expires_at <= new Date().toISOString()) throw new UnauthorizedError(INVALID_REFRESH);
+  if (row.expires_at <= now) throw new UnauthorizedError(INVALID_REFRESH);
 
   const email = await repo.userEmail(db, row.user_id);
   const next = await mint();
@@ -182,7 +196,7 @@ export async function refresh(db: Db, secret: string | undefined, refreshToken: 
     familyId: row.family_id,
     expiresAt: next.expiresAt,
   });
-  if (!won) throw new UnauthorizedError(INVALID_REFRESH); // lost the race to a concurrent refresh of the same token
+  if (!won) return refresh(db, secret, refreshToken); // lost the race to a concurrent refresh of this token: it is now a grace replay
   return toResponse(secret, { id: row.user_id, email }, next.id, next.refreshToken);
 }
 

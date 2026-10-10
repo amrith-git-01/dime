@@ -43,11 +43,5 @@ export function createRecentMutationTracker(
   };
 }
 
-/**
- * Stand-in id for a transaction this device is creating: the create endpoint answers
- * `{ accepted: true }` without the new row's id, so the echo can only be matched by time.
- */
-export const OWN_CREATE_MARKER = "own-create";
-
 /** Shared by the transaction mutations and the realtime subscription. */
 export const recentTransactionMutations = createRecentMutationTracker();

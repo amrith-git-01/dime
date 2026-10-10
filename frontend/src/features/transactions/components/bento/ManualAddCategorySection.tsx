@@ -10,8 +10,9 @@ type ManualAddCategorySectionProps = {
   visibleCategories: CategoryRow[];
   categoryId: string | null;
   onCategoryPress: (category: CategoryRow, selected: boolean) => void;
-  onAddCategory: () => void;
-  addCategoryDisabled: boolean;
+  /** Omit to hide the "add category" trigger (forms that cannot detour to create one). */
+  onAddCategory?: () => void;
+  addCategoryDisabled?: boolean;
 };
 
 export function ManualAddCategorySection({
@@ -20,7 +21,7 @@ export function ManualAddCategorySection({
   categoryId,
   onCategoryPress,
   onAddCategory,
-  addCategoryDisabled,
+  addCategoryDisabled = false,
 }: ManualAddCategorySectionProps) {
   return (
     <View>
@@ -43,10 +44,12 @@ export function ManualAddCategorySection({
               />
             );
           })}
-          <AddCategoryTrigger
-            disabled={addCategoryDisabled}
-            onPress={onAddCategory}
-          />
+          {onAddCategory ? (
+            <AddCategoryTrigger
+              disabled={addCategoryDisabled}
+              onPress={onAddCategory}
+            />
+          ) : null}
         </View>
       )}
     </View>

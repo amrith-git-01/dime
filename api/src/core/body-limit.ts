@@ -26,3 +26,16 @@ export const limitUpload = (select: (config: AppConfig) => number) =>
   createMiddleware<AppBindings>((c, next) =>
     limitBody(select(getConfig(c.env)) + MULTIPART_ENVELOPE_BYTES)(c, next),
   );
+
+/** Cap for ordinary JSON bodies: far above anything the app sends (a transaction, a budget, a category). */
+export const JSON_BODY_LIMIT_BYTES = 64 * 1024;
+
+/**
+ * Global cap for `/api/v1/*`. Multipart uploads (receipt, voice, avatar) and the agent chat keep the larger limits
+ * they set themselves; everything else is held to `JSON_BODY_LIMIT_BYTES`.
+ */
+export const limitJsonBody = createMiddleware<AppBindings>((c, next) => {
+  const multipart = (c.req.header('content-type') ?? '').toLowerCase().startsWith('multipart/');
+  if (multipart || c.req.path.endsWith('/agent/chat')) return next();
+  return limitBody(JSON_BODY_LIMIT_BYTES)(c, next);
+});

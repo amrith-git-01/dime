@@ -128,6 +128,7 @@ describe('GET /media/* private objects', () => {
   it('503 when the deployment has no MEDIA_URL_SECRET', async () => {
     const res = await testApp().request(`/media/${RECEIPT}?exp=9999999999&sig=ab`, {}, makeEnv({ MEDIA_URL_SECRET: '' }));
     expect(res.status).toBe(503);
+    expect(JSON.stringify(await res.json())).not.toContain('MEDIA_URL_SECRET');
   });
 });
 

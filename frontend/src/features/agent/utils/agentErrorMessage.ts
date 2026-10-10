@@ -17,6 +17,10 @@ export function getAgentErrorMessage(
   code: string | null | undefined,
   serverMessage?: string | null,
 ): string {
+  // The server states the exact limit and reset time; prefer its wording.
+  if (code === "daily_limit" && serverMessage?.trim()) {
+    return serverMessage.trim();
+  }
   if (code && FRIENDLY_MESSAGES[code]) {
     return FRIENDLY_MESSAGES[code];
   }

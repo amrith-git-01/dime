@@ -38,6 +38,11 @@ type ManualAddAmountSectionProps = {
   txType: TransactionType;
   onSetExpense: () => void;
   onSetIncome: () => void;
+  /**
+   * Show the Expense / Income switch (default). Hide it where the type is fixed by the screen
+   * (recurring income / subscriptions): `txType` then only picks the amount colour.
+   */
+  showTypeToggle?: boolean;
 };
 
 const TRACK_HEIGHT = 44;
@@ -61,6 +66,7 @@ export function ManualAddAmountSection({
   txType,
   onSetExpense,
   onSetIncome,
+  showTypeToggle = true,
 }: ManualAddAmountSectionProps) {
   const translateX = useSharedValue(0);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -121,55 +127,57 @@ export function ManualAddAmountSection({
         />
       </View>
 
-      <View
-        style={styles.track}
-        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-      >
-        {trackWidth > 0 ? (
-          <Animated.View
-            style={[
-              styles.pill,
-              { width: tabWidth - PILL_INSET * 2 },
-              pillStyle,
-            ]}
-            pointerEvents="none"
-          />
-        ) : null}
-        <Pressable
-          style={styles.tab}
-          onPress={handleExpensePress}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: txType === "debit" }}
+      {showTypeToggle ? (
+        <View
+          style={styles.track}
+          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
         >
-          <Text
-            style={[
-              styles.tabLabel,
-              txType === "debit"
-                ? styles.expenseSelected
-                : styles.labelUnselected,
-            ]}
+          {trackWidth > 0 ? (
+            <Animated.View
+              style={[
+                styles.pill,
+                { width: tabWidth - PILL_INSET * 2 },
+                pillStyle,
+              ]}
+              pointerEvents="none"
+            />
+          ) : null}
+          <Pressable
+            style={styles.tab}
+            onPress={handleExpensePress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: txType === "debit" }}
           >
-            Expense
-          </Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          onPress={handleIncomePress}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: txType === "credit" }}
-        >
-          <Text
-            style={[
-              styles.tabLabel,
-              txType === "credit"
-                ? styles.incomeSelected
-                : styles.labelUnselected,
-            ]}
+            <Text
+              style={[
+                styles.tabLabel,
+                txType === "debit"
+                  ? styles.expenseSelected
+                  : styles.labelUnselected,
+              ]}
+            >
+              Expense
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.tab}
+            onPress={handleIncomePress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: txType === "credit" }}
           >
-            Income
-          </Text>
-        </Pressable>
-      </View>
+            <Text
+              style={[
+                styles.tabLabel,
+                txType === "credit"
+                  ? styles.incomeSelected
+                  : styles.labelUnselected,
+              ]}
+            >
+              Income
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }

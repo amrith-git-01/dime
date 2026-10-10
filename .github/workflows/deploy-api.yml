@@ -1,20 +1,14 @@
 name: Deploy API
 
-# Push to main -> CI (api, frontend, backend) -> staging deploy + smoke test -> production deploy + smoke test.
-# Production only runs when staging succeeded. Manual runs (Actions -> Deploy API -> Run workflow) can target
-# either environment on their own.
+# Push to main -> CI (api, frontend, backend) -> D1 migrations -> deploy -> smoke test. One environment: production.
+# Manual re-run: Actions -> Deploy API -> Run workflow.
 #
 # Repository secrets (Settings -> Secrets and variables -> Actions):
 #   CLOUDFLARE_API_TOKEN   token with Workers Scripts:Edit, D1:Edit, Workers R2 Storage:Edit, Queues:Edit, Workers AI:Read, Account Settings:Read
 #   CLOUDFLARE_ACCOUNT_ID  the account id (`npx wrangler whoami`)
 #
-# Create two GitHub Environments, `staging` and `production`. Optional: enable "Required reviewers" on
-# `production` (Settings -> Environments -> production) to approve each production deploy by hand;
-# without it, production deploys automatically after staging.
-#
 # Worker secrets (AUTH_JWT_SECRET, MEDIA_URL_SECRET, DEEPSEEK_API_KEY, ...) are NOT managed here: set them once with
 # `wrangler secret put` (see api/DEPLOY.md). The D1 database, R2 bucket and queues must already exist.
-# D1 migrations (api/migrations) are applied by the workflow right before each deploy.
 
 on:
   workflow_run:
@@ -22,29 +16,22 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: Where to deploy
-        type: choice
-        options: [staging, production]
-        default: staging
 
 permissions:
   contents: read
 
-# One deploy per environment at a time; never cancel a deploy that is already running.
+# One deploy at a time; never cancel a deploy that is already running.
 concurrency:
-  group: deploy-api-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+  group: deploy-api
   cancel-in-progress: false
 
 jobs:
-  staging:
-    name: Deploy to staging
+  deploy:
+    name: Deploy to production
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-      || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: staging
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,57 +45,8 @@ jobs:
       - name: Install
         working-directory: api
         run: npm ci
-      - name: Refuse to deploy placeholder config
-        working-directory: api
-        run: |
-          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (GOOGLE_WEB_CLIENT_ID / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
-          if grep -q '"database_id": "00000000-0000-0000-0000-000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder D1 database_id"; exit 1; fi
-      - name: Apply D1 migrations (staging)
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: api
-          wranglerVersion: "4"
-          command: d1 migrations apply DB --remote --env staging
-      - name: Deploy (staging)
-        id: deploy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: api
-          wranglerVersion: "4"
-          command: deploy --env staging
-      - name: Smoke test
-        if: steps.deploy.outputs.deployment-url != ''
-        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "${{ steps.deploy.outputs.deployment-url }}/api/v1/health"
-
-  production:
-    name: Deploy to production
-    needs: staging
-    # always(): a manual production run skips the staging job, which would otherwise skip this one too.
-    if: >-
-      always() && (
-        (github.event_name == 'workflow_run' && needs.staging.result == 'success')
-        || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
-      )
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # For workflow_run, ship exactly the commit CI validated and staging received.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: api/package-lock.json
-      - name: Install
-        working-directory: api
-        run: npm ci
-      - name: Typecheck, lint and test the exact commit being shipped
+      - name: Typecheck, lint and test (manual runs skip CI)
+        if: github.event_name == 'workflow_dispatch'
         working-directory: api
         run: |
           npm run typecheck
@@ -117,9 +55,9 @@ jobs:
       - name: Refuse to deploy placeholder config
         working-directory: api
         run: |
-          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (GOOGLE_WEB_CLIENT_ID / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
           if grep -q '"database_id": "00000000-0000-0000-0000-000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder D1 database_id"; exit 1; fi
-      - name: Apply D1 migrations (production)
+      - name: Apply D1 migrations
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -127,7 +65,7 @@ jobs:
           workingDirectory: api
           wranglerVersion: "4"
           command: d1 migrations apply DB --remote
-      - name: Deploy (production)
+      - name: Deploy
         id: deploy
         uses: cloudflare/wrangler-action@v4
         with:
@@ -137,5 +75,11 @@ jobs:
           wranglerVersion: "4"
           command: deploy
       - name: Smoke test
-        if: steps.deploy.outputs.deployment-url != ''
-        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "${{ steps.deploy.outputs.deployment-url }}/api/v1/health"
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then echo "wrangler-action returned no deployment-url"; exit 1; fi
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "$DEPLOY_URL/api/v1/health"
+          # A bogus bearer must be refused with 401. 503 means a Worker secret (AUTH_JWT_SECRET) is missing.
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --retry 5 --retry-delay 5 --retry-connrefused             -H 'Authorization: Bearer smoke-test-invalid' "$DEPLOY_URL/api/v1/me")
+          if [ "$status" != "401" ]; then echo "GET /api/v1/me with a bogus bearer returned $status (expected 401; 503 = missing secret)"; exit 1; fi

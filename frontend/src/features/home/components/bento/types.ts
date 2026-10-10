@@ -1,4 +1,5 @@
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
+import type { RecurringItem } from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type HomeTopCategoryItem = CategorySpendRowData;
@@ -40,6 +41,11 @@ export type HomeBentoContentProps = {
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
   incomePending: boolean;
+
+  // Upcoming recurring income / bills (next 30 days); empty hides the card
+  upcomingItems: RecurringItem[];
+  upcomingToday: Date;
+  onUpcomingPress: (item: RecurringItem) => void;
 
   // Navigation
   onNavigateBudgets: () => void;

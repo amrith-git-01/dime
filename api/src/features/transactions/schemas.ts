@@ -63,7 +63,7 @@ export function parseDatetime(raw: string | number): Instant | null {
 const INVALID_DATETIME = 'Input should be a valid datetime or date';
 
 /** Required datetime field/param; `datetime_parsing` 422 like FastAPI. */
-export const datetimeInput = z.union([z.string(), z.number()]).transform((raw, ctx): Instant => {
+export const datetimeInput = z.union([z.string().max(64), z.number()]).transform((raw, ctx): Instant => {
   const parsed = parseDatetime(raw);
   if (!parsed) {
     ctx.addIssue({ code: 'custom', message: INVALID_DATETIME, params: { type: 'datetime_parsing' } });
@@ -76,7 +76,7 @@ export const datetimeInput = z.union([z.string(), z.number()]).transform((raw, c
  * Request bodies (POST / PATCH share one shape, like Python's TransactionCreate / TransactionUpdate)
  * -------------------------------------------------------------------------------------------- */
 
-const amountInput = decimalInput({ positive: true }).transform((canonical, ctx): string => {
+export const amountInput = decimalInput({ positive: true }).transform((canonical, ctx): string => {
   // Pydantic validates `gt=0` first and quantizes to cents afterwards; a value that rounds to zero
   // would violate the column's positive-amount intent, so reject it instead of storing 0.00.
   const cents = quantizeMoney(canonical);

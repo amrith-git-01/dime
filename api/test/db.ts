@@ -26,6 +26,7 @@ const TABLES = [
   'category_budgets',
   'budgets',
   'transactions',
+  'recurring_items', // after transactions: they reference it
 ];
 
 /** Empty every table (system categories stay: they are seed data) and seed the default test user. */
@@ -198,7 +199,7 @@ export async function seedJob(over: {
     .bind(
       id,
       over.user_id ?? USER_ID,
-      over.kind ?? 'sms',
+      over.kind ?? 'receipt',
       JSON.stringify(over.payload ?? {}),
       over.status ?? 'pending',
       over.attempts ?? 0,

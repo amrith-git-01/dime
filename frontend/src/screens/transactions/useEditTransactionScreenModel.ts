@@ -28,7 +28,7 @@ export function useEditTransactionScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const route = useRoute<EditRoute>();
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const { showToast } = useToast();
   const transaction = route.params.transaction;
   const { categories, isLoading: categoriesLoading } = useCategories();
@@ -209,7 +209,7 @@ export function useEditTransactionScreenModel() {
   }, [openAndroidTimePicker]);
 
   const onSave = useCallback(async () => {
-    if (!authReady || !userId) {
+    if (!userId) {
       Alert.alert("Sign in required", "Sign in to save this transaction.");
       return;
     }
@@ -249,7 +249,6 @@ export function useEditTransactionScreenModel() {
       });
     }
   }, [
-    authReady,
     buildPayload,
     navigation,
     showToast,

@@ -1,10 +1,10 @@
 import * as z from 'zod';
 
-export const googleBodySchema = z.object({ id_token: z.string().min(1) });
-export const refreshBodySchema = z.object({ refresh_token: z.string().min(1) });
+export const googleBodySchema = z.object({ id_token: z.string().min(1).max(8192) });
+export const refreshBodySchema = z.object({ refresh_token: z.string().min(1).max(512) });
 export const signOutBodySchema = z.object({
   scope: z.enum(['global', 'local']).default('local'),
-  refresh_token: z.string().min(1).optional(),
+  refresh_token: z.string().min(1).max(512).optional(),
 });
 
 /** Shape the app's encrypted session store keeps: `{ access_token, refresh_token, expires_at, user }`. */

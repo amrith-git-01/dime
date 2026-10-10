@@ -62,7 +62,7 @@ describe('GET /notifications', () => {
     const res = await call('/api/v1/notifications?limit=2&before=2026-06-01T00:00:00.000Z');
     const body = await res.json<{ items: { id: string }[]; next_cursor: string }>();
     expect(body.items.map((i) => i.id)).toEqual([nid(1), nid(2)]);
-    expect(body.next_cursor).toBe('2026-05-31T10:00:57.000Z');
+    expect(body.next_cursor).toBe(`2026-05-31T10:00:57.000Z|${nid(2)}`);
     // The cursor is exclusive: following it returns the remaining row only.
     const next = await (await call(`/api/v1/notifications?limit=2&before=${encodeURIComponent(body.next_cursor)}`)).json<{
       items: { id: string }[];
@@ -70,6 +70,22 @@ describe('GET /notifications', () => {
     }>();
     expect(next.items.map((i) => i.id)).toEqual([nid(3)]);
     expect(next.next_cursor).toBeNull();
+  });
+
+  it('the cursor is (created_at, id): rows sharing a created_at are neither skipped nor repeated', async () => {
+    const same = '2026-05-31T10:00:00.000Z';
+    for (const n of [1, 2, 3, 4, 5]) await seedRow(n, { created_at: same });
+    const seen: string[] = [];
+    let url = '/api/v1/notifications?limit=2';
+    for (let page = 0; page < 5; page++) {
+      const body = await (await call(url)).json<{ items: { id: string }[]; next_cursor: string | null }>();
+      seen.push(...body.items.map((i) => i.id));
+      if (!body.next_cursor) break;
+      url = `/api/v1/notifications?limit=2&before=${encodeURIComponent(body.next_cursor)}`;
+    }
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+    expect((await call('/api/v1/notifications?before=2026-05-31T10:00:00.000Z|not%20an%20id!')).status).toBe(422);
   });
 
   it('accepts a `+` offset that arrived as a space in the cursor', async () => {

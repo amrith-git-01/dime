@@ -2,7 +2,7 @@ import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
 import { addNeurons, assertJobAllowed, estimateCaptureNeurons } from '../ai/neuron-cap';
-import { parseReceipt, parseSms, parseVoice } from '../ai/service';
+import { parseReceipt, parseVoice } from '../ai/service';
 import type { ParsedExpense } from '../ai/parse-output';
 import type { AiBinding, WorkersAiClient } from '../ai/workers-ai';
 import type { JobRow } from '../jobs/repository';
@@ -10,12 +10,10 @@ import { downloadMedia } from '../media/storage';
 import type { MediaStore } from '../media/storage';
 import type { Publisher } from '../realtime/events';
 import { notifyAfterInsert } from '../notifications/after-insert';
-import { parseDatetime } from '../transactions/schemas';
-import type { Instant } from '../transactions/schemas';
 import { createTransaction } from '../transactions/service';
 import type { TxContext } from '../transactions/service';
 import { loadCategoryContext } from './categories';
-import { mediaPayloadSchema, smsPayloadSchema } from './schemas';
+import { mediaPayloadSchema } from './schemas';
 
 /** A job that can never succeed as stored (bad payload, unknown kind): fail it, do not retry. */
 export class InvalidJobError extends Error {
@@ -40,18 +38,16 @@ export interface JobOutcome {
 interface FinishInput {
   jobId: string;
   parsed: ParsedExpense;
-  detectedVia: 'scan' | 'voice' | 'sms';
+  detectedVia: 'scan' | 'voice';
   timezone: string;
   receiptUrl?: string;
   voiceUrl?: string;
-  /** Used when the model found no date (the SMS receive time). */
-  fallbackAt?: Instant | null;
 }
 
 async function finish(ctx: TxContext, input: FinishInput): Promise<JobOutcome> {
   const { parsed } = input;
   const nowMs = Date.now();
-  const transactionAt = parsed.date ?? input.fallbackAt ?? { ms: nowMs, iso: new Date(nowMs).toISOString() };
+  const transactionAt = parsed.date ?? { ms: nowMs, iso: new Date(nowMs).toISOString() };
   const result = await createTransaction(ctx, {
     amount: parsed.amount,
     type: parsed.type,
@@ -87,7 +83,7 @@ async function finish(ctx: TxContext, input: FinishInput): Promise<JobOutcome> {
 }
 
 /**
- * Run one claimed job end to end: download media (or take the SMS body), parse it with the AI
+ * Run one claimed job end to end: download media, parse it with the AI
  * services and create the transaction (server-set `detected_via` / media path). Throws the AI /
  * upstream errors for the consumer to classify.
  */
@@ -134,15 +130,6 @@ export async function runIngestJob(
     await assertJobAllowed(db, config.workersAi, estimateCaptureNeurons('voice', media.byteLength));
     const parsed = await parseVoice(config, workersAi, media, p.mime_type, categories);
     return finish(ctx, { jobId: job.id, parsed, detectedVia: 'voice', timezone: p.timezone, voiceUrl: p.object_path });
-  }
-
-  if (job.kind === 'sms') {
-    const payload = smsPayloadSchema.safeParse(job.payload);
-    if (!payload.success) throw new InvalidJobError('Job payload is invalid.');
-    const p = payload.data;
-    const categories = await loadCategoryContext(db, job.user_id);
-    const parsed = await parseSms(config, p.body, categories);
-    return finish(ctx, { jobId: job.id, parsed, detectedVia: 'sms', timezone: p.timezone, fallbackAt: parseDatetime(p.received_at) });
   }
 
   throw new InvalidJobError(`Unsupported job kind '${job.kind}'.`);

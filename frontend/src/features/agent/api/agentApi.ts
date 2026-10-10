@@ -41,7 +41,12 @@ export type AgentStreamHandlers = {
   /** Terminal success. Exactly one of `onFinal` / `onError` fires per call (neither when aborted). */
   onFinal: (response: AgentChatResponse) => void;
   /** Terminal failure: an `error` event, a C5 JSON body, HTTP failure or a broken stream. */
-  onError: (error: { code: string; message: string }) => void;
+  onError: (error: {
+    code: string;
+    message: string;
+    /** Seconds until a limit resets (from `Retry-After`), when the server said. */
+    retryAfterSeconds?: number;
+  }) => void;
 };
 
 function isErrorBody(value: unknown): value is AgentChatErrorBody {
@@ -82,10 +87,29 @@ async function handleJsonResponse(
   } catch {
     /* non-JSON body */
   }
-  if (isErrorBody(data)) {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  const retryAfterSeconds =
+    Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined;
+  // Today's question allowance is used up: 429 with a human-readable `detail` (or a C5 body).
+  const detail =
+    typeof data === "object" && data !== null
+      ? (data as { detail?: unknown }).detail
+      : undefined;
+  if (response.status === 429 && typeof detail === "string" && detail.trim()) {
     handlers.onError({
-      code: typeof data.error.code === "string" ? data.error.code : "unknown",
+      code: "daily_limit",
+      message: detail.trim(),
+      retryAfterSeconds,
+    });
+    return;
+  }
+  if (isErrorBody(data)) {
+    const code =
+      typeof data.error.code === "string" ? data.error.code : "unknown";
+    handlers.onError({
+      code,
       message: typeof data.error.message === "string" ? data.error.message : "",
+      ...(code === "daily_limit" ? { retryAfterSeconds } : {}),
     });
     return;
   }

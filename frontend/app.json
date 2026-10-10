@@ -13,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "allowBackup": false,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -73,17 +74,6 @@
         "expo-audio",
         {
           "microphonePermission": "Dime uses the microphone to capture spoken expenses and add them for you."
-        }
-      ],
-      [
-        "expo-transaction-sms-reader",
-        {
-          "android": {
-            "permissions": {
-              "read": true,
-              "receive": false
-            }
-          }
         }
       ]
     ],

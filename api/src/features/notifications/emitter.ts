@@ -8,7 +8,7 @@ import { insertDeduped } from './repository';
 import type { NewNotification, NotificationRow } from './schemas';
 
 /** Capture sources whose transactions announce themselves with a `transaction_auto` notification. */
-export const AUTO_DETECTED: ReadonlySet<string> = new Set(['sms', 'notification', 'scan', 'voice']);
+export const AUTO_DETECTED: ReadonlySet<string> = new Set(['scan', 'voice']);
 
 /** "₹20,000" / "₹1,234.50": whole amounts drop ".00" (Python `format_inr`, western digit grouping). */
 export function formatInrCents(totalCents: number): string {
@@ -38,7 +38,7 @@ export type PushSender = typeof sendExpoPush;
 
 export interface Emitter {
   transactionAuto(input: { transactionId: string; title: string; body: string }): Promise<void>;
-  captureFailed(input: { source: 'sms' | 'scan'; title: string; body: string; dayKey: string }): Promise<void>;
+  captureFailed(input: { source: 'scan'; title: string; body: string; dayKey: string }): Promise<void>;
   budgetThreshold(input: { scope: 'monthly' | 'daily'; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
   categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
 }

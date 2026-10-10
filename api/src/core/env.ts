@@ -67,7 +67,8 @@ const configSchema = z.object({
   WORKERS_AI_VISION_MODEL: z.string().default('@cf/meta/llama-4-scout-17b-16e-instruct'),
   // Workers AI is free up to 10,000 neurons/day (account-wide) and billed above: stay under it.
   AI_DAILY_NEURON_CAP: z.coerce.number().int().min(0).default(8000),
-  AI_USER_DAILY_CAPTURES: z.coerce.number().int().min(0).default(30),
+  AI_USER_DAILY_RECEIPTS: z.coerce.number().int().min(0).default(10),
+  AI_USER_DAILY_VOICE: z.coerce.number().int().min(0).default(10),
   // Optional AI Gateway (logs, spend limit). Workers AI uses the id alone; DeepSeek also needs CF_ACCOUNT_ID.
   AI_GATEWAY_ID: z.string().optional(),
   CF_ACCOUNT_ID: z.string().optional(),
@@ -80,6 +81,7 @@ const configSchema = z.object({
   AGENT_TURN_TIMEOUT_SECONDS: num(25),
   AGENT_LLM_TIMEOUT_SECONDS: num(12),
   AGENT_DAILY_TOKEN_BUDGET: int(200_000),
+  AGENT_DAILY_QUESTIONS: int(5),
   AGENT_MEMORY_SECRET: z.string().optional(),
 
   BREVO_API_KEY: z.string().optional(),
@@ -118,8 +120,10 @@ export interface AppConfig {
     visionModel: string;
     /** Neurons per UTC day, account-wide, above which uploads answer 429 and queued jobs fail. */
     dailyNeuronCap: number;
-    /** Receipt + voice uploads one user may make per UTC day. */
-    userDailyCaptures: number;
+    /** Receipt scans one user may make per UTC day. */
+    userDailyReceipts: number;
+    /** Voice captures one user may make per UTC day. */
+    userDailyVoice: number;
     gatewayId: string | undefined;
   };
   agent: {
@@ -131,6 +135,8 @@ export interface AppConfig {
     turnTimeoutMs: number;
     llmTimeoutMs: number;
     dailyTokenBudget: number;
+    /** Questions (turns) one user may ask per UTC day. */
+    dailyQuestions: number;
     memorySecret: string | undefined;
   };
   email: {
@@ -180,7 +186,8 @@ function build(p: Parsed): AppConfig {
       whisperModel: p.WORKERS_AI_WHISPER_MODEL.trim(),
       visionModel: p.WORKERS_AI_VISION_MODEL.trim(),
       dailyNeuronCap: p.AI_DAILY_NEURON_CAP,
-      userDailyCaptures: p.AI_USER_DAILY_CAPTURES,
+      userDailyReceipts: p.AI_USER_DAILY_RECEIPTS,
+      userDailyVoice: p.AI_USER_DAILY_VOICE,
       gatewayId: p.AI_GATEWAY_ID,
     },
     agent: {
@@ -192,6 +199,7 @@ function build(p: Parsed): AppConfig {
       turnTimeoutMs: p.AGENT_TURN_TIMEOUT_SECONDS * 1000,
       llmTimeoutMs: p.AGENT_LLM_TIMEOUT_SECONDS * 1000,
       dailyTokenBudget: p.AGENT_DAILY_TOKEN_BUDGET,
+      dailyQuestions: p.AGENT_DAILY_QUESTIONS,
       memorySecret: p.AGENT_MEMORY_SECRET,
     },
     email: {

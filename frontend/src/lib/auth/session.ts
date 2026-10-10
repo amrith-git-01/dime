@@ -69,9 +69,10 @@ async function postJson(
   path: string,
   body: unknown,
   accessToken?: string,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<PostResult> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${getDimeApiBaseUrl()}${path}`, {
       method: "POST",
@@ -218,19 +219,30 @@ export async function getAccessToken(): Promise<string | null> {
 }
 
 /**
- * Tell the server to revoke the session (`global` = every device). Rejects when the server could
- * not be reached or refused; the caller still clears the local session.
+ * Tell the server to revoke the session (`global` = every device, `local` = this device only).
+ * Rejects when the server could not be reached or refused; the caller still clears the local
+ * session.
+ *
+ * `options.session`: revoke this session instead of the current one, using its tokens as they are
+ * (no refresh), so the call can run after the local session has already been cleared.
+ * `options.timeoutMs`: give up sooner than the default request timeout.
  */
-export async function signOutRemote(scope: "global" | "local"): Promise<void> {
-  const session = current;
+export async function signOutRemote(
+  scope: "global" | "local",
+  options?: { session?: AuthSession; timeoutMs?: number },
+): Promise<void> {
+  const session = options?.session ?? current;
   if (!session) {
     return;
   }
-  const token = await getAccessToken().catch(() => session.access_token);
+  const token = options?.session
+    ? session.access_token
+    : await getAccessToken().catch(() => session.access_token);
   const { status } = await postJson(
     "/api/v1/auth/sign-out",
     { scope, refresh_token: session.refresh_token },
     token ?? session.access_token,
+    options?.timeoutMs,
   );
   // 401: the session was already revoked or expired, which is what sign-out wants.
   if (status >= 400 && status !== 401) {

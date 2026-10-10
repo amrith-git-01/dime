@@ -103,6 +103,18 @@ export async function rotate(db: Db, oldId: string, next: NewSession): Promise<b
   return (won?.length ?? 0) > 0;
 }
 
+/** Extra session for a grace replay of a just-rotated token; only inserted while the family still has a live session. True = inserted. */
+export async function insertGraceChild(db: Db, s: NewSession): Promise<boolean> {
+  const row = await first<{ id: string }>(
+    db,
+    `INSERT INTO auth_sessions (id, user_id, refresh_hash, family_id, created_at, expires_at)
+     SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM auth_sessions WHERE family_id = ? AND revoked_at IS NULL)
+     RETURNING id`,
+    [s.id, s.userId, s.refreshHash, s.familyId, nowIso(), s.expiresAt, s.familyId],
+  );
+  return row !== null;
+}
+
 export async function revokeFamily(db: Db, familyId: string): Promise<void> {
   await run(db, 'UPDATE auth_sessions SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL', [nowIso(), familyId]);
 }

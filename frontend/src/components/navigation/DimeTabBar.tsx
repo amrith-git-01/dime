@@ -20,7 +20,7 @@ import { useFabIdleClose } from "@/hooks/useFabIdleClose";
 import { DimeTabBarFab } from "./DimeTabBarFab";
 import { DimeTabBarFabActions } from "./DimeTabBarFabActions";
 import { DimeTabBarRouteItem } from "./DimeTabBarRouteItem";
-import { ACTIVE_BUBBLE_SIZE } from "./dimeTabBarConfig";
+import { ACTIVE_BUBBLE_SIZE, type FabCaptureOption } from "./dimeTabBarConfig";
 
 // ─── Indicator geometry ────────────────────────────────────────────────────
 // 5 equal slots: [tab0] [tab1] [FAB] [tab2] [tab3]
@@ -45,10 +45,16 @@ export function DimeTabBar({
   onFirstLayout,
   onManualAddPress,
   onCaptureReceiptPress,
+  receiptOption,
+  voiceOption,
+  onBlockedOptionPress,
 }: BottomTabBarProps & {
   onFirstLayout?: () => void;
   onManualAddPress: () => void;
   onCaptureReceiptPress: () => void;
+  receiptOption?: FabCaptureOption;
+  voiceOption?: FabCaptureOption;
+  onBlockedOptionPress?: (message: string) => void;
 }) {
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
@@ -140,6 +146,9 @@ export function DimeTabBar({
       <DimeTabBarFabActions
         onManualAddPress={onManualAddPress}
         onCaptureReceiptPress={onCaptureReceiptPress}
+        receiptOption={receiptOption}
+        voiceOption={voiceOption}
+        onBlockedOptionPress={onBlockedOptionPress}
         onPressIn={bumpFabIdleTimer}
       />
     </View>

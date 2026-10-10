@@ -10,9 +10,9 @@ export interface MeResponse {
 }
 
 export const profileUpdateBodySchema = z.object({
-  username: z.string().min(3).max(20),
+  username: z.string().trim().min(3).max(20),
   currency: z.string().min(1).max(10).default('INR'),
-  avatar_url: z.string().nullish(),
+  avatar_url: z.string().max(2048).nullish(),
 });
 
 export type ProfileUpdateBody = z.infer<typeof profileUpdateBodySchema>;

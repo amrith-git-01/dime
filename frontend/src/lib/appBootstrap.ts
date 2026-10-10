@@ -39,6 +39,7 @@ import {
 } from "@/lib/queryDefaults";
 import { restoreQueryCache } from "@/lib/queryPersister";
 import { readStoredAuthSession } from "@/lib/auth/authStorage";
+import { clearAppDataMmkv } from "@/lib/userDataWipe";
 import { subscribeUserTransitionWipe } from "@/lib/userTransitionWipe";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 import { reportError } from "@/lib/reportError";
@@ -46,6 +47,12 @@ import { reportError } from "@/lib/reportError";
 /** Sync MMKV → React Query (main cache blob + notifications). Runs once at launch. */
 export function hydrateAppFromMmkv(queryClient: QueryClient): void {
   const userId = readStoredAuthSession()?.user.id;
+  if (!userId) {
+    // No session: whatever API data is on disk belongs to nobody (e.g. a restored backup or a
+    // sign-out that was interrupted). Drop it instead of showing it to the next user.
+    clearAppDataMmkv();
+    return;
+  }
   const queryCacheRestored = restoreQueryCache(queryClient);
   const notificationsRestored = hydrateNotificationsFromMmkv(
     queryClient,

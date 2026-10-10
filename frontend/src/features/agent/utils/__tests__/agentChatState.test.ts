@@ -247,7 +247,10 @@ describe("buildAgentHistory", () => {
 
 describe("getAgentErrorMessage", () => {
   it("maps known codes to friendly copy and falls back to the server message", () => {
-    expect(getAgentErrorMessage("daily_limit", "raw")).toMatch(/limit/i);
+    expect(getAgentErrorMessage("daily_limit")).toMatch(/limit/i);
+    expect(getAgentErrorMessage("daily_limit", "5 of 5 used")).toBe(
+      "5 of 5 used",
+    );
     expect(getAgentErrorMessage("agent_disabled")).toMatch(/off/i);
     expect(getAgentErrorMessage("weird", "Server says hi")).toBe(
       "Server says hi",

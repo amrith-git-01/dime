@@ -7,14 +7,17 @@ export async function putPushToken(token: string): Promise<void> {
   });
 }
 
-export async function deletePushToken(token?: string): Promise<void> {
-  if (token) {
-    await dimeApi.delete("/api/v1/me/push-token", {
-      data: { token },
-    });
-    return;
-  }
-
-  await dimeApi.delete("/api/v1/me/push-token", { data: {} });
+/** `options.authorization`/`timeoutMs`: for sign-out, where the session is already cleared locally. */
+export async function deletePushToken(
+  token?: string,
+  options?: { authorization?: string; timeoutMs?: number },
+): Promise<void> {
+  await dimeApi.delete("/api/v1/me/push-token", {
+    data: token ? { token } : {},
+    ...(options?.authorization
+      ? { headers: { Authorization: options.authorization } }
+      : {}),
+    ...(options?.timeoutMs ? { timeout: options.timeoutMs } : {}),
+  });
 }
 

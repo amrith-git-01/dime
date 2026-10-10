@@ -17,7 +17,7 @@ export const AUTH_FEATURE_SLIDES: AuthFeatureSlideData[] = [
     id: "auto-tracking",
     image: slide1Image,
     description:
-      "Bank SMS can become expenses — you review them when you open Dime.",
+      "Add expenses fast and keep every rupee in view.",
   },
   {
     id: "capture-methods",

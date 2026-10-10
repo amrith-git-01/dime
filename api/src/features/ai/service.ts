@@ -43,10 +43,6 @@ export async function parseVoice(
   return parseWithFallback(config.ai, { mode: 'voice', text, ...categories });
 }
 
-export function parseSms(config: AiConfig, body: string, categories: CategoryContext): Promise<ParsedExpense> {
-  return parseWithFallback(config.ai, { mode: 'sms', text: body, ...categories });
-}
-
 /** Keep the transient/permanent classification but replace the message with a client-safe one. */
 function relabel(err: unknown, message: string): Error {
   if (err instanceof TransientAiError) return new TransientAiError(message, { cause: err });

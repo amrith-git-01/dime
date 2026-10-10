@@ -5,6 +5,7 @@ import { handleEmailBatch, handleEmailDlq } from './features/email/consumer';
 import { runDigestCron } from './features/email/digest';
 import { handleIngestBatch, handleIngestDlq } from './features/ingest/consumer';
 import { SWEEP_CRON, runSweep } from './features/ingest/sweep';
+import { postDueRecurring } from './features/recurring/poster';
 
 export { UserHub } from './features/realtime/user-hub';
 
@@ -14,7 +15,7 @@ const EMAIL_DIGEST_CRON = '30 2 * * *';
 export default {
   fetch: app.fetch,
 
-  // Queues are told apart by name; staging uses `-staging` suffixes (a `-dlq` queue is matched before its parent).
+  // Queues are told apart by name (a `-dlq` queue is matched before its parent).
   async queue(batch, env, _ctx) {
     if (batch.queue.startsWith('dime-ingest-dlq')) return handleIngestDlq(batch, env);
     if (batch.queue.startsWith('dime-ingest')) return handleIngestBatch(batch, env);
@@ -30,7 +31,10 @@ export default {
   async scheduled(controller, env, _ctx) {
     switch (controller.cron) {
       case SWEEP_CRON:
-        await runSweep(env, controller.scheduledTime);
+        // Independent jobs on the same 5-minute tick: one failing must not skip the other.
+        for (const result of await Promise.allSettled([runSweep(env, controller.scheduledTime), postDueRecurring(env, controller.scheduledTime)])) {
+          if (result.status === 'rejected') throw result.reason;
+        }
         return;
       case EMAIL_DIGEST_CRON:
         await runDigestCron(env, controller.scheduledTime);

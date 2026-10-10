@@ -43,7 +43,7 @@ describe('health and root', () => {
 
   it('GET / matches the Python response', async () => {
     const res = await get(testApp(), '/');
-    expect(await res.json()).toEqual({ message: 'Dime API', docs: '/docs', openapi: '/openapi.json' });
+    expect(await res.json()).toEqual({ message: 'Dime API' });
   });
 
   it('is reachable through the Worker entrypoint', async () => {
@@ -142,7 +142,7 @@ describe('auth middleware', () => {
     const token = await signToken({ sub: 'user-abc', email: 'a@example.com' });
     const res = await me(token);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: 'user-abc', email: 'a@example.com', accessToken: token });
+    expect(await res.json()).toEqual({ id: 'user-abc', email: 'a@example.com' });
   });
 
   it('is case-insensitive about the Bearer scheme', async () => {

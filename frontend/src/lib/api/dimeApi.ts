@@ -38,17 +38,19 @@ export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
 }
 
 /**
- * Refresh the token (after a 401) and return fresh auth headers; empty when refresh fails or the
- * server is unreachable. `staleHeaders`: the headers the failed request used, so a token another
+ * Refresh the token (after a 401) and return fresh auth headers; empty when there is no session or
+ * the server rejected the refresh token (the session is then really gone). Throws
+ * `AuthNetworkError` when the server could not be reached, so callers can report "offline" rather
+ * than "session expired". `staleHeaders`: the headers the failed request used, so a token another
  * caller already rotated is reused instead of rotating again.
  */
 export async function refreshDimeAuthHeaders(
   staleHeaders?: Record<string, string>,
 ): Promise<Record<string, string>> {
-  const token = await forceRefreshAccessToken(
-    staleHeaders?.Authorization?.replace(/^Bearer /i, ""),
-  );
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const session = await refreshSession({
+    staleAccessToken: staleHeaders?.Authorization?.replace(/^Bearer /i, ""),
+  });
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
 export const dimeApi: AxiosInstance = create({

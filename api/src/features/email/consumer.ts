@@ -72,7 +72,7 @@ async function forEachLimited<T>(items: readonly T[], limit: number, fn: (item: 
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-/** `queue()` handler for `dime-email` (and `dime-email-staging`). */
+/** `queue()` handler for `dime-email`. */
 export async function handleEmailBatch(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
   const deps = createEmailDeps(env, env.DB);
   await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
@@ -87,7 +87,7 @@ export async function handleEmailBatch(batch: MessageBatch<unknown>, env: Bindin
 }
 
 /**
- * `queue()` handler for `dime-email-dlq` (and staging): a digest the queue gave up on after its
+ * `queue()` handler for `dime-email-dlq`: a digest the queue gave up on after its
  * retries. Every failed attempt already released its `email_sends` claim (and a claim left behind by
  * a crashed Worker is reclaimed after 30 minutes), so there is nothing to undo: log it for
  * `wrangler tail` / Workers Logs and ack. Idempotent, touches no external service, never throws.

@@ -9,6 +9,7 @@ import { DailyCapStrip } from "./DailyCapStrip";
 import { HeroMonthCard } from "./HeroMonthCard";
 import { HomeCategoriesSection } from "./HomeCategoriesSection";
 import { HomeRecentSection } from "./HomeRecentSection";
+import { HomeUpcomingSection } from "./HomeUpcomingSection";
 import { MonthStatRow } from "./MonthStatRow";
 import type { HomeBentoContentProps } from "./bento/types";
 
@@ -16,7 +17,7 @@ const SECTION_GAP = spacing.xl;
 
 /**
  * Root composer for the Home screen.
- * Layout: HeroMonthCard → DailyCapStrip → MonthStatRow → Categories → Recent
+ * Layout: HeroMonthCard → DailyCapStrip → MonthStatRow → Upcoming → Categories → Recent
  */
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
@@ -54,6 +55,12 @@ export const HomeContent = memo(function HomeContent(
         spentValue={props.spentMonthValue}
         netDisplay={props.netDisplay}
         netValue={props.netValue}
+      />
+
+      <HomeUpcomingSection
+        items={props.upcomingItems}
+        today={props.upcomingToday}
+        onItemPress={props.onUpcomingPress}
       />
 
       <HomeCategoriesSection

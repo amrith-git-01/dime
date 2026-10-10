@@ -7,10 +7,7 @@ import {
   realtimePayloadTransactionId,
   type RealtimeTransactionPayload,
 } from "@/features/transactions/cache/transactionRealtimeCache";
-import {
-  OWN_CREATE_MARKER,
-  recentTransactionMutations,
-} from "@/features/transactions/utils/recentMutationTracker";
+import { recentTransactionMutations } from "@/features/transactions/utils/recentMutationTracker";
 import { createTrailingDebounce } from "@/features/transactions/utils/trailingDebounce";
 import { realtimeClient } from "@/lib/realtime";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
@@ -34,12 +31,9 @@ export function useTransactionsRealtimeSync(userId: string | null) {
 
     const onChange = (payload: RealtimeTransactionPayload) => {
       const transactionId = realtimePayloadTransactionId(payload);
-      // Echo of this device's own recent create/edit/delete; its mutation already refreshed the caches.
-      if (
-        (transactionId && recentTransactionMutations.isRecent(transactionId)) ||
-        (payload.eventType === "INSERT" &&
-          recentTransactionMutations.isRecent(OWN_CREATE_MARKER))
-      ) {
+      // Echo of this device's own recent edit/delete; its mutation already refreshed the caches.
+      // Creates have no known id up front, so their (idempotent) INSERT event is applied normally.
+      if (transactionId && recentTransactionMutations.isRecent(transactionId)) {
         return;
       }
       applyRealtimeTransactionChange(queryClient, {

@@ -1,0 +1,110 @@
+import * as z from 'zod';
+
+import { uuidString } from '../../core/validation';
+import { amountInput } from '../transactions/schemas';
+
+export const RECURRING_KINDS = ['income', 'subscription'] as const;
+export type RecurringKind = (typeof RECURRING_KINDS)[number];
+export const CADENCES = ['monthly', 'yearly'] as const;
+
+/** `note`: trimmed, blank becomes null. */
+const noteInput = z
+  .string()
+  .max(2000)
+  .nullable()
+  .transform((v) => v?.trim() || null);
+
+const nameInput = z.string().transform((s) => s.trim()).pipe(z.string().min(1).max(200));
+
+const fields = {
+  name: nameInput,
+  amount: amountInput,
+  category_id: uuidString.nullish(),
+  cadence: z.enum(CADENCES),
+  day_of_month: z.number().int().min(1).max(31),
+  month_of_year: z.number().int().min(1).max(12).nullish(),
+  timezone: z.string().min(2).max(80),
+  note: noteInput.optional(),
+};
+
+/** Yearly items need a month (422 `missing`, like a required field). */
+function needsMonth(value: { cadence?: string | undefined; month_of_year?: number | null | undefined }, ctx: z.RefinementCtx): void {
+  if (value.cadence === 'yearly' && value.month_of_year == null) {
+    ctx.addIssue({ code: 'custom', path: ['month_of_year'], message: 'Field required', params: { type: 'missing' } });
+  }
+}
+
+export const recurringCreateSchema = z
+  .object({
+    kind: z.enum(RECURRING_KINDS),
+    ...fields,
+    active: z.boolean().default(true),
+    /** When this period's due day has already passed: post it now (true) or wait for the next period (false). */
+    post_current_period: z.boolean().default(false),
+  })
+  .superRefine(needsMonth);
+export type RecurringCreateBody = z.output<typeof recurringCreateSchema>;
+
+/** `kind` cannot change; every other field is optional. Cadence/month consistency is checked on the merged item. */
+export const recurringPatchSchema = z.object({
+  name: fields.name.optional(),
+  amount: fields.amount.optional(),
+  category_id: fields.category_id,
+  cadence: fields.cadence.optional(),
+  day_of_month: fields.day_of_month.optional(),
+  month_of_year: fields.month_of_year,
+  timezone: fields.timezone.optional(),
+  note: fields.note,
+  active: z.boolean().optional(),
+});
+export type RecurringPatchBody = z.output<typeof recurringPatchSchema>;
+
+export const recurringListQuerySchema = z.object({ kind: z.enum(RECURRING_KINDS).optional() });
+export const recurringIdParamSchema = z.object({ id: uuidString });
+
+export interface RecurringRow {
+  id: string;
+  user_id: string;
+  kind: RecurringKind;
+  name: string;
+  /** Integer cents. */
+  amount: number;
+  category_id: string | null;
+  cadence: 'monthly' | 'yearly';
+  day_of_month: number;
+  month_of_year: number | null;
+  timezone: string;
+  next_due_date: string;
+  active: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringResponse {
+  id: string;
+  kind: RecurringKind;
+  name: string;
+  amount: string;
+  category_id: string | null;
+  category: string | null;
+  category_icon_name: string | null;
+  category_color: string | null;
+  cadence: 'monthly' | 'yearly';
+  day_of_month: number;
+  month_of_year: number | null;
+  timezone: string;
+  next_due_date: string;
+  active: boolean;
+  note: string | null;
+  /** Amount per month as a decimal string: the amount for monthly items, amount / 12 for yearly ones. */
+  monthly_equivalent: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringListResponse {
+  items: RecurringResponse[];
+  /** Active items only, over BOTH kinds (not affected by the `kind` filter). */
+  summary: { monthly_income_total: string; monthly_subscriptions_total: string };
+}

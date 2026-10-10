@@ -126,8 +126,8 @@ function postcard(input: { kicker: string; title: string; body: string; imageUrl
 const WELCOME_POSTCARDS = [
   {
     kicker: '01 · CAPTURE',
-    title: 'Bank SMS can become expenses.',
-    body: 'When you open Dime, we show new bank messages. You keep or skip. Nothing is logged behind your back.',
+    title: 'Receipts can become expenses.',
+    body: 'Snap a bill and Dime reads it for you. You review it before it counts.',
     file: 'slide-1.png',
   },
   {

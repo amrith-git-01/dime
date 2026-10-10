@@ -30,6 +30,7 @@ async function getExpoPushToken(projectId: string): Promise<string> {
 
 export async function syncExpoPushTokenForUser(
   enabled: boolean,
+  deleteOptions?: { authorization?: string; timeoutMs?: number },
 ): Promise<void> {
   if (Platform.OS !== "android") {
     return;
@@ -50,7 +51,7 @@ export async function syncExpoPushTokenForUser(
       }
     }
 
-    await deletePushToken(token);
+    await deletePushToken(token, deleteOptions);
     return;
   }
 
