@@ -4,7 +4,7 @@ import { currentUser, requireAuth } from '../../core/auth';
 import { defer } from '../../core/background';
 import type { AppBindings } from '../../core/env';
 import { rateLimit } from '../../core/rate-limit';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { createEmailService } from '../email/service';
 import { profileUpdateBodySchema } from './schemas';
@@ -16,7 +16,7 @@ export const userProfileRoutes = new Hono<AppBindings>();
 userProfileRoutes.use(requireAuth);
 
 userProfileRoutes.get('/', async (c) => {
-  const db = getSupabase(c);
+  const db = getDb(c);
   const me = await service.getMe(db, currentUser(c), {
     email: createEmailService(c.env, db),
     background: (task, name) => {
@@ -27,6 +27,6 @@ userProfileRoutes.get('/', async (c) => {
 });
 
 userProfileRoutes.put('/profile', rateLimit('WRITE_LIMITER'), validate('json', profileUpdateBodySchema), async (c) => {
-  const me = await service.updateProfile(getSupabase(c), currentUser(c), c.req.valid('json'));
+  const me = await service.updateProfile(getDb(c), currentUser(c), c.req.valid('json'));
   return c.json(me);
 });

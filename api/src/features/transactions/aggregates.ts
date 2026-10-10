@@ -24,7 +24,7 @@ export interface AmountTypeAtRow {
   transaction_at: string;
 }
 
-/** Fallback when the `transactions_daily_totals` RPC is unavailable: bucket raw rows by local day. */
+/** Bucket raw rows by local day (SQLite cannot cut days in an IANA timezone). */
 export function dayTotalsFromRows(rows: readonly AmountTypeAtRow[], tz: string): DayTotals[] {
   const byDay = new Map<string, DayTotals>();
   for (const row of rows) {
@@ -95,61 +95,15 @@ export function sumDayTotals(totals: readonly DayTotals[]): { creditCents: numbe
 }
 
 /* ----------------------------------------------------------------------------------------------
- * Period summary (`transactions_period_summary` RPC blob, or raw-row fallback)
+ * Period summary (built by `repository.periodSummary`)
  * -------------------------------------------------------------------------------------------- */
 
 export interface PeriodSummary {
   creditCents: number;
   debitCents: number;
   count: number;
-  /** Debit cents by category id; the key is "" for uncategorized (as the RPC reports it). */
+  /** Debit cents by category id; the key is "" for uncategorized. */
   debitByCategory: Map<string, number>;
-}
-
-/** Normalize the RPC payload (object, `{transactions_period_summary: {...}}` or a one-element array). */
-export function parsePeriodSummary(data: unknown): PeriodSummary | null {
-  if (data === null || data === undefined) return null;
-  if (Array.isArray(data)) return parsePeriodSummary(data[0]);
-  if (typeof data !== 'object') return null;
-  const blob = data as Record<string, unknown>;
-  if (!('credit_total' in blob) || !('debit_total' in blob)) {
-    return parsePeriodSummary(blob['transactions_period_summary']);
-  }
-  const debitByCategory = new Map<string, number>();
-  const raw = blob['debit_by_category'];
-  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
-    for (const [key, total] of Object.entries(raw)) debitByCategory.set(key, toCents(total));
-  }
-  const rawCount = blob['transaction_count'];
-  const count = typeof rawCount === 'number' ? Math.trunc(rawCount) : Number.parseInt(typeof rawCount === 'string' ? rawCount : '0', 10);
-  return {
-    creditCents: toCents(blob['credit_total']),
-    debitCents: toCents(blob['debit_total']),
-    count: Number.isFinite(count) ? count : 0,
-    debitByCategory,
-  };
-}
-
-export interface AmountTypeCategoryRow {
-  amount: number | string;
-  type: string;
-  category_id: string | null;
-}
-
-export function periodSummaryFromRows(rows: readonly AmountTypeCategoryRow[]): PeriodSummary {
-  let creditCents = 0;
-  let debitCents = 0;
-  const debitByCategory = new Map<string, number>();
-  for (const row of rows) {
-    const cents = toCents(row.amount);
-    if (row.type === 'credit') creditCents += cents;
-    else if (row.type === 'debit') {
-      debitCents += cents;
-      const key = row.category_id ? String(row.category_id) : '';
-      debitByCategory.set(key, (debitByCategory.get(key) ?? 0) + cents);
-    }
-  }
-  return { creditCents, debitCents, count: rows.length, debitByCategory };
 }
 
 const UNCATEGORIZED_KEY = '__uncategorized__';

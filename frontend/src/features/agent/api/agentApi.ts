@@ -201,13 +201,10 @@ export async function streamAgentChat(
   });
 
   try {
-    let response = await postChat(
-      body,
-      await getDimeAuthHeaders(),
-      controller.signal,
-    );
+    const sentHeaders = await getDimeAuthHeaders();
+    let response = await postChat(body, sentHeaders, controller.signal);
     if (response.status === 401) {
-      const fresh = await refreshDimeAuthHeaders();
+      const fresh = await refreshDimeAuthHeaders(sentHeaders);
       if (!fresh.Authorization) {
         handlers.onError({ code: "unauthorized", message: "" });
         return;

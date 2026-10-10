@@ -1,80 +1,95 @@
 import { describe, expect, it } from 'vitest';
 
-import { createServiceClient } from '../src/core/supabase';
 import { EXPO_BATCH_SIZE, EXPO_PUSH_URL, sendExpoPush } from '../src/features/notifications/push';
 import { insertDeduped } from '../src/features/notifications/repository';
-import { USER_ID, baseEnv, call } from './helpers';
-import { json, rows, useSupabaseStub } from './supabase-stub';
+import { USER_ID, call } from './helpers';
+import { oneRow, rowsOf, seedNotification, seedTransaction, seedUser, testDb } from './db';
+import { json, useSupabaseStub } from './supabase-stub';
 
+// Notifications live in D1; the stub only serves the outbound Expo push endpoint.
 const stub = useSupabaseStub();
 const NID = '22222222-2222-2222-2222-222222222222';
-const row = (i: number, over: Record<string, unknown> = {}) => ({
-  id: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
-  kind: 'budget_threshold',
-  title: 'T',
-  body: 'B',
-  created_at: `2026-05-31T10:00:${String(59 - i).padStart(2, '0')}.000000+00:00`,
-  read_at: null,
-  action_type: 'home',
-  action_transaction_id: null,
-  ...over,
-});
+const OTHER_USER = '33333333-3333-3333-3333-333333333333';
+const nid = (i: number) => `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`;
+/** Higher index = older timestamp, like the original fixtures: row 1 is the newest. */
+const seedRow = (i: number, over: Parameters<typeof seedNotification>[0] = {}) =>
+  seedNotification({
+    id: nid(i),
+    kind: 'budget_threshold',
+    title: 'T',
+    body: 'B',
+    created_at: `2026-05-31T10:00:${String(59 - i).padStart(2, '0')}.000Z`,
+    action_type: 'home',
+    ...over,
+  });
 
 describe('GET /notifications', () => {
-  it('maps rows (Z timestamps, action object) and defaults to filter=all, limit 50 (+1 probe)', async () => {
-    stub.on('GET', '/rest/v1/notifications', () =>
-      rows([row(1), row(2, { kind: 'transaction_auto', action_type: 'transaction_detail', action_transaction_id: NID })]),
-    );
+  it('maps rows (Z timestamps, action object) and defaults to filter=all, limit 50', async () => {
+    const tx = await seedTransaction({ id: NID });
+    await seedRow(1);
+    await seedRow(2, { kind: 'transaction_auto', action_type: 'transaction_detail', action_transaction_id: tx });
     const res = await call('/api/v1/notifications');
     expect(res.status).toBe(200);
     const body = await res.json<{ items: Record<string, unknown>[]; next_cursor: unknown }>();
     expect(body.next_cursor).toBeNull();
     expect(body.items[0]).toEqual({
-      id: row(1).id,
+      id: nid(1),
       kind: 'budget_threshold',
       title: 'T',
       body: 'B',
-      created_at: '2026-05-31T10:00:58.000000Z',
+      created_at: '2026-05-31T10:00:58.000Z',
       read_at: null,
       action: { type: 'home', transaction_id: null },
     });
     expect(body.items[1]).toMatchObject({ action: { type: 'transaction_detail', transaction_id: NID } });
-    const q = stub.last('GET', '/rest/v1/notifications').params;
-    expect(q.get('limit')).toBe('51');
-    expect(q.get('deleted_at')).toBe('is.null');
-    expect(q.get('user_id')).toBe(`eq.${USER_ID}`);
-    expect(q.get('read_at')).toBeNull();
-    expect(q.get('created_at')).toBeNull();
-    expect(q.get('order')).toBe('created_at.desc,id.desc');
   });
 
-  it('C4: returns next_cursor when more rows exist and passes `before` as a strict lt filter', async () => {
-    stub.on('GET', '/rest/v1/notifications', () => rows([row(1), row(2), row(3)]));
+  it('is scoped to the caller and hides soft-deleted rows; newest first', async () => {
+    await seedUser(OTHER_USER);
+    await seedRow(1);
+    await seedRow(2, { deleted_at: '2026-06-01T00:00:00.000Z' });
+    await seedRow(3, { user_id: OTHER_USER });
+    await seedRow(4);
+    const body = await (await call('/api/v1/notifications')).json<{ items: { id: string }[] }>();
+    expect(body.items.map((i) => i.id)).toEqual([nid(1), nid(4)]);
+  });
+
+  it('C4: returns next_cursor when more rows exist and `before` is a strict lt filter', async () => {
+    await seedRow(1);
+    await seedRow(2);
+    await seedRow(3);
+    await seedRow(4, { created_at: '2026-06-02T00:00:00.000Z' });
     const res = await call('/api/v1/notifications?limit=2&before=2026-06-01T00:00:00.000Z');
-    const body = await res.json<{ items: unknown[]; next_cursor: string }>();
-    expect(body.items).toHaveLength(2);
-    expect(body.next_cursor).toBe('2026-05-31T10:00:57.000000Z');
-    const q = stub.last('GET', '/rest/v1/notifications').params;
-    expect(q.get('limit')).toBe('3');
-    expect(q.get('created_at')).toBe('lt.2026-06-01T00:00:00.000Z');
+    const body = await res.json<{ items: { id: string }[]; next_cursor: string }>();
+    expect(body.items.map((i) => i.id)).toEqual([nid(1), nid(2)]);
+    expect(body.next_cursor).toBe('2026-05-31T10:00:57.000Z');
+    // The cursor is exclusive: following it returns the remaining row only.
+    const next = await (await call(`/api/v1/notifications?limit=2&before=${encodeURIComponent(body.next_cursor)}`)).json<{
+      items: { id: string }[];
+      next_cursor: unknown;
+    }>();
+    expect(next.items.map((i) => i.id)).toEqual([nid(3)]);
+    expect(next.next_cursor).toBeNull();
   });
 
   it('accepts a `+` offset that arrived as a space in the cursor', async () => {
-    stub.on('GET', '/rest/v1/notifications', () => rows([]));
+    await seedRow(1, { created_at: '2026-05-31T10:00:56.000Z' });
+    await seedRow(2, { created_at: '2026-05-31T10:00:58.000Z' });
     const encoded = await call('/api/v1/notifications?before=2026-05-31T10:00:57%2B00:00');
     expect(encoded.status).toBe(200);
-    expect(stub.last('GET', '/rest/v1/notifications').params.get('created_at')).toBe('lt.2026-05-31T10:00:57+00:00');
+    expect((await encoded.json<{ items: { id: string }[] }>()).items.map((i) => i.id)).toEqual([nid(1)]);
     const spaced = await call('/api/v1/notifications?before=2026-05-31T10:00:57+00:00');
     expect(spaced.status).toBe(200);
-    expect(stub.last('GET', '/rest/v1/notifications').params.get('created_at')).toBe('lt.2026-05-31T10:00:57+00:00');
+    expect((await spaced.json<{ items: { id: string }[] }>()).items.map((i) => i.id)).toEqual([nid(1)]);
   });
 
   it('applies unread/read filters', async () => {
-    stub.on('GET', '/rest/v1/notifications', () => rows([]));
-    await call('/api/v1/notifications?filter=unread');
-    expect(stub.last('GET', '/rest/v1/notifications').params.get('read_at')).toBe('is.null');
-    await call('/api/v1/notifications?filter=read');
-    expect(stub.last('GET', '/rest/v1/notifications').params.get('read_at')).toBe('not.is.null');
+    await seedRow(1);
+    await seedRow(2, { read_at: '2026-06-01T00:00:00.000Z' });
+    const unread = await (await call('/api/v1/notifications?filter=unread')).json<{ items: { id: string }[] }>();
+    expect(unread.items.map((i) => i.id)).toEqual([nid(1)]);
+    const read = await (await call('/api/v1/notifications?filter=read')).json<{ items: { id: string }[] }>();
+    expect(read.items.map((i) => i.id)).toEqual([nid(2)]);
   });
 
   it('422s with FastAPI shapes for bad filter, limit and cursor', async () => {
@@ -92,27 +107,34 @@ describe('GET /notifications', () => {
 });
 
 describe('notification mutations', () => {
-  it('unread-count uses a HEAD count query', async () => {
-    stub.on('HEAD', '/rest/v1/notifications', () => new Response(null, { headers: { 'content-range': '*/7' } }));
-    expect(await (await call('/api/v1/notifications/unread-count')).json()).toEqual({ count: 7 });
-    const q = stub.last('HEAD', '/rest/v1/notifications').params;
-    expect(q.get('read_at')).toBe('is.null');
-    expect(q.get('deleted_at')).toBe('is.null');
+  it("unread-count counts the caller's unread, undeleted rows", async () => {
+    await seedUser(OTHER_USER);
+    await seedRow(1);
+    await seedRow(2);
+    await seedRow(3, { read_at: '2026-06-01T00:00:00.000Z' });
+    await seedRow(4, { deleted_at: '2026-06-01T00:00:00.000Z' });
+    await seedRow(5, { user_id: OTHER_USER });
+    expect(await (await call('/api/v1/notifications/unread-count')).json()).toEqual({ count: 2 });
   });
 
   it('mark read returns the row; 404 when missing; 422 on a non-uuid id', async () => {
-    stub.on('PATCH', '/rest/v1/notifications', () => rows([row(1, { id: NID, read_at: '2026-06-01T00:00:00+00:00' })]), {
-      once: true,
-    });
+    await seedRow(1, { id: NID });
     const ok = await call(`/api/v1/notifications/${NID}/read`, { method: 'PATCH' });
     expect(ok.status).toBe(200);
-    expect(await ok.json()).toMatchObject({ id: NID, read_at: '2026-06-01T00:00:00Z' });
-    expect(stub.last('PATCH', '/rest/v1/notifications').params.get('deleted_at')).toBe('is.null');
+    const body = await ok.json<{ id: string; read_at: string }>();
+    expect(body.id).toBe(NID);
+    expect(body.read_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect((await oneRow<{ read_at: string }>('notifications', 'id = ?', NID))?.read_at).toBe(body.read_at);
 
-    stub.on('PATCH', '/rest/v1/notifications', () => rows([]));
-    const missing = await call(`/api/v1/notifications/${NID}/read`, { method: 'PATCH' });
-    expect(missing.status).toBe(404);
-    expect(await missing.json()).toEqual({ detail: 'Notification not found.' });
+    // Not found: unknown id, another user's row, a soft-deleted row.
+    await seedUser(OTHER_USER);
+    const foreign = await seedRow(2, { user_id: OTHER_USER });
+    const gone = await seedRow(3, { deleted_at: '2026-06-01T00:00:00.000Z' });
+    for (const id of ['44444444-4444-4444-4444-444444444444', foreign, gone]) {
+      const missing = await call(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
+      expect(missing.status).toBe(404);
+      expect(await missing.json()).toEqual({ detail: 'Notification not found.' });
+    }
 
     const bad = await call('/api/v1/notifications/not-a-uuid/read', { method: 'PATCH' });
     expect(bad.status).toBe(422);
@@ -120,11 +142,12 @@ describe('notification mutations', () => {
   });
 
   it('delete soft-deletes (sets deleted_at), 204; 404 when nothing matched', async () => {
-    stub.on('PATCH', '/rest/v1/notifications', () => rows([{ id: NID }]), { once: true });
+    await seedRow(1, { id: NID });
     const res = await call(`/api/v1/notifications/${NID}`, { method: 'DELETE' });
     expect(res.status).toBe(204);
-    expect(Object.keys(stub.last('PATCH', '/rest/v1/notifications').body as object)).toEqual(['deleted_at']);
-    stub.on('PATCH', '/rest/v1/notifications', () => rows([]));
+    const row = await oneRow<{ deleted_at: string | null; read_at: string | null }>('notifications', 'id = ?', NID);
+    expect(row?.deleted_at).not.toBeNull();
+    expect(row?.read_at).toBeNull();
     expect((await call(`/api/v1/notifications/${NID}`, { method: 'DELETE' })).status).toBe(404);
   });
 });
@@ -140,21 +163,35 @@ describe('insertDeduped', () => {
     dedupe_key: 'budget:monthly:80:2026-10',
   };
 
-  it('upserts with on-conflict ignore and returns the created row', async () => {
-    stub.on('POST', '/rest/v1/notifications', () => rows([row(1)]));
-    const created = await insertDeduped(createServiceClient(baseEnv), entry);
-    expect(created?.id).toBe(row(1).id);
-    const req = stub.last('POST', '/rest/v1/notifications');
-    expect(req.params.get('on_conflict')).toBe('user_id,dedupe_key');
-    expect(req.headers.get('prefer')).toContain('resolution=ignore-duplicates');
-    expect(req.body).toEqual(entry);
-    expect(stub.find('GET', '/rest/v1/notifications')).toHaveLength(0);
+  it('inserts a row and returns it', async () => {
+    const created = await insertDeduped(testDb(), entry);
+    expect(created).toMatchObject({ kind: 'budget_threshold', title: 'T', body: 'B', action_type: 'home', read_at: null });
+    expect(created?.id).toMatch(/^[0-9a-f-]{36}$/);
+    const stored = await rowsOf<{ dedupe_key: string; user_id: string }>('notifications');
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ dedupe_key: entry.dedupe_key, user_id: USER_ID });
   });
 
-  it('returns null on conflict (no row) and requires a dedupe key', async () => {
-    stub.on('POST', '/rest/v1/notifications', () => rows([]));
-    expect(await insertDeduped(createServiceClient(baseEnv), entry)).toBeNull();
-    await expect(insertDeduped(createServiceClient(baseEnv), { ...entry, dedupe_key: '' })).rejects.toThrow();
+  it('returns null on conflict (no second row, even if the first was soft-deleted) and requires a dedupe key', async () => {
+    expect(await insertDeduped(testDb(), entry)).not.toBeNull();
+    expect(await insertDeduped(testDb(), entry)).toBeNull();
+    await testDb().prepare('UPDATE notifications SET deleted_at = ?').bind('2026-06-01T00:00:00.000Z').run();
+    expect(await insertDeduped(testDb(), entry)).toBeNull();
+    expect(await rowsOf('notifications')).toHaveLength(1);
+    await expect(insertDeduped(testDb(), { ...entry, dedupe_key: '' })).rejects.toThrow();
+  });
+
+  it('the same key for another user is a separate notification', async () => {
+    await seedUser(OTHER_USER);
+    expect(await insertDeduped(testDb(), entry)).not.toBeNull();
+    expect(await insertDeduped(testDb(), { ...entry, user_id: OTHER_USER })).not.toBeNull();
+    expect(await rowsOf('notifications')).toHaveLength(2);
+  });
+
+  it('two concurrent inserts of one key: exactly one wins', async () => {
+    const results = await Promise.all([insertDeduped(testDb(), entry), insertDeduped(testDb(), entry)]);
+    expect(results.filter((r) => r !== null)).toHaveLength(1);
+    expect(await rowsOf('notifications')).toHaveLength(1);
   });
 });
 

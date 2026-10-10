@@ -1,5 +1,5 @@
 /**
- * Failures of the AI pipeline (Groq OCR / Whisper, DeepSeek parse). They only ever surface in the
+ * Failures of the AI pipeline (Workers AI OCR / Whisper, DeepSeek parse). They only ever surface in the
  * ingest consumer (never in an HTTP response), where `transient` decides between a queue retry and
  * a permanent job failure. Messages are generic on purpose: provider detail goes to the logs only (S9).
  */

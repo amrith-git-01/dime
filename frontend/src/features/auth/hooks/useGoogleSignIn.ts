@@ -7,7 +7,7 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { useCallback, useState } from "react";
 
-import { supabase } from "@/lib/supabase/client";
+import { signInWithGoogleIdToken } from "@/lib/auth/session";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
@@ -20,20 +20,6 @@ function googleSignInErrorMessage(error: unknown): string {
     return error.message;
   }
   return "Couldn't sign in with Google. Try again.";
-}
-
-async function waitForAccessToken(timeoutMs = 5_000): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return false;
 }
 
 export function useGoogleSignIn() {
@@ -58,27 +44,8 @@ export function useGoogleSignIn() {
         return;
       }
 
-      const { data, error: supabaseError } =
-        await supabase.auth.signInWithIdToken({
-          provider: "google",
-          token: idToken,
-        });
-
-      if (supabaseError) {
-        setError(supabaseError.message);
-        return;
-      }
-
-      if (data.session?.access_token) {
-        usePermissionsPromptStore.getState().markPendingAfterGoogleSignIn();
-        return;
-      }
-
-      const hasToken = await waitForAccessToken();
-      if (!hasToken) {
-        setError("Couldn't complete sign-in. Try again.");
-        return;
-      }
+      // Throws with a user-facing message when the server rejects the token or is unreachable.
+      await signInWithGoogleIdToken(idToken);
       usePermissionsPromptStore.getState().markPendingAfterGoogleSignIn();
     } catch (e: unknown) {
       if (!isSignInCancelled(e)) {

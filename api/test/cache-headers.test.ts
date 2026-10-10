@@ -2,9 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { signUnsubscribeToken } from '../src/features/email/tokens';
 import { USER_ID, call, makeEnv, testApp } from './helpers';
-import { rows, useSupabaseStub } from './supabase-stub';
-
-const stub = useSupabaseStub();
 
 const NO_STORE = 'private, no-store';
 
@@ -40,7 +37,6 @@ describe('API cache headers', () => {
   });
 
   it('covers the unsubscribe page', async () => {
-    stub.on('PATCH', '/rest/v1/user_settings', () => rows([{}]));
     const secret = 'unsub-secret-for-tests';
     const token = await signUnsubscribeToken({ secret, userId: USER_ID, kind: 'weekly' });
     const env = makeEnv({ EMAIL_UNSUBSCRIBE_SECRET: secret });

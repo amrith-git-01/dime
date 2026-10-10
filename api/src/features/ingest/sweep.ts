@@ -1,7 +1,6 @@
 import type { Bindings } from '../../core/env';
 import { log } from '../../core/logging';
-import { createServiceClient } from '../../core/supabase';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import * as jobs from '../jobs/repository';
 import { isPurgeSlot, purgeOldJobs } from '../jobs/purge';
 import { enqueueJobs } from './queue';
@@ -27,7 +26,7 @@ export interface SweepResult {
  * every stale job, oldest first, is sent to the queue again. Re-sending is safe: claiming is
  * conditional, so a duplicate message does nothing.
  */
-export async function sweepJobs(db: DimeSupabaseClient, queue: Queue, nowMs: number = Date.now()): Promise<SweepResult> {
+export async function sweepJobs(db: Db, queue: Queue, nowMs: number = Date.now()): Promise<SweepResult> {
   const cutoffIso = new Date(nowMs - RECOVERY_AGE_SECONDS * 1000).toISOString();
   const perKind = await Promise.all(
     INGEST_KINDS.map(async (kind) => ({
@@ -60,11 +59,11 @@ export async function sweepJobs(db: DimeSupabaseClient, queue: Queue, nowMs: num
 }
 
 /**
- * Scheduled entry point: builds the DB client from the environment. The first run of each hour
+ * Scheduled entry point: uses the D1 binding. The first run of each hour
  * also purges old job rows, after the recovery pass so a purge failure never delays recovery.
  */
 export async function runSweep(env: Bindings, scheduledTimeMs: number = Date.now()): Promise<SweepResult> {
-  const db = createServiceClient(env);
+  const db = env.DB;
   const result = await sweepJobs(db, env.INGEST_QUEUE);
   if (isPurgeSlot(scheduledTimeMs)) await purgeOldJobs(db, scheduledTimeMs);
   return result;

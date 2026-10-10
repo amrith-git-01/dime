@@ -1,59 +1,133 @@
-import { UpstreamError } from '../../core/errors';
+import { ServiceUnavailableError, UpstreamError } from '../../core/errors';
+import { getConfig } from '../../core/env';
+import type { Bindings } from '../../core/env';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
 import { buildObjectPath } from './paths';
 import type { UploadKind } from './paths';
-import { splitStoredMediaRef } from './refs';
+import { storedMediaKey } from './refs';
+
+/** The R2 bucket plus what is needed to mint links to it. Build one with `mediaStore(env)`. */
+export interface MediaStore {
+  bucket: R2Bucket;
+  /** HMAC key material for private links. Undefined = signing is unavailable (links come back null). */
+  secret: string | undefined;
+  /** The Worker's public origin, without a trailing slash. */
+  baseUrl: string;
+}
+
+/** Cheap (no I/O): the `MEDIA` binding plus config. Safe to call per request or per queue batch. */
+export function mediaStore(env: Bindings): MediaStore {
+  const config = getConfig(env);
+  return { bucket: env.MEDIA, secret: config.mediaUrlSecret, baseUrl: config.publicBaseUrl };
+}
+
+// --- HMAC signing -------------------------------------------------------------------------------
+
+const encoder = new TextEncoder();
+let cachedKey: { secret: string; key: Promise<CryptoKey> } | undefined;
+
+/** HMAC key imported once per isolate (and again only if the secret changes). */
+function hmacKey(secret: string): Promise<CryptoKey> {
+  if (cachedKey?.secret !== secret) {
+    cachedKey = {
+      secret,
+      key: crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']),
+    };
+  }
+  return cachedKey.key;
+}
+
+const signingInput = (key: string, exp: number) => encoder.encode(`${key}\n${exp}`);
+
+function toHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function fromHex(hex: string): Uint8Array<ArrayBuffer> | null {
+  if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+/** Constant-time check of `sig` (hex HMAC-SHA256 of `key\nexp`). Does not look at the clock. */
+export async function verifyMediaSignature(secret: string, key: string, exp: number, sig: string): Promise<boolean> {
+  const bytes = fromHex(sig);
+  if (!bytes) return false;
+  return crypto.subtle.verify('HMAC', await hmacKey(secret), bytes, signingInput(key, exp));
+}
+
+/** `<origin>/media/<key>?exp=<unix>&sig=<hex>`, valid for `expiresIn` seconds. */
+export async function signMediaKey(store: MediaStore, key: string, expiresIn: number, nowMs = Date.now()): Promise<string> {
+  if (!store.secret) throw new ServiceUnavailableError('Server missing MEDIA_URL_SECRET (required for private media links).');
+  const exp = Math.floor(nowMs / 1000) + expiresIn;
+  const sig = toHex(await crypto.subtle.sign('HMAC', await hmacKey(store.secret), signingInput(key, exp)));
+  return `${mediaPublicUrl(store, key)}?exp=${exp}&sig=${sig}`;
+}
+
+/** Unsigned Worker URL of an object (avatars are public). */
+export function mediaPublicUrl(store: MediaStore, key: string): string {
+  return `${store.baseUrl}/media/${key.split('/').map(encodeURIComponent).join('/')}`;
+}
 
 export interface SignOptions {
-  /** Bucket for bare object paths (the private bucket). */
-  defaultBucket: string;
   expiresIn: number;
 }
 
 /**
- * Batch-sign stored media refs: `{stored value: signed URL | null}`. One `createSignedUrls` call per
- * bucket, run concurrently. A storage failure is logged and maps to null so it never breaks the
- * surrounding API response (same contract as the Python `sign_media_urls`).
+ * Sign stored media refs: `{stored value: signed URL | null}`. Signing is local (no subrequest). An
+ * unusable ref, or a missing secret, maps to null so it never breaks the surrounding API response.
  */
 export async function signMediaUrls(
-  db: DimeSupabaseClient,
+  store: MediaStore,
   storedValues: readonly (string | null | undefined)[],
   options: SignOptions,
 ): Promise<Map<string, string | null>> {
   const result = new Map<string, string | null>();
-  const byBucket = new Map<string, Map<string, string[]>>();
+  if (!store.secret) {
+    if (storedValues.some(Boolean)) log.warn('media_signing_unavailable', { reason: 'MEDIA_URL_SECRET is not set' });
+    for (const stored of storedValues) if (stored) result.set(stored, null);
+    return result;
+  }
+  const keys = new Map<string, Promise<string>>(); // one signature per distinct key
+  const pending: [string, Promise<string> | null][] = [];
   for (const stored of storedValues) {
     if (!stored || result.has(stored)) continue;
     result.set(stored, null);
-    const ref = splitStoredMediaRef(stored, options.defaultBucket);
-    if (!ref) continue;
-    const paths = byBucket.get(ref.bucket) ?? new Map<string, string[]>();
-    const owners = paths.get(ref.objectPath) ?? [];
-    owners.push(stored);
-    paths.set(ref.objectPath, owners);
-    byBucket.set(ref.bucket, paths);
+    const key = storedMediaKey(stored);
+    if (!key) continue;
+    let url = keys.get(key);
+    if (!url) {
+      url = signMediaKey(store, key, options.expiresIn);
+      keys.set(key, url);
+    }
+    pending.push([stored, url]);
   }
-
   await Promise.all(
-    [...byBucket].map(async ([bucket, paths]) => {
+    pending.map(async ([stored, url]) => {
       try {
-        const { data, error } = await db.storage.from(bucket).createSignedUrls([...paths.keys()], options.expiresIn);
-        if (error) throw error;
-        for (const item of data) {
-          if (item.error || !item.signedUrl || !item.path) continue;
-          for (const stored of paths.get(item.path) ?? []) result.set(stored, item.signedUrl);
-        }
+        result.set(stored, await url);
       } catch (err) {
-        log.warn('storage_batch_signing_failed', { bucket, err });
+        log.warn('media_signing_failed', { err });
       }
     }),
   );
   return result;
 }
 
+// --- objects ------------------------------------------------------------------------------------
+
+/** Write one object (overwrites). Failures surface as a 502. */
+export async function putMedia(store: MediaStore, key: string, bytes: Uint8Array | ArrayBuffer, contentType: string): Promise<void> {
+  try {
+    await store.bucket.put(key, bytes, { httpMetadata: { contentType } });
+  } catch (err) {
+    log.error('media_upload_failed', { err, key });
+    throw new UpstreamError('Could not store media.');
+  }
+}
+
 export interface UploadInput {
-  bucket: string;
   userId: string;
   kind: UploadKind;
   bytes: Uint8Array | ArrayBuffer;
@@ -61,49 +135,30 @@ export interface UploadInput {
   extension?: string | null;
 }
 
-/** Upload raw media to the (private) bucket under a fresh path; returns the object path to store. */
-export async function uploadMedia(db: DimeSupabaseClient, input: UploadInput): Promise<string> {
-  const objectPath = buildObjectPath({ kind: input.kind, userId: input.userId, extension: input.extension });
-  const { error } = await db.storage
-    .from(input.bucket)
-    .upload(objectPath, input.bytes, { contentType: input.contentType, upsert: true });
-  if (error) {
-    log.error('media_upload_failed', { err: error, bucket: input.bucket, kind: input.kind });
-    throw new UpstreamError('Could not store media.');
-  }
-  return objectPath;
+/** Upload raw media under a fresh key; returns the key to store on the row. */
+export async function uploadMedia(store: MediaStore, input: UploadInput): Promise<string> {
+  const key = buildObjectPath({ kind: input.kind, userId: input.userId, extension: input.extension });
+  await putMedia(store, key, input.bytes, input.contentType);
+  return key;
 }
 
-/** Fetch a stored object (jobs keep only the path, never the media bytes). */
-export async function downloadMedia(db: DimeSupabaseClient, bucket: string, objectPath: string): Promise<Uint8Array> {
-  const { data, error } = await db.storage.from(bucket).download(objectPath);
-  if (error) throw new UpstreamError('Could not read stored media.', { cause: error });
-  return new Uint8Array(await data.arrayBuffer());
-}
-
-/**
- * A short-lived signed https URL for a private object, for handing to a third party (Groq vision).
- * Returns null when signing fails or the URL is not https (e.g. a local Supabase), so the caller can
- * fall back to sending the bytes. Never throws.
- */
-export async function signShortLivedUrl(db: DimeSupabaseClient, bucket: string, objectPath: string, expiresIn: number): Promise<string | null> {
+/** Read a stored object (jobs keep only the key, never the media bytes). A missing object is an upstream error. */
+export async function downloadMedia(store: MediaStore, key: string): Promise<Uint8Array> {
+  let object: R2ObjectBody | null;
   try {
-    const { data, error } = await db.storage.from(bucket).createSignedUrl(objectPath, expiresIn);
-    if (error) throw error;
-    if (!data.signedUrl.startsWith('https://')) return null;
-    return data.signedUrl;
+    object = await store.bucket.get(key);
   } catch (err) {
-    log.warn('media_short_url_failed', { bucket, err });
-    return null;
+    throw new UpstreamError('Could not read stored media.', { cause: err });
   }
+  if (!object) throw new UpstreamError('Could not read stored media.');
+  return new Uint8Array(await object.arrayBuffer());
 }
 
-/** Best-effort cleanup (e.g. an upload whose job was a replay); never throws. */
-export async function deleteMediaQuietly(db: DimeSupabaseClient, bucket: string, objectPath: string): Promise<void> {
+/** Best-effort cleanup (e.g. an upload whose job was a replay); never throws. R2 deletes of a missing key succeed. */
+export async function deleteMediaQuietly(store: MediaStore, key: string): Promise<void> {
   try {
-    const { error } = await db.storage.from(bucket).remove([objectPath]);
-    if (error) throw error;
+    await store.bucket.delete(key);
   } catch (err) {
-    log.warn('media_cleanup_failed', { bucket, objectPath, err });
+    log.warn('media_cleanup_failed', { key, err });
   }
 }

@@ -1,10 +1,11 @@
+import { first, newId, nowIso, run } from '../../core/db';
+import type { Db } from '../../core/db';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
 import type { Usage } from './llm';
 
 /**
  * Daily token budget (table `agent_usage`, one row per user and UTC day) and thumbs feedback
- * (`agent_feedback`), both written with the service role and always scoped by the JWT user id.
+ * (`agent_feedback`), both always scoped by the JWT user id.
  * The budget is a cost guard, not a ledger: a failing read fails OPEN (the turn runs) and a failing
  * write is logged.
  */
@@ -17,16 +18,13 @@ interface UsageRow {
 }
 
 /** Tokens (prompt + completion) the user spent today, or null when the table could not be read. */
-export async function tokensUsedToday(db: DimeSupabaseClient, userId: string, nowMs: number): Promise<number | null> {
+export async function tokensUsedToday(db: Db, userId: string, nowMs: number): Promise<number | null> {
   try {
-    const { data } = await db
-      .from('agent_usage')
-      .select('prompt_tokens,completion_tokens')
-      .eq('user_id', userId)
-      .eq('day', utcDay(nowMs))
-      .maybeSingle()
-      .throwOnError()
-      .overrideTypes<UsageRow, { merge: false }>();
+    const data = await first<UsageRow>(
+      db,
+      'SELECT prompt_tokens, completion_tokens FROM agent_usage WHERE user_id = ? AND day = ?',
+      [userId, utcDay(nowMs)],
+    );
     return data ? Number(data.prompt_tokens) + Number(data.completion_tokens) : 0;
   } catch (err) {
     log.warn('agent_usage_read_failed', { err: String(err) });
@@ -34,26 +32,35 @@ export async function tokensUsedToday(db: DimeSupabaseClient, userId: string, no
   }
 }
 
-/** Atomic upsert-increment of the day's totals (`agent_usage_add`): one more turn. */
-export async function recordUsage(db: DimeSupabaseClient, userId: string, nowMs: number, usage: Usage): Promise<void> {
-  const res = await db.rpc('agent_usage_add', {
-    p_user_id: userId,
-    p_day: utcDay(nowMs),
-    p_prompt_tokens: usage.promptTokens,
-    p_completion_tokens: usage.completionTokens,
-  });
-  const error: unknown = res.error;
-  if (error) log.warn('agent_usage_write_failed', { err: error });
+/** Atomic upsert-increment of the day's totals: one more turn. */
+export async function recordUsage(db: Db, userId: string, nowMs: number, usage: Usage): Promise<void> {
+  try {
+    await run(
+      db,
+      `INSERT INTO agent_usage (user_id, day, prompt_tokens, completion_tokens, turns, updated_at)
+       VALUES (?, ?, ?, ?, 1, ?)
+       ON CONFLICT (user_id, day) DO UPDATE SET
+         prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+         completion_tokens = completion_tokens + excluded.completion_tokens,
+         turns = turns + 1,
+         updated_at = excluded.updated_at`,
+      [userId, utcDay(nowMs), Math.max(usage.promptTokens || 0, 0), Math.max(usage.completionTokens || 0, 0), nowIso()],
+    );
+  } catch (err) {
+    log.warn('agent_usage_write_failed', { err });
+  }
 }
 
 /** One rating per (user, turn): rating again replaces the previous one. */
 export async function saveFeedback(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   input: { turnId: string; rating: 'up' | 'down'; comment: string | null },
 ): Promise<void> {
-  await db
-    .from('agent_feedback')
-    .upsert({ user_id: userId, turn_id: input.turnId, rating: input.rating, comment: input.comment }, { onConflict: 'user_id,turn_id' })
-    .throwOnError();
+  await run(
+    db,
+    `INSERT INTO agent_feedback (id, user_id, turn_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id, turn_id) DO UPDATE SET rating = excluded.rating, comment = excluded.comment`,
+    [newId(), userId, input.turnId, input.rating, input.comment, nowIso()],
+  );
 }

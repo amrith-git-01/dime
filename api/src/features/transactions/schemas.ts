@@ -16,7 +16,7 @@ const COUNTERPARTY_SET: ReadonlySet<string> = new Set(COUNTERPARTY_TYPES);
 
 export interface Instant {
   ms: number;
-  /** Canonical ISO-8601 UTC (`2026-10-04T10:00:00.000Z`) for PostgREST filters and writes. */
+  /** Canonical ISO-8601 UTC (`2026-10-04T10:00:00.000Z`) for SQL filters and writes. */
   iso: string;
 }
 

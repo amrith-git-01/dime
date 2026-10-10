@@ -9,7 +9,10 @@ import {
 import { INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, hasPgCode, isUniqueViolation } from '../../core/db-errors';
 import { formatMoney } from '../../core/decimal';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
+import { deleted, inserted, updated } from '../realtime/events';
+import type { ChangeEvent, Publish } from '../realtime/events';
+import { emit } from '../realtime/publish';
 import * as repo from './repository';
 import {
   DEFAULT_CUSTOM_COLOR,
@@ -46,7 +49,7 @@ function rowToResponse(row: Partial<CategoryRow> | null | undefined): CategoryRe
   };
 }
 
-export async function listCategories(db: DimeSupabaseClient, userId: string): Promise<CategoryResponse[]> {
+export async function listCategories(db: Db, userId: string): Promise<CategoryResponse[]> {
   const rows = await repo.listVisible(db, userId);
   return rows.map(rowToResponse).filter((r): r is CategoryResponse => r !== null);
 }
@@ -54,9 +57,10 @@ export async function listCategories(db: DimeSupabaseClient, userId: string): Pr
 const sameName = (a: unknown, b: string) => typeof a === 'string' && a.trim().toLowerCase() === b.toLowerCase();
 
 export async function createCategory(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   body: CreateCategoryBody,
+  publish?: Publish,
 ): Promise<CategoryResponse> {
   const name = body.name.trim();
   if (!name) throw new ValidationError('Category name is required.');
@@ -82,14 +86,16 @@ export async function createCategory(
   }
   const parsed = rowToResponse(row);
   if (!parsed) throw new UpstreamError('Could not create category.');
+  await emit(publish, [inserted('categories', row)]);
   return parsed;
 }
 
 export async function updateCategory(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   categoryId: string,
   body: UpdateCategoryBody,
+  publish?: Publish,
 ): Promise<CategoryResponse> {
   const rows = await repo.listVisible(db, userId);
   const existing = rows.find((r) => r.id === categoryId);
@@ -130,6 +136,8 @@ export async function updateCategory(
     const parsed = rowToResponse(payload.category);
     if (!parsed) throw new UpstreamError('Could not update category.');
     parsed.budget_amount = payload.monthly_amount == null ? null : formatMoney(payload.monthly_amount);
+    // A budget-only change leaves the `categories` row untouched: nothing for the app to refresh.
+    if (changesCategory) await emit(publish, [updated('categories', payload.category)]);
     return parsed;
   }
 
@@ -149,11 +157,12 @@ export async function updateCategory(
   if (!row) throw new NotFoundError(NOT_FOUND);
   const parsed = rowToResponse(row);
   if (!parsed) throw new UpstreamError('Could not update category.');
+  await emit(publish, [updated('categories', row)]);
   return parsed;
 }
 
 /** Shared by delete-impact and delete: fetch visibility + transaction count concurrently. */
-async function loadForDelete(db: DimeSupabaseClient, userId: string, categoryId: string) {
+async function loadForDelete(db: Db, userId: string, categoryId: string) {
   const [rows, txCount] = await Promise.all([
     repo.listVisible(db, userId),
     repo.countActiveTransactions(db, userId, categoryId),
@@ -165,7 +174,7 @@ async function loadForDelete(db: DimeSupabaseClient, userId: string, categoryId:
 }
 
 export async function getDeleteImpact(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   categoryId: string,
 ): Promise<{ transaction_count: number }> {
@@ -174,19 +183,24 @@ export async function getDeleteImpact(
 }
 
 export async function deleteCategory(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   categoryId: string,
   reassignToCategoryId: string | undefined,
+  publish?: Publish,
 ): Promise<void> {
   const { rows, txCount } = await loadForDelete(db, userId, categoryId);
+  const events: ChangeEvent[] = [];
   if (txCount > 0) {
     if (!reassignToCategoryId || reassignToCategoryId === categoryId) {
       throw new ValidationError('Choose a category to move transactions to before deleting.');
     }
     const target = rows.find((r) => r.id === reassignToCategoryId);
     if (!target?.name) throw new ValidationError('Target category not found.');
-    await repo.reassignTransactions(db, { userId, fromCategoryId: categoryId, toCategoryId: reassignToCategoryId });
+    const moved = await repo.reassignTransactions(db, { userId, fromCategoryId: categoryId, toCategoryId: reassignToCategoryId });
+    events.push(...moved.map((row) => updated('transactions', row)));
   }
   if (!(await repo.deleteCustom(db, userId, categoryId))) throw new NotFoundError(NOT_FOUND);
+  events.push(deleted('categories', categoryId));
+  await emit(publish, events);
 }

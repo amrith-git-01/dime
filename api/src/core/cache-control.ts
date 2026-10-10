@@ -9,6 +9,8 @@ import type { AppBindings } from './env';
  */
 export const noStore = createMiddleware<AppBindings>(async (c, next) => {
   await next();
+  // A WebSocket upgrade response cannot be rebuilt (copying it would drop the socket).
+  if (c.res.status === 101) return;
   c.header('Cache-Control', 'private, no-store');
   c.header('Vary', 'Authorization', { append: true });
 });

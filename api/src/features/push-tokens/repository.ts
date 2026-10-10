@@ -1,39 +1,39 @@
-import type { DimeSupabaseClient } from '../../core/supabase';
+import { all, first, newId, nowIso, run } from '../../core/db';
+import type { Db } from '../../core/db';
 
 /** A token belongs to one user: re-registering it on another account moves it (conflict on the token). */
-export async function upsert(db: DimeSupabaseClient, userId: string, token: string, platform: string): Promise<string> {
-  const { data } = await db
-    .from('user_push_tokens')
-    .upsert(
-      { user_id: userId, expo_push_token: token, platform, updated_at: new Date().toISOString() },
-      { onConflict: 'expo_push_token' },
-    )
-    .select('expo_push_token')
-    .single()
-    .throwOnError()
-    .overrideTypes<{ expo_push_token: string }, { merge: false }>();
-  return data.expo_push_token || token;
+export async function upsert(db: Db, userId: string, token: string, platform: string): Promise<string> {
+  const now = nowIso();
+  const row = await first<{ expo_push_token: string }>(
+    db,
+    `INSERT INTO user_push_tokens (id, user_id, expo_push_token, platform, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (expo_push_token) DO UPDATE SET
+       user_id = excluded.user_id, platform = excluded.platform, updated_at = excluded.updated_at
+     RETURNING expo_push_token`,
+    [newId(), userId, token, platform, now, now],
+  );
+  return row?.expo_push_token || token;
 }
 
-export async function listTokens(db: DimeSupabaseClient, userId: string): Promise<string[]> {
-  const { data } = await db
-    .from('user_push_tokens')
-    .select('expo_push_token')
-    .eq('user_id', userId)
-    .throwOnError()
-    .overrideTypes<{ expo_push_token: string | null }[], { merge: false }>();
+export async function listTokens(db: Db, userId: string): Promise<string[]> {
+  const data = await all<{ expo_push_token: string | null }>(
+    db,
+    'SELECT expo_push_token FROM user_push_tokens WHERE user_id = ?',
+    [userId],
+  );
   return data.map((r) => r.expo_push_token).filter((t): t is string => typeof t === 'string' && t !== '');
 }
 
-export async function deleteToken(db: DimeSupabaseClient, userId: string, token: string): Promise<void> {
-  await db.from('user_push_tokens').delete().eq('user_id', userId).eq('expo_push_token', token).throwOnError();
+export async function deleteToken(db: Db, userId: string, token: string): Promise<void> {
+  await run(db, 'DELETE FROM user_push_tokens WHERE user_id = ? AND expo_push_token = ?', [userId, token]);
 }
 
-export async function deleteAllForUser(db: DimeSupabaseClient, userId: string): Promise<void> {
-  await db.from('user_push_tokens').delete().eq('user_id', userId).throwOnError();
+export async function deleteAllForUser(db: Db, userId: string): Promise<void> {
+  await run(db, 'DELETE FROM user_push_tokens WHERE user_id = ?', [userId]);
 }
 
 /** Prune a token Expo reported as unregistered (any owner). */
-export async function deleteByToken(db: DimeSupabaseClient, token: string): Promise<void> {
-  await db.from('user_push_tokens').delete().eq('expo_push_token', token).throwOnError();
+export async function deleteByToken(db: Db, token: string): Promise<void> {
+  await run(db, 'DELETE FROM user_push_tokens WHERE expo_push_token = ?', [token]);
 }

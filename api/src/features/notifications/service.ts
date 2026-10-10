@@ -1,5 +1,5 @@
 import { NotFoundError } from '../../core/errors';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
 import * as repo from './repository';
 import type { ListQuery, NotificationListResponse, NotificationResponse, NotificationRow } from './schemas';
@@ -19,7 +19,7 @@ function rowToResponse(row: NotificationRow): NotificationResponse {
   };
 }
 
-export async function listInbox(db: DimeSupabaseClient, userId: string, q: ListQuery): Promise<NotificationListResponse> {
+export async function listInbox(db: Db, userId: string, q: ListQuery): Promise<NotificationListResponse> {
   const rows = await repo.listForUser(db, userId, { filter: q.filter, limit: q.limit + 1, before: q.before });
   const hasMore = rows.length > q.limit;
   const page = hasMore ? rows.slice(0, q.limit) : rows;
@@ -30,16 +30,16 @@ export async function listInbox(db: DimeSupabaseClient, userId: string, q: ListQ
   };
 }
 
-export async function unreadCount(db: DimeSupabaseClient, userId: string): Promise<{ count: number }> {
+export async function unreadCount(db: Db, userId: string): Promise<{ count: number }> {
   return { count: await repo.countUnread(db, userId) };
 }
 
-export async function markRead(db: DimeSupabaseClient, userId: string, id: string): Promise<NotificationResponse> {
+export async function markRead(db: Db, userId: string, id: string): Promise<NotificationResponse> {
   const row = await repo.markRead(db, userId, id);
   if (!row) throw new NotFoundError('Notification not found.');
   return rowToResponse(row);
 }
 
-export async function remove(db: DimeSupabaseClient, userId: string, id: string): Promise<void> {
+export async function remove(db: Db, userId: string, id: string): Promise<void> {
   if (!(await repo.softDelete(db, userId, id))) throw new NotFoundError('Notification not found.');
 }

@@ -2,12 +2,11 @@
 # In deployed environments set secrets with `wrangler secret put <NAME>` and
 # non-secret values in wrangler.jsonc `vars`.
 
-# --- Supabase ---
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_placeholder
-SUPABASE_SECRET_KEY=sb_secret_placeholder
-# Legacy HS256 JWT secret (only needed if the project still signs with it)
-SUPABASE_JWT_SECRET=placeholder-jwt-secret
+# --- Auth (Worker-issued sessions) ---
+# HS256 key of our access tokens (use `openssl rand -base64 48`).
+AUTH_JWT_SECRET=placeholder-long-random-string-at-least-32-chars
+# Google OAuth client id(s) accepted as the ID token audience, comma-separated.
+GOOGLE_WEB_CLIENT_ID=placeholder.apps.googleusercontent.com
 
 # --- Parse model (DeepSeek) ---
 DEEPSEEK_API_KEY=placeholder
@@ -17,12 +16,15 @@ AI_PARSE_FALLBACK=deepseek:deepseek-v4-flash,deepseek:deepseek-chat
 AI_TIMEOUT_SECONDS=45
 AI_TEMPERATURE=0.1
 
-# --- Groq (OCR + Whisper preprocess) ---
-GROQ_API_KEY=placeholder
-GROQ_BASE_URL=https://api.groq.com/openai/v1
-GROQ_WHISPER_PRIMARY=whisper-large-v3-turbo
-GROQ_WHISPER_FALLBACK=whisper-large-v3
-GROQ_VISION_OCR_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+# --- Workers AI (voice + receipt OCR; the `AI` binding needs no key) ---
+WORKERS_AI_WHISPER_MODEL=@cf/openai/whisper-large-v3-turbo
+WORKERS_AI_VISION_MODEL=@cf/meta/llama-4-scout-17b-16e-instruct
+# 10,000 neurons/day are free (whole account) and billed above: the app stops uploads at this many (UTC day).
+AI_DAILY_NEURON_CAP=8000
+AI_USER_DAILY_CAPTURES=30
+# Optional AI Gateway (leave empty to skip). DeepSeek is routed through it only when CF_ACCOUNT_ID is also set.
+AI_GATEWAY_ID=
+CF_ACCOUNT_ID=
 
 # --- Agent (bounded tool-calling loop, see docs/rewrite/agent-v2.md) ---
 AGENT_ENABLED=true
@@ -33,16 +35,14 @@ AGENT_MAX_STEPS=4
 AGENT_TURN_TIMEOUT_SECONDS=25
 AGENT_LLM_TIMEOUT_SECONDS=12
 AGENT_DAILY_TOKEN_BUDGET=200000
-AGENT_SQL_TIMEOUT_SECONDS=6
-AGENT_SQL_MAX_ROWS=500
 # HMAC key of the conversation-memory token (use `openssl rand -base64 32`). Without it follow-up memory is off.
 AGENT_MEMORY_SECRET=placeholder-long-random-string
 
 # --- Uploads and media ---
 MAX_RECEIPT_UPLOAD_BYTES=10485760
 MAX_VOICE_UPLOAD_BYTES=15728640
-STORAGE_BUCKET=Dime
-PRIVATE_STORAGE_BUCKET=Dime-private
+# HMAC key of signed /media links for receipts and voice (use `openssl rand -base64 48`). Without it those links are null.
+MEDIA_URL_SECRET=placeholder-long-random-string-at-least-32-chars
 SIGNED_URL_TTL_SECONDS=21600
 AVATAR_URL_ALLOWED_HOSTS=api.dicebear.com
 
@@ -59,6 +59,3 @@ EMAIL_PUBLIC_BASE_URL=http://127.0.0.1:8787
 # Optional override; default is the Worker's own /email/* static assets
 EMAIL_ASSET_BASE_URL=
 FAVQS_API_KEY=
-
-# Database for agent SQL is NOT an env var. Use the HYPERDRIVE binding; locally set
-# CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://... (see README).

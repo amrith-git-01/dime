@@ -3,7 +3,8 @@ import { emptyUsage } from '../src/features/agent/llm';
 import type { ChatMessage, LlmClient, LlmRequest, LlmResult, ToolCall, Usage } from '../src/features/agent/llm';
 import type { AgentDeps, AgentEvent, TurnOptions, TurnResult } from '../src/features/agent/service';
 import { runAgentTurn } from '../src/features/agent/service';
-import type { SqlClient, SqlTx } from '../src/features/agent/sql-executor';
+import type { AgentQueries, QueryName } from '../src/features/agent/queries';
+import { testDb } from './db';
 import { makeEnv } from './helpers';
 
 /** 2026-10-05 10:00 IST. */
@@ -57,51 +58,59 @@ export function scriptedLlm(steps: Step[]) {
   return { llm, calls };
 }
 
-type Handler = (params: readonly (string | null)[]) => unknown;
+export const QUERY_NAMES: readonly QueryName[] = [
+  'resolve_entities',
+  'spending_summary',
+  'category_breakdown',
+  'top_payees',
+  'daily_cashflow',
+  'compare_periods',
+  'budget_status',
+  'list_transactions',
+  'aggregate_transactions',
+];
+
+export interface FakeQueries {
+  /** Pass to `makeDeps`: every tool query answers with its handler (a document, or a function of the params). */
+  queries: AgentQueries;
+  /** Every query run, in order, with the params the tool planned. */
+  calls: () => { name: QueryName; params: unknown }[];
+}
 
 /**
- * A postgres.js stand-in for the agent: answers `select public.agent_x(...) as r` with the handler of
- * that function name and records every transaction.
+ * A stand-in for the D1 tool queries: answers with canned documents (the jsonb the Postgres functions used
+ * to return) and records what the tools asked. `fail` makes one query throw.
  */
-export function fakeDb(handlers: Record<string, unknown> = {}, opts: { onSelect?: (query: string) => Record<string, unknown>[]; fail?: () => Error | undefined } = {}) {
-  const transactions: { options: string; statements: { query: string; params: readonly unknown[] | undefined }[] }[] = [];
-  let ended = 0;
-  const client: SqlClient = {
-    begin: async <T>(options: string, fn: (tx: SqlTx) => Promise<T>): Promise<T> => {
-      const failure = opts.fail?.();
-      if (failure) throw failure;
-      const record = { options, statements: [] as { query: string; params: readonly unknown[] | undefined }[] };
-      transactions.push(record);
-      const tx: SqlTx = {
-        unsafe: (query, params) => {
-          record.statements.push({ query, params });
-          const m = /select public\.(agent_\w+)\(/.exec(query);
-          if (m) {
-            const h = handlers[m[1] ?? ''];
-            const value = typeof h === 'function' ? (h as Handler)((params ?? []) as (string | null)[]) : h;
-            return Promise.resolve([{ r: value ?? {} }]);
-          }
-          if (query.startsWith('SELECT * FROM') && opts.onSelect) return Promise.resolve(opts.onSelect(query));
-          return Promise.resolve([]);
-        },
-      };
-      return await fn(tx);
-    },
-    end: () => {
-      ended += 1;
-      return Promise.resolve();
-    },
-  };
-  return { client, transactions, ended: () => ended, calls: () => transactions.flatMap((t) => t.statements.filter((s) => s.query.startsWith('select public.agent_'))) };
+export function fakeQueries(handlers: Partial<Record<QueryName, unknown>> = {}, opts: { fail?: Partial<Record<QueryName, Error>> } = {}): FakeQueries {
+  const calls: { name: QueryName; params: unknown }[] = [];
+  const queries = Object.fromEntries(
+    QUERY_NAMES.map((name) => [
+      name,
+      (_db: unknown, _userId: string, params: unknown) => {
+        calls.push({ name, params });
+        const failure = opts.fail?.[name];
+        if (failure) return Promise.reject(failure);
+        const handler = handlers[name];
+        return Promise.resolve((typeof handler === 'function' ? (handler as (p: unknown) => unknown)(params) : handler) ?? {});
+      },
+    ]),
+  ) as unknown as AgentQueries;
+  return { queries, calls: () => calls };
 }
+
+/** Queries that must not run in the test (a turn that needs no data never queries). */
+const unexpectedQueries = Object.fromEntries(
+  QUERY_NAMES.map((name) => [name, () => Promise.reject(new Error(`the database was not expected in this test (${name})`))]),
+) as unknown as AgentQueries;
 
 export const noEntities = { matches: [] };
 
-export function makeDeps(llm: LlmClient, db: SqlClient | null, overrides: Partial<AgentDeps> = {}, config: Record<string, unknown> = {}): AgentDeps {
+export function makeDeps(llm: LlmClient, fake: FakeQueries | null, overrides: Partial<AgentDeps> = {}, config: Record<string, unknown> = {}): AgentDeps {
   return {
     config: agentConfig(config),
     llm,
-    openSql: () => (db ? Promise.resolve(db) : Promise.reject(new Error('the database was not expected in this test'))),
+    db: testDb(),
+    queries: fake ? fake.queries : unexpectedQueries,
     now: () => NOW,
     newId: () => '00000000-0000-4000-8000-000000000abc',
     ...overrides,

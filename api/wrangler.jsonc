@@ -3,18 +3,21 @@
   "name": "dime-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
-  // nodejs_compat: AsyncLocalStorage (request-scoped logging) and postgres.js (agent SQL, R4).
+  // nodejs_compat: AsyncLocalStorage (request-scoped logging, core/logging.ts).
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   // Hard cap on CPU time per invocation: protects the bill from runaway loops.
   "limits": { "cpu_ms": 30000 },
+  // Smart placement runs the Worker near D1 (created with `--location apac`, users are in India): most routes make
+  // several sequential DB round trips.
+  "placement": { "mode": "smart" },
 
-  // Non-secret config. Secrets (keys, JWT secret, email secrets) are set with
-  // `wrangler secret put` and listed in .dev.vars.example. Env sections do NOT inherit these.
+  // Non-secret config. Secrets (AUTH_JWT_SECRET, MEDIA_URL_SECRET, DEEPSEEK_API_KEY, BREVO_API_KEY, ...) are set with
+  // `wrangler secret put` and listed in .dev.vars.example. Env sections do NOT inherit bindings or vars: every
+  // binding and var below is repeated under `env.staging`.
   "vars": {
-    "SUPABASE_URL": "https://REPLACE-ME.supabase.co",
-    "STORAGE_BUCKET": "Dime",
-    "PRIVATE_STORAGE_BUCKET": "Dime-private",
+    // Comma-separated OAuth client ids accepted as the Google ID token audience (web client, plus Android/iOS ids if used).
+    "GOOGLE_WEB_CLIENT_ID": "REPLACE-ME.apps.googleusercontent.com",
     "SIGNED_URL_TTL_SECONDS": "21600",
     "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
     "MAX_VOICE_UPLOAD_BYTES": "15728640",
@@ -25,10 +28,12 @@
     "AI_PARSE_FALLBACK": "deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
     "AI_TIMEOUT_SECONDS": "45",
     "AI_TEMPERATURE": "0.1",
-    "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
-    "GROQ_WHISPER_PRIMARY": "whisper-large-v3-turbo",
-    "GROQ_WHISPER_FALLBACK": "whisper-large-v3",
-    "GROQ_VISION_OCR_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "WORKERS_AI_WHISPER_MODEL": "@cf/openai/whisper-large-v3-turbo",
+    "WORKERS_AI_VISION_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct",
+    "AI_DAILY_NEURON_CAP": "8000",
+    "AI_USER_DAILY_CAPTURES": "30",
+    "AI_GATEWAY_ID": "",
+    "CF_ACCOUNT_ID": "",
     "AGENT_ENABLED": "true",
     "AGENT_BASE_URL": "https://api.deepseek.com",
     "AGENT_MODEL": "deepseek-v4-flash",
@@ -37,8 +42,6 @@
     "AGENT_TURN_TIMEOUT_SECONDS": "25",
     "AGENT_LLM_TIMEOUT_SECONDS": "12",
     "AGENT_DAILY_TOKEN_BUDGET": "200000",
-    "AGENT_SQL_TIMEOUT_SECONDS": "6",
-    "AGENT_SQL_MAX_ROWS": "500",
     "EMAIL_FROM": "Dime <hello@localhost>",
     "EMAIL_APP_LINK": "https://play.google.com/store",
     "EMAIL_PUBLIC_BASE_URL": "https://dime-api.REPLACE-ME.workers.dev"
@@ -70,23 +73,40 @@
         "max_batch_size": 10,
         "max_batch_timeout": 5,
         "max_retries": 3,
-        "retry_delay": 30
+        "retry_delay": 30,
+        "dead_letter_queue": "dime-email-dlq"
+      },
+      // Digests the queue gave up on: logged as email_digest_dead_lettered and acked (handleEmailDlq).
+      {
+        "queue": "dime-email-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 2
       }
     ]
   },
 
-  // Create with `npx wrangler hyperdrive create dime-db --connection-string=...` and paste the id.
-  // Local dev: `localConnectionString` below, or CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE (see README).
-  "hyperdrive": [
-    {
-      "binding": "HYPERDRIVE",
-      "id": "00000000000000000000000000000000",
-      "localConnectionString": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-    }
+  // Create with `npx wrangler d1 create dime-db --location apac` and replace the database_id (REPLACE-ME while it is all zeros).
+  // Schema: `migrations/` (`npx wrangler d1 migrations apply DB --remote`).
+  "d1_databases": [
+    { "binding": "DB", "database_name": "dime-db", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
 
+  // Media (avatars public, receipts and voice via HMAC-signed links, see features/media/routes.ts).
+  // Create with `npx wrangler r2 bucket create dime-media`. Secret: MEDIA_URL_SECRET.
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "dime-media" }],
+
+  // Workers AI: voice (Whisper) and receipt OCR (Llama 4 Scout). 10,000 neurons/day are free, more is billed, so
+  // AI_DAILY_NEURON_CAP (default 8000) makes the app stop first. Local dev calls the real service (also counted).
+  "ai": { "binding": "AI", "remote": true },
+
+  // Live updates: one UserHub Durable Object per user holds that user's WebSockets (features/realtime).
+  // SQLite-backed class (the only kind on the free tier too); it stores nothing, the migration is just the class registration.
+  "durable_objects": { "bindings": [{ "name": "USER_HUB", "class_name": "UserHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserHub"] }],
+
   // "*/5 * * * *": ingest recovery sweep (re-sends stale pending/processing jobs).
-  // "30 2 * * *" (08:00 IST daily): fan out email digests onto EMAIL_QUEUE (R4).
+  // "30 2 * * *" (08:00 IST daily): fan out email digests onto EMAIL_QUEUE.
   "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
 
   // Email images served at /email/*. run_worker_first stays off so assets bypass the Worker (free, no CPU).
@@ -102,9 +122,7 @@
     "staging": {
       "name": "dime-api-staging",
       "vars": {
-        "SUPABASE_URL": "https://REPLACE-ME-STAGING.supabase.co",
-        "STORAGE_BUCKET": "Dime",
-        "PRIVATE_STORAGE_BUCKET": "Dime-private",
+        "GOOGLE_WEB_CLIENT_ID": "REPLACE-ME.apps.googleusercontent.com",
         "SIGNED_URL_TTL_SECONDS": "21600",
         "MAX_RECEIPT_UPLOAD_BYTES": "10485760",
         "MAX_VOICE_UPLOAD_BYTES": "15728640",
@@ -115,10 +133,12 @@
         "AI_PARSE_FALLBACK": "deepseek:deepseek-v4-flash,deepseek:deepseek-chat",
         "AI_TIMEOUT_SECONDS": "45",
         "AI_TEMPERATURE": "0.1",
-        "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
-        "GROQ_WHISPER_PRIMARY": "whisper-large-v3-turbo",
-        "GROQ_WHISPER_FALLBACK": "whisper-large-v3",
-        "GROQ_VISION_OCR_MODEL": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "WORKERS_AI_WHISPER_MODEL": "@cf/openai/whisper-large-v3-turbo",
+        "WORKERS_AI_VISION_MODEL": "@cf/meta/llama-4-scout-17b-16e-instruct",
+        "AI_DAILY_NEURON_CAP": "8000",
+        "AI_USER_DAILY_CAPTURES": "30",
+        "AI_GATEWAY_ID": "",
+        "CF_ACCOUNT_ID": "",
         "AGENT_ENABLED": "true",
         "AGENT_BASE_URL": "https://api.deepseek.com",
         "AGENT_MODEL": "deepseek-v4-flash",
@@ -127,8 +147,6 @@
         "AGENT_TURN_TIMEOUT_SECONDS": "25",
         "AGENT_LLM_TIMEOUT_SECONDS": "12",
         "AGENT_DAILY_TOKEN_BUDGET": "200000",
-        "AGENT_SQL_TIMEOUT_SECONDS": "6",
-        "AGENT_SQL_MAX_ROWS": "500",
         "EMAIL_FROM": "Dime <hello@localhost>",
         "EMAIL_APP_LINK": "https://play.google.com/store",
         "EMAIL_PUBLIC_BASE_URL": "https://dime-api-staging.REPLACE-ME.workers.dev"
@@ -158,17 +176,25 @@
             "max_batch_size": 10,
             "max_batch_timeout": 5,
             "max_retries": 3,
-            "retry_delay": 30
+            "retry_delay": 30,
+            "dead_letter_queue": "dime-email-dlq-staging"
+          },
+          // Digests the queue gave up on: logged as email_digest_dead_lettered and acked (handleEmailDlq).
+          {
+            "queue": "dime-email-dlq-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 2
           }
         ]
       },
-      "hyperdrive": [
-        {
-          "binding": "HYPERDRIVE",
-          "id": "00000000000000000000000000000000",
-          "localConnectionString": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-        }
+      "d1_databases": [
+        { "binding": "DB", "database_name": "dime-db-staging", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
       ],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "dime-media-staging" }],
+      "durable_objects": { "bindings": [{ "name": "USER_HUB", "class_name": "UserHub" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserHub"] }],
+      "ai": { "binding": "AI", "remote": true },
       "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
       "assets": { "directory": "./public", "binding": "ASSETS" },
       "ratelimits": [

@@ -6,7 +6,8 @@ import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { PayloadTooLargeError } from '../../core/errors';
 import { rateLimit } from '../../core/rate-limit';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
+import { mediaStore } from '../media/storage';
 import { unprocessable, validate } from '../../core/validation';
 import { fetchAvatarImage } from './fetch';
 import { MAX_AVATAR_BYTES, avatarFromUrlBodySchema } from './schemas';
@@ -38,10 +39,9 @@ profileAvatarRoutes.post(
       throw new PayloadTooLargeError(`File too large (max ${MAX_AVATAR_BYTES / (1024 * 1024)} MB).`);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const url = await uploadAvatar(getSupabase(c), {
+    const url = await uploadAvatar(getDb(c), mediaStore(c.env), {
       userId: currentUser(c).id,
       bytes,
-      bucket: getConfig(c.env).storageBucket,
     });
     return c.json({ avatar_url: url } satisfies AvatarUploadResponse);
   },
@@ -50,10 +50,9 @@ profileAvatarRoutes.post(
 profileAvatarRoutes.post('/avatar/from-url', rateLimit('WRITE_LIMITER'), validate('json', avatarFromUrlBodySchema), async (c) => {
   const config = getConfig(c.env);
   const bytes = await fetchAvatarImage(c.req.valid('json').image_url, config.avatarUrlAllowedHosts);
-  const url = await uploadAvatar(getSupabase(c), {
+  const url = await uploadAvatar(getDb(c), mediaStore(c.env), {
     userId: currentUser(c).id,
     bytes,
-    bucket: config.storageBucket,
   });
   return c.json({ avatar_url: url } satisfies AvatarUploadResponse);
 });

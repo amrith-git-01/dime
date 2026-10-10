@@ -15,21 +15,16 @@
     "test": "vitest run",
     "cf-typegen": "wrangler types --strict-vars=false",
     "parity": "tsx scripts/parity/parity.ts",
-    "parity:validator": "tsx scripts/parity/validator-corpus.ts --run-python",
     "parity:tokens": "tsx scripts/parity/tokens-check.ts",
     "parity:routes": "tsx scripts/parity/routes-check.ts",
     "evals": "tsx evals/run.ts",
-    "evals:validate": "tsx evals/validate.ts",
+    "evals:validate": "vitest run test/agent-evals.test.ts",
     "evals:generate": "tsx evals/generate.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
-    "@supabase/postgrest-js": "^2.117.2",
-    "@supabase/storage-js": "^2.117.2",
     "hono": "^4.13.13",
     "jose": "^6.2.12",
-    "libpg-query": "17.7.4",
-    "postgres": "^3.4.9",
     "zod": "^4.6.5"
   },
   "devDependencies": {

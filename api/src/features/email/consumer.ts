@@ -1,13 +1,12 @@
 import type { Bindings } from '../../core/env';
 import { log } from '../../core/logging';
-import { createServiceClient } from '../../core/supabase';
 import { isTransientError } from '../ingest/consumer';
 import { digestMessageSchema } from './digest';
 import { digestPeriodFromKey } from './periods';
 import { emailConfigured, createEmailDeps, sendDigest } from './service';
 import type { EmailDeps } from './service';
 
-/** Messages of one batch processed at the same time (I/O bound: Supabase + Brevo). */
+/** Messages of one batch processed at the same time (I/O bound: D1 + Brevo). */
 const BATCH_CONCURRENCY = 3;
 const RETRY_BASE_SECONDS = 30;
 const RETRY_MAX_SECONDS = 600;
@@ -75,7 +74,7 @@ async function forEachLimited<T>(items: readonly T[], limit: number, fn: (item: 
 
 /** `queue()` handler for `dime-email` (and `dime-email-staging`). */
 export async function handleEmailBatch(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
-  const deps = createEmailDeps(env, createServiceClient(env));
+  const deps = createEmailDeps(env, env.DB);
   await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
     try {
       await processEmailMessage(message, deps);

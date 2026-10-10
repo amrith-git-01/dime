@@ -119,7 +119,7 @@ export function buildParsePrompt(mode: ParseMode, text: string, allowedCategorie
   return buildVoiceParsePrompt(text, allowedCategories);
 }
 
-/** Groq vision OCR prompt (plain text out, no JSON). */
+/** Vision OCR prompt (plain text out, no JSON). */
 export function buildReceiptOcrPrompt(): string {
   return (
     'Extract ALL visible text from this receipt or bill image.\n' +

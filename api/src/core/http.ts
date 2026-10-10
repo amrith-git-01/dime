@@ -18,7 +18,7 @@ export interface FetchOptions {
   retryOnStatus?: readonly number[];
   /** First backoff in ms; doubles each attempt with jitter. Default 300. */
   backoffMs?: number;
-  /** Label used in logs/errors, e.g. "groq". Never include secrets. */
+  /** Label used in logs/errors, e.g. "deepseek". Never include secrets. */
   upstream?: string;
 }
 

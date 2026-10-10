@@ -38,7 +38,7 @@ import {
   TRANSACTIONS_QUERY_STALE_MS,
 } from "@/lib/queryDefaults";
 import { restoreQueryCache } from "@/lib/queryPersister";
-import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
+import { readStoredAuthSession } from "@/lib/auth/authStorage";
 import { subscribeUserTransitionWipe } from "@/lib/userTransitionWipe";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 import { reportError } from "@/lib/reportError";

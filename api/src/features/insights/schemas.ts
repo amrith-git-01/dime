@@ -39,20 +39,3 @@ export interface MonthInsightsResponse {
   counterparty_income: CounterpartyIncomeRow[];
   top_expenses: TransactionResponse[];
 }
-
-export interface MonthlyCashflowRow {
-  month: number;
-  /** `YYYY-MM-01`. */
-  date: string;
-  debit_total: string;
-  credit_total: string;
-}
-
-/** Year-scoped insights: a full calendar year or a year-to-date window. */
-export interface YearInsightsResponse {
-  year: number;
-  is_ytd: boolean;
-  summary: InsightsSummary;
-  monthly_cashflow: MonthlyCashflowRow[];
-  top_payees: CounterpartySpendRow[];
-}

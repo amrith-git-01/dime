@@ -7,13 +7,13 @@
  *
  * as a table on stdout plus `reports/<timestamp>.json` and `reports/<timestamp>.md`.
  *
- *   npx tsx evals/run.ts --url http://127.0.0.1:8787 --jwt-secret <SUPABASE_JWT_SECRET> --supabase-url <SUPABASE_URL>
+ *   npx tsx evals/run.ts --url http://127.0.0.1:8787 --jwt-secret <AUTH_JWT_SECRET>
  *   npx tsx evals/run.ts --url https://dime-api-staging.<sub>.workers.dev --token <access token of the fixture user>
  *
  * Options (each also as an EVAL_* environment variable):
  *   --url            API origin                                   EVAL_BASE_URL       (default http://127.0.0.1:8787)
  *   --token          access token of the fixture user             EVAL_ACCESS_TOKEN
- *   --jwt-secret     legacy HS256 secret: mints the token itself  EVAL_JWT_SECRET     (with --supabase-url / EVAL_SUPABASE_URL)
+ *   --jwt-secret     the Worker's AUTH_JWT_SECRET: mints the token itself (HS256, iss dime-api)  EVAL_JWT_SECRET
  *   --mode           sse (default, also measures time to first token) | json
  *   --filter <text>  only conversations whose id or a question contains the text
  *   --limit <n>      first n conversations
@@ -68,16 +68,17 @@ async function accessToken(): Promise<string> {
   const given = opt('token', 'EVAL_ACCESS_TOKEN');
   if (given) return given;
   const secret = opt('jwt-secret', 'EVAL_JWT_SECRET');
-  const supabaseUrl = opt('supabase-url', 'EVAL_SUPABASE_URL');
-  if (!secret || !supabaseUrl) {
-    console.error('Give --token (or EVAL_ACCESS_TOKEN), or --jwt-secret and --supabase-url to mint one for the fixture user.');
+  if (!secret) {
+    console.error('Give --token (or EVAL_ACCESS_TOKEN), or --jwt-secret (the Worker AUTH_JWT_SECRET) to mint one for the fixture user.');
     process.exit(2);
   }
-  return new SignJWT({ role: 'authenticated', email: 'agent-eval@dime.test' })
+  // Same claims as core/auth.ts issues: HS256, iss dime-api, aud authenticated, sub = user id, sid = a session id.
+  // The agent never reads the session, so a random `sid` is enough for a token minted by hand.
+  return new SignJWT({ email: 'agent-eval@dime.test', sid: crypto.randomUUID() })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(FIXTURE_USER_ID)
     .setAudience('authenticated')
-    .setIssuer(`${supabaseUrl.replace(/\/+$/, '')}/auth/v1`)
+    .setIssuer('dime-api')
     .setIssuedAt()
     .setExpirationTime('2h')
     .sign(new TextEncoder().encode(secret));

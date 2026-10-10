@@ -206,7 +206,7 @@ describe('auth middleware', () => {
       appWithTestRoutes(),
       '/__t/me',
       { headers: { Authorization: `Bearer ${token}` } },
-      makeEnv({ SUPABASE_JWT_SECRET: '' }),
+      makeEnv({ AUTH_JWT_SECRET: '' }),
     );
     expect(res.status).toBe(503);
   });
@@ -271,8 +271,11 @@ describe('config', () => {
     expect(cfg.agent).toMatchObject({ enabled: true, maxSteps: 4, turnTimeoutMs: 25_000, llmTimeoutMs: 12_000, dailyTokenBudget: 200_000 });
   });
 
-  it('fails clearly when SUPABASE_URL is invalid', () => {
-    expect(() => getConfig(makeEnv({ SUPABASE_URL: 'nope' }))).toThrow(/SUPABASE_URL/);
+  it('media: secret from MEDIA_URL_SECRET (unset = undefined) and the public origin from EMAIL_PUBLIC_BASE_URL', () => {
+    const cfg = getConfig(makeEnv({ MEDIA_URL_SECRET: 's3cret', EMAIL_PUBLIC_BASE_URL: 'https://api.example.com/' }));
+    expect(cfg.mediaUrlSecret).toBe('s3cret');
+    expect(cfg.publicBaseUrl).toBe('https://api.example.com');
+    expect(getConfig(makeEnv({ MEDIA_URL_SECRET: '' })).mediaUrlSecret).toBeUndefined();
   });
 });
 

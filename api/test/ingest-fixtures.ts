@@ -28,6 +28,39 @@ export class FakeQueue {
   }
 }
 
+/** One recorded `env.AI.run` call. */
+export interface AiCall {
+  model: string;
+  inputs: Record<string, unknown>;
+  options: { signal?: AbortSignal; gateway?: { id: string } } | undefined;
+}
+
+/**
+ * The Workers AI binding double (the real one cannot run under miniflare). `respond` returns the model's
+ * answer or throws; the default plays Whisper and Llama 4 Scout.
+ */
+export class FakeAi {
+  readonly calls: AiCall[] = [];
+  respond: (call: AiCall) => unknown = (call) =>
+    call.model.includes('whisper')
+      ? { text: 'spent two fifty on dinner at swiggy' }
+      : { response: 'OCR TEXT SWIGGY 250.50', usage: { prompt_tokens: 1500, completion_tokens: 100 } };
+
+  run(model: string, inputs: Record<string, unknown>, options?: AiCall['options']): Promise<unknown> {
+    const call = { model, inputs, options };
+    this.calls.push(call);
+    try {
+      return Promise.resolve(this.respond(call));
+    } catch (err) {
+      return Promise.reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  asAi(): Ai {
+    return this as unknown as Ai;
+  }
+}
+
 /** A queue message double: records ack / retry. */
 export class FakeMessage {
   acked = false;
@@ -93,7 +126,7 @@ export function uploadForm(bytes: Uint8Array, name = 'file.bin', type = 'applica
   return form;
 }
 
-/** DeepSeek / Groq chat-completions JSON answer. */
+/** DeepSeek chat-completions JSON answer. */
 export const completion = (content: string) => ({ choices: [{ message: { content } }] });
 
 export const parsedSms = (over: Record<string, unknown> = {}) =>

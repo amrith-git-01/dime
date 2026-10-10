@@ -3,7 +3,7 @@ import * as z from 'zod';
 /**
  * Decimal request fields, behaving like Pydantic's `Decimal` (contract C6: the client sends decimal
  * strings, numbers are accepted too). The parsed value is a canonical decimal string (no exponent,
- * no leading zeros, no trailing fractional zeros) that is safe to hand to Postgres `numeric`.
+ * no leading zeros, no trailing fractional zeros) that is safe to convert to integer cents (`toCents`).
  */
 export interface DecimalOptions {
   /** Value must be > 0 instead of >= 0. */
@@ -57,8 +57,7 @@ export function decimalInput(options: DecimalOptions = {}) {
 }
 
 /**
- * Money as a 2-decimal string ("5000.00") from a DB `numeric` that PostgREST delivers as a JSON
- * number (or string). Python printed whatever float repr it had parsed ("5000.0"); a fixed scale is
+ * Money as a 2-decimal string ("5000.00") from a decimal number or string. Python printed whatever float repr it had parsed ("5000.0"); a fixed scale is
  * the stable shape that the client's `Number(...)` parsing expects.
  */
 export function formatMoney(value: unknown): string {
@@ -97,4 +96,14 @@ export function formatCents(cents: number): string {
   const whole = Math.floor(abs / 100);
   const frac = String(abs % 100).padStart(2, '0');
   return `${cents < 0 ? '-' : ''}${whole}.${frac}`;
+}
+
+/**
+ * Integer cents from a decimal string or number to be stored in a D1 money column. Exact for strings
+ * (half-even at the third decimal, like `quantizeMoney`); throws on text that is not a decimal.
+ */
+export function decimalToCents(value: string | number): number {
+  const text = typeof value === 'number' ? String(value) : value.trim();
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(text)) throw new TypeError(`Not a decimal amount: '${text}'`);
+  return Number(quantizeMoney(text.replace(/^\+/, '')).replace('.', ''));
 }

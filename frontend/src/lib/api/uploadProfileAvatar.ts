@@ -15,7 +15,7 @@ function normalizeLocalFileUri(uri: string): string {
 
 /**
  * Upload currently selected avatar image URL to backend storage.
- * Backend stores object in Supabase bucket and returns canonical avatar_url.
+ * Backend stores the object in R2 and returns canonical avatar_url.
  */
 export async function uploadProfileAvatarFromUrl(
   imageUrl: string,

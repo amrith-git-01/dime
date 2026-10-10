@@ -1,60 +1,9 @@
 import { create, type AxiosError, type AxiosInstance } from "axios";
-import * as Device from "expo-device";
-import { Platform } from "react-native";
 
-import { supabase } from "@/lib/supabase/client";
-import { useAuthSessionStore } from "@/stores/authSessionStore";
+import { getDimeApiBaseUrl } from "@/lib/api/baseUrl";
+import { getAccessToken, refreshSession } from "@/lib/auth/session";
 
-/**
- * Base URL for FastAPI, from `EXPO_PUBLIC_API_BASE_URL` at **bundle/build time**
- * (Expo inlines `EXPO_PUBLIC_*` when Metro runs or when EAS/prebuild runs).
- *
- * - **Android emulator + `__DEV__`:** `http://` URLs with localhost or a private
- *   LAN host are rewritten to `10.0.2.2` so the emulator can reach the dev PC.
- * - **Physical device or release APK:** no rewrite. The URL in the installed app
- *   is whatever was set when that binary was built — change `.env` / EAS env and
- *   **rebuild** to point at your PC's LAN IP (`http://x.x.x.x:8000`).
- */
-function rewriteApiBaseUrlForAndroidEmulator(url: string): string {
-  if (
-    Platform.OS !== "android" ||
-    Device.isDevice ||
-    !__DEV__ ||
-    !url.startsWith("http://")
-  ) {
-    return url;
-  }
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    if (host === "10.0.2.2" || host === "10.0.3.2") {
-      return url;
-    }
-    const isLocalHost = host === "localhost" || host === "127.0.0.1";
-    const isPrivateLan =
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
-    if (isLocalHost || isPrivateLan) {
-      parsed.hostname = "10.0.2.2";
-      return parsed.toString().replace(/\/$/, "");
-    }
-  } catch {
-    /* keep url */
-  }
-  return url;
-}
-
-export function getDimeApiBaseUrl(): string {
-  const raw = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  if (!raw) {
-    return "";
-  }
-  const trimmed = raw.replace(/\/$/, "");
-  return rewriteApiBaseUrlForAndroidEmulator(trimmed);
-}
-
-const TOKEN_REFRESH_BUFFER_MS = 60_000;
+export { getDimeApiBaseUrl } from "@/lib/api/baseUrl";
 
 /** Dev-only artificial latency so loading skeletons are visible on device. */
 function getDevApiDelayMs(): number {
@@ -79,61 +28,6 @@ function maybeDevApiDelay(): Promise<void> {
   });
 }
 
-let cachedAccessToken: { value: string; expiresAt: number } | null = null;
-
-/** Drop in-memory token (sign-out or auth errors). */
-export function clearDimeAuthTokenCache(): void {
-  cachedAccessToken = null;
-}
-
-function sessionExpiresAtMs(session: { expires_at?: number | null }): number {
-  if (session.expires_at != null) {
-    return session.expires_at * 1000;
-  }
-  return Date.now() + 3_600_000;
-}
-
-function cacheSessionAccessToken(session: {
-  access_token: string;
-  expires_at?: number | null;
-}): string {
-  cachedAccessToken = {
-    value: session.access_token,
-    expiresAt: sessionExpiresAtMs(session),
-  };
-  return cachedAccessToken.value;
-}
-
-async function getAccessToken(): Promise<string | null> {
-  const now = Date.now();
-  if (
-    cachedAccessToken &&
-    cachedAccessToken.expiresAt - now > TOKEN_REFRESH_BUFFER_MS
-  ) {
-    return cachedAccessToken.value;
-  }
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    clearDimeAuthTokenCache();
-    return null;
-  }
-  return cacheSessionAccessToken(session);
-}
-
-useAuthSessionStore.subscribe((state, prev) => {
-  if (state.session === prev.session) {
-    return;
-  }
-  if (!state.session?.access_token) {
-    clearDimeAuthTokenCache();
-    return;
-  }
-  cacheSessionAccessToken(state.session);
-});
-
 /** Same bearer token axios uses; needed for `fetch` uploads (RN FormData + axios XHR is unreliable). */
 export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
@@ -143,12 +37,17 @@ export async function getDimeAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Force a token refresh (after a 401) and return fresh auth headers; empty when refresh fails. */
-export async function refreshDimeAuthHeaders(): Promise<
-  Record<string, string>
-> {
-  clearDimeAuthTokenCache();
-  const token = await forceRefreshAccessToken();
+/**
+ * Refresh the token (after a 401) and return fresh auth headers; empty when refresh fails or the
+ * server is unreachable. `staleHeaders`: the headers the failed request used, so a token another
+ * caller already rotated is reused instead of rotating again.
+ */
+export async function refreshDimeAuthHeaders(
+  staleHeaders?: Record<string, string>,
+): Promise<Record<string, string>> {
+  const token = await forceRefreshAccessToken(
+    staleHeaders?.Authorization?.replace(/^Bearer /i, ""),
+  );
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -181,28 +80,19 @@ declare module "axios" {
 }
 
 /**
- * Singleton refresh promise — ensures multiple concurrent 401s share a single
- * `refreshSession()` call instead of hammering Supabase with parallel requests.
+ * Refresh after a 401. Concurrent callers share one request (`refreshSession` is single-flight).
+ * Null when signed out, when the server rejected the refresh token (the session is then cleared
+ * and the app drops to the signed-out screen), or when the server is unreachable (session kept).
  */
-let pendingTokenRefresh: Promise<string | null> | null = null;
-
-async function forceRefreshAccessToken(): Promise<string | null> {
-  if (pendingTokenRefresh) {
-    return pendingTokenRefresh;
+async function forceRefreshAccessToken(
+  staleAccessToken?: string,
+): Promise<string | null> {
+  try {
+    const session = await refreshSession({ staleAccessToken });
+    return session?.access_token ?? null;
+  } catch {
+    return null;
   }
-  pendingTokenRefresh = (async () => {
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (error || !data.session?.access_token) {
-        clearDimeAuthTokenCache();
-        return null;
-      }
-      return cacheSessionAccessToken(data.session);
-    } finally {
-      pendingTokenRefresh = null;
-    }
-  })();
-  return pendingTokenRefresh;
 }
 
 dimeApi.interceptors.request.use(async (config) => {
@@ -225,7 +115,7 @@ dimeApi.interceptors.request.use(async (config) => {
 });
 
 // 401 → refresh token → retry interceptor (always-on, not just dev).
-// Handles the race where a stale/expired JWT is sent before Supabase has a
+// Handles the race where a stale/expired JWT is sent before the session has a
 // chance to proactively refresh it (e.g. token expired while the app was not
 // running during a Gradle rebuild, hot-reload gap, or background suspend).
 dimeApi.interceptors.response.use(
@@ -256,9 +146,11 @@ dimeApi.interceptors.response.use(
     }
 
     config._authRetried = true;
-    clearDimeAuthTokenCache();
 
-    const freshToken = await forceRefreshAccessToken();
+    const sent = config.headers.get("Authorization");
+    const freshToken = await forceRefreshAccessToken(
+      typeof sent === "string" ? sent.replace(/^Bearer /i, "") : undefined,
+    );
     if (!freshToken) {
       // Refresh failed — propagate original 401 so callers handle sign-out.
       return Promise.reject(error);

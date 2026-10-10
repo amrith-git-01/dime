@@ -1,24 +1,30 @@
 import { isUniqueViolation } from '../../core/db-errors';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import { log } from '../../core/logging';
+import type { Db } from '../../core/db';
+import { addUserCapture, assertUploadAllowed, estimateCaptureNeurons } from '../ai/neuron-cap';
+import type { NeuronLimits } from '../ai/neuron-cap';
 import { derivedKeys } from '../jobs/idempotency';
 import * as jobs from '../jobs/repository';
 import type { JobRow, NewJob } from '../jobs/repository';
 import { deleteMediaQuietly, uploadMedia } from '../media/storage';
+import type { MediaStore } from '../media/storage';
 import type { UploadKind } from '../media/paths';
 import { enqueueJobs } from './queue';
 import type { SmsBatchBody, SmsOutcome } from './schemas';
 
 /** Everything the request-side ingest services need. */
 export interface IngestContext {
-  db: DimeSupabaseClient;
+  db: Db;
+  /** R2 media bucket (raw receipt / voice uploads). */
+  storage: MediaStore;
   userId: string;
-  /** Private bucket for raw receipts / voice notes. */
-  bucket: string;
   queue: Queue;
+  /** Workers AI caps (global neurons per day, captures per user per day). SMS is not limited: it uses DeepSeek. */
+  limits: NeuronLimits;
 }
 
 /** True when a job with this `Idempotency-Key` already exists: a replay, answered without side effects. */
-export async function isReplay(db: DimeSupabaseClient, userId: string, key: string | null): Promise<boolean> {
+export async function isReplay(db: Db, userId: string, key: string | null): Promise<boolean> {
   if (!key) return false;
   return (await jobs.findByKeys(db, userId, [key])).length > 0;
 }
@@ -36,13 +42,13 @@ export interface AcceptMediaInput {
 const STORAGE_KIND: Record<AcceptMediaInput['kind'], UploadKind> = { receipt: 'receipts', voice: 'voice_inputs' };
 
 /**
- * Store the raw media in the private bucket, persist a `pending` job that holds only the object
+ * Over the daily Workers AI cap answers 429 before anything is stored. Otherwise stores the raw media in R2, persist a `pending` job that holds only the object
  * path, then put its id on the queue. A lost idempotency race (unique violation) drops the duplicate
  * upload; any other insert failure also cleans up the object and propagates.
  */
 export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): Promise<void> {
-  const objectPath = await uploadMedia(ctx.db, {
-    bucket: ctx.bucket,
+  await assertUploadAllowed(ctx.db, ctx.userId, ctx.limits, estimateCaptureNeurons(input.kind, input.bytes.byteLength));
+  const objectPath = await uploadMedia(ctx.storage, {
     userId: ctx.userId,
     kind: STORAGE_KIND[input.kind],
     bytes: input.bytes,
@@ -63,10 +69,12 @@ export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): 
       },
     ]);
   } catch (err) {
-    await deleteMediaQuietly(ctx.db, ctx.bucket, objectPath);
+    await deleteMediaQuietly(ctx.storage, objectPath);
     if (input.key && isUniqueViolation(err)) return;
     throw err;
   }
+  // Counted once the job exists (a replay returned above); a failed count must not lose the capture.
+  await addUserCapture(ctx.db, ctx.userId, Date.now()).catch((err: unknown) => log.warn('ai_user_usage_write_failed', { err: String(err) }));
   await enqueueJobs(
     ctx.queue,
     rows.map((row) => ({ job_id: row.id, kind: input.kind })),

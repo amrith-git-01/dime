@@ -5,8 +5,10 @@ import type { Bindings } from '../src/core/env';
 import { signUnsubscribeToken } from '../src/features/email/tokens';
 import { FakeMessage, FakeQueue, fakeBatch } from './ingest-fixtures';
 import { USER_ID, baseEnv, call, makeCtx, makeEnv } from './helpers';
-import { rows, useSupabaseStub } from './supabase-stub';
+import { oneRow, rowsOf, seedSettings, testDb } from './db';
+import { useSupabaseStub } from './supabase-stub';
 
+// Settings and jobs live in D1; the stub only guards that no outbound HTTP happens.
 const stub = useSupabaseStub();
 
 const SECRET = 'unsub-secret-for-tests';
@@ -26,16 +28,25 @@ function emailEnv(extra: Record<string, unknown> = {}, queue = new FakeQueue()) 
   return { env, queue };
 }
 
-const SETTINGS = '/rest/v1/user_settings';
+const settingsOf = () => oneRow<Record<string, number>>('user_settings', 'user_id = ?', USER_ID);
+
+/** `n` users (user-0, user-1, ...) who have both digests switched on. */
+async function seedOptedIn(n: number) {
+  const db = testDb();
+  for (let i = 0; i < n; i++) {
+    await db.prepare('INSERT INTO users (id) VALUES (?)').bind(`user-${i}`).run();
+    await db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').bind(`user-${i}`).run();
+  }
+}
 
 describe('GET /api/v1/email/unsubscribe', () => {
   const unsubscribeUrl = (token: string) => `/api/v1/email/unsubscribe?${new URLSearchParams({ token }).toString()}`;
 
   it.each([
-    ['weekly', 'Weekly letters are off.', { weekly_email_enabled: false }],
-    ['monthly', 'Monthly letters are off.', { monthly_email_enabled: false }],
-  ] as const)('a valid %s token switches that digest off and answers with the HTML page', async (kind, heading, patch) => {
-    stub.on('PATCH', SETTINGS, () => rows([{ ...patch }]));
+    ['weekly', 'Weekly letters are off.', { weekly_email_enabled: 0, monthly_email_enabled: 1 }],
+    ['monthly', 'Monthly letters are off.', { weekly_email_enabled: 1, monthly_email_enabled: 0 }],
+  ] as const)('a valid %s token switches that digest off and answers with the HTML page', async (kind, heading, flags) => {
+    await seedSettings();
     const token = await signUnsubscribeToken({ secret: SECRET, userId: USER_ID, kind });
     const { env } = emailEnv();
     const res = await call(unsubscribeUrl(token), { token: false, env });
@@ -45,15 +56,18 @@ describe('GET /api/v1/email/unsubscribe', () => {
     const html = await res.text();
     expect(html).toContain(heading);
     expect(html).toContain('<!DOCTYPE html>');
-    const update = stub.last('PATCH', SETTINGS);
-    expect(update.params.get('user_id')).toBe(`eq.${USER_ID}`);
-    expect(update.body).toMatchObject(patch);
     // Only the digest of the token's kind is touched.
-    expect(Object.keys(update.body as object).filter((k) => k.endsWith('_email_enabled'))).toEqual(Object.keys(patch));
+    expect(await settingsOf()).toMatchObject(flags);
+  });
+
+  it('creates the settings row (digest off, everything else default) for a user who has none yet', async () => {
+    const token = await signUnsubscribeToken({ secret: SECRET, userId: USER_ID, kind: 'weekly' });
+    expect((await call(unsubscribeUrl(token), { token: false, env: emailEnv().env })).status).toBe(200);
+    expect(await settingsOf()).toMatchObject({ weekly_email_enabled: 0, monthly_email_enabled: 1, budget_monthly_warn_pct: 80 });
   });
 
   it('works without authentication and without a body (it is a link in an email)', async () => {
-    stub.on('PATCH', SETTINGS, () => rows([{}]));
+    await seedSettings();
     const token = await signUnsubscribeToken({ secret: SECRET, userId: USER_ID, kind: 'weekly' });
     const res = await call(unsubscribeUrl(token), { token: false, env: emailEnv().env });
     expect(res.status).toBe(200);
@@ -70,6 +84,7 @@ describe('GET /api/v1/email/unsubscribe', () => {
       expect(await res.json()).toEqual({ detail: 'Invalid unsubscribe link.' });
     }
     expect(stub.calls).toHaveLength(0);
+    expect(await rowsOf('user_settings')).toHaveLength(0);
   });
 
   it('400 when the unsubscribe secret is not configured (no fallback key, S3)', async () => {
@@ -78,6 +93,7 @@ describe('GET /api/v1/email/unsubscribe', () => {
     const res = await call(unsubscribeUrl(legacy), { token: false, env });
     expect(res.status).toBe(400);
     expect(stub.calls).toHaveLength(0);
+    expect(await rowsOf('user_settings')).toHaveLength(0);
   });
 
   it('422 for a missing or too-short token (FastAPI shape)', async () => {
@@ -92,7 +108,6 @@ describe('GET /api/v1/email/unsubscribe', () => {
 });
 
 describe('POST /api/v1/internal/email/run', () => {
-  const users = (n: number) => Array.from({ length: n }, (_, i) => ({ user_id: `user-${i}` }));
   const run = (body: unknown, headers: Record<string, string> = {}, env = emailEnv().env) =>
     call('/api/v1/internal/email/run', { method: 'POST', json: body, token: false, headers, env });
 
@@ -113,7 +128,7 @@ describe('POST /api/v1/internal/email/run', () => {
   });
 
   it('with the secret, enqueues the same messages the cron produces', async () => {
-    stub.on('GET', SETTINGS, () => rows(users(3)));
+    await seedOptedIn(3);
     const { env, queue } = emailEnv();
     const res = await run({ kind: 'weekly' }, { 'x-email-cron-secret': CRON_SECRET }, env);
     expect(res.status).toBe(200);
@@ -124,7 +139,7 @@ describe('POST /api/v1/internal/email/run', () => {
   });
 
   it('monthly kind; invalid kind is 422 once authorized', async () => {
-    stub.on('GET', SETTINGS, () => rows(users(1)));
+    await seedOptedIn(1);
     const { env, queue } = emailEnv();
     expect((await run({ kind: 'monthly' }, { 'X-Email-Cron-Secret': CRON_SECRET }, env)).status).toBe(200);
     expect((queue.sent[0] as { period_key: string }).period_key).toMatch(/^\d{4}-\d{2}$/);
@@ -170,16 +185,16 @@ describe('worker entry points', () => {
     worker.scheduled({ cron, scheduledTime, type: 'scheduled', noRetry: () => undefined } as ScheduledController, env, makeCtx().ctx);
 
   it('the 08:00 IST cron fans out the weekly digest on Monday', async () => {
-    stub.on('GET', SETTINGS, () => rows(users(2)));
+    await seedOptedIn(2);
+    await testDb().prepare("UPDATE user_settings SET weekly_email_enabled = 0 WHERE user_id = 'user-1'").run();
     const { env, queue } = emailEnv();
     await scheduled(MONDAY, env);
-    expect(queue.sent.map((m) => (m as { kind: string }).kind)).toEqual(['weekly', 'weekly']);
-    expect(stub.last('GET', SETTINGS).params.get('weekly_email_enabled')).toBe('eq.true');
+    expect(queue.sent.map((m) => (m as { kind: string; user_id: string }).user_id)).toEqual(['user-0']);
     expect((queue.sent[0] as { period_key: string }).period_key).toBe('2026-W33');
   });
 
   it('weekly and monthly both run when Monday is the 1st', async () => {
-    stub.on('GET', SETTINGS, () => rows(users(1)));
+    await seedOptedIn(1);
     const { env, queue } = emailEnv();
     await scheduled(MONDAY_THE_FIRST, env);
     expect(queue.sent).toEqual([
@@ -196,11 +211,10 @@ describe('worker entry points', () => {
   });
 
   it('the ingest sweep cron is unaffected by the digest cron', async () => {
-    const { env } = emailEnv();
-    stub.on('GET', '/rest/v1/jobs', () => rows([]));
-    stub.on('PATCH', '/rest/v1/jobs', () => rows([]));
+    const { env, queue } = emailEnv();
+    await seedOptedIn(1);
     await expect(scheduled(MONDAY, env, '*/5 * * * *')).resolves.toBeUndefined();
-    expect(stub.find('GET', SETTINGS)).toHaveLength(0);
+    expect(queue.sent).toHaveLength(0);
   });
 
   it.each(['dime-email', 'dime-email-staging'])('routes the %s queue to the email consumer', async (queueName) => {
@@ -231,8 +245,3 @@ describe('worker entry points', () => {
     expect(m.acked).toBe(true);
   });
 });
-
-function users(n: number) {
-  return Array.from({ length: n }, (_, i) => ({ user_id: `user-${i}` }));
-}
-

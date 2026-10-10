@@ -6,7 +6,7 @@ import { safeEqual } from '../../core/crypto';
 import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { BadRequestError, UnauthorizedError } from '../../core/errors';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { fanOutDigest } from './digest';
 import { renderUnsubscribedHtml } from './html';
@@ -22,7 +22,7 @@ export const emailRoutes = new Hono<AppBindings>();
 const unsubscribeQuerySchema = z.object({ token: z.string().min(8) });
 
 emailRoutes.get('/email/unsubscribe', validate('query', unsubscribeQuerySchema), async (c) => {
-  const kind = await unsubscribe(getSupabase(c), getConfig(c.env), c.req.valid('query').token);
+  const kind = await unsubscribe(getDb(c), getConfig(c.env), c.req.valid('query').token);
   if (!kind) throw new BadRequestError('Invalid unsubscribe link.');
   return c.html(renderUnsubscribedHtml(kind));
 });
@@ -43,7 +43,7 @@ const runBodySchema = z.object({ kind: z.enum(['weekly', 'monthly']) });
  */
 emailRoutes.post('/internal/email/run', requireCronSecret, validate('json', runBodySchema), async (c) => {
   const result = await fanOutDigest({
-    db: getSupabase(c),
+    db: getDb(c),
     queue: c.env.EMAIL_QUEUE,
     config: getConfig(c.env),
     kind: c.req.valid('json').kind,

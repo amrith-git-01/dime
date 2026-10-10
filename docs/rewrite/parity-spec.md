@@ -1,5 +1,7 @@
 # Backend rewrite: behavioural parity spec
 
+> **Infra note (2026-10-10):** the app moved off Supabase to D1, R2, Workers AI and its own Google sign-in (see `api/DEPLOY.md`). This file still describes the observable HTTP behaviour; storage terms below (PostgREST 409, Hyperdrive, RLS) map to D1 equivalents (a unique-constraint error, a D1 outage). The Python `backend/` is reference only: it targets Supabase and cannot run against the new stack.
+
 The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Python backend (`backend/`, 303 tests passing).
 
 - **Source of truth:** where this file is silent, the Python code and its tests are.
@@ -107,7 +109,7 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
   - validation → 422 (FastAPI-compatible `{"detail": ...}`)
   - unavailable → 503 with `Retry-After`
   - anything else → 500 `{"detail":"Internal error","request_id"}`
-- **Agent chat:** 503 with `Retry-After` while the DB (Hyperdrive) is unavailable.
+- **Agent chat:** 503 with `Retry-After` while the DB (D1) is unavailable.
 
 ## DB assumptions (the user verifies these against the real schema)
 - `categories(id, user_id, name, icon_name, color, is_system)`

@@ -3,11 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
-import { clearDimeAuthTokenCache } from "@/lib/api/dimeApi";
+import { clearSession, signOutRemote } from "@/lib/auth/session";
 import { cancelDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { wipeUserData } from "@/lib/userDataWipe";
-import { supabase } from "@/lib/supabase/client";
-import { clearSupabaseAuthMmkv } from "@/lib/supabase/mmkvAuthStorage";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 import { reportError } from "@/lib/reportError";
 
@@ -31,12 +29,15 @@ export function useSignOut() {
       }
 
       try {
-        const { error } = await supabase.auth.signOut({ scope: "global" });
-        if (error) throw error;
+        await signOutRemote("global");
       } catch (error) {
-        // Offline or server error: still drop the session on this device.
+        // Offline or server error: still revoke this device's session if we can, then drop it locally.
         reportError(error, "useSignOut global sign-out failed, using local");
-        await supabase.auth.signOut({ scope: "local" });
+        try {
+          await signOutRemote("local");
+        } catch {
+          // Offline: the server-side session expires on its own.
+        }
       }
 
       try {
@@ -46,8 +47,7 @@ export function useSignOut() {
       }
     } finally {
       // Always wipe the previous user's local data, even when the network calls above failed.
-      clearSupabaseAuthMmkv();
-      clearDimeAuthTokenCache();
+      clearSession();
       wipeUserData(queryClient);
       usePermissionsPromptStore.getState().clearPendingAfterGoogleSignIn();
       setLoading(false);

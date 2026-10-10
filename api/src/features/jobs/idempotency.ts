@@ -1,6 +1,6 @@
 import { ConflictError, ValidationError } from '../../core/errors';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import * as repo from './repository';
 import type { JobKind } from './repository';
 
@@ -39,7 +39,7 @@ export interface IdempotentResponse<T> {
 
 /** Run `action` at most once per `(user_id, key)`; replays return the stored response. */
 export async function runIdempotent<T extends Record<string, unknown>>(
-  db: DimeSupabaseClient,
+  db: Db,
   input: { userId: string; key: string; kind: JobKind; action: () => Promise<T>; statusCode?: number; fallbackBody: T },
 ): Promise<IdempotentResponse<T>> {
   const statusCode = input.statusCode ?? 201;

@@ -1,11 +1,13 @@
 /**
- * Live parity run: call the Python (FastAPI) and the TypeScript (Hono/Workers) backends with identical
- * requests against the SAME Supabase project and diff the responses.
+ * Live parity run: call the old Python (FastAPI, on Supabase) backend and the new Worker (D1/R2) with identical
+ * requests and diff the responses. The two backends have separate databases and sign-ins: load the same test
+ * data into both and pass one token per side.
  *
- *   PY_BASE_URL=http://127.0.0.1:8000 TS_BASE_URL=http://127.0.0.1:8787 ACCESS_TOKEN=<supabase access token> \
+ *   PY_BASE_URL=http://127.0.0.1:8000 TS_BASE_URL=http://127.0.0.1:8787 \
+ *   OLD_TOKEN=<Supabase access token> NEW_TOKEN=<access_token from POST /auth/google on the Worker> \
  *     npx tsx scripts/parity/parity.ts [--include-writes] [--include-agent] [--tokens] [--verbose] [--only text] [--month YYYY-MM]
  *
- * Env: PY_BASE_URL, TS_BASE_URL (origin, with or without /api/v1), ACCESS_TOKEN (a user's Supabase JWT),
+ * Env: PY_BASE_URL, TS_BASE_URL (origin, with or without /api/v1), OLD_TOKEN / NEW_TOKEN (or --old-token / --new-token),
  *      TIMEZONE (default Asia/Kolkata).
  *
  * Default run = READ-ONLY endpoints (GET) plus a few validation probes (no data is written). `GET /me` may
@@ -18,7 +20,8 @@
  * `--tokens` additionally runs the offline unsubscribe-token cross-check (needs `uv`).
  *
  * Intentional deviations are normalised away (see normalize.ts): money "5000.0" vs "5000.00", "+00:00" vs
- * "Z", signed-URL query strings, request ids; ordering differences are WARN, everything else is DIFF.
+ * "Z", signed media URLs (Supabase Storage vs Worker `/media/...`: host and signature dropped),
+ * millisecond vs microsecond timestamps, request ids; ordering differences are WARN, everything else is DIFF.
  * Exit code 1 when any DIFF (or a failed write step) is found.
  */
 import { randomUUID } from 'node:crypto';
@@ -337,9 +340,10 @@ async function main(): Promise<void> {
   if (flag('--tokens') && !(await runTokenCrossCheck())) process.exitCode = 1;
   if (flag('--tokens-only')) return;
 
-  const token = need('ACCESS_TOKEN');
-  const py = new Client('py', apiBase(need('PY_BASE_URL')), token);
-  const ts = new Client('ts', apiBase(need('TS_BASE_URL')), token);
+  const oldToken = option('--old-token') ?? need('OLD_TOKEN');
+  const newToken = option('--new-token') ?? need('NEW_TOKEN');
+  const py = new Client('py', apiBase(need('PY_BASE_URL')), oldToken);
+  const ts = new Client('ts', apiBase(need('TS_BASE_URL')), newToken);
   console.log(`Python: ${apiBase(need('PY_BASE_URL'))}\nTS:     ${apiBase(need('TS_BASE_URL'))}\nTimezone: ${TIMEZONE}`);
 
   await readOnly(py, ts);

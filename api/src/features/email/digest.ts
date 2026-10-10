@@ -3,8 +3,7 @@ import * as z from 'zod';
 import type { AppConfig, Bindings } from '../../core/env';
 import { getConfig } from '../../core/env';
 import { log } from '../../core/logging';
-import { createServiceClient } from '../../core/supabase';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { emailConfigured } from './service';
 import { digestPeriodNow, dueDigestKinds } from './periods';
 import { listDigestUserPages } from './sends-repository';
@@ -38,7 +37,7 @@ export interface FanOutResult {
  * the consumer's `email_sends` claim lets each user's email go out once per period.
  */
 export async function fanOutDigest(input: {
-  db: DimeSupabaseClient;
+  db: Db;
   /** The slice of the `EMAIL_QUEUE` binding used here. */
   queue: { sendBatch(messages: Iterable<{ body: DigestMessage }>): Promise<unknown> };
   config: AppConfig;
@@ -66,7 +65,7 @@ export async function fanOutDigest(input: {
 export async function runDigestCron(env: Bindings, scheduledTimeMs: number): Promise<FanOutResult[]> {
   const kinds = dueDigestKinds(scheduledTimeMs);
   if (kinds.length === 0) return [];
-  const db = createServiceClient(env);
+  const db = env.DB;
   const config = getConfig(env);
   const results: FanOutResult[] = [];
   for (const kind of kinds) {

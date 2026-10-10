@@ -1,10 +1,10 @@
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import * as repo from './repository';
 import type { SettingsPatch } from './schemas';
 import { settingsFromRow } from './snapshot';
 import type { UserSettings } from './snapshot';
 
-export async function getOrCreate(db: DimeSupabaseClient, userId: string): Promise<UserSettings> {
+export async function getOrCreate(db: Db, userId: string): Promise<UserSettings> {
   let row = await repo.fetchByUserId(db, userId);
   if (!row) row = (await repo.insertDefaults(db, userId)) ?? (await repo.fetchByUserId(db, userId));
   return settingsFromRow(row);
@@ -20,7 +20,7 @@ function patchFields(body: SettingsPatch): Record<string, unknown> {
 }
 
 /** Common case is one round trip: update-with-return. A missing row is created with the patch applied. */
-export async function patch(db: DimeSupabaseClient, userId: string, body: SettingsPatch): Promise<UserSettings> {
+export async function patch(db: Db, userId: string, body: SettingsPatch): Promise<UserSettings> {
   const fields = patchFields(body);
   if (Object.keys(fields).length === 0) return getOrCreate(db, userId);
 

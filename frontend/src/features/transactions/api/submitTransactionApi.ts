@@ -112,9 +112,10 @@ async function submitFileWithFetch(input: SubmitFileInput): Promise<void> {
     throw new Error("EXPO_PUBLIC_API_BASE_URL is not set");
   }
 
-  let response = await postFileWithFetch(input, await getDimeAuthHeaders());
+  const sentHeaders = await getDimeAuthHeaders();
+  let response = await postFileWithFetch(input, sentHeaders);
   if (response.status === 401) {
-    const refreshed = await refreshDimeAuthHeaders();
+    const refreshed = await refreshDimeAuthHeaders(sentHeaders);
     if (refreshed.Authorization) {
       response = await postFileWithFetch(input, refreshed);
     }

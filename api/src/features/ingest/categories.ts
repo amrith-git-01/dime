@@ -1,18 +1,17 @@
-import type { DimeSupabaseClient } from '../../core/supabase';
+import { all } from '../../core/db';
+import type { Db } from '../../core/db';
 import type { CategoryContext } from '../ai/service';
 
 /**
  * Categories the AI may choose from: system ones plus the user's own, ordered by name, de-duplicated
  * case-insensitively (port of `load_category_options`). With none at all the model gets just "Other".
  */
-export async function loadCategoryContext(db: DimeSupabaseClient, userId: string): Promise<CategoryContext> {
-  const { data } = await db
-    .from('categories')
-    .select('id,name')
-    .or(`is_system.eq.true,user_id.eq.${userId}`)
-    .order('name', { ascending: true })
-    .throwOnError()
-    .overrideTypes<{ id: unknown; name: unknown }[], { merge: false }>();
+export async function loadCategoryContext(db: Db, userId: string): Promise<CategoryContext> {
+  const data = await all<{ id: unknown; name: unknown }>(
+    db,
+    'SELECT id, name FROM categories WHERE is_system = 1 OR user_id = ? ORDER BY name COLLATE NOCASE ASC, name ASC',
+    [userId],
+  );
 
   const seen = new Set<string>();
   const options: { id: string; name: string }[] = [];

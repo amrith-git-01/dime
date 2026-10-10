@@ -1,31 +1,32 @@
 import { UpstreamError } from '../../core/errors';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import { nowIso, run } from '../../core/db';
+import type { Db } from '../../core/db';
+import { mediaPublicUrl, putMedia } from '../media/storage';
+import type { MediaStore } from '../media/storage';
 
 /**
- * Store the object in the public bucket (overwriting the user's previous avatar) and point
- * `users.avatar_url` at it. The URL carries a `v=<ms>` cache buster so clients refetch.
+ * Store the object in R2 (overwriting the user's previous avatar) and point `users.avatar_url` at
+ * the Worker's public `/media/...` URL. The URL carries a `v=<ms>` cache buster so clients refetch.
  */
 export async function storeAvatar(
-  db: DimeSupabaseClient,
-  input: { userId: string; bucket: string; objectPath: string; bytes: Uint8Array; contentType: string; version: number },
+  db: Db,
+  store: MediaStore,
+  input: { userId: string; objectPath: string; bytes: Uint8Array; contentType: string; version: number },
 ): Promise<string> {
-  const bucket = db.storage.from(input.bucket);
-  const { error: uploadError } = await bucket.upload(input.objectPath, input.bytes, {
-    contentType: input.contentType,
-    upsert: true,
-  });
-  if (uploadError) {
-    log.error('avatar_storage_upload_failed', { err: uploadError, userId: input.userId });
+  try {
+    await putMedia(store, input.objectPath, input.bytes, input.contentType);
+  } catch (err) {
+    log.error('avatar_storage_upload_failed', { err, userId: input.userId });
     throw new UpstreamError('Could not store image.');
   }
 
-  const publicUrl = bucket.getPublicUrl(input.objectPath).data.publicUrl;
-  const avatarUrl = `${publicUrl}${publicUrl.includes('?') ? '&' : '?'}v=${input.version}`;
+  const avatarUrl = `${mediaPublicUrl(store, input.objectPath)}?v=${input.version}`;
 
-  const { error: updateError } = await db.from('users').update({ avatar_url: avatarUrl }).eq('id', input.userId);
-  if (updateError) {
-    log.error('avatar_url_update_failed', { err: updateError, userId: input.userId });
+  try {
+    await run(db, 'UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?', [avatarUrl, nowIso(), input.userId]);
+  } catch (err) {
+    log.error('avatar_url_update_failed', { err, userId: input.userId });
     throw new UpstreamError('Image stored but profile could not be updated.');
   }
   return avatarUrl;

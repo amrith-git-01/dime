@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, vi } from 'vitest';
 
 /**
- * Test double for Supabase (PostgREST + Storage) and any other outbound HTTP: it replaces
- * `globalThis.fetch`, so the REAL supabase-js query builder runs and tests assert on the requests it
- * produces (table, filters, headers, body) while scripting the responses.
+ * Test double for outbound HTTP (Brevo, Expo push, DeepSeek, ...): it replaces
+ * `globalThis.fetch`, so the REAL clients run and tests assert on the requests they produce (path,
+ * headers, body) while scripting the responses. Relational data is NOT stubbed: it lives in a real
+ * local D1 (see `test/db.ts`).
  *
  *   const stub = useSupabaseStub();             // call at describe level; installs/uninstalls per test
  *   stub.on('GET', '/rest/v1/categories', () => rows([...]));

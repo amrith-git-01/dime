@@ -53,7 +53,7 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-function weekdayName(d: LocalDate): string {
+export function weekdayName(d: LocalDate): string {
   return WEEKDAYS[new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay()] ?? '';
 }
 

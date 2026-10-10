@@ -3,16 +3,16 @@ import { SignJWT } from 'jose';
 
 import { createApp } from '../src/app';
 import type { Bindings } from '../src/core/env';
+import { USER_ID } from './db';
 
 export const baseEnv: Bindings = workerEnv;
 
 /** Fresh env object per call so the per-isolate config cache never leaks between tests. */
-export function makeEnv(overrides: Record<string, string | undefined> = {}): Bindings {
+export function makeEnv(overrides: Record<string, unknown> = {}): Bindings {
   return { ...baseEnv, ...overrides };
 }
 
-const SUPABASE_URL = 'https://test-project.supabase.co';
-const ISSUER = `${SUPABASE_URL}/auth/v1`;
+const ISSUER = 'dime-api';
 
 export interface TokenOptions {
   sub?: string | null;
@@ -31,14 +31,14 @@ export async function signToken(opts: TokenOptions = {}): Promise<string> {
     .setIssuer(opts.iss ?? ISSUER)
     .setExpirationTime(opts.expiresIn ?? '1h');
   if (opts.sub !== null) jwt.setSubject(opts.sub ?? 'user-123');
-  return jwt.sign(new TextEncoder().encode(opts.secret ?? baseEnv.SUPABASE_JWT_SECRET ?? ''));
+  return jwt.sign(new TextEncoder().encode(opts.secret ?? baseEnv.AUTH_JWT_SECRET ?? ''));
 }
 
 export function testApp() {
   return createApp();
 }
 
-export const USER_ID = '11111111-1111-1111-1111-111111111111';
+export { USER_ID };
 
 export interface CallOptions {
   method?: string;

@@ -1,13 +1,13 @@
 import type { AppConfig } from '../../core/env';
 import { parseWithFallback } from './deepseek';
 import { PermanentAiError, TransientAiError } from './errors';
-import { extractReceiptText, transcribeAudio } from './groq';
-import type { ReceiptImage } from './groq';
+import { extractReceiptText, transcribeAudio } from './workers-ai';
+import type { ReceiptImage, WorkersAiClient } from './workers-ai';
 import type { CategoryOption, ParsedExpense } from './parse-output';
 
 /**
  * The AI orchestration used by the ingest consumer (and reusable by the agent): media -> text with
- * Groq, text -> structured expense with DeepSeek. Provider detail stays in the logs; the errors
+ * Workers AI, text -> structured expense with DeepSeek. Provider detail stays in the logs; the errors
  * thrown here carry generic messages (S9).
  */
 export interface CategoryContext {
@@ -15,22 +15,28 @@ export interface CategoryContext {
   categoryOptions: readonly CategoryOption[];
 }
 
-type AiConfig = Pick<AppConfig, 'ai' | 'groq'>;
+type AiConfig = Pick<AppConfig, 'ai'>;
 
-export async function parseReceipt(config: AiConfig, image: ReceiptImage, categories: CategoryContext): Promise<ParsedExpense> {
+export async function parseReceipt(config: AiConfig, workersAi: WorkersAiClient, image: ReceiptImage, categories: CategoryContext): Promise<ParsedExpense> {
   let text: string;
   try {
-    text = await extractReceiptText(config.groq, config.ai, image);
+    text = await extractReceiptText(workersAi, image);
   } catch (err) {
     throw relabel(err, 'Could not read text from the uploaded receipt.');
   }
   return parseWithFallback(config.ai, { mode: 'receipt', text, ...categories });
 }
 
-export async function parseVoice(config: AiConfig, audio: Uint8Array, mimeType: string, categories: CategoryContext): Promise<ParsedExpense> {
+export async function parseVoice(
+  config: AiConfig,
+  workersAi: WorkersAiClient,
+  audio: Uint8Array,
+  mimeType: string,
+  categories: CategoryContext,
+): Promise<ParsedExpense> {
   let text: string;
   try {
-    text = await transcribeAudio(config.groq, config.ai, audio, mimeType);
+    text = await transcribeAudio(workersAi, audio, mimeType);
   } catch (err) {
     throw relabel(err, 'Could not transcribe the uploaded audio.');
   }

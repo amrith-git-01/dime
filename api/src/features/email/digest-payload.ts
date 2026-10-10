@@ -1,5 +1,5 @@
 import { formatCents, toCents } from '../../core/decimal';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { localDate, monthRange } from '../../core/timezone';
 import type { IsoRange } from '../../core/timezone';
 import { fetchBudget } from '../budgets/repository';
@@ -14,7 +14,7 @@ import type { CategoryRow, ExpenseRow, RankedRow } from './html';
 
 /**
  * Everything one digest email shows, aggregated in SQL (Python looped over raw rows): the period
- * summary RPC (totals + debit by category), the payee totals RPC, the 5 largest debits and the month
+ * summary (totals + debit by category), the payee totals, the 5 largest debits and the month
  * budget. Four concurrent reads, plus one categories lookup and, when a budget is set, the budget
  * month's summary.
  */
@@ -43,7 +43,7 @@ function ranked(rows: readonly { display_name: string; total: string; cents: num
 }
 
 export async function buildDigestPayload(
-  db: DimeSupabaseClient,
+  db: Db,
   input: { userId: string; range: IsoRange; budgetYear: number; budgetMonth: number; tz: string },
 ): Promise<DigestPayload> {
   const scope = { db, userId: input.userId };
@@ -91,7 +91,7 @@ function localDayLabel(rawAt: unknown, tz: string): string {
 }
 
 async function categoryMix(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   debitByCategory: ReadonlyMap<string, number>,
   debitTotal: number,
@@ -113,7 +113,7 @@ async function categoryMix(
 }
 
 async function budgetRemaining(
-  scope: { db: DimeSupabaseClient; userId: string },
+  scope: { db: Db; userId: string },
   monthlyCents: number,
   year: number,
   month: number,

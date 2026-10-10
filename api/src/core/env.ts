@@ -1,18 +1,17 @@
 import * as z from 'zod';
 
 import type { AuthUser } from './auth';
-import type { DimeSupabaseClient } from './supabase';
 
 /**
  * Secrets are not in wrangler.jsonc, so `wrangler types` does not know them in CI.
  * They are declared here (optional: a missing one is reported by the feature that needs it).
  */
 interface SecretBindings {
-  SUPABASE_PUBLISHABLE_KEY?: string;
-  SUPABASE_SECRET_KEY?: string;
-  SUPABASE_JWT_SECRET?: string;
+  /** HMAC key of signed `/media` links (MEDIA_URL_SECRET). Missing = private media links are null and `/media` private reads answer 503. */
+  MEDIA_URL_SECRET?: string;
+  /** HS256 key of our access tokens (AUTH_JWT_SECRET). Missing = sign-in and every authenticated route answer 503. */
+  AUTH_JWT_SECRET?: string;
   DEEPSEEK_API_KEY?: string;
-  GROQ_API_KEY?: string;
   BREVO_API_KEY?: string;
   EMAIL_UNSUBSCRIBE_SECRET?: string;
   EMAIL_CRON_SECRET?: string;
@@ -28,8 +27,8 @@ interface Variables {
   requestId: string;
   /** Set by `requireAuth`. Read it with `currentUser(c)`. */
   user?: AuthUser;
-  /** Lazily created service-role client. Read it with `getSupabase(c)`. */
-  supabase?: DimeSupabaseClient;
+  /** Session id (`sid` claim) of the access token. Set by `requireAuth`. */
+  sessionId?: string;
 }
 
 export interface AppBindings {
@@ -47,13 +46,10 @@ const int = (fallback: number) => z.coerce.number().int().positive().default(fal
 const num = (fallback: number) => z.coerce.number().positive().default(fallback);
 
 const configSchema = z.object({
-  SUPABASE_URL: z.url(),
-  SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
-  SUPABASE_SECRET_KEY: z.string().optional(),
-  SUPABASE_JWT_SECRET: z.string().optional(),
+  AUTH_JWT_SECRET: z.string().optional(),
+  GOOGLE_WEB_CLIENT_ID: csv([]),
 
-  STORAGE_BUCKET: z.string().default('Dime'),
-  PRIVATE_STORAGE_BUCKET: z.string().default('Dime-private'),
+  MEDIA_URL_SECRET: z.string().optional(),
   MAX_RECEIPT_UPLOAD_BYTES: int(10 * 1024 * 1024),
   MAX_VOICE_UPLOAD_BYTES: int(15 * 1024 * 1024),
   SIGNED_URL_TTL_SECONDS: int(6 * 60 * 60),
@@ -67,11 +63,14 @@ const configSchema = z.object({
   AI_TIMEOUT_SECONDS: num(25),
   AI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.1),
 
-  GROQ_API_KEY: z.string().optional(),
-  GROQ_BASE_URL: z.string().default('https://api.groq.com/openai/v1'),
-  GROQ_WHISPER_PRIMARY: z.string().default('whisper-large-v3-turbo'),
-  GROQ_WHISPER_FALLBACK: z.string().default('whisper-large-v3'),
-  GROQ_VISION_OCR_MODEL: z.string().default('meta-llama/llama-4-scout-17b-16e-instruct'),
+  WORKERS_AI_WHISPER_MODEL: z.string().default('@cf/openai/whisper-large-v3-turbo'),
+  WORKERS_AI_VISION_MODEL: z.string().default('@cf/meta/llama-4-scout-17b-16e-instruct'),
+  // Workers AI is free up to 10,000 neurons/day (account-wide) and billed above: stay under it.
+  AI_DAILY_NEURON_CAP: z.coerce.number().int().min(0).default(8000),
+  AI_USER_DAILY_CAPTURES: z.coerce.number().int().min(0).default(30),
+  // Optional AI Gateway (logs, spend limit). Workers AI uses the id alone; DeepSeek also needs CF_ACCOUNT_ID.
+  AI_GATEWAY_ID: z.string().optional(),
+  CF_ACCOUNT_ID: z.string().optional(),
 
   AGENT_ENABLED: z.stringbool().default(true),
   AGENT_BASE_URL: z.string().default('https://api.deepseek.com'),
@@ -81,8 +80,6 @@ const configSchema = z.object({
   AGENT_TURN_TIMEOUT_SECONDS: num(25),
   AGENT_LLM_TIMEOUT_SECONDS: num(12),
   AGENT_DAILY_TOKEN_BUDGET: int(200_000),
-  AGENT_SQL_TIMEOUT_SECONDS: num(3),
-  AGENT_SQL_MAX_ROWS: int(500),
   AGENT_MEMORY_SECRET: z.string().optional(),
 
   BREVO_API_KEY: z.string().optional(),
@@ -99,12 +96,10 @@ type Parsed = z.output<typeof configSchema>;
 
 /** Same data as the schema output, with camelCase keys that feature code actually reads. */
 export interface AppConfig {
-  supabaseUrl: string;
-  supabasePublishableKey: string | undefined;
-  supabaseSecretKey: string | undefined;
-  supabaseJwtSecret: string | undefined;
-  storageBucket: string;
-  privateStorageBucket: string;
+  /** The Worker's public origin (no trailing slash): host of `/media` links. Same value as `email.publicBaseUrl`. */
+  publicBaseUrl: string;
+  auth: { jwtSecret: string | undefined; googleClientIds: string[] };
+  mediaUrlSecret: string | undefined;
   maxReceiptUploadBytes: number;
   maxVoiceUploadBytes: number;
   signedUrlTtlSeconds: number;
@@ -118,12 +113,14 @@ export interface AppConfig {
     timeoutMs: number;
     temperature: number;
   };
-  groq: {
-    apiKey: string | undefined;
-    baseUrl: string;
-    whisperPrimary: string;
-    whisperFallback: string;
-    visionOcrModel: string;
+  workersAi: {
+    whisperModel: string;
+    visionModel: string;
+    /** Neurons per UTC day, account-wide, above which uploads answer 429 and queued jobs fail. */
+    dailyNeuronCap: number;
+    /** Receipt + voice uploads one user may make per UTC day. */
+    userDailyCaptures: number;
+    gatewayId: string | undefined;
   };
   agent: {
     enabled: boolean;
@@ -134,8 +131,6 @@ export interface AppConfig {
     turnTimeoutMs: number;
     llmTimeoutMs: number;
     dailyTokenBudget: number;
-    sqlTimeoutMs: number;
-    sqlMaxRows: number;
     memorySecret: string | undefined;
   };
   email: {
@@ -155,14 +150,19 @@ export class ConfigError extends Error {
   override name = 'ConfigError';
 }
 
+const DEEPSEEK_ORIGIN = 'https://api.deepseek.com';
+
+/** Routes DeepSeek calls through AI Gateway when both ids are set; any other URL is left alone. */
+function deepseekVia(p: Parsed, url: string): string {
+  if (!p.AI_GATEWAY_ID || !p.CF_ACCOUNT_ID || !url.startsWith(DEEPSEEK_ORIGIN)) return url;
+  return `https://gateway.ai.cloudflare.com/v1/${p.CF_ACCOUNT_ID}/${p.AI_GATEWAY_ID}/deepseek${url.slice(DEEPSEEK_ORIGIN.length)}`;
+}
+
 function build(p: Parsed): AppConfig {
   return {
-    supabaseUrl: p.SUPABASE_URL.replace(/\/+$/, ''),
-    supabasePublishableKey: p.SUPABASE_PUBLISHABLE_KEY,
-    supabaseSecretKey: p.SUPABASE_SECRET_KEY,
-    supabaseJwtSecret: p.SUPABASE_JWT_SECRET,
-    storageBucket: p.STORAGE_BUCKET,
-    privateStorageBucket: p.PRIVATE_STORAGE_BUCKET,
+    publicBaseUrl: p.EMAIL_PUBLIC_BASE_URL.replace(/\/+$/, ''),
+    auth: { jwtSecret: p.AUTH_JWT_SECRET, googleClientIds: p.GOOGLE_WEB_CLIENT_ID },
+    mediaUrlSecret: p.MEDIA_URL_SECRET,
     maxReceiptUploadBytes: p.MAX_RECEIPT_UPLOAD_BYTES,
     maxVoiceUploadBytes: p.MAX_VOICE_UPLOAD_BYTES,
     signedUrlTtlSeconds: p.SIGNED_URL_TTL_SECONDS,
@@ -170,30 +170,28 @@ function build(p: Parsed): AppConfig {
     corsOrigins: p.CORS_ORIGINS,
     ai: {
       apiKey: p.DEEPSEEK_API_KEY,
-      baseUrl: p.AI_BASE_URL,
+      baseUrl: deepseekVia(p, p.AI_BASE_URL),
       model: p.AI_MODEL,
       parseFallback: p.AI_PARSE_FALLBACK,
       timeoutMs: p.AI_TIMEOUT_SECONDS * 1000,
       temperature: p.AI_TEMPERATURE,
     },
-    groq: {
-      apiKey: p.GROQ_API_KEY,
-      baseUrl: p.GROQ_BASE_URL,
-      whisperPrimary: p.GROQ_WHISPER_PRIMARY,
-      whisperFallback: p.GROQ_WHISPER_FALLBACK,
-      visionOcrModel: p.GROQ_VISION_OCR_MODEL,
+    workersAi: {
+      whisperModel: p.WORKERS_AI_WHISPER_MODEL.trim(),
+      visionModel: p.WORKERS_AI_VISION_MODEL.trim(),
+      dailyNeuronCap: p.AI_DAILY_NEURON_CAP,
+      userDailyCaptures: p.AI_USER_DAILY_CAPTURES,
+      gatewayId: p.AI_GATEWAY_ID,
     },
     agent: {
       enabled: p.AGENT_ENABLED,
-      baseUrl: p.AGENT_BASE_URL,
+      baseUrl: deepseekVia(p, p.AGENT_BASE_URL),
       model: p.AGENT_MODEL,
       modelFallback: p.AGENT_MODEL_FALLBACK,
       maxSteps: p.AGENT_MAX_STEPS,
       turnTimeoutMs: p.AGENT_TURN_TIMEOUT_SECONDS * 1000,
       llmTimeoutMs: p.AGENT_LLM_TIMEOUT_SECONDS * 1000,
       dailyTokenBudget: p.AGENT_DAILY_TOKEN_BUDGET,
-      sqlTimeoutMs: p.AGENT_SQL_TIMEOUT_SECONDS * 1000,
-      sqlMaxRows: p.AGENT_SQL_MAX_ROWS,
       memorySecret: p.AGENT_MEMORY_SECRET,
     },
     email: {
@@ -209,16 +207,13 @@ function build(p: Parsed): AppConfig {
   };
 }
 
-const CSV_KEYS = new Set(['CORS_ORIGINS', 'AVATAR_URL_ALLOWED_HOSTS']);
+const CSV_KEYS = new Set(['CORS_ORIGINS', 'AVATAR_URL_ALLOWED_HOSTS', 'GOOGLE_WEB_CLIENT_ID']);
 
 const cache = new WeakMap<object, AppConfig>();
 
 /** Legacy aliases the Python settings accepted. */
 const ALIASES: Record<string, string> = {
-  SUPABASE_KEY: 'SUPABASE_PUBLISHABLE_KEY',
-  SUPABASE_SERVICE_ROLE_KEY: 'SUPABASE_SECRET_KEY',
   AI_API_KEY: 'DEEPSEEK_API_KEY',
-  AVATAR_STORAGE_BUCKET: 'STORAGE_BUCKET',
 };
 
 function collect(env: Bindings): Record<string, unknown> {

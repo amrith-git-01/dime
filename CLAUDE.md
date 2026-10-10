@@ -3,50 +3,33 @@
 Dime is a budgeting / expense-tracking app.
 
 - `frontend/`: Expo SDK 54 / React Native 0.81 / React 19 / TanStack Query 5 / Zustand, with React Compiler on.
-- `backend/`: the original Python 3.12 FastAPI API. It is being **replaced**, see below.
-- `api/`: the **new backend**, TypeScript + Hono on **Cloudflare Workers (Workers Paid, $5/mo)**.
-- `supabase/migrations/`: every database change, as timestamped SQL files. Supabase (Postgres, Auth, Storage, Realtime) **stays** as the database. Never connect to it from agent sessions; the user applies migrations.
+- `api/`: the backend, TypeScript + Hono on **Cloudflare Workers (Workers Paid, $5/mo, hard budget)**. One Worker with:
+  - **D1** (`DB`, migrations in `api/migrations/`), **R2** (`MEDIA`, `/media/*`), **Workers AI** (`AI`, voice and receipt OCR, with a daily neuron cap), a **Durable Object** `UserHub` (live updates over WebSocket at `/api/v1/realtime`), **Queues**, **Cron**, **Static Assets**, rate limits.
+  - Its own **Google sign-in** (`/api/v1/auth/google`, `/refresh`, `/sign-out`) with HS256 sessions.
+  - **DeepSeek** for parsing and the agent, **Brevo** for email.
+- `backend/`: the original Python 3.12 FastAPI API. **Reference only**: it targets Supabase and can no longer run as a fallback against the new stack.
+- There is no Supabase any more (the `supabase/` folder is gone). The old Supabase project holds test data only and is to be paused, then deleted, after the new build is live (`docs/rewrite/GO-LIVE.md`).
 
 Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend architecture, React Native and FastAPI rules. The Grok-only rule does not apply to Claude.
 
-## Current direction (decided 2026-10-04)
+## Current direction
 
-1. **Audit and fix the whole app**: bugs, performance and good practices. Plan: `C:\Users\selva\.claude\plans\now-i-need-to-radiant-backus.md`, Phases 0–7.
-2. **Rewrite the backend in TypeScript + Hono for Cloudflare Workers.**
-   - This is **not a lift-and-shift**. Design it from scratch for Workers, using each framework's best practices:
-     - Hono: route grouping, typed `Env` bindings, middleware, `HTTPException`, Zod validation
-     - Workers: bindings, `ctx.waitUntil`, Queues, Cron Triggers, Hyperdrive, Static Assets, observability
-     - supabase-js, Zod, strict TypeScript
-   - Optimize for low CPU and memory and few subrequests. Use parallel I/O, SQL-side aggregation and no per-request heavy initialization.
-   - **Don't break anything.** The HTTP API (paths, request and response shapes, status codes) must stay compatible with the current app. The Python backend and its tests are the behavioural spec. The "Shared API contracts" C1–C8 in the plan are authoritative.
-   - Infra mapping:
-     - In-memory job queues → Cloudflare Queues, with a DLQ and the `jobs` table.
-     - In-process email ticker → Cron Trigger fan-out to a Queue.
-     - asyncpg (agent SQL) → Hyperdrive + postgres.js, with the RLS role switch and read-only transaction kept.
-     - LangGraph → a plain typed async loop over the same agent steps.
-     - ffmpeg → removed; audio goes to Groq as recorded, and the iOS app records m4a.
-     - Static email assets → Workers Static Assets.
-   - The Heroku/Docker plan (Phase 3) is **dropped**. The fixed Python backend remains only as the spec and fallback until cutover.
+1. **Audit and fix the whole app** (done): plan `C:\Users\selva\.claude\plans\now-i-need-to-radiant-backus.md`.
+2. **Backend in TypeScript + Hono on Workers** (done), designed for Workers rather than ported: typed `Env` bindings, route grouping, Zod validation, `ctx.waitUntil`, Queues with a DLQ and the `jobs` table, a Cron fan-out for email, SQL-side aggregation, few subrequests. The HTTP API (paths, request and response shapes, status codes) stays compatible with the app; contracts C1–C8 are authoritative and `docs/rewrite/parity-spec.md` is the behavioural reference.
+3. **Move off Supabase onto Cloudflare** (done in code, 2026-10-10): plan `C:\Users\selva\.claude\plans\the-agent-s-run-sql-tool-crispy-snail.md`, phases 1–7.
+   - D1 replaces Postgres (money as integer cents, `payee_key` computed on write); the agent's tools are fixed TypeScript + D1 queries (no `run_sql`; `aggregate_transactions` covers averages, weekday and distinct-payee questions).
+   - R2 replaces Storage; Workers AI replaces Groq; the Durable Object replaces Realtime; ffmpeg is gone (the iOS app records m4a).
+   - Brevo stays because there is no owned domain for Cloudflare Email.
 
-## Status (2026-10-04)
+## Status (2026-10-10)
 
-**Code-complete and verified locally:**
-- Audit phases 0–2 and 5–7.
-- Rewrite R0–R5.
-- Agent v2: a bounded tool-calling agent. See `docs/rewrite/agent-v2.md`.
-- Caching fixes.
-- Test counts:
-  - `api/`: 744 tests passing.
-  - Frontend: 132 tests passing.
-  - Python backend: 303 tests passing.
+**Code-complete and verified locally:** audit phases 0–2 and 5–7, the Hono rewrite, agent v2, caching fixes, and the Cloudflare migration phases 1–7 (D1, auth, R2, Workers AI with the cost cap, agent on D1, live updates and frontend, config and docs). Work is **uncommitted** on the branch `feat/audit-and-workers-rewrite`. Nothing has been deployed.
 
-**Not yet done:**
-- Nothing has been deployed. Work is committed on the branch `feat/audit-and-workers-rewrite`, not pushed.
-- The 9 migrations in `supabase/migrations/` are unapplied. The new secret `AGENT_MEMORY_SECRET` is not set yet.
+Test counts: `api/` 827 tests passing, frontend 173 tests passing, Python backend 303 (reference only).
 
-**Next steps:** the user follows `docs/rewrite/GO-LIVE.md` and `api/DEPLOY.md`. Behavioural reference: `docs/rewrite/parity-spec.md`. Parity tools are in `api/scripts/parity/`.
+**Next steps:** the user follows `api/DEPLOY.md` (create D1 / R2 / queues, secrets, migrations, deploy) and `docs/rewrite/GO-LIVE.md` (staging device test, production, new app build, then pause and delete Supabase). Parity tools are in `api/scripts/parity/` (usable only if the same test data is loaded into the Python backend and the Worker).
 
-**`EXPO_PUBLIC_API_BASE_URL` is origin-only.** Do not include `/api/v1`, because the app's paths already include it.
+**`EXPO_PUBLIC_API_BASE_URL` is origin-only.** Do not include `/api/v1`, because the app's paths already include it. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must also be listed in the Worker's `GOOGLE_WEB_CLIENT_ID`.
 
 ## Working rules (from the user)
 
@@ -58,6 +41,6 @@ Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend a
 
 ## Verification commands
 
-- **New API** (`api/`): `npm run typecheck`, `npm run lint`, `npm test` (Vitest with `@cloudflare/vitest-pool-workers`), `npx wrangler dev`.
+- **API** (`api/`): `npm run typecheck`, `npm run lint`, `npm test` (Vitest with `@cloudflare/vitest-pool-workers`, real local D1), `npx wrangler deploy --dry-run`, `npx wrangler dev` (after `npx wrangler d1 migrations apply DB --local`).
 - **Frontend** (`frontend/`): `npx tsc --noEmit`, `npm run lint`, `npm test`.
-- **Python backend** (`backend/`): `uv run python -m ruff check .`, `uv run python -m pytest -q`.
+- **Python backend** (`backend/`, reference only): `uv run python -m ruff check .`, `uv run python -m pytest -q`.

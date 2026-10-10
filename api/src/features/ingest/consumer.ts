@@ -2,16 +2,21 @@ import { getConfig } from '../../core/env';
 import type { AppConfig, Bindings } from '../../core/env';
 import { UpstreamError } from '../../core/errors';
 import { log } from '../../core/logging';
-import { createServiceClient } from '../../core/supabase';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
+import { isTransientDbError } from '../../core/db-errors';
+import { mediaStore } from '../media/storage';
+import type { MediaStore } from '../media/storage';
 import { AiError } from '../ai/errors';
+import type { AiBinding } from '../ai/workers-ai';
 import * as jobs from '../jobs/repository';
 import type { JobKind, JobRow } from '../jobs/repository';
+import type { Publisher } from '../realtime/events';
+import { envPublisher } from '../realtime/publish';
 import { createEmitter } from '../notifications/emitter';
 import { fetchByUserId } from '../user-settings/repository';
 import { settingsFromRow } from '../user-settings/snapshot';
 import { InvalidJobError, runIngestJob } from './pipeline';
-import type { JobOutcome } from './pipeline';
+import type { IngestStores, JobOutcome } from './pipeline';
 import { MAX_JOB_ATTEMPTS, ingestMessageSchema } from './schemas';
 
 /** Messages of one batch processed at the same time (the work is I/O bound). */
@@ -31,10 +36,13 @@ export interface IngestMessageHandle {
 }
 
 export interface IngestDeps {
-  db: DimeSupabaseClient;
+  db: Db;
+  storage: MediaStore;
+  ai?: AiBinding;
   config: AppConfig;
+  publisher?: Publisher | undefined;
   /** Overridable for tests. */
-  run?: (db: DimeSupabaseClient, config: AppConfig, job: JobRow) => Promise<JobOutcome>;
+  run?: (stores: IngestStores, config: AppConfig, job: JobRow) => Promise<JobOutcome>;
 }
 
 function isNetworkFailure(err: unknown): boolean {
@@ -45,17 +53,13 @@ function isNetworkFailure(err: unknown): boolean {
 
 /**
  * Retryable failures: transient AI/upstream errors, network problems and database hiccups
- * (supabase-js reports a dropped connection as a PostgrestError with an empty code, or a 08/53/57 class code).
+ * (D1 reports overload and network resets in the error message).
  */
 export function isTransientError(err: unknown): boolean {
   if (err instanceof AiError) return err.transient;
   if (err instanceof InvalidJobError) return false;
   if (err instanceof UpstreamError) return true;
-  if (typeof err === 'object' && err !== null && 'code' in err) {
-    const code = (err as { code?: unknown }).code;
-    if (code === '' || (typeof code === 'string' && /^(08|53|57)/.test(code))) return true;
-  }
-  return isNetworkFailure(err);
+  return isTransientDbError(err) || isNetworkFailure(err);
 }
 
 function describeError(err: unknown): string {
@@ -68,7 +72,7 @@ const FAILURE_COPY = {
 } as const;
 
 /** `capture_failed` notification (deduped per day by the emitter). Voice failures raise none. Never throws. */
-async function notifyCaptureFailed(db: DimeSupabaseClient, userId: string, kind: JobKind): Promise<void> {
+async function notifyCaptureFailed(db: Db, userId: string, kind: JobKind): Promise<void> {
   if (kind !== 'receipt' && kind !== 'sms') return;
   const copy = FAILURE_COPY[kind];
   try {
@@ -125,7 +129,7 @@ export async function processIngestMessage(message: IngestMessageHandle, deps: I
   }
 
   try {
-    const outcome = await (deps.run ?? runIngestJob)(db, config, job);
+    const outcome = await (deps.run ?? runIngestJob)({ db, storage: deps.storage, ai: deps.ai, publisher: deps.publisher }, config, job);
     await jobs.markDone(db, job.id, { transaction_id: outcome.transactionId });
     message.ack();
     return;
@@ -163,7 +167,7 @@ async function handleFailure(message: IngestMessageHandle, deps: IngestDeps, job
 
 /** `queue()` handler for `dime-ingest`. */
 export async function handleIngestBatch(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
-  const deps: IngestDeps = { db: createServiceClient(env), config: getConfig(env) };
+  const deps: IngestDeps = { db: env.DB, storage: mediaStore(env), ai: env.AI, config: getConfig(env), publisher: envPublisher(env) };
   await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
     try {
       await processIngestMessage(message, deps);
@@ -181,7 +185,7 @@ export async function handleIngestBatch(batch: MessageBatch<unknown>, env: Bindi
  * and ack.
  */
 export async function handleIngestDlq(batch: MessageBatch<unknown>, env: Bindings): Promise<void> {
-  const db = createServiceClient(env);
+  const db = env.DB;
   await forEachLimited(batch.messages, BATCH_CONCURRENCY, async (message) => {
     const parsed = ingestMessageSchema.safeParse(message.body);
     if (!parsed.success) {

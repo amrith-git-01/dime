@@ -1,18 +1,20 @@
 name: Deploy API
 
-# Staging: automatic after the CI workflow succeeds on a push to main.
-# Production: manual only (Actions -> Deploy API -> Run workflow -> production).
+# Push to main -> CI (api, frontend, backend) -> staging deploy + smoke test -> production deploy + smoke test.
+# Production only runs when staging succeeded. Manual runs (Actions -> Deploy API -> Run workflow) can target
+# either environment on their own.
 #
 # Repository secrets (Settings -> Secrets and variables -> Actions):
-#   CLOUDFLARE_API_TOKEN   token with Workers Scripts:Edit, Queues:Edit, Hyperdrive:Edit, Account Settings:Read
+#   CLOUDFLARE_API_TOKEN   token with Workers Scripts:Edit, D1:Edit, Workers R2 Storage:Edit, Queues:Edit, Workers AI:Read, Account Settings:Read
 #   CLOUDFLARE_ACCOUNT_ID  the account id (`npx wrangler whoami`)
 #
-# Create two GitHub Environments, `staging` and `production`. On `production` enable
-# "Required reviewers" (Settings -> Environments -> production) so a person approves every
-# production deploy; the job below uses that environment, so it waits for the approval.
+# Create two GitHub Environments, `staging` and `production`. Optional: enable "Required reviewers" on
+# `production` (Settings -> Environments -> production) to approve each production deploy by hand;
+# without it, production deploys automatically after staging.
 #
-# Worker secrets (SUPABASE_SECRET_KEY, DEEPSEEK_API_KEY, ...) are NOT managed here: set them once with
-# `wrangler secret put` (see api/DEPLOY.md). Queues and the Hyperdrive config must already exist.
+# Worker secrets (AUTH_JWT_SECRET, MEDIA_URL_SECRET, DEEPSEEK_API_KEY, ...) are NOT managed here: set them once with
+# `wrangler secret put` (see api/DEPLOY.md). The D1 database, R2 bucket and queues must already exist.
+# D1 migrations (api/migrations) are applied by the workflow right before each deploy.
 
 on:
   workflow_run:
@@ -59,8 +61,16 @@ jobs:
       - name: Refuse to deploy placeholder config
         working-directory: api
         run: |
-          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (SUPABASE_URL / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
-          if grep -q '"id": "00000000000000000000000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder Hyperdrive id"; exit 1; fi
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (GOOGLE_WEB_CLIENT_ID / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q '"database_id": "00000000-0000-0000-0000-000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder D1 database_id"; exit 1; fi
+      - name: Apply D1 migrations (staging)
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: d1 migrations apply DB --remote --env staging
       - name: Deploy (staging)
         id: deploy
         uses: cloudflare/wrangler-action@v4
@@ -76,12 +86,20 @@ jobs:
 
   production:
     name: Deploy to production
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+    needs: staging
+    # always(): a manual production run skips the staging job, which would otherwise skip this one too.
+    if: >-
+      always() && (
+        (github.event_name == 'workflow_run' && needs.staging.result == 'success')
+        || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')
+      )
     runs-on: ubuntu-latest
-    # Protected environment: add required reviewers in the repository settings.
     environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          # For workflow_run, ship exactly the commit CI validated and staging received.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -99,8 +117,16 @@ jobs:
       - name: Refuse to deploy placeholder config
         working-directory: api
         run: |
-          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (SUPABASE_URL / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
-          if grep -q '"id": "00000000000000000000000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder Hyperdrive id"; exit 1; fi
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (GOOGLE_WEB_CLIENT_ID / EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q '"database_id": "00000000-0000-0000-0000-000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder D1 database_id"; exit 1; fi
+      - name: Apply D1 migrations (production)
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: d1 migrations apply DB --remote
       - name: Deploy (production)
         id: deploy
         uses: cloudflare/wrangler-action@v4

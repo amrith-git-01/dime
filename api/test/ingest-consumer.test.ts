@@ -1,60 +1,64 @@
-import { describe, expect, it } from 'vitest';
+import { env as workerEnv } from 'cloudflare:workers';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getConfig } from '../src/core/env';
 import type { Bindings } from '../src/core/env';
-import { createServiceClient } from '../src/core/supabase';
 import { TransientAiError } from '../src/features/ai/errors';
 import { handleIngestBatch, handleIngestDlq, isTransientError, processIngestMessage } from '../src/features/ingest/consumer';
 import type { IngestDeps } from '../src/features/ingest/consumer';
 import { InvalidJobError } from '../src/features/ingest/pipeline';
+import { mediaStore } from '../src/features/media/storage';
 import { sweepJobs } from '../src/features/ingest/sweep';
+import { buildPaymentHash } from '../src/features/transactions/dedupe';
 import worker from '../src/index';
 import { UpstreamError } from '../src/core/errors';
 import { USER_ID, makeEnv } from './helpers';
-import { CAT_FOOD, FakeMessage, FakeQueue, JOB, JPEG, M4A, TX, completion, fakeBatch, jobRow, mediaPayload, parsedSms, smsPayload } from './ingest-fixtures';
-import { json, pgError, rows, useSupabaseStub } from './supabase-stub';
-import type { RecordedCall } from './supabase-stub';
+import { failingOn, oneRow, rowsOf, seedCategory, seedJob, seedSettings, seedTransaction, testDb, withBeforeExec } from './db';
+import { CAT_FOOD, FakeAi, FakeMessage, FakeQueue, JOB, JPEG, M4A, TX, completion, fakeBatch, mediaPayload, parsedSms, smsPayload } from './ingest-fixtures';
+import { json, useSupabaseStub } from './supabase-stub';
 
+// Jobs, transactions and notifications are real rows in D1; media is real R2; the stub plays DeepSeek and FakeAi plays Workers AI.
 const stub = useSupabaseStub();
+const fakeAi = new FakeAi();
+beforeEach(() => {
+  fakeAi.calls.length = 0;
+  fakeAi.respond = new FakeAi().respond;
+});
 
-const env = (): Bindings => makeEnv({ DEEPSEEK_API_KEY: 'ds-key', GROQ_API_KEY: 'groq-key' });
-const deps = (over: Partial<IngestDeps> = {}): IngestDeps => ({ db: createServiceClient(env()), config: getConfig(env()), ...over });
-const msg = (attempts = 1) => new FakeMessage({ job_id: JOB, kind: 'sms' }, attempts);
+const env = (): Bindings => makeEnv({ DEEPSEEK_API_KEY: 'ds-key' });
+const deps = (over: Partial<IngestDeps> = {}): IngestDeps => ({ db: testDb(), storage: mediaStore(env()), config: getConfig(env()), ai: fakeAi.asAi(), ...over });
+const msg = (attempts = 1, jobId = JOB) => new FakeMessage({ job_id: jobId, kind: 'sms' }, attempts);
+const JOB2 = 'aaaaaaaa-0000-0000-0000-00000000000d';
 
-const category = { id: CAT_FOOD, name: 'Food', icon_name: 'Utensils', color: '#111111', is_system: true };
-const settings = {};
-
-/** GET job -> `row`; the claim PATCH (status processing) returns it claimed, other PATCHes echo it. */
-function stubJob(row: ReturnType<typeof jobRow>, opts: { claimLost?: boolean } = {}) {
-  stub.on('GET', '/rest/v1/jobs', () => rows([row]));
-  stub.on('PATCH', '/rest/v1/jobs', (c) => {
-    const body = c.body as { status: string };
-    if (body.status === 'processing') return rows(opts.claimLost ? [] : [{ ...row, status: 'processing', attempts: row.attempts + 1 }]);
-    return rows([row]);
-  });
+interface JobRecord {
+  id: string;
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  result: string | null;
+  updated_at: string;
+  payload: string;
 }
+const job = (id = JOB) => oneRow<JobRecord>('jobs', 'id = ?', id);
+const result = async (id = JOB) => JSON.parse((await job(id))?.result ?? 'null') as unknown;
 
-/** Everything `createTransaction` + the success notification touch. */
-function stubCapture() {
-  stub.on('GET', '/rest/v1/categories', () => rows([category]));
-  stub.on('GET', '/rest/v1/transactions', () => rows([]));
-  stub.on('POST', '/rest/v1/transactions', () => rows([{ id: TX }]));
-  stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-  stub.on('POST', '/rest/v1/notifications', (c) => rows([{ id: 'n1', ...(c.body as object) }]));
-  stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
-}
+/** The "Food" category the parsed SMS names. */
+const seedFood = () => seedCategory({ id: CAT_FOOD, name: 'Food', icon_name: 'Utensils', color: '#111111' });
+const seedPending = (over: Parameters<typeof seedJob>[0] = {}) => seedJob({ id: JOB, kind: 'sms', payload: smsPayload(), ...over });
+const notifications = () => rowsOf<Record<string, unknown>>('notifications');
+const transactions = () => rowsOf<Record<string, unknown>>('transactions');
 
 const stubDeepSeek = (content: string) =>
-  stub.on('POST', '/chat/completions', (c) => (c.url.host === 'api.deepseek.com' ? json(completion(content)) : json(completion('OCR TEXT SWIGGY 250.50'))));
+  stub.on('POST', '/chat/completions', () => json(completion(content)));
 
-const jobPatches = () => stub.find('PATCH', '/rest/v1/jobs').map((c) => c.body as Record<string, unknown>);
-const notificationPosts = () => stub.find('POST', '/rest/v1/notifications').map((c: RecordedCall) => c.body as Record<string, unknown>);
-const insertedTx = () => stub.last('POST', '/rest/v1/transactions').body as Record<string, unknown>;
+/** The hash `parsedSms()` produces (Swiggy, 250.50 debit, 2026-10-03 00:00 UTC). */
+const swiggyHash = () =>
+  buildPaymentHash({ amount: '250.50', type: 'debit', counterpartyNormalized: 'swiggy', counterpartyName: 'Swiggy', transactionAtMs: Date.parse('2026-10-03T00:00:00.000Z') });
 
 describe('processIngestMessage: sms success', () => {
   it('claims, parses, creates the transaction with server-set fields, notifies and marks done', async () => {
-    stubJob(jobRow({ payload: smsPayload({ body: 'INR 1,500 credited by ACME' }) }));
-    stubCapture();
+    await seedFood();
+    await seedPending({ payload: smsPayload({ body: 'INR 1,500 credited by ACME' }) });
     stubDeepSeek(parsedSms({ type: 'credit', amount: 1500, counterparty_name: 'ACME', date: null, category: 'Food' }));
     const m = msg();
     await processIngestMessage(m, deps());
@@ -62,14 +66,10 @@ describe('processIngestMessage: sms success', () => {
     expect(m.acked).toBe(true);
     expect(m.retried).toBeUndefined();
 
-    // Claim: conditional pending -> processing with attempts + 1.
-    const claim = stub.find('PATCH', '/rest/v1/jobs')[0];
-    expect(claim?.body).toMatchObject({ status: 'processing', attempts: 1 });
-    expect(claim?.params.get('status')).toBe('eq.pending');
-
-    expect(insertedTx()).toMatchObject({
+    const [tx] = await transactions();
+    expect(tx).toMatchObject({
       user_id: USER_ID,
-      amount: '1500.00',
+      amount: 150000,
       type: 'credit',
       detected_via: 'sms',
       receipt_url: null,
@@ -80,178 +80,192 @@ describe('processIngestMessage: sms success', () => {
       transaction_at: '2026-10-04T10:00:00.000Z',
     });
 
-    const done = jobPatches().at(-1);
-    expect(done).toMatchObject({ status: 'done', result: { transaction_id: TX } });
+    // pending -> processing (attempts + 1) -> done with the transaction id.
+    expect(await job()).toMatchObject({ status: 'done', attempts: 1 });
+    expect(await result()).toEqual({ transaction_id: tx?.['id'] });
 
-    expect(notificationPosts()).toEqual([
-      expect.objectContaining({ kind: 'transaction_auto', dedupe_key: `transaction_auto:${TX}`, title: '₹1,500 added', body: 'ACME · Food', action_transaction_id: TX }),
+    expect(await notifications()).toEqual([
+      expect.objectContaining({
+        kind: 'transaction_auto',
+        dedupe_key: `transaction_auto:${String(tx?.['id'])}`,
+        title: '₹1,500 added',
+        body: 'ACME · Food',
+        action_transaction_id: tx?.['id'],
+      }),
     ]);
   });
 
+  it('the claim is a conditional pending -> processing with attempts + 1, taken before the pipeline runs', async () => {
+    await seedPending();
+    let seen: JobRecord | null = null;
+    const m = msg();
+    await processIngestMessage(m, deps({ run: async () => { seen = await job(); return { transactionId: TX, created: false }; } }));
+    expect(seen).toMatchObject({ status: 'processing', attempts: 1 });
+    expect(await job()).toMatchObject({ status: 'done', attempts: 1 });
+    expect(await result()).toEqual({ transaction_id: TX });
+  });
+
   it('a debit still completes when the follow-up notifications fail', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
-    stub.on('GET', '/rest/v1/transactions', () => rows([]));
-    stub.on('POST', '/rest/v1/transactions', () => rows([{ id: TX }]));
-    stub.on('GET', '/rest/v1/user_settings', () => pgError('XX000', 'settings unavailable', 500));
+    await seedFood();
+    await seedPending();
     stubDeepSeek(parsedSms());
     const m = msg();
-    await processIngestMessage(m, deps());
+    await processIngestMessage(m, deps({ db: failingOn(/user_settings/, 'D1_ERROR: settings unavailable') }));
     expect(m.acked).toBe(true);
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done', result: { transaction_id: TX } });
+    expect(await transactions()).toHaveLength(1);
+    expect(await job()).toMatchObject({ status: 'done' });
   });
 
   it('a duplicate payment is merged and reported as the existing transaction (no notification)', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
-    stub.on('GET', '/rest/v1/transactions', () =>
-      rows([{ id: 'existing-tx', user_id: USER_ID, category_id: CAT_FOOD, note: 'kept', receipt_url: null, voice_url: null, counterparty_type: 'merchant' }]),
-    );
+    await seedFood();
+    await seedPending();
+    await seedTransaction({
+      id: TX,
+      amount: '250.50',
+      counterparty_name: 'Swiggy',
+      counterparty_normalized: 'swiggy',
+      payment_hash: await swiggyHash(),
+      category_id: CAT_FOOD,
+      note: 'kept',
+      transaction_at: '2026-10-03T00:00:00.000Z',
+    });
     stubDeepSeek(parsedSms());
     const m = msg();
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
-    expect(stub.find('POST', '/rest/v1/transactions')).toHaveLength(0);
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done', result: { transaction_id: 'existing-tx' } });
-    expect(stub.find('POST', '/rest/v1/notifications')).toHaveLength(0);
+    expect(await transactions()).toHaveLength(1);
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ note: 'kept' });
+    expect(await result()).toEqual({ transaction_id: TX });
+    expect(await notifications()).toHaveLength(0);
   });
 
-  it('losing the insert race to the unique index resolves to the winner', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
-    let lookups = 0;
-    stub.on('GET', '/rest/v1/transactions', () => rows(++lookups === 1 ? [] : [{ id: 'winner', user_id: USER_ID }]));
-    stub.on('POST', '/rest/v1/transactions', () => pgError('23505', 'duplicate key value violates unique constraint "transactions_user_payment_hash_active_uidx"', 409));
+  it('a duplicate fills only the fields the existing row lacks', async () => {
+    await seedFood();
+    await seedPending();
+    await seedTransaction({
+      id: TX,
+      amount: '250.50',
+      counterparty_name: 'Swiggy',
+      counterparty_normalized: 'swiggy',
+      payment_hash: await swiggyHash(),
+      category_id: null,
+      note: null,
+      transaction_at: '2026-10-03T00:00:00.000Z',
+    });
     stubDeepSeek(parsedSms());
-    const m = msg();
-    await processIngestMessage(m, deps());
-    expect(m.acked).toBe(true);
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done', result: { transaction_id: 'winner' } });
+    await processIngestMessage(msg(), deps());
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT_FOOD, note: 'Dinner from Swiggy' });
+  });
+
+  it('two jobs for the same payment: one transaction, both jobs resolve to it (insert race resolves to the winner)', async () => {
+    await seedFood();
+    await seedPending();
+    await seedPending({ id: JOB2 });
+    stubDeepSeek(parsedSms());
+    const [a, b] = [msg(), msg(1, JOB2)];
+    await Promise.all([processIngestMessage(a, deps()), processIngestMessage(b, deps())]);
+    expect(a.acked && b.acked).toBe(true);
+    const txs = await transactions();
+    expect(txs).toHaveLength(1);
+    expect(await result(JOB)).toEqual({ transaction_id: txs[0]?.['id'] });
+    expect(await result(JOB2)).toEqual({ transaction_id: txs[0]?.['id'] });
+    // Only the creator notifies.
+    expect(await notifications()).toHaveLength(1);
   });
 });
 
 describe('processIngestMessage: receipt and voice pipelines', () => {
-  it('receipt: Groq gets a short-lived signed URL (nothing downloaded), parse, detected_via=scan and the object path', async () => {
+  it('receipt: the object is read from R2 and sent to Workers AI as a base64 data URL; parse, detected_via=scan and the object path', async () => {
     const payload = mediaPayload();
-    stubJob(jobRow({ kind: 'receipt', payload }));
-    stubCapture();
-    stub.on('POST', '/storage/v1/object/sign/Dime-private/', () =>
-      json({ signedURL: `/object/sign/Dime-private/${payload.object_path}?token=abc` }),
-    );
+    await seedFood();
+    await seedJob({ id: JOB, kind: 'receipt', payload });
+    await workerEnv.MEDIA.put(payload.object_path, JPEG, { httpMetadata: { contentType: 'image/jpeg' } });
     stubDeepSeek(parsedSms());
     const m = new FakeMessage({ job_id: JOB, kind: 'receipt' });
     await processIngestMessage(m, deps());
 
     expect(m.acked).toBe(true);
-    expect(stub.find('GET', '/storage/v1/object/Dime-private/')).toHaveLength(0);
-    const sign = stub.last('POST', '/storage/v1/object/sign/Dime-private/');
-    expect(sign.body).toEqual({ expiresIn: 300 });
-    const groq = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.groq.com');
-    const url = (groq?.body as { messages: { content: { image_url?: { url: string } }[] }[] }).messages[0]?.content[1]?.image_url?.url;
-    expect(url?.startsWith('https://') && url.includes('/storage/v1/object/sign/Dime-private/') && url.endsWith('?token=abc')).toBe(true);
-    expect(JSON.stringify(groq?.body)).not.toContain('base64');
-    expect(insertedTx()).toMatchObject({ detected_via: 'scan', receipt_url: payload.object_path, voice_url: null });
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done', result: { transaction_id: TX } });
-  });
-
-  it('receipt: when signing fails it downloads the object and sends base64, stores detected_via=scan and the object path', async () => {
-    const payload = mediaPayload();
-    stubJob(jobRow({ kind: 'receipt', payload }));
-    stubCapture();
-    stub.on('GET', '/storage/v1/object/Dime-private/receipts', () => new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } }));
-    stubDeepSeek(parsedSms());
-    const m = new FakeMessage({ job_id: JOB, kind: 'receipt' });
-    await processIngestMessage(m, deps());
-
-    expect(m.acked).toBe(true);
-    expect(stub.last('GET', '/storage/v1/object/Dime-private/receipts').path).toContain(payload.object_path);
-    const groq = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.groq.com');
-    expect(JSON.stringify(groq?.body)).toContain('data:image/jpeg;base64,');
+    expect(fakeAi.calls).toHaveLength(1);
+    const call = fakeAi.calls[0];
+    expect(call?.model).toBe('@cf/meta/llama-4-scout-17b-16e-instruct');
+    const url = (call?.inputs as { messages: { content: { image_url?: { url: string } }[] }[] }).messages[0]?.content[1]?.image_url?.url;
+    expect(url).toMatch(/^data:image\/jpeg;base64,\/9j\/4AAQSkZJRg/);
     const deepseek = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.deepseek.com');
     expect(JSON.stringify(deepseek?.body)).toContain('OCR TEXT SWIGGY 250.50');
-    expect(insertedTx()).toMatchObject({ detected_via: 'scan', receipt_url: payload.object_path, voice_url: null, transaction_at: '2026-10-03T00:00:00.000Z' });
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done', result: { transaction_id: TX } });
+    const [tx] = await transactions();
+    expect(tx).toMatchObject({ detected_via: 'scan', receipt_url: payload.object_path, voice_url: null, transaction_at: '2026-10-03T00:00:00.000Z' });
+    expect(await result()).toEqual({ transaction_id: tx?.['id'] });
+    expect(await job()).toMatchObject({ status: 'done' });
   });
 
-  it('voice: Whisper primary fails, fallback transcribes, parse stores detected_via=voice', async () => {
+  it('voice: Whisper transcribes the stored audio, parse stores detected_via=voice', async () => {
     const payload = mediaPayload({ object_path: `voice_inputs/${USER_ID}/voice_inputs/2026-10-04/1-abcd1234.m4a`, mime_type: 'audio/mp4' });
-    stubJob(jobRow({ kind: 'voice', payload }));
-    stubCapture();
-    stub.on('GET', '/storage/v1/object/Dime-private/voice_inputs', () => new Response(M4A));
-    let whisper = 0;
-    stub.on('POST', '/audio/transcriptions', () => (++whisper === 1 ? json({}, { status: 500 }) : json({ text: 'spent two fifty on dinner at swiggy' })));
+    await seedFood();
+    await seedJob({ id: JOB, kind: 'voice', payload });
+    await workerEnv.MEDIA.put(payload.object_path, M4A, { httpMetadata: { contentType: 'audio/mp4' } });
     stubDeepSeek(parsedSms());
     const m = new FakeMessage({ job_id: JOB, kind: 'voice' });
     await processIngestMessage(m, deps());
 
     expect(m.acked).toBe(true);
-    expect(whisper).toBe(2);
+    expect(fakeAi.calls.map((c) => c.model)).toEqual(['@cf/openai/whisper-large-v3-turbo']);
+    expect(typeof fakeAi.calls[0]?.inputs['audio']).toBe('string');
     const deepseek = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.deepseek.com');
     expect(JSON.stringify(deepseek?.body)).toContain('spent two fifty on dinner at swiggy');
-    expect(insertedTx()).toMatchObject({ detected_via: 'voice', voice_url: payload.object_path, receipt_url: null });
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'done' });
+    expect((await transactions())[0]).toMatchObject({ detected_via: 'voice', voice_url: payload.object_path, receipt_url: null });
+    expect(await job()).toMatchObject({ status: 'done' });
   });
 
   it('a stored payload that does not validate fails permanently', async () => {
-    stubJob(jobRow({ kind: 'receipt', payload: { nonsense: true } }));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-    stub.on('POST', '/rest/v1/notifications', () => rows([{ id: 'n' }]));
-    stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
+    await seedJob({ id: JOB, kind: 'receipt', payload: { nonsense: true } });
     const m = new FakeMessage({ job_id: JOB, kind: 'receipt' });
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'failed', last_error: 'InvalidJobError: Job payload is invalid.' });
+    expect(await job()).toMatchObject({ status: 'failed', last_error: 'InvalidJobError: Job payload is invalid.' });
   });
 });
 
 describe('processIngestMessage: claiming', () => {
-  it('a job that is already processing/done is not touched: the duplicate message is acked', async () => {
-    for (const status of ['processing', 'done', 'failed']) {
-      stub.calls.length = 0;
-      (stub as unknown as { routes: unknown[] }).routes = [];
-      stubJob(jobRow({ status }));
-      const m = msg();
-      await processIngestMessage(m, deps());
-      expect(m.acked, status).toBe(true);
-      expect(stub.find('PATCH', '/rest/v1/jobs'), status).toHaveLength(0);
-      expect(stub.find('POST', '/chat/completions'), status).toHaveLength(0);
-    }
-  });
-
-  it('losing the claim race (conditional update matches nothing) acks without work', async () => {
-    stubJob(jobRow(), { claimLost: true });
+  it.each(['processing', 'done', 'failed'])('a %s job is not touched: the duplicate message is acked', async (status) => {
+    await seedPending({ status });
+    const before = await job();
     const m = msg();
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
+    expect(await job()).toEqual(before);
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
-    expect(jobPatches()).toHaveLength(1);
+  });
+
+  it('losing the claim race (another worker claims between the read and the update) acks without work', async () => {
+    await seedPending();
+    const loser = withBeforeExec(/UPDATE jobs SET status = 'processing'/, async () => {
+      await testDb().prepare("UPDATE jobs SET status = 'processing', attempts = 1 WHERE id = ?").bind(JOB).run();
+    });
+    const m = msg();
+    await processIngestMessage(m, deps({ db: loser }));
+    expect(m.acked).toBe(true);
+    expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
+    expect(await job()).toMatchObject({ status: 'processing', attempts: 1 });
   });
 
   it('two deliveries of one job run the pipeline once', async () => {
-    const row = jobRow();
-    let status = 'pending';
-    stub.on('GET', '/rest/v1/jobs', () => rows([{ ...row, status }]));
-    stub.on('PATCH', '/rest/v1/jobs', (c) => {
-      const body = c.body as { status: string };
-      if (body.status !== 'processing') return rows([row]);
-      if (status !== 'pending') return rows([]);
-      status = 'processing';
-      return rows([{ ...row, status, attempts: 1 }]);
-    });
-    stubCapture();
+    await seedFood();
+    await seedPending();
     stubDeepSeek(parsedSms());
     const [a, b] = [msg(), msg()];
     await Promise.all([processIngestMessage(a, deps()), processIngestMessage(b, deps())]);
     expect(a.acked && b.acked).toBe(true);
-    expect(stub.find('POST', '/rest/v1/transactions')).toHaveLength(1);
+    expect(await transactions()).toHaveLength(1);
+    expect(stub.find('POST', '/chat/completions').filter((c) => c.url.host === 'api.deepseek.com')).toHaveLength(1);
+    expect(await job()).toMatchObject({ status: 'done', attempts: 1 });
   });
 
   it('an exhausted job (attempts >= 3) is failed by the claim itself with "max attempts exceeded"', async () => {
-    stubJob(jobRow({ attempts: 3 }));
+    await seedPending({ attempts: 3 });
     const m = msg();
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
-    expect(jobPatches()).toEqual([expect.objectContaining({ status: 'failed', last_error: 'max attempts exceeded' })]);
+    expect(await job()).toMatchObject({ status: 'failed', last_error: 'max attempts exceeded', attempts: 3 });
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
   });
 
@@ -264,75 +278,71 @@ describe('processIngestMessage: claiming', () => {
     expect(stub.calls).toHaveLength(0);
   });
 
-  it('a database error while claiming retries the message (the job is still pending)', async () => {
-    stub.on('GET', '/rest/v1/jobs', () => pgError('XX000', 'down', 500));
-    const m = msg();
+  it('an unknown job id is acked', async () => {
+    const m = msg(1, 'no-such-job');
     await processIngestMessage(m, deps());
+    expect(m.acked).toBe(true);
+  });
+
+  it('a database error while claiming retries the message (the job is still pending)', async () => {
+    await seedPending();
+    const m = msg();
+    await processIngestMessage(m, deps({ db: failingOn(/FROM jobs/, 'D1_ERROR: down') }));
     expect(m.acked).toBe(false);
     expect(m.retried).toEqual({ delaySeconds: 10 });
+    expect(await job()).toMatchObject({ status: 'pending', attempts: 0 });
   });
 });
 
 describe('processIngestMessage: failures', () => {
   it('transient upstream error: release to pending and retry with backoff (no failure, no notification)', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
+    await seedPending();
     stub.on('POST', '/chat/completions', () => json({ error: 'overloaded' }, { status: 503 }));
     const m = msg();
     await processIngestMessage(m, deps());
 
     expect(m.acked).toBe(false);
     expect(m.retried).toEqual({ delaySeconds: 5 });
-    const last = stub.find('PATCH', '/rest/v1/jobs').at(-1);
-    expect(last?.body).toMatchObject({ status: 'pending' });
+    const row = await job();
+    expect(row).toMatchObject({ status: 'pending', attempts: 1 });
     // Backdated one second so the sweep (120 s) does not race the queue redelivery.
-    expect(Date.now() - Date.parse((last?.body as { updated_at: string }).updated_at)).toBeGreaterThanOrEqual(1000);
-    expect(last?.params.get('status')).toBe('in.(pending,processing)');
-    expect(jobPatches().some((p) => p['status'] === 'failed')).toBe(false);
-    expect(stub.find('POST', '/rest/v1/notifications')).toHaveLength(0);
+    expect(Date.now() - Date.parse(row?.updated_at ?? '')).toBeGreaterThanOrEqual(1000);
+    expect(await notifications()).toHaveLength(0);
   });
 
   it('backoff grows with the attempt number', async () => {
-    stubJob(jobRow({ attempts: 1 })); // claimed as attempt 2
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
+    await seedPending({ attempts: 1 }); // claimed as attempt 2
     stub.on('POST', '/chat/completions', () => json({}, { status: 429 }));
     const m = msg(2);
     await processIngestMessage(m, deps());
     expect(m.retried).toEqual({ delaySeconds: 10 });
+    expect(await job()).toMatchObject({ status: 'pending', attempts: 2 });
   });
 
   it('the final attempt fails the job for good even when the error is transient, and notifies', async () => {
-    stubJob(jobRow({ attempts: 2 })); // claim makes it attempt 3
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
+    await seedPending({ attempts: 2 }); // claim makes it attempt 3
     stub.on('POST', '/chat/completions', () => json({}, { status: 503 }));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-    stub.on('POST', '/rest/v1/notifications', (c) => rows([{ id: 'n', ...(c.body as object) }]));
-    stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
     const m = msg(3);
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
     expect(m.retried).toBeUndefined();
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'failed', last_error: 'TransientAiError: AI_PARSE_UNAVAILABLE' });
-    expect(notificationPosts()).toHaveLength(1);
+    expect(await job()).toMatchObject({ status: 'failed', last_error: 'TransientAiError: AI_PARSE_UNAVAILABLE' });
+    expect(await notifications()).toHaveLength(1);
   });
 
   it('permanent error: failed (last_error <= 500 chars) + capture_failed notification for sms, then ack', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
+    await seedPending();
     stub.on('POST', '/chat/completions', () => json(completion('this is not json')));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-    stub.on('POST', '/rest/v1/notifications', (c) => rows([{ id: 'n', ...(c.body as object) }]));
-    stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
     const m = msg();
     await processIngestMessage(m, deps());
 
     expect(m.acked).toBe(true);
-    const failed = jobPatches().at(-1) as { status: string; last_error: string };
-    expect(failed.status).toBe('failed');
-    expect(failed.last_error.length).toBeLessThanOrEqual(500);
-    expect(failed.last_error).toContain('AI_PARSE_UNAVAILABLE');
+    const failed = await job();
+    expect(failed?.status).toBe('failed');
+    expect((failed?.last_error ?? '').length).toBeLessThanOrEqual(500);
+    expect(failed?.last_error).toContain('AI_PARSE_UNAVAILABLE');
     const today = new Date().toISOString().slice(0, 10);
-    expect(notificationPosts()).toEqual([
+    expect(await notifications()).toEqual([
       expect.objectContaining({
         kind: 'capture_failed',
         title: 'SMS capture failed',
@@ -343,21 +353,26 @@ describe('processIngestMessage: failures', () => {
     ]);
   });
 
+  it('a second failure on the same day does not notify again (deduped per day)', async () => {
+    await seedPending();
+    await seedPending({ id: JOB2 });
+    stub.on('POST', '/chat/completions', () => json(completion('this is not json')));
+    await processIngestMessage(msg(), deps());
+    await processIngestMessage(msg(1, JOB2), deps());
+    expect(await notifications()).toHaveLength(1);
+  });
+
   it('receipt failures notify with source scan; voice failures send nothing', async () => {
     const run = async (kind: 'receipt' | 'voice') => {
-      stub.calls.length = 0;
-      (stub as unknown as { routes: unknown[] }).routes = [];
-      stubJob(jobRow({ kind, payload: mediaPayload(), attempts: 2 }));
-      stub.on('GET', '/storage/v1/object/Dime-private/', () => new Response(null, { status: 404 }));
-      stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-      stub.on('POST', '/rest/v1/notifications', (c) => rows([{ id: 'n', ...(c.body as object) }]));
-      stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
-      stub.on('GET', '/rest/v1/categories', () => rows([category]));
+      await testDb().prepare('DELETE FROM jobs').run();
+      await testDb().prepare('DELETE FROM notifications').run();
+      await seedJob({ id: JOB, kind, payload: mediaPayload(), attempts: 2 });
       // A missing object is an upstream (transient) problem; exhaust the attempts to reach the failure path.
       const m = new FakeMessage({ job_id: JOB, kind }, 3);
       await processIngestMessage(m, deps());
       expect(m.acked).toBe(true);
-      return notificationPosts();
+      expect(await job()).toMatchObject({ status: 'failed' });
+      return notifications();
     };
     const scan = await run('receipt');
     expect(scan).toEqual([expect.objectContaining({ kind: 'capture_failed', title: 'Receipt scan failed', dedupe_key: expect.stringContaining('capture_failed:scan:') as string })]);
@@ -365,45 +380,43 @@ describe('processIngestMessage: failures', () => {
   });
 
   it('respects capture_failed_alerts_enabled=false and survives a notification error', async () => {
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
+    await seedSettings({ capture_failed_alerts_enabled: 0 });
+    await seedPending();
     stub.on('POST', '/chat/completions', () => json({ error: 'bad' }, { status: 400 }));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([{ capture_failed_alerts_enabled: false }]));
     const m = msg();
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
-    expect(stub.find('POST', '/rest/v1/notifications')).toHaveLength(0);
+    expect(await notifications()).toHaveLength(0);
 
-    stub.calls.length = 0;
-    (stub as unknown as { routes: unknown[] }).routes = [];
-    stubJob(jobRow());
-    stub.on('GET', '/rest/v1/categories', () => rows([category]));
-    stub.on('POST', '/chat/completions', () => json({ error: 'bad' }, { status: 400 }));
-    stub.on('GET', '/rest/v1/user_settings', () => pgError('XX000', 'down', 500));
+    await testDb().prepare('DELETE FROM jobs').run();
+    await seedPending();
     const m2 = msg();
-    await processIngestMessage(m2, deps());
+    await processIngestMessage(m2, deps({ db: failingOn(/user_settings/, 'D1_ERROR: down') }));
     expect(m2.acked).toBe(true);
-    expect(jobPatches().at(-1)).toMatchObject({ status: 'failed' });
+    expect(await job()).toMatchObject({ status: 'failed' });
   });
 
   it('classifies errors', () => {
     expect(isTransientError(new TransientAiError('x'))).toBe(true);
     expect(isTransientError(new UpstreamError('x'))).toBe(true);
     expect(isTransientError(new InvalidJobError('x'))).toBe(false);
-    expect(isTransientError(Object.assign(new Error('TypeError: fetch failed'), { code: '' }))).toBe(true);
-    expect(isTransientError(Object.assign(new Error('x'), { code: '08006' }))).toBe(true);
-    expect(isTransientError(Object.assign(new Error('x'), { code: '23505' }))).toBe(false);
+    expect(isTransientError(new Error('TypeError: fetch failed'))).toBe(true);
+    expect(isTransientError(new Error('D1_ERROR: Network connection lost.'))).toBe(true);
+    expect(isTransientError(new Error('D1 DB is overloaded. Requests queued for too long.'))).toBe(true);
+    expect(isTransientError(new Error('D1_ERROR: UNIQUE constraint failed: jobs.user_id, jobs.idempotency_key'))).toBe(false);
+    expect(isTransientError(new Error('D1_ERROR: no such table: jobs'))).toBe(false);
     expect(isTransientError(new DOMException('t', 'TimeoutError'))).toBe(true);
     expect(isTransientError(new Error('boom'))).toBe(false);
   });
 
   it('injectable runner: a thrown permanent error fails, a thrown transient error retries', async () => {
-    stubJob(jobRow());
+    await seedPending();
     const bad = msg();
     await processIngestMessage(bad, deps({ run: () => Promise.reject(new Error('nope')) }));
     expect(bad.acked).toBe(true);
 
-    stub.calls.length = 0;
+    await testDb().prepare('DELETE FROM jobs').run();
+    await seedPending();
     const slow = msg();
     await processIngestMessage(slow, deps({ run: () => Promise.reject(new TransientAiError('later')) }));
     expect(slow.retried).toEqual({ delaySeconds: 5 });
@@ -412,39 +425,35 @@ describe('processIngestMessage: failures', () => {
 
 describe('queue handlers', () => {
   it('handleIngestBatch processes every message of the batch', async () => {
-    stubJob(jobRow());
-    stubCapture();
+    await seedFood();
+    await seedPending();
     stubDeepSeek(parsedSms());
     const messages = [msg(), msg(), msg()];
     await handleIngestBatch(fakeBatch('dime-ingest', messages), env());
     expect(messages.every((m) => m.acked)).toBe(true);
+    expect(await transactions()).toHaveLength(1);
   });
 
   it('one crashing message does not take the others down', async () => {
-    stub.on('GET', '/rest/v1/jobs', () => pgError('XX000', 'down', 500));
+    await seedPending();
     const messages = [msg(), msg()];
-    await handleIngestBatch(fakeBatch('dime-ingest', messages), env());
+    await handleIngestBatch(fakeBatch('dime-ingest', messages), { ...env(), DB: failingOn(/FROM jobs/, 'D1_ERROR: down') });
     expect(messages.map((m) => m.retried)).toEqual([{ delaySeconds: 10 }, { delaySeconds: 10 }]);
   });
 
   it('index.queue routes by queue name (prod and staging) and stubs the email queue', async () => {
-    stubJob(jobRow({ status: 'done' }));
+    await seedPending({ status: 'done' });
     const ctx = {} as ExecutionContext;
     const ingest = msg();
     await worker.queue?.(fakeBatch('dime-ingest-staging', [ingest]), env(), ctx);
     expect(ingest.acked).toBe(true);
-    expect(stub.find('GET', '/rest/v1/jobs')).toHaveLength(1);
+    expect(await job()).toMatchObject({ status: 'done', attempts: 0 }); // the ingest handler looked, found it finished
 
-    stub.calls.length = 0;
-    (stub as unknown as { routes: unknown[] }).routes = [];
-    stub.on('PATCH', '/rest/v1/jobs', () => rows([{ id: JOB, user_id: USER_ID, kind: 'sms' }]));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-    stub.on('POST', '/rest/v1/notifications', () => rows([{ id: 'n' }]));
-    stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
+    await testDb().prepare("UPDATE jobs SET status = 'pending'").run();
     const dlq = msg();
     await worker.queue?.(fakeBatch('dime-ingest-dlq', [dlq]), env(), ctx);
     expect(dlq.acked).toBe(true);
-    expect(stub.find('PATCH', '/rest/v1/jobs')).toHaveLength(1); // the DLQ handler, not the ingest one
+    expect(await job()).toMatchObject({ status: 'failed', attempts: 0 }); // the DLQ handler, not the ingest one (which would have claimed it)
 
     const email = msg();
     await worker.queue?.(fakeBatch('dime-email', [email]), env(), ctx);
@@ -454,27 +463,25 @@ describe('queue handlers', () => {
 
 describe('DLQ handler', () => {
   it('fails an unfinished job conditionally, notifies, and acks (idempotent)', async () => {
-    stub.on('PATCH', '/rest/v1/jobs', () => rows([{ id: JOB, user_id: USER_ID, kind: 'receipt' }]));
-    stub.on('GET', '/rest/v1/user_settings', () => rows([settings]));
-    stub.on('POST', '/rest/v1/notifications', (c) => rows([{ id: 'n', ...(c.body as object) }]));
-    stub.on('GET', '/rest/v1/push_tokens', () => rows([]));
+    await seedJob({ id: JOB, kind: 'receipt', payload: mediaPayload(), status: 'processing' });
     const m = new FakeMessage({ job_id: JOB, kind: 'receipt' });
     await handleIngestDlq(fakeBatch('dime-ingest-dlq', [m]), env());
 
     expect(m.acked).toBe(true);
-    const patch = stub.last('PATCH', '/rest/v1/jobs');
-    expect(patch.params.get('id')).toBe(`eq.${JOB}`);
-    expect(patch.params.get('status')).toBe('in.(pending,processing)'); // never overwrites a finished job
-    expect(patch.body).toMatchObject({ status: 'failed', last_error: expect.stringContaining('Dead-lettered') as string });
-    expect(notificationPosts()).toEqual([expect.objectContaining({ kind: 'capture_failed', title: 'Receipt scan failed' })]);
+    expect(await job()).toMatchObject({ status: 'failed', last_error: expect.stringContaining('Dead-lettered') as string });
+    expect(await notifications()).toEqual([expect.objectContaining({ kind: 'capture_failed', title: 'Receipt scan failed' })]);
+    // A redelivery is harmless: no second notification.
+    await handleIngestDlq(fakeBatch('dime-ingest-dlq', [new FakeMessage({ job_id: JOB, kind: 'receipt' })]), env());
+    expect(await notifications()).toHaveLength(1);
   });
 
   it('a job that already finished is left alone: no notification, still acked', async () => {
-    stub.on('PATCH', '/rest/v1/jobs', () => rows([])); // conditional update matched nothing
+    await seedPending({ status: 'done', result: { transaction_id: TX } });
     const m = msg();
     await handleIngestDlq(fakeBatch('dime-ingest-dlq', [m]), env());
     expect(m.acked).toBe(true);
-    expect(stub.find('POST', '/rest/v1/notifications')).toHaveLength(0);
+    expect(await job()).toMatchObject({ status: 'done', last_error: null });
+    expect(await notifications()).toHaveLength(0);
   });
 
   it('acks malformed messages and retries when the database is down', async () => {
@@ -482,9 +489,8 @@ describe('DLQ handler', () => {
     await handleIngestDlq(fakeBatch('dime-ingest-dlq', [bad]), env());
     expect(bad.acked).toBe(true);
 
-    stub.on('PATCH', '/rest/v1/jobs', () => pgError('XX000', 'down', 500));
     const m = msg();
-    await handleIngestDlq(fakeBatch('dime-ingest-dlq', [m]), env());
+    await handleIngestDlq(fakeBatch('dime-ingest-dlq', [m]), { ...env(), DB: failingOn(/UPDATE jobs/, 'D1_ERROR: down') });
     expect(m.acked).toBe(false);
     expect(m.retried).toEqual({ delaySeconds: 30 });
   });
@@ -494,57 +500,86 @@ const controller = (cron: string) => ({ cron, scheduledTime: Date.now(), type: '
 
 describe('recovery sweep', () => {
   const NOW = Date.parse('2026-10-04T12:00:00.000Z');
+  const STALE = '2026-10-04T11:57:00.000Z'; // 3 minutes: stale
+  const FRESH = '2026-10-04T11:59:30.000Z'; // 30 seconds: not yet
+  const id = (n: number) => `bbbbbbbb-0000-0000-0000-${String(n).padStart(12, '0')}`;
 
-  it('re-sends stale pending jobs and re-queues stale processing ones (conditionally), oldest first, per kind', async () => {
-    stub.on('GET', '/rest/v1/jobs', (c) => {
-      const kind = c.params.get('kind');
-      if (kind === 'eq.receipt') return rows([jobRow({ id: 'r-pending', kind: 'receipt', status: 'pending' }), jobRow({ id: 'r-proc', kind: 'receipt', status: 'processing' })]);
-      if (kind === 'eq.sms') return rows([jobRow({ id: 's-lost-race', kind: 'sms', status: 'processing' })]);
-      return rows([]);
-    });
-    stub.on('PATCH', '/rest/v1/jobs', (c) => rows(c.params.get('id') === 'eq.s-lost-race' ? [] : [{ id: c.params.get('id')?.slice(3) }]));
+  it('re-sends stale pending jobs and re-queues stale processing ones, oldest first, per kind', async () => {
+    await seedJob({ id: id(2), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:57:30.000Z' });
+    await seedJob({ id: id(1), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
+    await seedJob({ id: id(3), kind: 'receipt', status: 'processing', updated_at: STALE });
+    await seedJob({ id: id(4), kind: 'receipt', status: 'pending', updated_at: FRESH }); // too fresh
+    await seedJob({ id: id(5), kind: 'receipt', status: 'done', updated_at: STALE }); // finished
+    await seedJob({ id: id(6), kind: 'sms', status: 'processing', updated_at: STALE });
     const queue = new FakeQueue();
-    const db = createServiceClient(env());
-    const result = await sweepJobs(db, queue.asQueue(), NOW);
+    const out = await sweepJobs(testDb(), queue.asQueue(), NOW);
 
-    const list = stub.find('GET', '/rest/v1/jobs');
-    expect(list).toHaveLength(3);
-    for (const c of list) {
-      expect(c.params.get('status')).toBe('in.(pending,processing)');
-      expect(c.params.get('updated_at')).toBe(`lt.${new Date(NOW - 120_000).toISOString()}`);
-      expect(c.params.get('order')).toBe('updated_at.asc');
-      expect(c.params.get('limit')).toBe('50');
-    }
-    const requeue = stub.find('PATCH', '/rest/v1/jobs');
-    expect(requeue).toHaveLength(2);
-    expect(requeue[0]?.params.get('status')).toBe('eq.processing');
-    expect(requeue[0]?.params.get('updated_at')).toBe(`lt.${new Date(NOW - 120_000).toISOString()}`);
-
+    // Per kind: the pending jobs oldest first, then the processing ones that were released.
     expect(queue.sent).toEqual([
-      { job_id: 'r-pending', kind: 'receipt' },
-      { job_id: 'r-proc', kind: 'receipt' },
+      { job_id: id(1), kind: 'receipt' },
+      { job_id: id(2), kind: 'receipt' },
+      { job_id: id(3), kind: 'receipt' },
+      { job_id: id(6), kind: 'sms' },
     ]);
-    expect(result).toEqual({ requeued: 1, resent: 2 });
+    expect(out).toEqual({ requeued: 2, resent: 4 });
+    expect(await oneRow('jobs', 'id = ?', id(3))).toMatchObject({ status: 'pending' });
+    expect(await oneRow('jobs', 'id = ?', id(4))).toMatchObject({ status: 'pending', updated_at: FRESH });
+    expect(await oneRow('jobs', 'id = ?', id(5))).toMatchObject({ status: 'done' });
+  });
+
+  it('requeues a stale processing job (conditional update) and leaves a freshly touched one alone', async () => {
+    await seedJob({ id: id(3), kind: 'receipt', status: 'processing', updated_at: STALE });
+    await seedJob({ id: id(6), kind: 'sms', status: 'processing', updated_at: STALE });
+    // The sms job is touched by its worker right before the sweep's conditional requeue.
+    let touched = false;
+    const db = withBeforeExec(/UPDATE jobs SET status = 'pending', updated_at = \? WHERE id = \? AND status = 'processing'/, async () => {
+      if (touched) return;
+      touched = true;
+      await testDb().prepare('UPDATE jobs SET updated_at = ? WHERE id = ?').bind(new Date(NOW - 1000).toISOString(), id(6)).run();
+    });
+    const queue = new FakeQueue();
+    const out = await sweepJobs(db, queue.asQueue(), NOW);
+    // Kinds run receipt, voice, sms: the hook fires first for the receipt job (touching the sms job), so only the receipt job is requeued.
+    expect(queue.sent).toEqual([{ job_id: id(3), kind: 'receipt' }]);
+    expect(out).toEqual({ requeued: 1, resent: 1 });
+    expect(await oneRow('jobs', 'id = ?', id(3))).toMatchObject({ status: 'pending' });
+    expect(await oneRow('jobs', 'id = ?', id(6))).toMatchObject({ status: 'processing' });
+  });
+
+  it('sends oldest first within a kind and respects the 120 s cutoff', async () => {
+    await seedJob({ id: id(2), kind: 'sms', status: 'pending', updated_at: '2026-10-04T11:57:30.000Z' });
+    await seedJob({ id: id(1), kind: 'sms', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
+    await seedJob({ id: id(4), kind: 'sms', status: 'pending', updated_at: FRESH });
+    await seedJob({ id: id(5), kind: 'sms', status: 'failed', updated_at: STALE });
+    const queue = new FakeQueue();
+    const out = await sweepJobs(testDb(), queue.asQueue(), NOW);
+    expect(queue.sent).toEqual([
+      { job_id: id(1), kind: 'sms' },
+      { job_id: id(2), kind: 'sms' },
+    ]);
+    expect(out).toEqual({ requeued: 0, resent: 2 });
   });
 
   it('does nothing (and sends nothing) when no job is stale', async () => {
-    stub.on('GET', '/rest/v1/jobs', () => rows([]));
+    await seedJob({ kind: 'sms', status: 'pending', updated_at: FRESH });
     const queue = new FakeQueue();
-    expect(await sweepJobs(createServiceClient(env()), queue.asQueue(), NOW)).toEqual({ requeued: 0, resent: 0 });
+    expect(await sweepJobs(testDb(), queue.asQueue(), NOW)).toEqual({ requeued: 0, resent: 0 });
     expect(queue.sent).toEqual([]);
-    expect(stub.find('PATCH', '/rest/v1/jobs')).toHaveLength(0);
   });
 
   it('a queue failure is not fatal: the jobs stay pending for the next sweep', async () => {
-    stub.on('GET', '/rest/v1/jobs', (c) => rows(c.params.get('kind') === 'eq.voice' ? [jobRow({ id: 'v', kind: 'voice', status: 'pending' })] : []));
+    await seedJob({ id: id(1), kind: 'voice', status: 'pending', updated_at: STALE });
     const queue = new FakeQueue();
     queue.failWith = new Error('down');
-    expect(await sweepJobs(createServiceClient(env()), queue.asQueue(), NOW)).toEqual({ requeued: 0, resent: 0 });
+    expect(await sweepJobs(testDb(), queue.asQueue(), NOW)).toEqual({ requeued: 0, resent: 0 });
+    expect(await oneRow('jobs', 'id = ?', id(1))).toMatchObject({ status: 'pending' });
   });
 
   it('sends in batches of at most 100', async () => {
-    const many = Array.from({ length: 50 }, (_, i) => jobRow({ id: `j${i}`, status: 'pending' }));
-    stub.on('GET', '/rest/v1/jobs', () => rows(many));
+    const db = testDb();
+    const insert = db.prepare("INSERT INTO jobs (id, user_id, kind, payload, status, attempts, created_at, updated_at) VALUES (?, ?, ?, '{}', 'pending', 0, ?, ?)");
+    const rows = (['receipt', 'voice', 'sms'] as const).flatMap((kind, k) => Array.from({ length: 50 }, (_, i) => insert.bind(id(k * 100 + i), USER_ID, kind, STALE, STALE)));
+    for (let i = 0; i < rows.length; i += 50) await db.batch(rows.slice(i, i + 50));
     const queue = new FakeQueue();
     const batches: number[] = [];
     queue.sendBatch = (messages) => {
@@ -553,21 +588,21 @@ describe('recovery sweep', () => {
       queue.sent.push(...list.map((m) => m.body));
       return Promise.resolve();
     };
-    await sweepJobs(createServiceClient(env()), queue.asQueue(), NOW);
+    await sweepJobs(db, queue.asQueue(), NOW);
     expect(batches).toEqual([100, 50]); // 3 kinds x 50 stale jobs
   });
 
   it('scheduled() dispatches by cron: the sweep for */5, a stub for the email digest', async () => {
-    stub.on('GET', '/rest/v1/jobs', () => rows([jobRow({ id: 'x', status: 'pending' })]));
+    await seedJob({ kind: 'sms', status: 'pending', updated_at: STALE });
     const queue = new FakeQueue();
     const e = { ...env(), INGEST_QUEUE: queue.asQueue() } as Bindings;
     const ctx = {} as ExecutionContext;
     await worker.scheduled?.(controller('*/5 * * * *'), e, ctx);
     expect(queue.sent.length).toBeGreaterThan(0);
 
-    const before = stub.calls.length;
+    const before = queue.sent.length;
     await worker.scheduled?.(controller('30 2 * * *'), e, ctx);
     await worker.scheduled?.(controller('1 1 1 1 1'), e, ctx);
-    expect(stub.calls.length).toBe(before);
+    expect(queue.sent.length).toBe(before);
   });
 });

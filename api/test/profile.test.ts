@@ -1,10 +1,14 @@
+import { env as workerEnv } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import { validateAvatarUrl } from '../src/features/profile-avatar/fetch';
 import { detectImageFormat } from '../src/core/image-format';
-import { USER_ID, call, makeCtx } from './helpers';
-import { json, rows, useSupabaseStub } from './supabase-stub';
+import { USER_ID, call, makeCtx, makeEnv } from './helpers';
+import { oneRow, rowsOf, seedPushToken, seedSettings, seedUser, testDb } from './db';
+import { settingsFromRow } from '../src/features/user-settings/snapshot';
+import { useSupabaseStub } from './supabase-stub';
 
+// Relational data lives in D1; the stub only serves Storage and other outbound HTTP.
 const stub = useSupabaseStub();
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array<number>(64).fill(0)]);
 const GOOD_URL = 'https://api.dicebear.com/7.x/adventurer-neutral/png?seed=abc&size=256';
@@ -44,45 +48,51 @@ describe('auth on every R1 router', () => {
 
 describe('GET /me', () => {
   it('returns the profile with the JWT email and no writes when the email is unchanged', async () => {
-    stub.on('GET', '/rest/v1/users', () => rows([{ id: USER_ID, username: 'amrith', avatar_url: null, currency: 'INR', email: 'a@x.com' }]));
+    await testDb().prepare("UPDATE users SET username = 'amrith', email = 'a@x.com', updated_at = '2026-01-01T00:00:00.000Z' WHERE id = ?").bind(USER_ID).run();
     const { ctx, flush } = makeCtx();
     const res = await call('/api/v1/me', { email: 'a@x.com' }, ctx);
     await flush();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: USER_ID, email: 'a@x.com', username: 'amrith', avatar_url: null, currency: 'INR' });
-    expect(stub.find('PATCH', '/rest/v1/users')).toHaveLength(0);
-    expect(stub.last('GET', '/rest/v1/users').params.get('id')).toBe(`eq.${USER_ID}`);
+    // No write: the row's updated_at is untouched.
+    expect((await oneRow<{ updated_at: string }>('users', 'id = ?', USER_ID))?.updated_at).toBe('2026-01-01T00:00:00.000Z');
   });
 
   it('missing row: returns bare identity (nulls) and triggers the welcome flow without a write', async () => {
-    stub.on('GET', '/rest/v1/users', () => rows([]));
+    await testDb().prepare('DELETE FROM users WHERE id = ?').bind(USER_ID).run();
     const { ctx, flush } = makeCtx();
     const res = await call('/api/v1/me', { email: 'a@x.com' }, ctx);
     await flush();
     expect(await res.json()).toEqual({ id: USER_ID, email: 'a@x.com', username: null, avatar_url: null, currency: null });
-    expect(stub.find('PATCH', '/rest/v1/users')).toHaveLength(0);
+    expect(await rowsOf('users')).toHaveLength(0);
   });
 
   it('changed email is persisted in the background (after the response)', async () => {
-    stub.on('GET', '/rest/v1/users', () => rows([{ id: USER_ID, username: 'u', avatar_url: null, currency: 'INR', email: 'old@x.com' }]));
-    stub.on('PATCH', '/rest/v1/users', () => new Response(null, { status: 204 }));
+    await testDb().prepare("UPDATE users SET username = 'u', email = 'old@x.com' WHERE id = ?").bind(USER_ID).run();
     const { ctx, flush } = makeCtx();
     await call('/api/v1/me', { email: 'new@x.com' }, ctx);
     await flush();
-    expect(stub.last('PATCH', '/rest/v1/users').body).toEqual({ email: 'new@x.com' });
+    expect((await oneRow<{ email: string }>('users', 'id = ?', USER_ID))?.email).toBe('new@x.com');
   });
 });
 
 describe('PUT /me/profile', () => {
   it('upserts trimmed values and returns the stored row in one request', async () => {
-    stub.on('POST', '/rest/v1/users', () => rows([{ id: USER_ID, username: 'amrith', avatar_url: null, currency: 'USD', email: null }]));
     const res = await call('/api/v1/me/profile', { method: 'PUT', json: { username: '  amrith ', currency: ' USD ' }, email: 'a@x.com' });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ username: 'amrith', currency: 'USD', email: 'a@x.com' });
-    const req = stub.last('POST', '/rest/v1/users');
-    expect(req.body).toEqual({ id: USER_ID, username: 'amrith', currency: 'USD' });
-    expect(req.params.get('on_conflict')).toBe('id');
-    expect(stub.calls).toHaveLength(1);
+    expect(await oneRow('users', 'id = ?', USER_ID)).toMatchObject({ username: 'amrith', currency: 'USD', avatar_url: null });
+  });
+
+  it('keeps the stored avatar when none is sent, and creates the row for a new user', async () => {
+    await testDb().prepare("UPDATE users SET avatar_url = 'https://img/x.png' WHERE id = ?").bind(USER_ID).run();
+    await call('/api/v1/me/profile', { method: 'PUT', json: { username: 'amrith' } });
+    expect((await oneRow<{ avatar_url: string }>('users', 'id = ?', USER_ID))?.avatar_url).toBe('https://img/x.png');
+    await call('/api/v1/me/profile', { method: 'PUT', json: { username: 'amrith', avatar_url: ' https://img/y.png ' } });
+    expect((await oneRow<{ avatar_url: string }>('users', 'id = ?', USER_ID))?.avatar_url).toBe('https://img/y.png');
+    await testDb().prepare('DELETE FROM users').run();
+    const created = await call('/api/v1/me/profile', { method: 'PUT', json: { username: 'newbie' } });
+    expect(await created.json()).toMatchObject({ username: 'newbie', currency: 'INR' });
   });
 
   it('422s with a FastAPI shape for a short username', async () => {
@@ -104,32 +114,29 @@ describe('/me/settings', () => {
   };
 
   it('GET creates defaults when the row is missing', async () => {
-    stub.on('GET', '/rest/v1/user_settings', () => rows([]));
-    stub.on('POST', '/rest/v1/user_settings', () => rows([full]));
     const res = await call('/api/v1/me/settings');
     expect(await res.json()).toEqual(full);
-    const ins = stub.last('POST', '/rest/v1/user_settings');
-    expect(ins.params.get('on_conflict')).toBe('user_id');
-    expect(ins.headers.get('prefer')).toContain('resolution=ignore-duplicates');
+    expect(await rowsOf('user_settings')).toHaveLength(1);
+    // A second read returns the same stored row.
+    expect(await (await call('/api/v1/me/settings')).json()).toEqual(full);
+    expect(await rowsOf('user_settings')).toHaveLength(1);
   });
 
   it('PATCH updates only provided fields (null = unchanged) in one round trip', async () => {
-    stub.on('PATCH', '/rest/v1/user_settings', () => rows([{ ...full, budget_monthly_warn_pct: 70, budget_alerts_enabled: false }]));
+    await seedSettings({ weekly_email_enabled: 0 });
     const res = await call('/api/v1/me/settings', {
       method: 'PATCH',
       json: { budget_alerts_enabled: false, budget_monthly_warn_pct: 70, weekly_email_enabled: null },
     });
-    expect(await res.json()).toMatchObject({ budget_alerts_enabled: false, budget_monthly_warn_pct: 70 });
-    const body = stub.last('PATCH', '/rest/v1/user_settings').body as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['budget_alerts_enabled', 'budget_monthly_warn_pct', 'updated_at']);
-    expect(stub.calls).toHaveLength(1);
+    expect(await res.json()).toEqual({ ...full, budget_monthly_warn_pct: 70, budget_alerts_enabled: false, weekly_email_enabled: false });
+    // null = unchanged: the stored weekly flag stays off.
+    expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ weekly_email_enabled: 0, budget_alerts_enabled: 0, budget_monthly_warn_pct: 70 });
   });
 
   it('PATCH creates the row (with the patch applied) when none exists', async () => {
-    stub.on('PATCH', '/rest/v1/user_settings', () => rows([]));
-    stub.on('POST', '/rest/v1/user_settings', (c) => rows([c.body]));
     const res = await call('/api/v1/me/settings', { method: 'PATCH', json: { daily_expense_reminder_time: '21:30' } });
     expect(await res.json()).toMatchObject({ daily_expense_reminder_time: '21:30', budget_alerts_enabled: true });
+    expect(await rowsOf('user_settings')).toHaveLength(1);
   });
 
   it('rejects bad time, out-of-range pct and unknown fields with FastAPI-style 422s', async () => {
@@ -140,22 +147,25 @@ describe('/me/settings', () => {
   });
 
   it('clamps stored warn percentages like the Python snapshot', async () => {
-    stub.on('GET', '/rest/v1/user_settings', () => rows([{ ...full, budget_monthly_warn_pct: 10, budget_daily_warn_pct: 200 }]));
-    const body = await (await call('/api/v1/me/settings')).json<{ budget_monthly_warn_pct: number; budget_daily_warn_pct: number }>();
+    // The table's CHECK (50..95) keeps such values out of D1; the clamp still guards legacy / imported rows.
+    const body = settingsFromRow({ ...full, budget_monthly_warn_pct: 10, budget_daily_warn_pct: 200 });
     expect([body.budget_monthly_warn_pct, body.budget_daily_warn_pct]).toEqual([50, 95]);
+    await expect(seedSettings({ budget_monthly_warn_pct: 10 })).rejects.toThrow();
   });
 });
 
 describe('POST /feedback', () => {
   it('inserts trimmed message with reporter fields and returns 201 {id}', async () => {
-    stub.on('GET', '/rest/v1/users', () => rows([{ username: ' amrith ' }]));
-    stub.on('POST', '/rest/v1/user_feedback', () => json({ id: 'fb-1' }));
+    await testDb().prepare("UPDATE users SET username = ' amrith ' WHERE id = ?").bind(USER_ID).run();
     const res = await call('/api/v1/feedback', { method: 'POST', json: { type: 'bug', message: '  hello world  ' }, email: 'a@x.com' });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: 'fb-1' });
-    expect(stub.last('POST', '/rest/v1/user_feedback').body).toEqual({
-      user_id: USER_ID, message: 'hello world', feedback_type: 'bug', reporter_email: 'a@x.com', reporter_username: 'amrith',
-    });
+    const { id } = await res.json<{ id: string }>();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await rowsOf('user_feedback')).toEqual([
+      expect.objectContaining({
+        id, user_id: USER_ID, message: 'hello world', feedback_type: 'bug', reporter_email: 'a@x.com', reporter_username: 'amrith',
+      }),
+    ]);
   });
 
   it('rejects a message that is shorter than 8 characters after trimming with a string 422', async () => {
@@ -175,12 +185,19 @@ describe('POST /feedback', () => {
 
 describe('/me/push-token', () => {
   it('PUT upserts on the token and returns it', async () => {
-    stub.on('POST', '/rest/v1/user_push_tokens', () => json({ expo_push_token: 'ExponentPushToken[abc]' }));
     const res = await call('/api/v1/me/push-token', { method: 'PUT', json: { token: 'ExponentPushToken[abc]' } });
     expect(await res.json()).toEqual({ token: 'ExponentPushToken[abc]' });
-    const req = stub.last('POST', '/rest/v1/user_push_tokens');
-    expect(req.params.get('on_conflict')).toBe('expo_push_token');
-    expect(req.body).toMatchObject({ user_id: USER_ID, expo_push_token: 'ExponentPushToken[abc]', platform: 'android' });
+    expect(await rowsOf('user_push_tokens')).toEqual([
+      expect.objectContaining({ user_id: USER_ID, expo_push_token: 'ExponentPushToken[abc]', platform: 'android' }),
+    ]);
+  });
+
+  it('PUT moves a token that is registered on another account (conflict on the token) and is idempotent', async () => {
+    await seedUser('33333333-3333-3333-3333-333333333333');
+    await seedPushToken('ExponentPushToken[abc]', '33333333-3333-3333-3333-333333333333');
+    await call('/api/v1/me/push-token', { method: 'PUT', json: { token: 'ExponentPushToken[abc]' } });
+    await call('/api/v1/me/push-token', { method: 'PUT', json: { token: 'ExponentPushToken[abc]' } });
+    expect(await rowsOf('user_push_tokens')).toEqual([expect.objectContaining({ user_id: USER_ID, expo_push_token: 'ExponentPushToken[abc]' })]);
   });
 
   it('PUT validates token length and platform', async () => {
@@ -189,13 +206,16 @@ describe('/me/push-token', () => {
   });
 
   it('DELETE with a token removes only that token; without one removes all of the user', async () => {
-    stub.on('DELETE', '/rest/v1/user_push_tokens', () => new Response(null, { status: 204 }));
+    const other = '33333333-3333-3333-3333-333333333333';
+    await seedUser(other);
+    await seedPushToken('tok-12345');
+    await seedPushToken('tok-67890');
+    await seedPushToken('tok-other-1', other);
     const one = await call('/api/v1/me/push-token', { method: 'DELETE', json: { token: 'tok-12345' } });
     expect(one.status).toBe(204);
-    expect(stub.last('DELETE', '/rest/v1/user_push_tokens').params.get('expo_push_token')).toBe('eq.tok-12345');
+    expect((await rowsOf<{ expo_push_token: string }>('user_push_tokens')).map((r) => r.expo_push_token)).toEqual(['tok-67890', 'tok-other-1']);
     await call('/api/v1/me/push-token', { method: 'DELETE', json: {} });
-    expect(stub.last('DELETE', '/rest/v1/user_push_tokens').params.get('expo_push_token')).toBeNull();
-    expect(stub.last('DELETE', '/rest/v1/user_push_tokens').params.get('user_id')).toBe(`eq.${USER_ID}`);
+    expect((await rowsOf<{ expo_push_token: string }>('user_push_tokens')).map((r) => r.expo_push_token)).toEqual(['tok-other-1']);
   });
 });
 
@@ -210,11 +230,6 @@ describe('image format sniffing', () => {
   });
 });
 
-function avatarStorageStubs() {
-  stub.on('POST', '/storage/v1/object/', () => json({ Key: 'ok' }));
-  stub.on('PATCH', '/rest/v1/users', () => new Response(null, { status: 204 }));
-}
-
 describe('POST /profile/avatar', () => {
   const upload = (bytes: Uint8Array, name = 'avatar.png', type = 'image/png') => {
     const form = new FormData();
@@ -223,16 +238,14 @@ describe('POST /profile/avatar', () => {
   };
 
   it('stores a PNG at avatars/<user>/avatar.png and returns a versioned public URL', async () => {
-    avatarStorageStubs();
     const res = await upload(PNG);
     expect(res.status).toBe(200);
     const { avatar_url } = await res.json<{ avatar_url: string }>();
-    expect(avatar_url).toMatch(new RegExp(`/storage/v1/object/public/Dime/avatars/${USER_ID}/avatar\\.png\\?v=\\d+$`));
-    const up = stub.last('POST', '/storage/v1/object/');
-    expect(up.path).toContain(`/Dime/avatars/${USER_ID}/avatar.png`);
-    expect(up.headers.get('x-upsert')).toBe('true');
-    expect(up.headers.get('content-type')).toBe('image/png');
-    expect((stub.last('PATCH', '/rest/v1/users').body as { avatar_url: string }).avatar_url).toBe(avatar_url);
+    expect(avatar_url).toMatch(new RegExp(`^https://[^/]+/media/avatars/${USER_ID}/avatar\\.png\\?v=\\d+$`));
+    const stored = await workerEnv.MEDIA.get(`avatars/${USER_ID}/avatar.png`);
+    expect(stored?.httpMetadata?.contentType).toBe('image/png');
+    expect(stored?.size).toBe(PNG.byteLength);
+    expect((await oneRow<{ avatar_url: string }>('users', 'id = ?', USER_ID))?.avatar_url).toBe(avatar_url);
   });
 
   it('rejects non-images by magic bytes (400) and empty files', async () => {
@@ -241,7 +254,7 @@ describe('POST /profile/avatar', () => {
     expect(await res.json()).toEqual({ detail: 'Unsupported image type (use JPEG, PNG, or WebP).' });
     const empty = await upload(new Uint8Array(0));
     expect(await empty.json()).toEqual({ detail: 'Empty file.' });
-    expect(stub.find('POST', '/storage/v1')).toHaveLength(0);
+    expect((await workerEnv.MEDIA.list()).objects).toEqual([]);
   });
 
   it('422s when the file part is missing', async () => {
@@ -259,11 +272,13 @@ describe('POST /profile/avatar', () => {
   });
 
   it('maps storage failure to 502 and leaves the profile untouched', async () => {
-    stub.on('POST', '/storage/v1/object/', () => json({ message: 'boom', statusCode: '500' }, { status: 500 }));
-    const res = await upload(PNG);
+    const broken = { put: () => Promise.reject(new Error('boom')) };
+    const form = new FormData();
+    form.append('file', new File([PNG], 'avatar.png', { type: 'image/png' }));
+    const res = await call('/api/v1/profile/avatar', { method: 'POST', body: form, env: makeEnv({ MEDIA: broken as unknown as string }) });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ detail: 'Could not store image.' });
-    expect(stub.find('PATCH', '/rest/v1/users')).toHaveLength(0);
+    expect((await oneRow<{ avatar_url: string | null }>('users', 'id = ?', USER_ID))?.avatar_url).toBeNull();
   });
 });
 
@@ -271,7 +286,6 @@ describe('POST /profile/avatar/from-url (S1)', () => {
   const post = (image_url: string) => call('/api/v1/profile/avatar/from-url', { method: 'POST', json: { image_url } });
 
   it('fetches an allowlisted https image, uploads it and never follows redirects', async () => {
-    avatarStorageStubs();
     stub.on('GET', '/7.x/', () => new Response(PNG, { headers: { 'content-type': 'image/png' } }));
     const res = await post(GOOD_URL);
     expect(res.status).toBe(200);

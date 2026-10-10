@@ -16,7 +16,6 @@ const prepare = (name: string, args: unknown): Prepared => {
 };
 const sqlOf = (name: string, args: unknown) => {
   const p = prepare(name, args);
-  if (p.kind !== 'sql') throw new Error('not a sql tool');
   return { ...p, shape: (raw: unknown) => p.shape(raw, []) };
 };
 
@@ -44,9 +43,11 @@ describe('tool definitions', () => {
     expect(JSON.stringify(TOOL_SPECS)).toBe(JSON.stringify(TOOLS.map((t) => t.spec)));
   });
 
-  it('never offers a way to read notes: list_transactions documents its fields and run_sql names the schema without exposing them', () => {
+  it('never offers a way to read notes or to run free-form SQL', () => {
     const list = TOOL_SPECS.find((t) => t.function.name === 'list_transactions')?.function.description ?? '';
     expect(list).toContain('Notes are never returned');
+    expect(TOOL_SPECS.map((t) => t.function.name)).not.toContain('run_sql');
+    expect(JSON.stringify(TOOL_SPECS)).not.toMatch(/\bSELECT\b/);
   });
 });
 
@@ -71,43 +72,60 @@ describe('argument validation', () => {
   });
 
   it('accepts an empty argument object only where every field is optional', () => {
-    expect(prepare('budget_status', '').kind).toBe('sql');
+    expect(prepare('budget_status', '').call.name).toBe('budget_status');
     expect(() => prepare('daily_cashflow', '')).toThrow(ToolArgError);
   });
 });
 
-describe('planning: half-open UTC instants and bound parameters', () => {
-  it('converts inclusive local dates to [from 00:00, to+1 00:00) and binds everything as text', () => {
+describe('planning: half-open UTC instants and typed query parameters', () => {
+  it('converts inclusive local dates to [from 00:00, to+1 00:00)', () => {
     const p = sqlOf('spending_summary', { from: '2026-06-01', to: '2026-06-30', category_id: CAT, payee_key: 'swiggy' });
-    expect(p.call.text).toBe('select public.agent_spending_summary($1::text::timestamptz, $2::text::timestamptz, $3::text::uuid, $4::text) as r');
-    expect(p.call.params).toEqual(['2026-05-31T18:30:00.000Z', '2026-06-30T18:30:00.000Z', CAT, 'swiggy']);
+    expect(p.call).toEqual({ name: 'spending_summary', params: { from: '2026-05-31T18:30:00.000Z', to: '2026-06-30T18:30:00.000Z', categoryId: CAT, payeeKey: 'swiggy' } });
     expect(p.args).toMatchObject({ from: '2026-06-01', to: '2026-06-30', category_id: CAT, payee_key: 'swiggy' });
   });
 
-  it('plans every data tool onto its agent_* function', () => {
+  it('plans every data tool onto its query', () => {
     const range = { from: '2026-06-01', to: '2026-06-14' };
-    const text = (name: string, args: unknown) => sqlOf(name, args).call.text;
-    expect(text('category_breakdown', range)).toContain('public.agent_category_breakdown($1::text::timestamptz, $2::text::timestamptz, $3::text)');
-    expect(sqlOf('category_breakdown', range).call.params[2]).toBe('debit');
-    expect(sqlOf('top_payees', range).call.params).toEqual(['2026-05-31T18:30:00.000Z', '2026-06-14T18:30:00.000Z', null, '5']);
-    expect(sqlOf('daily_cashflow', range).call.params).toEqual(['2026-05-31T18:30:00.000Z', '2026-06-14T18:30:00.000Z', 'Asia/Kolkata']);
+    const at = { from: '2026-05-31T18:30:00.000Z', to: '2026-06-14T18:30:00.000Z' };
+    expect(sqlOf('category_breakdown', range).call).toEqual({ name: 'category_breakdown', params: { ...at, type: 'debit' } });
+    expect(sqlOf('top_payees', range).call).toEqual({ name: 'top_payees', params: { ...at, categoryId: null, limit: 5 } });
+    expect(sqlOf('daily_cashflow', range).call).toEqual({ name: 'daily_cashflow', params: { ...at, tz: 'Asia/Kolkata' } });
     const compare = sqlOf('compare_periods', { a: { from: '2026-07-01', to: '2026-07-31' }, b: { from: '2026-06-01', to: '2026-06-30' }, by: 'category' });
-    expect(compare.call.params).toEqual(['2026-06-30T18:30:00.000Z', '2026-07-31T18:30:00.000Z', '2026-05-31T18:30:00.000Z', '2026-06-30T18:30:00.000Z', 'category']);
+    expect(compare.call).toEqual({
+      name: 'compare_periods',
+      params: { a: { from: '2026-06-30T18:30:00.000Z', to: '2026-07-31T18:30:00.000Z' }, b: { from: '2026-05-31T18:30:00.000Z', to: '2026-06-30T18:30:00.000Z' }, by: 'category' },
+    });
     const list = sqlOf('list_transactions', { ...range, min_amount: 5000, type: 'debit', order: 'amount_desc', limit: 3, payee_key: 'uber' });
-    expect(list.call.params).toEqual(['2026-05-31T18:30:00.000Z', '2026-06-14T18:30:00.000Z', 'Asia/Kolkata', null, 'uber', '5000', 'debit', 'amount_desc', '3']);
-    expect(sqlOf('resolve_entities', { text: 'Swigy' }).call.params).toEqual(['["Swigy"]']);
+    expect(list.call).toEqual({ name: 'list_transactions', params: { ...at, tz: 'Asia/Kolkata', categoryId: null, payeeKey: 'uber', minCents: 500000, type: 'debit', order: 'amount_desc', limit: 3 } });
+    expect(sqlOf('resolve_entities', { text: 'Swigy' }).call).toEqual({ name: 'resolve_entities', params: { phrases: ['Swigy'] } });
+  });
+
+  it('turns rupee bounds into whole cents the way the user means them (min rounds up, max rounds down)', () => {
+    const params = (args: unknown) => sqlOf('aggregate_transactions', { from: '2026-06-01', to: '2026-06-14', metric: 'count', ...(args as object) }).call.params as { minCents: number | null; maxCents: number | null };
+    expect(params({ min_amount: 199.999, max_amount: 199.999 })).toMatchObject({ minCents: 20000, maxCents: 19999 });
+    expect(params({ min_amount: 0.1, max_amount: 200 })).toMatchObject({ minCents: 10, maxCents: 20000 });
+    expect(params({})).toMatchObject({ minCents: null, maxCents: null });
   });
 
   it('budget_status uses the calendar month containing `at` (default today), in the user timezone', () => {
-    expect(sqlOf('budget_status', { at: '2026-02-17' }).call.params).toEqual(['2026-01-31T18:30:00.000Z', '2026-02-28T18:30:00.000Z']);
+    expect(sqlOf('budget_status', { at: '2026-02-17' }).call.params).toEqual({ from: '2026-01-31T18:30:00.000Z', to: '2026-02-28T18:30:00.000Z' });
     const today = sqlOf('budget_status', {});
-    expect(today.call.params).toEqual(['2026-09-30T18:30:00.000Z', '2026-10-31T18:30:00.000Z']);
+    expect(today.call.params).toEqual({ from: '2026-09-30T18:30:00.000Z', to: '2026-10-31T18:30:00.000Z' });
     expect(today.args).toMatchObject({ from: '2026-10-01', to: '2026-10-31' });
   });
 
-  it('run_sql only forwards the statement (validation and execution happen in the executor)', () => {
-    expect(prepare('run_sql', { query: 'SELECT 1' })).toEqual({ kind: 'run_sql', query: 'SELECT 1', args: { query: 'SELECT 1' } });
-    expect(() => prepare('run_sql', { query: 'x' })).toThrow(ToolArgError);
+  it('aggregate_transactions validates its arguments and defaults to one spending number', () => {
+    const p = sqlOf('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'avg' });
+    expect(p.call).toEqual({
+      name: 'aggregate_transactions',
+      params: { from: '2026-06-30T18:30:00.000Z', to: '2026-07-31T18:30:00.000Z', tz: 'Asia/Kolkata', metric: 'avg', groupBy: 'none', type: 'debit', category: null, payee: null, minCents: null, maxCents: null },
+    });
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31' })).toThrow(/metric/);
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'median' })).toThrow(/metric/);
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'sum', group_by: 'year' })).toThrow(/group_by/);
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'sum', type: 'refund' })).toThrow(/type/);
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'sum', min_amount: -5 })).toThrow(/min_amount/);
+    expect(() => prepare('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'sum', min_amount: 10, max_amount: 5 })).toThrow(/above max_amount/);
   });
 });
 
@@ -132,6 +150,26 @@ describe('shaping results', () => {
     expect(out.data['debit_total_display']).toBe('₹300');
     expect((out.data['peak_debit_day'] as Record<string, unknown>)['debit_display']).toBe('₹200');
     expect(out.data['days']).toEqual([{ date: '2026-06-01', debit: 100, credit: 0 }, { date: '2026-06-02', debit: 200, credit: 0 }]);
+  });
+
+  it('aggregate_transactions: money values for sum / avg, plain numbers for counts', () => {
+    const avg = sqlOf('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'avg', group_by: 'weekday' }).shape({
+      metric: 'avg',
+      group_by: 'weekday',
+      groups: 2,
+      rows: [{ group: 'Wednesday', value: 1234.5, count: 4 }, { group: 'Monday', value: 99, count: 1 }],
+    });
+    expect(avg.rows).toBe(2);
+    expect(avg.data).toMatchObject({
+      period: { from: '2026-07-01', to: '2026-07-31' },
+      type: 'debit',
+      rows: [
+        { group: 'Wednesday', value: '1234.50', value_display: '₹1,234.50', count: 4 },
+        { group: 'Monday', value: '99.00', value_display: '₹99', count: 1 },
+      ],
+    });
+    const count = sqlOf('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'count_distinct_payees' }).shape({ metric: 'count_distinct_payees', group_by: 'none', groups: 1, rows: [{ group: 'all', value: 26, count: 40 }] });
+    expect(count.data['rows']).toEqual([{ group: 'all', value: 26, count: 40 }]);
   });
 
   it('ranks resolved entities: exact first, one row per entity, five at most', () => {

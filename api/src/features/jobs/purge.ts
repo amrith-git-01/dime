@@ -1,5 +1,5 @@
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import * as jobs from './repository';
 
 const DAY_MS = 86_400_000;
@@ -19,7 +19,7 @@ export function isPurgeSlot(scheduledTimeMs: number): boolean {
 }
 
 /** Delete old finished jobs and stale manual-create idempotency rows. Never throws: the next hour retries. Returns rows deleted. */
-export async function purgeOldJobs(db: DimeSupabaseClient, nowMs: number = Date.now()): Promise<number> {
+export async function purgeOldJobs(db: Db, nowMs: number = Date.now()): Promise<number> {
   const rules: jobs.PurgeRule[] = [
     { statuses: ['done', 'failed'], cutoffIso: new Date(nowMs - FINISHED_RETENTION_DAYS * DAY_MS).toISOString() },
     { kind: 'manual_create', cutoffIso: new Date(nowMs - MANUAL_CREATE_RETENTION_DAYS * DAY_MS).toISOString() },

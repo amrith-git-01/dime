@@ -1,4 +1,4 @@
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { fetchMetaByIds } from '../categories/repository';
 import { fetchByUserId } from '../user-settings/repository';
 import { settingsFromRow } from '../user-settings/snapshot';
@@ -30,7 +30,7 @@ export interface AfterInsertInput {
  * here affects the HTTP response, so API handlers run it with `defer`/`waitUntil` and the R3 queue
  * consumer calls it after inserting a captured transaction.
  */
-export async function notifyAfterInsert(db: DimeSupabaseClient, input: AfterInsertInput): Promise<void> {
+export async function notifyAfterInsert(db: Db, input: AfterInsertInput): Promise<void> {
   const autoDetected = AUTO_DETECTED.has(input.detectedVia);
   if (input.type !== 'debit' && !autoDetected) return; // nothing to notify: skip the settings read
 

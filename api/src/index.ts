@@ -6,6 +6,8 @@ import { runDigestCron } from './features/email/digest';
 import { handleIngestBatch, handleIngestDlq } from './features/ingest/consumer';
 import { SWEEP_CRON, runSweep } from './features/ingest/sweep';
 
+export { UserHub } from './features/realtime/user-hub';
+
 /** Cron `30 2 * * *` (08:00 IST): weekly (Monday) / monthly (1st) email digest fan-out onto EMAIL_QUEUE. */
 const EMAIL_DIGEST_CRON = '30 2 * * *';
 

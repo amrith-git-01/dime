@@ -1,7 +1,7 @@
 import { getConfig } from '../../core/env';
 import type { AppConfig, Bindings } from '../../core/env';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { BrevoClient } from './brevo';
 import { buildDigestPayload } from './digest-payload';
 import { renderDigestHtml, renderWelcomeHtml } from './html';
@@ -32,14 +32,14 @@ export interface EmailService {
 }
 
 export interface EmailDeps {
-  db: DimeSupabaseClient;
+  db: Db;
   config: AppConfig;
   brevo: BrevoClient;
   /** One random quote per call; the batch shares a single lazily fetched page. */
   quote: () => Promise<Quote>;
 }
 
-export function createEmailDeps(env: Bindings, db: DimeSupabaseClient): EmailDeps {
+export function createEmailDeps(env: Bindings, db: Db): EmailDeps {
   const config = getConfig(env);
   return {
     db,
@@ -184,10 +184,10 @@ export async function sendDigest(deps: EmailDeps, input: { userId: string; perio
 }
 
 /**
- * Factory the routes use. Built per request from `env` and the request's Supabase client (do not
+ * Factory the routes use. Built per request from `env` and the request's D1 database (do not
  * cache across requests).
  */
-export function createEmailService(env: Bindings, db: DimeSupabaseClient): EmailService {
+export function createEmailService(env: Bindings, db: Db): EmailService {
   const deps = createEmailDeps(env, db);
   return { sendWelcomeIfNeeded: (input) => sendWelcome(deps, input) };
 }
@@ -196,7 +196,7 @@ export function createEmailService(env: Bindings, db: DimeSupabaseClient): Email
  * Verify a signed unsubscribe token and switch that digest off. `null` for a bad, expired or
  * unverifiable token (including a missing secret: S3, no fallback key).
  */
-export async function unsubscribe(db: DimeSupabaseClient, config: AppConfig, token: string): Promise<DigestKind | null> {
+export async function unsubscribe(db: Db, config: AppConfig, token: string): Promise<DigestKind | null> {
   let parsed: Awaited<ReturnType<typeof verifyUnsubscribeToken>>;
   try {
     parsed = await verifyUnsubscribeToken({ secret: config.email.unsubscribeSecret, token });

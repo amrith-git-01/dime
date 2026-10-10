@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { createRemoteJWKSet, decodeProtectedHeader, errors as joseErrors, jwtVerify } from 'jose';
-import type { JWTPayload, JWTVerifyOptions } from 'jose';
+import { decodeProtectedHeader, errors as joseErrors, jwtVerify } from 'jose';
+import type { JWTPayload } from 'jose';
 
 import { getConfig } from './env';
 import type { AppBindings } from './env';
@@ -11,88 +11,50 @@ import { log } from './logging';
 export interface AuthUser {
   id: string;
   email: string | undefined;
-  /** Raw bearer token, for user-scoped Supabase clients (RLS) or forwarding. */
+  /** Raw bearer token (kept for callers that forward it). */
   accessToken: string;
 }
 
-type Jwks = ReturnType<typeof createRemoteJWKSet>;
+let keyCache: { secret: string; key: Uint8Array } | undefined;
 
-// Module scope = one JWKS cache per isolate. jose caches keys (10 min) and refetches on unknown kid
-// with a cooldown, so steady-state verification makes no subrequests.
-const jwksByUrl = new Map<string, Jwks>();
-
-function getJwks(supabaseUrl: string): Jwks {
-  let jwks = jwksByUrl.get(supabaseUrl);
-  if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`), {
-      timeoutDuration: 5000,
-      cooldownDuration: 30_000,
-    });
-    jwksByUrl.set(supabaseUrl, jwks);
-  }
-  return jwks;
+/** HS256 key bytes for `AUTH_JWT_SECRET`, encoded once per isolate. */
+export function jwtKey(secret: string | undefined): Uint8Array {
+  if (!secret) throw new ServiceUnavailableError('Auth is not configured (missing AUTH_JWT_SECRET).');
+  if (keyCache?.secret !== secret) keyCache = { secret, key: new TextEncoder().encode(secret) };
+  return keyCache.key;
 }
 
-let hsKeyCache: { secret: string; key: Uint8Array } | undefined;
-
-function hsKey(secret: string): Uint8Array {
-  if (hsKeyCache?.secret !== secret) hsKeyCache = { secret, key: new TextEncoder().encode(secret) };
-  return hsKeyCache.key;
-}
+export const ACCESS_TOKEN_ISSUER = 'dime-api';
+export const ACCESS_TOKEN_AUDIENCE = 'authenticated';
 
 const INVALID = 'Invalid or expired token.';
 
-/** Verify a Supabase access token. Mirrors backend/core/security.py. */
-async function verifyAccessToken(
-  token: string,
-  config: { supabaseUrl: string; supabaseJwtSecret: string | undefined },
-): Promise<JWTPayload> {
-  const options: JWTVerifyOptions = {
-    audience: 'authenticated',
-    issuer: `${config.supabaseUrl}/auth/v1`,
-    requiredClaims: ['exp', 'sub', 'iss', 'aud'],
-  };
-
+/** Verify a Worker-issued access token (HS256 only). Stateless: a revoked session's access token lives until `exp`. */
+export async function verifyAccessToken(token: string, secret: string | undefined): Promise<JWTPayload> {
   let alg: string;
   try {
     alg = decodeProtectedHeader(token).alg ?? 'HS256';
   } catch {
     throw new UnauthorizedError(INVALID);
   }
-
+  if (alg !== 'HS256') throw new UnauthorizedError('Unsupported token signing algorithm.');
+  const key = jwtKey(secret);
   try {
-    if (alg === 'ES256' || alg === 'RS256') {
-      const { payload } = await jwtVerify(token, getJwks(config.supabaseUrl), {
-        ...options,
-        algorithms: [alg],
-      });
-      return payload;
-    }
-    if (alg !== 'HS256') throw new UnauthorizedError('Unsupported token signing algorithm.');
-    if (!config.supabaseJwtSecret) {
-      throw new ServiceUnavailableError('Auth is not configured (missing SUPABASE_JWT_SECRET).');
-    }
-    const { payload } = await jwtVerify(token, hsKey(config.supabaseJwtSecret), {
-      ...options,
+    const { payload } = await jwtVerify(token, key, {
+      audience: ACCESS_TOKEN_AUDIENCE,
+      issuer: ACCESS_TOKEN_ISSUER,
       algorithms: ['HS256'],
+      requiredClaims: ['exp', 'sub', 'iss', 'aud'],
     });
     return payload;
   } catch (err) {
-    if (err instanceof UnauthorizedError || err instanceof ServiceUnavailableError) throw err;
-    // Key set unreachable is our/Supabase's problem, not the client's: do not make the app sign the user out.
-    if (err instanceof joseErrors.JWKSTimeout) {
-      log.error('jwks_unavailable', { err });
-      throw new ServiceUnavailableError('Auth keys are temporarily unavailable.', 5);
-    }
-    if (err instanceof joseErrors.JOSEError) throw new UnauthorizedError(INVALID);
-    // Network failure while fetching JWKS surfaces as a plain error.
-    log.error('jwt_verify_failed', { err });
-    throw new ServiceUnavailableError('Auth keys are temporarily unavailable.', 5);
+    if (!(err instanceof joseErrors.JOSEError)) log.error('jwt_verify_failed', { err });
+    throw new UnauthorizedError(INVALID);
   }
 }
 
 /**
- * Requires `Authorization: Bearer <supabase access token>`; sets `c.var.user`.
+ * Requires `Authorization: Bearer <Worker-issued access token>`; sets `c.var.user`.
  * Mount per feature router: `router.use(requireAuth)`.
  */
 export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
@@ -110,7 +72,7 @@ export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
   const token = header.slice(space + 1).trim();
   if (!token) throw new UnauthorizedError('Not authenticated.');
 
-  const payload = await verifyAccessToken(token, getConfig(c.env));
+  const payload = await verifyAccessToken(token, getConfig(c.env).auth.jwtSecret);
   const sub = payload.sub;
   if (typeof sub !== 'string' || !sub) throw new UnauthorizedError('Invalid token subject.');
 
@@ -119,6 +81,7 @@ export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
     email: typeof payload['email'] === 'string' ? payload['email'] : undefined,
     accessToken: token,
   });
+  if (typeof payload['sid'] === 'string') c.set('sessionId', payload['sid']);
   await next();
 });
 

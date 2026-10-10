@@ -1,15 +1,16 @@
+import type { Db } from '../../core/db';
 import { log } from '../../core/logging';
 import type { AgentMemory } from './memory';
 import { parseTimeHint } from './range';
 import type { DateRange } from './range';
-import { AgentDbUnavailableError, executeToolCalls } from './sql-executor';
-import type { SqlClient } from './sql-executor';
+import { executeQueries } from './queries';
+import type { AgentQueries } from './queries';
 import { parseEntityMatches, resolveEntitiesCall } from './tools';
 import type { EntityMatch } from './tools';
 
 /**
  * The deterministic pre-pass (no LLM): a time hint from the question or the memory, fuzzy entity
- * resolution with pg_trgm (payees and categories mentioned in the question) and a clarification when a
+ * resolution with trigram similarity (payees and categories mentioned in the question) and a clarification when a
  * name is genuinely ambiguous. Resolved entities are handed to the model so it can call the data tools
  * right away with exact ids.
  */
@@ -131,8 +132,8 @@ export async function runPrepass(input: {
   nowMs: number;
   userId: string;
   memory: AgentMemory | null;
-  openSql: () => Promise<SqlClient>;
-  timeoutMs: number;
+  db: Db;
+  queries: AgentQueries;
 }): Promise<PrePass> {
   const hint = parseTimeHint(input.text, input.tz, input.nowMs);
   const range: PrePass['range'] = hint
@@ -146,14 +147,11 @@ export async function runPrepass(input: {
 
   let matches: EntityMatch[] = [];
   try {
-    const sql = await input.openSql();
-    const { results } = await executeToolCalls(sql, input.userId, [resolveEntitiesCall(phrases)], { timeoutMs: input.timeoutMs });
+    const { results } = await executeQueries(input.queries, input.db, input.userId, [resolveEntitiesCall(phrases)]);
     const first = results[0];
     if (first?.ok) matches = parseEntityMatches(first.value);
   } catch (err) {
-    // An unreachable database must still fail the turn (the route answers 503); anything else only
-    // costs the pre-resolved entities: the model can call resolve_entities itself.
-    if (err instanceof AgentDbUnavailableError) throw err;
+    // A failing lookup only costs the pre-resolved entities: the model can call resolve_entities itself.
     log.warn('agent_prepass_failed', { err: String(err) });
   }
 

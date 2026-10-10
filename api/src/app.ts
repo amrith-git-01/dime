@@ -6,13 +6,16 @@ import type { AppBindings } from './core/env';
 import { notFound, onError } from './core/errors';
 import { requestId } from './core/request-id';
 import { agentRoutes } from './features/agent/routes';
+import { authRoutes } from './features/auth/routes';
 import { budgetRoutes } from './features/budgets/routes';
 import { categoriesRoutes } from './features/categories/routes';
 import { emailRoutes } from './features/email/routes';
 import { healthRoutes } from './features/health/routes';
 import { ingestRoutes } from './features/ingest/routes';
+import { mediaRoutes } from './features/media/routes';
 import { notificationsRoutes } from './features/notifications/routes';
 import { profileAvatarRoutes } from './features/profile-avatar/routes';
+import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
 import { transactionRoutes } from './features/transactions/routes';
 import { userFeedbackRoutes } from './features/user-feedback/routes';
@@ -35,9 +38,13 @@ export function createApp() {
   // Old emails that point at the old path keep working through this redirect.
   app.get('/static/email/*', (c) => c.redirect(`/email/${c.req.path.slice('/static/email/'.length)}`, 301));
 
+  // R2 media (public avatars, HMAC-signed receipts and voice). Not under /api/v1: no auth, its own cache headers.
+  app.route('/media', mediaRoutes);
+
   // One router per feature, mounted under /api/v1. Add new features here.
   const api = app.basePath('/api/v1');
   api.route('/health', healthRoutes);
+  api.route('/auth', authRoutes);
   api.route('/me', userProfileRoutes);
   api.route('/me/settings', userSettingsRoutes);
   api.route('/me/push-token', pushTokenRoutes);
@@ -49,6 +56,7 @@ export function createApp() {
   api.route('/transactions', ingestRoutes); // receipt / voice / sms capture (R3)
   api.route('/feedback', userFeedbackRoutes);
   api.route('/agent', agentRoutes);
+  api.route('/realtime', realtimeRoutes); // WebSocket upgrade, forwarded to the user's UserHub
   api.route('/', emailRoutes); // /email/unsubscribe (signed link) and /internal/email/run (cron secret)
 
   return app;

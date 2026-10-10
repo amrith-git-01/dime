@@ -1,4 +1,3 @@
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
@@ -13,6 +12,13 @@ import { reconcileRealtimeMedia } from "@/features/transactions/utils/realtimeMe
 import { normalizeTransactionAmount } from "@/utils/transactionAmount";
 
 type TransactionDbRecord = Record<string, unknown>;
+
+/** A change frame for the `transactions` table (Supabase `postgres_changes` shape, sent by the API's `UserHub`). */
+export type RealtimeTransactionPayload = {
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new: TransactionDbRecord;
+  old: TransactionDbRecord;
+};
 
 const COUNTERPARTY_TYPES = new Set<CounterpartyType>([
   "merchant",
@@ -46,7 +52,7 @@ function normalizeCounterpartyType(value: unknown): CounterpartyType {
   return "merchant";
 }
 
-/** Map a Supabase realtime row payload into a list ``TransactionRow``. */
+/** Map a realtime row payload (raw column names) into a list ``TransactionRow``. */
 export function mapRealtimeRecordToTransactionRow(
   record: TransactionDbRecord,
 ): TransactionRow | null {
@@ -90,7 +96,7 @@ function isSoftDeleted(row: TransactionRow): boolean {
 
 /** Id of the transaction a realtime payload is about, or null if it has none. */
 export function realtimePayloadTransactionId(
-  payload: RealtimePostgresChangesPayload<TransactionDbRecord>,
+  payload: RealtimeTransactionPayload,
 ): string | null {
   const record = payload.eventType === "DELETE" ? payload.old : payload.new;
   return asString((record as TransactionDbRecord | undefined)?.id);
@@ -101,7 +107,7 @@ export function applyRealtimeTransactionChange(
   input: {
     userId: string;
     timezone: string;
-    payload: RealtimePostgresChangesPayload<TransactionDbRecord>;
+    payload: RealtimeTransactionPayload;
   },
 ): void {
   const { userId, timezone, payload } = input;

@@ -4,7 +4,8 @@
  * Intentional, accepted deviations that must NOT show up as differences:
  *  - money strings: Python `"5000.0"` vs TS `"5000.00"` (a decimal string is padded / trimmed to 2 places);
  *  - timestamps: `+00:00` vs `Z`, `.000000` vs none, other offsets (all converted to UTC `...Z`);
- *  - signed Storage URLs: the query string (`?token=...`) differs on every call, the path must match;
+ *  - signed media URLs: Supabase Storage (`.../storage/v1/object/sign/<bucket>/<key>?token=...`) vs the Worker
+ *    (`.../media/<key>?exp=...&sig=...`): host and query string are dropped, only the object key is compared;
  *  - request ids (`request_id` fields);
  *  - ordering tie-breaks: same items in another order is reported as a WARN, not a failure.
  */
@@ -13,7 +14,8 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 const DECIMAL = /^-?\d+\.\d+$/;
-const SIGNED_URL = /^https?:\/\/[^?#]+\/storage\/v1\/object\/(sign|authenticated|public)\/[^?#]+\?/;
+const SUPABASE_URL = /^https?:\/\/[^?#]+\/storage\/v1\/object\/(?:sign|authenticated|public)\/[^/?#]+\/([^?#]+)/;
+const WORKER_MEDIA_URL = /^https?:\/\/[^/?#]+\/media\/([^?#]+)/;
 /** Keys whose values are volatile per request and are dropped. */
 const IGNORED_KEYS = new Set(['request_id']);
 
@@ -29,7 +31,8 @@ export function normalizeString(s: string): string {
     const ms = Date.parse(iso);
     if (!Number.isNaN(ms)) return new Date(ms).toISOString();
   }
-  if (SIGNED_URL.test(s)) return s.slice(0, s.indexOf('?')) + '?<signature>';
+  const media = SUPABASE_URL.exec(s) ?? WORKER_MEDIA_URL.exec(s);
+  if (media) return `<media>/${media[1]}`;
   if (DECIMAL.test(s)) return normalizeDecimal(s);
   return s;
 }

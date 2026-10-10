@@ -1,15 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { Buffer } from 'node:buffer';
+
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getConfig } from '../src/core/env';
 import { parseCandidates, parseWithFallback } from '../src/features/ai/deepseek';
 import { PermanentAiError, TransientAiError } from '../src/features/ai/errors';
-import { extractReceiptText, transcribeAudio } from '../src/features/ai/groq';
+import { estimateOcrNeurons, estimateWhisperNeurons } from '../src/features/ai/neuron-cap';
+import { extractReceiptText, mapWorkersAiError, transcribeAudio } from '../src/features/ai/workers-ai';
+import type { WorkersAiClient } from '../src/features/ai/workers-ai';
 import { ModelOutputError, normalizeCategory, parseModelDate, parseModelOutput, stripJsonFences } from '../src/features/ai/parse-output';
 import type { ParseContext } from '../src/features/ai/parse-output';
-import { buildReceiptParsePrompt, buildSmsParsePrompt, buildVoiceParsePrompt } from '../src/features/ai/prompts';
+import { buildReceiptOcrPrompt, buildReceiptParsePrompt, buildSmsParsePrompt, buildVoiceParsePrompt } from '../src/features/ai/prompts';
 import { parseReceipt, parseVoice } from '../src/features/ai/service';
 import { makeEnv } from './helpers';
-import { JPEG, M4A, completion, parsedSms } from './ingest-fixtures';
+import { FakeAi, JPEG, M4A, completion, parsedSms } from './ingest-fixtures';
 import { json, useSupabaseStub } from './supabase-stub';
 
 const stub = useSupabaseStub();
@@ -25,7 +29,7 @@ const categories = {
   ],
 };
 const ctx = (over: Partial<ParseContext> = {}): ParseContext => ({ mode: 'sms', model: 'm1', ...categories, ...over });
-const config = (extra: Record<string, string> = {}) => getConfig(makeEnv({ DEEPSEEK_API_KEY: 'ds-key', GROQ_API_KEY: 'groq-key', ...extra }));
+const config = (extra: Record<string, string> = {}) => getConfig(makeEnv({ DEEPSEEK_API_KEY: 'ds-key', ...extra }));
 
 describe('prompts (port of test_sms_parse_prompt.py)', () => {
   it('SMS prompt embeds the body, the schema and the categories', () => {
@@ -227,79 +231,166 @@ describe('DeepSeek parse with the model fallback chain', () => {
   });
 });
 
-describe('Groq OCR and Whisper', () => {
-  it('OCR sends the image as a data URL and returns the text', async () => {
-    stub.on('POST', '/chat/completions', () => json(completion('  STORE\nTOTAL 99  ')));
-    const text = await extractReceiptText(config().groq, config().ai, { bytes: JPEG, mimeType: 'image/jpeg' });
+const ai = new FakeAi();
+const neurons: number[] = [];
+/** A Workers AI client on the fake binding; `gatewayId` and the recorder are the only things tests vary. */
+const client = (over: Partial<WorkersAiClient> = {}, extra: Record<string, string> = {}): WorkersAiClient => ({
+  binding: ai.asAi(),
+  config: config(extra).workersAi,
+  timeoutMs: 1000,
+  recordNeurons: (n) => {
+    neurons.push(n);
+    return Promise.resolve();
+  },
+  ...over,
+});
+beforeEach(() => {
+  ai.calls.length = 0;
+  ai.respond = new FakeAi().respond;
+  neurons.length = 0;
+});
+
+describe('Workers AI OCR and Whisper', () => {
+  it('OCR sends the image bytes as a base64 data URL to the vision model and returns the text', async () => {
+    ai.respond = () => ({ response: '  STORE\nTOTAL 99  ', usage: { prompt_tokens: 2000, completion_tokens: 100 } });
+    const text = await extractReceiptText(client(), { bytes: JPEG, mimeType: 'image/jpeg' });
     expect(text).toBe('STORE\nTOTAL 99');
-    const call = stub.last('POST', '/chat/completions');
-    expect(call.url.host).toBe('api.groq.com');
-    expect(call.headers.get('authorization')).toBe('Bearer groq-key');
-    const body = call.body as { model: string; temperature: number; messages: { content: { type: string; image_url?: { url: string } }[] }[] };
-    expect(body.model).toBe('meta-llama/llama-4-scout-17b-16e-instruct');
-    expect(body.temperature).toBe(0);
-    expect(body.messages[0]?.content[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,\/9j\/4AAQSkZJRg/);
+    expect(ai.calls).toHaveLength(1);
+    const call = ai.calls[0];
+    expect(call?.model).toBe('@cf/meta/llama-4-scout-17b-16e-instruct');
+    const inputs = call?.inputs as { temperature: number; max_tokens: number; messages: { role: string; content: { type: string; text?: string; image_url?: { url: string } }[] }[] };
+    expect(inputs.temperature).toBe(0);
+    expect(inputs.max_tokens).toBe(2048);
+    expect(inputs.messages[0]?.role).toBe('user');
+    expect(inputs.messages[0]?.content[0]).toEqual({ type: 'text', text: buildReceiptOcrPrompt() });
+    expect(inputs.messages[0]?.content[1]?.image_url?.url).toMatch(/^data:image\/jpeg;base64,\/9j\/4AAQSkZJRg/);
+    expect(call?.options?.signal).toBeInstanceOf(AbortSignal);
+    expect(call?.options?.gateway).toBeUndefined();
+    // Actual usage (2000 in, 100 out) is booked, not the estimate: 2000 x 24545/M + 100 x 77273/M = 56.8 -> 57.
+    expect(neurons).toEqual([57]);
   });
 
-  it('OCR: empty text is permanent, 5xx is transient, non-image mime falls back to jpeg', async () => {
-    stub.on('POST', '/chat/completions', () => json(completion('   ')), { once: true });
-    await expect(extractReceiptText(config().groq, config().ai, { bytes: JPEG, mimeType: 'image/jpeg' })).rejects.toBeInstanceOf(PermanentAiError);
-    stub.on('POST', '/chat/completions', () => json({}, { status: 502 }), { once: true });
-    await expect(extractReceiptText(config().groq, config().ai, { bytes: JPEG, mimeType: 'image/jpeg' })).rejects.toBeInstanceOf(TransientAiError);
-    stub.on('POST', '/chat/completions', () => json(completion('ok')), { once: true });
-    await extractReceiptText(config().groq, config().ai, { bytes: JPEG, mimeType: 'application/octet-stream' });
-    expect(JSON.stringify(stub.last('POST', '/chat/completions').body)).toContain('data:image/jpeg;base64,');
+  it('OCR: empty text is permanent, non-image mime falls back to jpeg, no usage in the answer books the estimate', async () => {
+    ai.respond = () => ({ response: '   ' });
+    await expect(extractReceiptText(client(), { bytes: JPEG, mimeType: 'image/jpeg' })).rejects.toBeInstanceOf(PermanentAiError);
+    expect(neurons).toEqual([]);
+    ai.respond = () => ({ response: 'ok' });
+    await extractReceiptText(client(), { bytes: JPEG, mimeType: 'application/octet-stream' });
+    expect(JSON.stringify(ai.calls.at(-1)?.inputs)).toContain('data:image/jpeg;base64,');
+    expect(neurons).toEqual([estimateOcrNeurons()]);
   });
 
-  it('Whisper uses the primary model, then the fallback, sending the original audio', async () => {
-    const models: string[] = [];
-    stub.on('POST', '/audio/transcriptions', (c) => {
-      const text = new TextDecoder().decode(c.body as ArrayBuffer);
-      models.push(/name="model"\r\n\r\n([^\r]+)/.exec(text)?.[1] ?? '?');
-      expect(text).toContain('filename="audio.m4a"');
-      expect(text).toContain('Content-Type: audio/mp4');
-      return models.length === 1 ? json({ error: 'x' }, { status: 500 }) : json({ text: ' I spent 200 on lunch ' });
-    });
-    const text = await transcribeAudio(config().groq, config().ai, M4A, 'audio/mp4');
+  it('OCR accepts an OpenAI-shaped answer too', async () => {
+    ai.respond = () => completion('FROM CHOICES');
+    expect(await extractReceiptText(client(), { bytes: JPEG, mimeType: 'image/jpeg' })).toBe('FROM CHOICES');
+  });
+
+  it('the AI Gateway id is passed as the gateway option only when set', async () => {
+    await extractReceiptText(client({}, { AI_GATEWAY_ID: 'dime-gw' }), { bytes: JPEG, mimeType: 'image/jpeg' });
+    expect(ai.calls.at(-1)?.options?.gateway).toEqual({ id: 'dime-gw' });
+    await transcribeAudio(client({}, { AI_GATEWAY_ID: 'dime-gw' }), M4A, 'audio/mp4');
+    expect(ai.calls.at(-1)?.options?.gateway).toEqual({ id: 'dime-gw' });
+  });
+
+  it('Whisper sends the original audio as base64 to the whisper model and returns the trimmed text', async () => {
+    ai.respond = () => ({ text: ' I spent 200 on lunch ' });
+    const text = await transcribeAudio(client(), M4A, 'audio/mp4');
     expect(text).toBe('I spent 200 on lunch');
-    expect(models).toEqual(['whisper-large-v3-turbo', 'whisper-large-v3']);
+    const call = ai.calls[0];
+    expect(call?.model).toBe('@cf/openai/whisper-large-v3-turbo');
+    expect(call?.inputs).toEqual({ audio: Buffer.from(M4A).toString('base64') });
+    expect(call?.options?.signal).toBeInstanceOf(AbortSignal);
+    // No duration in the answer: one (rounded-up) minute at 46.63 neurons.
+    expect(neurons).toEqual([estimateWhisperNeurons(M4A.byteLength)]);
+    expect(neurons[0]).toBe(47);
   });
 
-  it('Whisper: all models failing is transient or permanent by cause; an empty transcript is permanent', async () => {
-    stub.on('POST', '/audio/transcriptions', () => json({}, { status: 503 }));
-    await expect(transcribeAudio(config().groq, config().ai, M4A, 'audio/mp4')).rejects.toBeInstanceOf(TransientAiError);
-    (stub as unknown as { routes: unknown[] }).routes = [];
-    stub.on('POST', '/audio/transcriptions', () => json({ text: '  ' }));
-    await expect(transcribeAudio(config().groq, config().ai, M4A, 'audio/mp4')).rejects.toBeInstanceOf(PermanentAiError);
+  it('Whisper books the real duration when the answer has one', async () => {
+    ai.respond = () => ({ text: 'x', transcription_info: { duration: 120 } });
+    await transcribeAudio(client(), M4A, 'audio/mp4');
+    expect(neurons).toEqual([94]); // 2 minutes x 46.63 = 93.26 -> 94
   });
 
-  it('missing GROQ_API_KEY is permanent', async () => {
-    const cfg = getConfig(makeEnv({ GROQ_API_KEY: undefined }));
-    await expect(transcribeAudio(cfg.groq, cfg.ai, M4A, 'audio/mp4')).rejects.toBeInstanceOf(PermanentAiError);
-    expect(stub.calls).toHaveLength(0);
+  it('Whisper: an empty transcript is permanent and books nothing', async () => {
+    ai.respond = () => ({ text: '  ' });
+    await expect(transcribeAudio(client(), M4A, 'audio/mp4')).rejects.toBeInstanceOf(PermanentAiError);
+    expect(neurons).toEqual([]);
+  });
+
+  it('a missing AI binding or model is permanent and calls nothing', async () => {
+    await expect(transcribeAudio(client({ binding: undefined }), M4A, 'audio/mp4')).rejects.toBeInstanceOf(PermanentAiError);
+    await expect(transcribeAudio(client({ config: { ...client().config, whisperModel: '' } }), M4A, 'audio/mp4')).rejects.toBeInstanceOf(PermanentAiError);
+    expect(ai.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['3040: Capacity temporarily exceeded, please try again.', true],
+    ['3036: you have used up your daily free allocation of 10,000 neurons', true],
+    ['InferenceUpstreamError: 503 service unavailable', true],
+    ['fetch failed', true],
+    ['something nobody has seen before', true],
+    ['5006: Invalid input: image is too large', false],
+    ['AiError: unsupported image format', false],
+    ['400 Bad Request', false],
+  ])('error mapping: %s -> transient=%s', async (message, transient) => {
+    ai.respond = () => {
+      throw new Error(message);
+    };
+    const err = await extractReceiptText(client(), { bytes: JPEG, mimeType: 'image/jpeg' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(transient ? TransientAiError : PermanentAiError);
+    // Provider text never reaches the (client-safe) message.
+    expect((err as Error).message).not.toContain(message);
+    expect(neurons).toEqual([]);
+  });
+
+  it('a timeout or abort is transient', () => {
+    expect(mapWorkersAiError(new DOMException('timed out', 'TimeoutError'), 'x')).toBeInstanceOf(TransientAiError);
+    expect(mapWorkersAiError(new DOMException('aborted', 'AbortError'), 'x')).toBeInstanceOf(TransientAiError);
+  });
+
+  it('config: models come from WORKERS_AI_* vars and the caps have their defaults', () => {
+    const cfg = config().workersAi;
+    expect(cfg).toMatchObject({ whisperModel: '@cf/openai/whisper-large-v3-turbo', visionModel: '@cf/meta/llama-4-scout-17b-16e-instruct', dailyNeuronCap: 8000, userDailyCaptures: 30 });
+    expect(cfg.gatewayId).toBeUndefined();
+    expect(config({ WORKERS_AI_WHISPER_MODEL: '@cf/openai/whisper', AI_DAILY_NEURON_CAP: '500' }).workersAi).toMatchObject({ whisperModel: '@cf/openai/whisper', dailyNeuronCap: 500 });
+  });
+
+  it('config: AI Gateway routes DeepSeek only when both ids are set, and only DeepSeek URLs', () => {
+    const plain = config();
+    expect(plain.ai.baseUrl).toBe('https://api.deepseek.com/chat/completions');
+    expect(plain.agent.baseUrl).toBe('https://api.deepseek.com');
+    expect(config({ AI_GATEWAY_ID: 'gw' }).ai.baseUrl).toBe('https://api.deepseek.com/chat/completions');
+    const gw = config({ AI_GATEWAY_ID: 'gw', CF_ACCOUNT_ID: 'acct' });
+    expect(gw.ai.baseUrl).toBe('https://gateway.ai.cloudflare.com/v1/acct/gw/deepseek/chat/completions');
+    expect(gw.agent.baseUrl).toBe('https://gateway.ai.cloudflare.com/v1/acct/gw/deepseek');
+    expect(config({ AI_GATEWAY_ID: 'gw', CF_ACCOUNT_ID: 'acct', AI_BASE_URL: 'https://other.example/v1/chat/completions' }).ai.baseUrl).toBe(
+      'https://other.example/v1/chat/completions',
+    );
   });
 });
 
 describe('AI service wiring', () => {
-  it('parseReceipt: Groq OCR text feeds the DeepSeek prompt; errors carry a generic message', async () => {
-    stub.on('POST', '/chat/completions', (c) =>
-      c.url.host === 'api.groq.com' ? json(completion('SWIGGY TOTAL 250.50')) : json(completion(parsedSms())),
-    );
-    const out = await parseReceipt(config(), { bytes: JPEG, mimeType: 'image/jpeg' }, categories);
+  it('parseReceipt: Workers AI OCR text feeds the DeepSeek prompt; errors carry a generic message', async () => {
+    stub.on('POST', '/chat/completions', () => json(completion(parsedSms())));
+    ai.respond = () => ({ response: 'SWIGGY TOTAL 250.50' });
+    const out = await parseReceipt(config(), client(), { bytes: JPEG, mimeType: 'image/jpeg' }, categories);
     expect(out.counterpartyName).toBe('Swiggy');
     const deepseek = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.deepseek.com');
     expect(JSON.stringify(deepseek?.body)).toContain('SWIGGY TOTAL 250.50');
 
-    (stub as unknown as { routes: unknown[] }).routes = [];
-    stub.on('POST', '/chat/completions', () => json({ detail: 'secret provider text' }, { status: 400 }));
-    const err = await parseReceipt(config(), { bytes: JPEG, mimeType: 'image/jpeg' }, categories).catch((e: unknown) => e);
+    ai.respond = () => {
+      throw new Error('400 Bad Request: secret provider text');
+    };
+    const err = await parseReceipt(config(), client(), { bytes: JPEG, mimeType: 'image/jpeg' }, categories).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PermanentAiError);
     expect((err as Error).message).toBe('Could not read text from the uploaded receipt.');
   });
 
   it('parseVoice: a transient transcription failure stays transient', async () => {
-    stub.on('POST', '/audio/transcriptions', () => json({}, { status: 500 }));
-    const err = await parseVoice(config(), M4A, 'audio/mp4', categories).catch((e: unknown) => e);
+    ai.respond = () => {
+      throw new Error('3040: Capacity temporarily exceeded');
+    };
+    const err = await parseVoice(config(), client(), M4A, 'audio/mp4', categories).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TransientAiError);
     expect((err as Error).message).toBe('Could not transcribe the uploaded audio.');
   });

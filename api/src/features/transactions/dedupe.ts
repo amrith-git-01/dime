@@ -23,6 +23,16 @@ export function normalizedOrNull(raw: string): string | null {
   return normalizeCounterparty(raw) || null;
 }
 
+/**
+ * Group key of a payee, computed on write into `transactions.payee_key`. The rule: the stored normalized value when non-empty, else the normalized name, else
+ * "unknown".
+ */
+export function payeeKey(normalized: string | null | undefined, name: string | null | undefined): string {
+  const stored = (normalized ?? '').trim();
+  if (stored) return stored;
+  return normalizeCounterparty(name ?? '') || 'unknown';
+}
+
 /** "199" -> "199.00" (half-even, like Decimal.quantize). */
 export function formatAmountForHash(amount: string | number): string {
   return quantizeMoney(String(amount).trim());

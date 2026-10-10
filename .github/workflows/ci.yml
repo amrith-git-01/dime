@@ -11,7 +11,8 @@ jobs:
       run:
         working-directory: backend
     env:
-      # Settings require these at import time; values are dummies (tests mock Supabase).
+      # Reference only: the Python backend targets Supabase and is not deployed. Settings require these at
+      # import time; values are dummies (tests mock Supabase).
       SUPABASE_URL: https://example.supabase.co
       SUPABASE_KEY: dummy-publishable-key
       SUPABASE_SECRET_KEY: dummy-secret-key
@@ -57,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # wrangler and supabase-js require Node >= 22.
+          # wrangler requires Node >= 22.
           node-version: 22
           cache: npm
           cache-dependency-path: api/package-lock.json

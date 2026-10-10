@@ -1,6 +1,6 @@
 import { toCents } from '../../core/decimal';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { deleteByToken, listTokens } from '../push-tokens/repository';
 import type { UserSettings } from '../user-settings/snapshot';
 import { sendExpoPush } from './push';
@@ -49,7 +49,7 @@ export interface Emitter {
  * `features/notifications/emitter.py`; R3's queue consumer reuses it after capture inserts.
  */
 export function createEmitter(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   settings: UserSettings,
   pushSend: PushSender = sendExpoPush,

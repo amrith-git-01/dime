@@ -1,7 +1,7 @@
 /**
  * Persisted app data (transactions, budgets, categories, insights, profile).
  *
- * Freshness is driven by invalidation (mutations + Supabase Realtime), not by
+ * Freshness is driven by invalidation (mutations + the live-update socket), not by
  * reopening the app. MMKV holds the React Query cache for up to 24 h.
  * Transaction-derived queries use the shorter `TRANSACTIONS_QUERY_STALE_MS` so
  * they refetch when the app returns to the foreground.

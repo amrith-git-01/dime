@@ -5,12 +5,12 @@ import type { AppBindings, Bindings } from '../src/core/env';
 import { onError } from '../src/core/errors';
 import { agentErrorBody, createAgentRoutes } from '../src/features/agent/routes';
 import { TurnTimeoutError } from '../src/features/agent/service';
-import { AgentDbUnavailableError } from '../src/features/agent/sql-executor';
 import { verifyMemory } from '../src/features/agent/memory';
 import { PermanentAiError, TransientAiError } from '../src/features/ai/errors';
-import { NOW, SECRET, SUMMARY_JUNE, fakeDb } from './agent-fixtures';
+import { NOW, SECRET, SUMMARY_JUNE, fakeQueries } from './agent-fixtures';
 import { USER_ID, makeCtx, makeEnv, signToken } from './helpers';
-import { json, rows, useSupabaseStub } from './supabase-stub';
+import { failingOn, oneRow, rowsOf, seedUser, testDb } from './db';
+import { json, useSupabaseStub } from './supabase-stub';
 
 const stub = useSupabaseStub();
 
@@ -24,16 +24,16 @@ interface Call {
   headers?: Record<string, string>;
   token?: string | false;
   env?: Bindings;
-  db?: ReturnType<typeof fakeDb> | null;
+  db?: ReturnType<typeof fakeQueries> | null;
   ctx?: ExecutionContext;
 }
 
-/** The real agent router (auth, limits, validation) over a fake database and the stubbed network. */
+/** The real agent router (auth, limits, validation) over canned tool queries and the stubbed network. */
 async function call(path: string, opts: Call = {}): Promise<Response> {
   const app = new Hono<AppBindings>();
   app.onError(onError);
-  const db = opts.db === undefined ? fakeDb({ agent_spending_summary: SUMMARY_JUNE }) : opts.db;
-  app.route('/api/v1/agent', createAgentRoutes({ openSql: () => (db ? Promise.resolve(db.client) : Promise.reject(new AgentDbUnavailableError('down'))), now: () => NOW }));
+  const db = opts.db === undefined ? fakeQueries({ spending_summary: SUMMARY_JUNE }) : opts.db;
+  app.route('/api/v1/agent', createAgentRoutes({ ...(db ? { queries: db.queries } : {}), now: () => NOW }));
   const headers: Record<string, string> = { ...opts.headers };
   if (opts.token !== false) headers['Authorization'] = `Bearer ${opts.token ?? (await signToken({ sub: USER_ID }))}`;
   let body = opts.body;
@@ -121,10 +121,8 @@ describe('POST /agent/chat: request handling', () => {
 describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => {
   it('returns the ChatResponse shape plus memory and turn_id, and records the usage afterwards', async () => {
     deepseek(SPENT_JUNE);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({ prompt_tokens: 200, completion_tokens: 40, turns: 1 }));
     const { ctx, flush } = makeCtx();
-    const db = fakeDb({ agent_spending_summary: SUMMARY_JUNE });
+    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
     const res = await chat('How much did I spend in June 2026?', { ctx, db });
     await flush();
 
@@ -143,15 +141,15 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
     expect(llm).toHaveLength(2);
     expect((llm[0]?.body as { stream?: boolean }).stream).toBeUndefined();
     expect(llm[0]?.headers.get('authorization')).toBe('Bearer test-deepseek-key');
-    // Tokens of both model calls were recorded with the service role, for the user, for the UTC day.
-    expect(stub.last('POST', '/rest/v1/rpc/agent_usage_add').body).toEqual({ p_user_id: USER_ID, p_day: '2026-10-05', p_prompt_tokens: 200, p_completion_tokens: 40 });
-    expect(db.ended()).toBe(1);
+    // Tokens of both model calls were recorded for the user, for the UTC day.
+    expect(await rowsOf('agent_usage')).toEqual([
+      expect.objectContaining({ user_id: USER_ID, day: '2026-10-05', prompt_tokens: 200, completion_tokens: 40, turns: 1 }),
+    ]);
+    expect(db.calls().map((c) => c.name)).toEqual(['spending_summary']);
   });
 
   it('adds a debug object (tools, model calls, tokens) only when X-Agent-Debug: 1 is sent (evals)', async () => {
     deepseek([...SPENT_JUNE, ...SPENT_JUNE, ...SPENT_JUNE]); // three turns, two model calls each
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
     const plain = await (await chat('How much did I spend in June 2026?')).json<Record<string, unknown>>();
     expect(plain['debug']).toBeUndefined();
 
@@ -171,8 +169,6 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
 
   it('passes the signed memory through to the next turn', async () => {
     deepseek([{ content: 'Hello!' }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
     const first = await (await chat('Hi there', { db: null })).json<{ memory: string }>();
     expect(first.memory).not.toBe('');
     const second = await chat('and now?', { db: null, extra: { memory: first.memory } });
@@ -182,7 +178,6 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
   });
 
   it('C5: a failing model is HTTP 200 with {"error": {code, message}} and no provider detail', async () => {
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
     stub.on('POST', '/chat/completions', () => json({ error: { message: 'secret provider detail' } }, { status: 500 }));
     const res = await chat('hello', { db: null });
     expect(res.status).toBe(200);
@@ -191,21 +186,18 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
     expect(JSON.stringify(body)).not.toMatch(/secret|deepseek|500/i);
   });
 
-  it('503 + Retry-After when the database is unavailable', async () => {
-    deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    const res = await chat('How much did I spend in June 2026?', { db: null });
-    expect(res.status).toBe(503);
-    expect(res.headers.get('Retry-After')).toBe('10');
-    expect(await res.json()).toEqual({ detail: 'Assistant is temporarily unavailable. Try again shortly.' });
+  it("a failing database query is the tool's error, not the turn's: the model still answers", async () => {
+    deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }, { content: 'I could not load that right now.' }]);
+    const db = fakeQueries({}, { fail: { spending_summary: new Error('D1_ERROR: unavailable') } });
+    const res = await chat('How much did I spend in June 2026?', { db });
+    expect(res.status).toBe(200);
+    expect((await res.json<{ answer: string }>()).answer).toBe('I could not load that right now.');
   });
 });
 
 describe('POST /agent/chat: SSE mode', () => {
   it('streams step, then delta events, then a final event with the authoritative answer', async () => {
     deepseek(SPENT_JUNE);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
     const { ctx, flush } = makeCtx();
     const res = await chat('How much did I spend in June 2026?', { accept: 'text/event-stream', ctx });
     expect(res.status).toBe(200);
@@ -229,13 +221,11 @@ describe('POST /agent/chat: SSE mode', () => {
     expect(final.blocks).toHaveLength(3);
     // Stream mode asks the provider for a stream with usage.
     expect(stub.find('POST', '/chat/completions')[0]?.body).toMatchObject({ stream: true, stream_options: { include_usage: true } });
-    expect(stub.find('POST', '/rest/v1/rpc/agent_usage_add')).toHaveLength(1);
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 200, completion_tokens: 40, turns: 1 })]);
   });
 
   it('final.answer replaces streamed text that failed numeric verification', async () => {
     deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }, { content: 'You spent ₹99,999 in June.' }, { content: 'You spent ₹18,388.50 in June.' }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
     const events = await sseEvents(await chat('How much did I spend in June 2026?', { accept: 'text/event-stream' }));
     const streamed = events.filter((e) => e.event === 'delta').map((e) => String(e.data['text'])).join('');
     expect(streamed).toBe('You spent ₹99,999 in June.');
@@ -243,25 +233,15 @@ describe('POST /agent/chat: SSE mode', () => {
   });
 
   it('ends with an error event (C5 payload) when the model fails', async () => {
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
     stub.on('POST', '/chat/completions', () => json({}, { status: 503 }));
     const events = await sseEvents(await chat('hello', { accept: 'text/event-stream', db: null }));
     expect(events.map((e) => e.event)).toEqual(['error']);
     expect(events[0]?.data).toEqual({ code: 'assistant_busy', message: 'The assistant is busy right now. Please try again in a moment.' });
   });
 
-  it('reports an unreachable database as an error event (the stream already started)', async () => {
-    deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    const events = await sseEvents(await chat('How much did I spend in June 2026?', { accept: 'text/event-stream', db: null }));
-    expect(events.at(-1)?.event).toBe('error');
-    expect((events.at(-1)?.data as { code: string }).code).toBe('assistant_busy');
-  });
-
   it('a clarification streams just the final event, with no model call', async () => {
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([]));
-    const db = fakeDb({
-      agent_resolve_entities: {
+    const db = fakeQueries({
+      resolve_entities: {
         matches: [
           { phrase: 'swigy', type: 'payee', id: 'swiggy', name: 'Swiggy', score: 0.62, similarity: 0.4, txn_count: 3 },
           { phrase: 'swigy', type: 'payee', id: 'swiggy instamart', name: 'Swiggy Instamart', score: 0.62, similarity: 0.3, txn_count: 3 },
@@ -272,7 +252,7 @@ describe('POST /agent/chat: SSE mode', () => {
     expect(events.map((e) => e.event)).toEqual(['final']);
     expect((events[0]?.data as { answer: string }).answer).toContain('Did you mean **Swiggy** or **Swiggy Instamart**?');
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
-    expect(stub.find('POST', '/rest/v1/rpc/agent_usage_add')).toHaveLength(0); // no tokens, nothing to record
+    expect(await rowsOf('agent_usage')).toHaveLength(0); // no tokens, nothing to record
   });
 });
 
@@ -288,30 +268,30 @@ describe('kill switch and daily budget', () => {
   });
 
   it('answers daily_limit once the user has used the daily token budget', async () => {
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([{ prompt_tokens: 150_000, completion_tokens: 50_000 }]));
+    const usage = (user: string, day: string, prompt: number, completion: number) =>
+      testDb().prepare('INSERT INTO agent_usage (user_id, day, prompt_tokens, completion_tokens, turns) VALUES (?, ?, ?, ?, 1)').bind(user, day, prompt, completion).run();
+    await usage(USER_ID, '2026-10-05', 150_000, 50_000);
+    // Other days and other users do not count towards today's budget.
+    await seedUser('99999999-9999-9999-9999-999999999999');
+    await usage(USER_ID, '2026-10-04', 1, 1);
+    await usage('99999999-9999-9999-9999-999999999999', '2026-10-05', 1, 1);
     const res = await chat('hi', { db: null });
     expect(await res.json()).toEqual({ error: { code: 'daily_limit', message: "You've reached today's assistant limit. It resets tomorrow." } });
     expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
-    const read = stub.last('GET', '/rest/v1/agent_usage');
-    expect(read.params.get('user_id')).toBe(`eq.${USER_ID}`);
-    expect(read.params.get('day')).toBe('eq.2026-10-05');
     const events = await sseEvents(await chat('hi', { db: null, accept: 'text/event-stream' }));
     expect(events[0]).toMatchObject({ event: 'error', data: { code: 'daily_limit' } });
   });
 
   it('respects a configured budget and lets the turn through just below it', async () => {
     deepseek([{ content: 'Hello!' }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => rows([{ prompt_tokens: 600, completion_tokens: 300 }]));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
+    await testDb().prepare("INSERT INTO agent_usage (user_id, day, prompt_tokens, completion_tokens, turns) VALUES (?, '2026-10-05', 600, 300, 1)").bind(USER_ID).run();
     expect((await (await chat('hi', { db: null, env: envWith({ AGENT_DAILY_TOKEN_BUDGET: '1000' }) })).json<{ answer?: string }>()).answer).toBe('Hello!');
     expect(await (await chat('hi', { db: null, env: envWith({ AGENT_DAILY_TOKEN_BUDGET: '900' }) })).json()).toMatchObject({ error: { code: 'daily_limit' } });
   });
 
   it('fails open when the usage table cannot be read', async () => {
     deepseek([{ content: 'Hello!' }]);
-    stub.on('GET', '/rest/v1/agent_usage', () => json({ code: '42P01', message: 'relation does not exist', details: null, hint: null }, { status: 404 }));
-    stub.on('POST', '/rest/v1/rpc/agent_usage_add', () => json({}));
-    const res = await chat('hi', { db: null });
+    const res = await chat('hi', { db: null, env: envWith({ DB: failingOn(/FROM agent_usage/, 'D1_ERROR: no such table: agent_usage') }) });
     expect((await res.json<{ answer: string }>()).answer).toBe('Hello!');
   });
 });
@@ -320,20 +300,18 @@ describe('POST /agent/feedback', () => {
   const turn_id = '3f2a9c1e-7b64-4d1a-9f0e-2b8c5d6e7a10';
 
   it('stores one rating per (user, turn) with the service role and the JWT user id', async () => {
-    stub.on('POST', '/rest/v1/agent_feedback', () => new Response(null, { status: 201 }));
     const res = await call('/feedback', { json: { turn_id: turn_id.toUpperCase(), rating: 'down', comment: '  Wrong total  ' } });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    const write = stub.last('POST', '/rest/v1/agent_feedback');
-    expect(write.body).toEqual({ user_id: USER_ID, turn_id, rating: 'down', comment: 'Wrong total' });
-    expect(write.params.get('on_conflict')).toBe('user_id,turn_id');
-    expect(write.headers.get('prefer')).toContain('resolution=merge-duplicates');
+    expect(await rowsOf('agent_feedback')).toEqual([expect.objectContaining({ user_id: USER_ID, turn_id, rating: 'down', comment: 'Wrong total' })]);
+    // Rating the same turn again replaces the previous rating.
+    await call('/feedback', { json: { turn_id, rating: 'up' } });
+    expect(await rowsOf('agent_feedback')).toEqual([expect.objectContaining({ user_id: USER_ID, turn_id, rating: 'up', comment: null })]);
   });
 
   it('stores a rating without a comment as null', async () => {
-    stub.on('POST', '/rest/v1/agent_feedback', () => new Response(null, { status: 201 }));
     await call('/feedback', { json: { turn_id, rating: 'up' } });
-    expect(stub.last('POST', '/rest/v1/agent_feedback').body).toEqual({ user_id: USER_ID, turn_id, rating: 'up', comment: null });
+    expect(await oneRow('agent_feedback', 'turn_id = ?', turn_id)).toMatchObject({ user_id: USER_ID, rating: 'up', comment: null });
   });
 
   it('validates the body (422) and requires auth (401)', async () => {
@@ -354,7 +332,6 @@ describe('agentErrorBody', () => {
   it('maps failures to stable codes without leaking detail', () => {
     expect(agentErrorBody(new TransientAiError('deepseek returned 503.')).error.code).toBe('assistant_busy');
     expect(agentErrorBody(new TurnTimeoutError('late')).error.code).toBe('assistant_busy');
-    expect(agentErrorBody(new AgentDbUnavailableError('down')).error.code).toBe('assistant_busy');
     expect(agentErrorBody(new PermanentAiError('DEEPSEEK_API_KEY is missing')).error.code).toBe('assistant_error');
     expect(agentErrorBody(new Error('boom')).error.code).toBe('agent_failed');
     for (const err of [new TransientAiError('secret detail'), new PermanentAiError('secret detail'), new Error('secret detail')]) {

@@ -1,47 +1,60 @@
-import type { DimeSupabaseClient } from '../../core/supabase';
+import { all, batch, chunks, first, fromFlag, newId, nowIso, placeholders, stmt } from '../../core/db';
+import type { Db } from '../../core/db';
+import { DbCodedError, INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND } from '../../core/db-errors';
+import { decimalToCents, formatCents } from '../../core/decimal';
+import { DETAIL_COLUMNS } from '../transactions/schemas';
+import type { TransactionRow } from '../transactions/schemas';
 import { CATEGORY_COLUMNS } from './schemas';
 import type { CategoryRow } from './schemas';
 
+/** Raw `categories` row: `is_system` is 0/1. */
+interface CategoryDbRow extends Omit<CategoryRow, 'is_system'> {
+  is_system: number;
+}
+
+/** Raw `transactions` row: money in integer cents. */
+type TransactionDbRow = Omit<TransactionRow, 'amount'> & { amount: number };
+
+const toCategoryRow = (row: CategoryDbRow): CategoryRow => ({ ...row, is_system: fromFlag(row.is_system) });
+
+/** `NOCASE` gives case-insensitive ordering. */
+const BY_NAME = 'ORDER BY name COLLATE NOCASE ASC, name ASC';
+
 /** System categories plus the user's own, ordered by name. One query serves lookups and uniqueness checks. */
-export async function listVisible(db: DimeSupabaseClient, userId: string): Promise<CategoryRow[]> {
-  const { data } = await db
-    .from('categories')
-    .select(CATEGORY_COLUMNS)
-    .or(`is_system.eq.true,user_id.eq.${userId}`)
-    .order('name', { ascending: true })
-    .throwOnError()
-    .overrideTypes<CategoryRow[], { merge: false }>();
-  return data;
+export async function listVisible(db: Db, userId: string): Promise<CategoryRow[]> {
+  const rows = await all<CategoryDbRow>(
+    db,
+    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE is_system = 1 OR user_id = ? ${BY_NAME}`,
+    [userId],
+  );
+  return rows.map(toCategoryRow);
 }
 
 export async function insertCustom(
-  db: DimeSupabaseClient,
+  db: Db,
   input: { userId: string; name: string; iconName: string; color: string },
 ): Promise<CategoryRow> {
-  const { data } = await db
-    .from('categories')
-    .insert({ user_id: input.userId, name: input.name, icon_name: input.iconName, color: input.color, is_system: false })
-    .select(CATEGORY_COLUMNS)
-    .single()
-    .throwOnError()
-    .overrideTypes<CategoryRow, { merge: false }>();
-  return data;
+  const row = await first<CategoryDbRow>(
+    db,
+    `INSERT INTO categories (id, user_id, name, icon_name, color, is_system, created_at)
+     VALUES (?, ?, ?, ?, ?, 0, ?) RETURNING ${CATEGORY_COLUMNS}`,
+    [newId(), input.userId, input.name, input.iconName, input.color, nowIso()],
+  );
+  if (!row) throw new Error('category insert returned no row');
+  return toCategoryRow(row);
 }
 
 export async function updateCustom(
-  db: DimeSupabaseClient,
+  db: Db,
   input: { userId: string; categoryId: string; name: string; iconName: string; color: string },
 ): Promise<CategoryRow | null> {
-  const { data } = await db
-    .from('categories')
-    .update({ name: input.name, icon_name: input.iconName, color: input.color })
-    .eq('id', input.categoryId)
-    .eq('user_id', input.userId)
-    .eq('is_system', false)
-    .select(CATEGORY_COLUMNS)
-    .throwOnError()
-    .overrideTypes<CategoryRow[], { merge: false }>();
-  return data[0] ?? null;
+  const row = await first<CategoryDbRow>(
+    db,
+    `UPDATE categories SET name = ?, icon_name = ?, color = ?
+     WHERE id = ? AND user_id = ? AND is_system = 0 RETURNING ${CATEGORY_COLUMNS}`,
+    [input.name, input.iconName, input.color, input.categoryId, input.userId],
+  );
+  return row ? toCategoryRow(row) : null;
 }
 
 export interface CategoryBudgetUpdate {
@@ -60,66 +73,102 @@ export interface CategoryBudgetPayload {
   monthly_amount: number | string | null;
 }
 
-/** Atomic category + budget change via the `update_category_with_budget` SQL function (C1). */
-export async function updateCategoryWithBudget(
-  db: DimeSupabaseClient,
-  input: CategoryBudgetUpdate,
-): Promise<CategoryBudgetPayload> {
-  const res = await db
-    .rpc('update_category_with_budget', {
-      p_user_id: input.userId,
-      p_category_id: input.categoryId,
-      p_name: input.name,
-      p_icon_name: input.iconName,
-      p_color: input.color,
-      p_set_budget: input.setBudget,
-      p_budget_amount: input.budgetAmount,
-    })
-    .throwOnError();
-  const data: unknown = res.data;
-  const payload = (Array.isArray(data) ? data[0] : data) as Partial<CategoryBudgetPayload> | null | undefined;
-  if (!payload || typeof payload.category !== 'object' || payload.category === null) {
-    throw new Error('update_category_with_budget returned an unexpected payload.');
+/**
+ * Atomic category + budget change (C1).
+ * Checks visibility first (NO_DATA_FOUND when the category does not exist or belongs to someone
+ * else, INSUFFICIENT_PRIVILEGE when a system category would be edited), then applies the category
+ * update and the budget upsert/delete in ONE `DB.batch`, which D1 runs as a single transaction.
+ */
+export async function updateCategoryWithBudget(db: Db, input: CategoryBudgetUpdate): Promise<CategoryBudgetPayload> {
+  const categoryId = input.categoryId.toLowerCase();
+  const current = await first<CategoryDbRow>(
+    db,
+    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE id = ? AND (is_system = 1 OR user_id = ?)`,
+    [categoryId, input.userId],
+  );
+  if (!current) throw new DbCodedError(NO_DATA_FOUND, 'category not found');
+
+  const editsCategory = input.name !== null || input.iconName !== null || input.color !== null;
+  if (editsCategory && fromFlag(current.is_system)) {
+    throw new DbCodedError(INSUFFICIENT_PRIVILEGE, 'system categories cannot be edited');
   }
-  return { category: payload.category, monthly_amount: payload.monthly_amount ?? null };
+
+  const statements: D1PreparedStatement[] = [];
+  if (editsCategory) {
+    statements.push(
+      stmt(
+        db,
+        `UPDATE categories SET name = COALESCE(?, name), icon_name = COALESCE(?, icon_name), color = COALESCE(?, color)
+         WHERE id = ? AND user_id = ? AND is_system = 0 RETURNING ${CATEGORY_COLUMNS}`,
+        [input.name, input.iconName, input.color, categoryId, input.userId],
+      ),
+    );
+  }
+  if (input.setBudget) {
+    if (input.budgetAmount === null) {
+      statements.push(stmt(db, 'DELETE FROM category_budgets WHERE user_id = ? AND category_id = ?', [input.userId, categoryId]));
+    } else {
+      const now = nowIso();
+      statements.push(
+        stmt(
+          db,
+          `INSERT INTO category_budgets (id, user_id, category_id, monthly_amount, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (user_id, category_id) DO UPDATE SET
+             monthly_amount = excluded.monthly_amount, updated_at = excluded.updated_at`,
+          [newId(), input.userId, categoryId, decimalToCents(input.budgetAmount), now, now],
+        ),
+      );
+    }
+  }
+  statements.push(
+    stmt(db, 'SELECT monthly_amount FROM category_budgets WHERE user_id = ? AND category_id = ?', [input.userId, categoryId]),
+  );
+
+  const results = await batch<Record<string, unknown>>(db, statements);
+  let category = current;
+  if (editsCategory) {
+    const updated = results[0]?.[0] as CategoryDbRow | undefined;
+    if (!updated) throw new DbCodedError(NO_DATA_FOUND, 'category not found'); // deleted between check and write
+    category = updated;
+  }
+  const budget = results[results.length - 1]?.[0] as { monthly_amount: number } | undefined;
+  return { category: toCategoryRow(category), monthly_amount: budget ? formatCents(budget.monthly_amount) : null };
 }
 
-export async function countActiveTransactions(db: DimeSupabaseClient, userId: string, categoryId: string): Promise<number> {
-  const { count } = await db
-    .from('transactions')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('category_id', categoryId)
-    .is('deleted_at', null)
-    .throwOnError();
-  return count ?? 0;
+export async function countActiveTransactions(db: Db, userId: string, categoryId: string): Promise<number> {
+  const row = await first<{ n: number }>(
+    db,
+    'SELECT COUNT(*) AS n FROM transactions WHERE user_id = ? AND category_id = ? AND deleted_at IS NULL',
+    [userId, categoryId.toLowerCase()],
+  );
+  return row?.n ?? 0;
 }
 
-/** `transactions` stores only `category_id` (the name is resolved on read): update nothing else. */
+/**
+ * `transactions` stores only `category_id` (the name is resolved on read): update nothing else.
+ * Returns the rows as stored after the move (for the live-update broadcast).
+ */
 export async function reassignTransactions(
-  db: DimeSupabaseClient,
+  db: Db,
   input: { userId: string; fromCategoryId: string; toCategoryId: string },
-): Promise<void> {
-  await db
-    .from('transactions')
-    .update({ category_id: input.toCategoryId })
-    .eq('user_id', input.userId)
-    .eq('category_id', input.fromCategoryId)
-    .is('deleted_at', null)
-    .throwOnError();
+): Promise<TransactionRow[]> {
+  const rows = await all<TransactionDbRow>(
+    db,
+    `UPDATE transactions SET category_id = ?, updated_at = ? WHERE user_id = ? AND category_id = ? AND deleted_at IS NULL
+     RETURNING ${DETAIL_COLUMNS}`,
+    [input.toCategoryId.toLowerCase(), nowIso(), input.userId, input.fromCategoryId.toLowerCase()],
+  );
+  return rows.map((row) => ({ ...row, amount: formatCents(row.amount) }));
 }
 
-export async function deleteCustom(db: DimeSupabaseClient, userId: string, categoryId: string): Promise<boolean> {
-  const { data } = await db
-    .from('categories')
-    .delete()
-    .eq('id', categoryId)
-    .eq('user_id', userId)
-    .eq('is_system', false)
-    .select('id')
-    .throwOnError()
-    .overrideTypes<{ id: string }[], { merge: false }>();
-  return data.length > 0;
+export async function deleteCustom(db: Db, userId: string, categoryId: string): Promise<boolean> {
+  const row = await first<{ id: string }>(
+    db,
+    'DELETE FROM categories WHERE id = ? AND user_id = ? AND is_system = 0 RETURNING id',
+    [categoryId.toLowerCase(), userId],
+  );
+  return row !== null;
 }
 
 export interface CategoryMeta {
@@ -131,31 +180,27 @@ export interface CategoryMeta {
 }
 
 /** Display fields for a set of category ids, limited to categories visible to the user (system + own). */
-export async function fetchMetaByIds(
-  db: DimeSupabaseClient,
-  ids: readonly string[],
-  userId: string,
-): Promise<Map<string, CategoryMeta>> {
+export async function fetchMetaByIds(db: Db, ids: readonly string[], userId: string): Promise<Map<string, CategoryMeta>> {
   const out = new Map<string, CategoryMeta>();
   if (ids.length === 0) return out;
-  const { data } = await db
-    .from('categories')
-    .select('id,name,icon_name,color,is_system')
-    .in('id', [...ids])
-    .or(`is_system.eq.true,user_id.eq.${userId}`)
-    .throwOnError()
-    .overrideTypes<CategoryMeta[], { merge: false }>();
-  for (const row of data) out.set(String(row.id).toLowerCase(), row);
+  // D1 allows 100 bound parameters per statement.
+  for (const part of chunks(ids, 80)) {
+    const rows = await all<Omit<CategoryMeta, 'is_system'> & { is_system: number }>(
+      db,
+      `SELECT id, name, icon_name, color, is_system FROM categories
+       WHERE id IN (${placeholders(part.length)}) AND (is_system = 1 OR user_id = ?)`,
+      [...part.map((id) => id.toLowerCase()), userId],
+    );
+    for (const row of rows) out.set(String(row.id).toLowerCase(), { ...row, is_system: fromFlag(row.is_system) });
+  }
   return out;
 }
 
 /** Just `id,name` of every category visible to the user: resolves an id or a name in one query. */
-export async function listVisibleIdName(db: DimeSupabaseClient, userId: string): Promise<{ id: string; name: string }[]> {
-  const { data } = await db
-    .from('categories')
-    .select('id,name')
-    .or(`is_system.eq.true,user_id.eq.${userId}`)
-    .throwOnError()
-    .overrideTypes<{ id: string; name: string }[], { merge: false }>();
-  return data;
+export async function listVisibleIdName(db: Db, userId: string): Promise<{ id: string; name: string }[]> {
+  return all<{ id: string; name: string }>(
+    db,
+    `SELECT id, name FROM categories WHERE is_system = 1 OR user_id = ? ${BY_NAME}`,
+    [userId],
+  );
 }

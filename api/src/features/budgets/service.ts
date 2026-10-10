@@ -1,8 +1,8 @@
-import { INVALID_TEXT_REPRESENTATION, NO_DATA_FOUND, hasPgCode } from '../../core/db-errors';
+import { NO_DATA_FOUND, hasPgCode } from '../../core/db-errors';
 import { formatMoney } from '../../core/decimal';
 import { NotFoundError, UpstreamError } from '../../core/errors';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { isoUtc } from '../../core/timestamps';
 import * as repo from './repository';
 import type { BudgetResponse, BudgetRow, BudgetUpsertBody, CategoryBudgetItem } from './schemas';
@@ -18,13 +18,13 @@ function rowToBudget(row: BudgetRow): BudgetResponse {
   };
 }
 
-export async function getBudget(db: DimeSupabaseClient, userId: string): Promise<{ budget: BudgetResponse | null }> {
+export async function getBudget(db: Db, userId: string): Promise<{ budget: BudgetResponse | null }> {
   const row = await repo.fetchBudget(db, userId);
   return { budget: row ? rowToBudget(row) : null };
 }
 
 /** Partial update (daily and/or monthly). One round trip for existing users; first save inserts zeros for the other cap. */
-export async function upsertBudget(db: DimeSupabaseClient, userId: string, body: BudgetUpsertBody): Promise<BudgetResponse> {
+export async function upsertBudget(db: Db, userId: string, body: BudgetUpsertBody): Promise<BudgetResponse> {
   const fields: { monthly_budget?: string; daily_budget?: string } = {};
   if (body.monthly_amount != null) fields.monthly_budget = body.monthly_amount;
   if (body.daily_amount != null) fields.daily_budget = body.daily_amount;
@@ -38,7 +38,7 @@ export async function upsertBudget(db: DimeSupabaseClient, userId: string, body:
   return rowToBudget(created);
 }
 
-export async function listCategoryBudgets(db: DimeSupabaseClient, userId: string): Promise<{ items: CategoryBudgetItem[] }> {
+export async function listCategoryBudgets(db: Db, userId: string): Promise<{ items: CategoryBudgetItem[] }> {
   const rows = await repo.listCategoryBudgets(db, userId);
   const items: CategoryBudgetItem[] = [];
   for (const row of rows) {
@@ -50,7 +50,7 @@ export async function listCategoryBudgets(db: DimeSupabaseClient, userId: string
 }
 
 async function writeCategoryBudget(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   categoryId: string,
   amount: string | null,
@@ -59,8 +59,8 @@ async function writeCategoryBudget(
   try {
     return await repo.setCategoryBudget(db, userId, categoryId, amount);
   } catch (err) {
-    // A malformed id can never match a category.
-    if (hasPgCode(err, NO_DATA_FOUND) || hasPgCode(err, INVALID_TEXT_REPRESENTATION)) {
+    // A malformed id can never match a category, so it is a plain not-found too.
+    if (hasPgCode(err, NO_DATA_FOUND)) {
       throw new NotFoundError('Category not found.');
     }
     log.error('category_budget_write_failed', { err });
@@ -69,7 +69,7 @@ async function writeCategoryBudget(
 }
 
 export async function upsertCategoryBudget(
-  db: DimeSupabaseClient,
+  db: Db,
   userId: string,
   categoryId: string,
   amount: string,
@@ -78,6 +78,6 @@ export async function upsertCategoryBudget(
   return { category_id: categoryId, monthly_amount: formatMoney(payload.monthly_amount ?? amount) };
 }
 
-export async function deleteCategoryBudget(db: DimeSupabaseClient, userId: string, categoryId: string): Promise<void> {
+export async function deleteCategoryBudget(db: Db, userId: string, categoryId: string): Promise<void> {
   await writeCategoryBudget(db, userId, categoryId, null, 'Could not remove category budget.');
 }

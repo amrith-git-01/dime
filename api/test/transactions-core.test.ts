@@ -6,7 +6,7 @@ import { addDays, dayRange, lastNDaysRange, localDate, monthRange, parseTimezone
 import { derivedKeys, parseIdempotencyKey } from '../src/features/jobs/idempotency';
 import { detectAudioFormat } from '../src/features/media/audio-format';
 import { buildObjectPath } from '../src/features/media/paths';
-import { splitStoredMediaRef } from '../src/features/media/refs';
+import { storedMediaKey } from '../src/features/media/refs';
 import { detectReceiptImageFormat } from '../src/core/image-format';
 import {
   buildDaySummaries,
@@ -14,19 +14,19 @@ import {
   dailyDebitSeries,
   dayTotalsFromRows,
   debitByCategoryResponse,
-  parsePeriodSummary,
-  periodSummaryFromRows,
 } from '../src/features/transactions/aggregates';
 import {
   buildPaymentHash,
   buildSparseMergePatch,
   formatAmountForHash,
   normalizeCounterparty,
+  payeeKey,
   transactionMinuteBucket,
 } from '../src/features/transactions/dedupe';
 import { parseDatetime, transactionWriteSchema } from '../src/features/transactions/schemas';
-import { payeeOrFilter } from '../src/features/transactions/repository';
-import { payeeTotalsFromRows, rollUpIncome, rollUpSpend, share } from '../src/features/insights/rollup';
+import { payeeLikePatterns } from '../src/features/transactions/repository';
+import type { PayeeRow } from '../src/features/transactions/repository';
+import { rollUpIncome, rollUpSpend, share } from '../src/features/insights/rollup';
 import { formatInr, bodyForAutoTx, titleForAutoTx } from '../src/features/notifications/emitter';
 import { crossedThresholds } from '../src/features/notifications/budget-evaluator';
 
@@ -266,22 +266,14 @@ describe('idempotency key', () => {
 });
 
 describe('media helpers', () => {
-  it('splits bare paths and legacy public URLs', () => {
-    expect(splitStoredMediaRef('receipts/u/receipts/2026-10-04/1-ab.jpg', 'Dime-private')).toEqual({
-      bucket: 'Dime-private',
-      objectPath: 'receipts/u/receipts/2026-10-04/1-ab.jpg',
-    });
-    expect(splitStoredMediaRef('/receipts/a.jpg', 'B')).toEqual({ bucket: 'B', objectPath: 'receipts/a.jpg' });
-    expect(splitStoredMediaRef('https://x.supabase.co/storage/v1/object/public/Dime/receipts/u/a%20b.jpg?t=1', 'Dime-private')).toEqual({
-      bucket: 'Dime',
-      objectPath: 'receipts/u/a b.jpg',
-    });
-    expect(splitStoredMediaRef('https://x.supabase.co/storage/v1/object/sign/Dime-private/voice/u/v.wav?token=abc', 'D')).toEqual({
-      bucket: 'Dime-private',
-      objectPath: 'voice/u/v.wav',
-    });
-    expect(splitStoredMediaRef('https://evil.example.com/r.jpg', 'D')).toBeNull();
-    expect(splitStoredMediaRef('   ', 'D')).toBeNull();
+  it('resolves bare keys, legacy Supabase URLs and Worker URLs to an R2 key', () => {
+    expect(storedMediaKey('receipts/u/receipts/2026-10-04/1-ab.jpg')).toBe('receipts/u/receipts/2026-10-04/1-ab.jpg');
+    expect(storedMediaKey('/receipts/a.jpg')).toBe('receipts/a.jpg');
+    expect(storedMediaKey('https://x.supabase.co/storage/v1/object/public/Dime/receipts/u/a%20b.jpg?t=1')).toBe('receipts/u/a b.jpg');
+    expect(storedMediaKey('https://x.supabase.co/storage/v1/object/sign/Dime-private/voice_inputs/u/v.wav?token=abc')).toBe('voice_inputs/u/v.wav');
+    expect(storedMediaKey('https://api.example.workers.dev/media/receipts/u/a%20b.jpg?exp=1&sig=ab')).toBe('receipts/u/a b.jpg');
+    expect(storedMediaKey('https://evil.example.com/r.jpg')).toBeNull();
+    expect(storedMediaKey('   ')).toBeNull();
   });
 
   it('builds the private bucket path', () => {
@@ -365,56 +357,36 @@ describe('aggregates', () => {
     expect(dailyDebitSeries(totals, days).map((d) => d.total)).toEqual(['0', '235.00', '50.00']);
   });
 
-  it('parses the period summary RPC payload in every shape', () => {
-    const blob = { credit_total: '200.00', debit_total: 150, transaction_count: '3', debit_by_category: { c1: 100, '': '50.5' } };
-    for (const wrapped of [blob, [blob], { transactions_period_summary: blob }]) {
-      const s = parsePeriodSummary(wrapped);
-      expect(s).toMatchObject({ creditCents: 20000, debitCents: 15000, count: 3 });
-      expect(s?.debitByCategory.get('c1')).toBe(10000);
-      expect(s && debitByCategoryResponse(s)).toEqual({ c1: '100.00', __uncategorized__: '50.50' });
-    }
-    expect(parsePeriodSummary(null)).toBeNull();
-    expect(parsePeriodSummary({ nope: 1 })).toBeNull();
-  });
-
-  it('fallback period summary from rows', () => {
-    const s = periodSummaryFromRows([
-      { amount: '10.10', type: 'debit', category_id: 'c1' },
-      { amount: '5.05', type: 'debit', category_id: null },
-      { amount: '20.00', type: 'credit', category_id: 'c1' },
-    ]);
-    expect(s).toMatchObject({ creditCents: 2000, debitCents: 1515, count: 3 });
-    expect(debitByCategoryResponse(s)).toEqual({ c1: '10.10', __uncategorized__: '5.05' });
+  it('debit-by-category response: blank category becomes __uncategorized__, cents become 2-decimal strings', () => {
+    const summary = { creditCents: 20000, debitCents: 15050, count: 3, debitByCategory: new Map([['c1', 10000], ['', 5050]]) };
+    expect(debitByCategoryResponse(summary)).toEqual({ c1: '100.00', __uncategorized__: '50.50' });
   });
 });
 
 describe('insights rollups', () => {
   it('top four payees plus Other (Python test_roll_up_counterparty_top_four_plus_other)', () => {
-    const source = Array.from({ length: 8 }, (_, i) => ({
-      amount: String(100 - i),
+    const source: PayeeRow[] = Array.from({ length: 8 }, (_, i) => ({
       type: 'debit',
-      counterparty_normalized: `payee-${i}`,
-      counterparty_name: `Payee ${i}`,
-      transaction_at: '2026-05-01T00:00:00Z',
+      payee_key: `payee-${i}`,
+      display_name: `Payee ${i}`,
+      total_cents: (100 - i) * 100,
+      count: 1,
     }));
-    const total = source.reduce((s, r) => s + Number(r.amount) * 100, 0);
-    const result = rollUpSpend(payeeTotalsFromRows(source), total);
+    const total = source.reduce((sum, r) => sum + r.total_cents, 0);
+    const result = rollUpSpend(source, total);
     expect(result).toHaveLength(5);
     expect(result[0]?.transaction_count).toBe(1);
     expect(result.at(-1)).toMatchObject({ payee_key: '__other__', display_name: 'Other', transaction_count: 4 });
-    expect(result.reduce((s, r) => s + r.share, 0)).toBeGreaterThan(0.99);
-    expect(result.reduce((s, r) => s + r.share, 0)).toBeLessThan(1.01);
+    expect(result.reduce((sum, r) => sum + r.share, 0)).toBeGreaterThan(0.99);
+    expect(result.reduce((sum, r) => sum + r.share, 0)).toBeLessThan(1.01);
   });
 
-  it('groups by payee key, keeps the oldest row display name, and falls back to the normalized name', () => {
-    const rows = payeeTotalsFromRows([
-      { amount: 10, type: 'debit', counterparty_normalized: null, counterparty_name: 'SWIGGY-INDIA', transaction_at: '2026-05-03T00:00:00Z' },
-      { amount: 5, type: 'debit', counterparty_normalized: 'swiggy india', counterparty_name: 'Swiggy India', transaction_at: '2026-05-01T00:00:00Z' },
-      { amount: 7, type: 'debit', counterparty_normalized: null, counterparty_name: null, transaction_at: '2026-05-02T00:00:00Z' },
-      { amount: 99, type: 'credit', counterparty_normalized: 'boss', counterparty_name: 'Boss', transaction_at: '2026-05-02T00:00:00Z' },
-    ]);
-    expect(rows).toContainEqual({ type: 'debit', payee_key: 'swiggy india', display_name: 'Swiggy India', total_cents: 1500, count: 2 });
-    expect(rows).toContainEqual({ type: 'debit', payee_key: 'unknown', display_name: 'Unknown', total_cents: 700, count: 1 });
+  it('income keeps the top five sources; no spend or income when the month total is zero', () => {
+    const rows: PayeeRow[] = [
+      { type: 'debit', payee_key: 'swiggy india', display_name: 'Swiggy India', total_cents: 1500, count: 2 },
+      { type: 'debit', payee_key: 'unknown', display_name: 'Unknown', total_cents: 700, count: 1 },
+      { type: 'credit', payee_key: 'boss', display_name: 'Boss', total_cents: 9900, count: 1 },
+    ];
     expect(rollUpIncome(rows, 9900)).toEqual([
       { payee_key: 'boss', display_name: 'Boss', credit_total: '99.00', share: 1, transaction_count: 1 },
     ]);
@@ -452,16 +424,27 @@ describe('notification text', () => {
   });
 });
 
-describe('payee filter expression (C3)', () => {
-  it('quotes the value and matches the normalized payee and the name', () => {
-    expect(payeeOrFilter('swiggy')).toBe('counterparty_normalized.ilike."*swiggy*",counterparty_name.ilike."*swiggy*"');
+describe('payee filter patterns (C3)', () => {
+  it('matches the normalized payee and the name with a contains pattern', () => {
+    expect(payeeLikePatterns('swiggy')).toEqual({ both: ['%swiggy%'], normalized: [] });
   });
   it('adds the normalized form when the input has punctuation, and neutralizes reserved characters', () => {
-    expect(payeeOrFilter("McDonald's, (India)")).toBe(
-      `counterparty_normalized.ilike."*McDonald's, (India)*",counterparty_name.ilike."*McDonald's, (India)*",counterparty_normalized.ilike."*mcdonald s india*"`,
-    );
-    expect(payeeOrFilter('a"b\\c*d%e')).toBe('counterparty_normalized.ilike."*abcde*",counterparty_name.ilike."*abcde*"');
-    expect(payeeOrFilter('  ')).toBeNull();
-    expect(payeeOrFilter('*%')).toBeNull();
+    expect(payeeLikePatterns("McDonald's, (India)")).toEqual({ both: ["%McDonald's, (India)%"], normalized: ['%mcdonald s india%'] });
+    expect(payeeLikePatterns('a"b\\c*d%e')).toEqual({ both: ['%abcde%'], normalized: [] });
+    expect(payeeLikePatterns('50_off')).toEqual({ both: ['%50\\_off%'], normalized: ['%50 off%'] });
+    expect(payeeLikePatterns('  ')).toBeNull();
+    expect(payeeLikePatterns('*%')).toBeNull();
+  });
+});
+
+describe('payeeKey (same rule as Postgres agent_payee_key)', () => {
+  it('prefers the stored normalized value, then the normalized name, then "unknown"', () => {
+    expect(payeeKey('swiggy', 'Whatever')).toBe('swiggy');
+    expect(payeeKey('  swiggy  ', null)).toBe('swiggy');
+    expect(payeeKey(null, '  SWIGGY-India!! ')).toBe('swiggy india');
+    expect(payeeKey('', "McDonald's (Andheri)")).toBe('mcdonald s andheri');
+    expect(payeeKey('   ', '***')).toBe('unknown');
+    expect(payeeKey(null, null)).toBe('unknown');
+    expect(payeeKey(undefined, '')).toBe('unknown');
   });
 });

@@ -1,3 +1,4 @@
+import type { Db } from '../../core/db';
 import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
 import { PermanentAiError, TransientAiError } from '../ai/errors';
@@ -11,8 +12,8 @@ import { runPrepass } from './prepass';
 import type { PrePass } from './prepass';
 import { buildUserMessage, SYSTEM_PROMPT, verificationFeedback, wrapToolResult } from './prompts';
 import type { AgentResponse, ChatRequest } from './schemas';
-import { executeReadonlySql, executeToolCalls } from './sql-executor';
-import type { SqlClient, SqlExecutionResult, ToolSql } from './sql-executor';
+import { defaultQueries, executeQueries } from './queries';
+import type { AgentQueries, QueryCall } from './queries';
 import { NO_DATA_ANSWER, templateAnswer } from './template';
 import type { ToolResult } from './template';
 import { TOOL_BY_NAME, TOOL_SPECS, ToolArgError } from './tools';
@@ -22,7 +23,7 @@ import { numbersIn, verifyAnswer } from './verify';
 /**
  * The agent turn: a bounded tool-calling loop.
  *
- *   pre-pass (time hint, pg_trgm entity resolution, clarification) -> [LLM -> tools]* -> answer
+ *   pre-pass (time hint, trigram entity resolution, clarification) -> [LLM -> tools]* -> answer
  *
  * Guards: at most `maxSteps` tool steps (then the model must answer), at most 3 parallel tool calls per
  * step, a turn deadline (an AbortSignal runs through every request), and a numeric check of the answer
@@ -35,14 +36,14 @@ const MAX_PARALLEL_TOOLS = 3;
 const MIN_LLM_MS = 1500;
 /** The fallback model is only tried when at least this much time remains. */
 const FALLBACK_MIN_MS = 4000;
-const SQL_PREVIEW_ROWS = 20;
-const SQL_CELL_CHARS = 80;
 
 export interface AgentDeps {
   config: AppConfig['agent'];
   llm: LlmClient;
-  /** Opens the read-only database client (lazily: a turn that needs no data never connects). */
-  openSql: () => Promise<SqlClient>;
+  /** The D1 database the tools read (every query is scoped by the verified user id). */
+  db: Db;
+  /** The tool queries; tests replace single ones. */
+  queries?: Partial<AgentQueries>;
   /** Epoch ms; overridable for tests. */
   now?: () => number;
   newId?: () => string;
@@ -118,23 +119,6 @@ function addUsage(total: Usage, add: Usage): void {
   total.cacheHitTokens += add.cacheHitTokens;
 }
 
-/** A cell of a `run_sql` row, bounded. */
-function cell(v: unknown): unknown {
-  if (typeof v === 'string') return v.length > SQL_CELL_CHARS ? `${v.slice(0, SQL_CELL_CHARS)}...` : v;
-  return v;
-}
-
-/** What the model sees of a `run_sql` result: a capped preview (never a `note` column), or the error. */
-function summarizeSql(result: SqlExecutionResult): ToolOutput | { error: string } {
-  if (result.error) return { error: result.error.slice(0, 300) };
-  const columns = result.columns.filter((c) => c.toLowerCase() !== 'note');
-  const rows = result.rows.slice(0, SQL_PREVIEW_ROWS).map((r) => Object.fromEntries(columns.map((c) => [c, cell(r[c])])));
-  return {
-    data: { row_count: result.row_count, columns, rows, ...(result.row_count > SQL_PREVIEW_ROWS || result.truncated ? { truncated: true } : {}) },
-    rows: result.row_count,
-  };
-}
-
 export async function runAgentTurn(deps: AgentDeps, opts: TurnOptions): Promise<TurnResult> {
   const now = deps.now ?? Date.now;
   const started = now();
@@ -164,12 +148,13 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
   const ctx: ToolContext = { tz, nowMs: started };
   const usage = emptyUsage();
   const results: ToolResult[] = [];
+  const queries: AgentQueries = { ...defaultQueries, ...deps.queries };
 
   const memory = config.memorySecret ? await verifyMemory(config.memorySecret, body.memory, userId, started) : null;
   if (body.memory && !memory) log.info('agent_memory_ignored', { reason: config.memorySecret ? 'invalid_or_expired' : 'no_secret' });
 
   const prepass = await raceAbort(
-    runPrepass({ text: question, tz, nowMs: started, userId, memory, openSql: deps.openSql, timeoutMs: config.sqlTimeoutMs }),
+    runPrepass({ text: question, tz, nowMs: started, userId, memory, db: deps.db, queries }),
     signal,
   );
 
@@ -261,29 +246,19 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
       }
     });
 
-    // Data tools of the step share ONE read-only transaction (pipelined); run_sql runs on its own afterwards.
-    const dataSlots = slots.filter((s): s is Slot & { prepared: Extract<Prepared, { kind: 'sql' }> } => s.prepared?.kind === 'sql');
+    // The step's tools (and any extra block-only queries) run in parallel on D1.
+    const runnable = slots.filter((s): s is Slot & { prepared: Prepared } => s.prepared !== null);
     const outcomes = new Map<Slot, { output: ToolOutput | null; error: string | null; ms: number }>();
-    if (dataSlots.length > 0) {
-      const sql = await raceAbort(deps.openSql(), signal);
-      // Each tool's own call, then any extra (block-only) calls, all in the one transaction.
-      const calls: ToolSql[] = dataSlots.flatMap((s) => [s.prepared.call, ...(s.prepared.extra ?? [])]);
-      const { results: raw, ms } = await raceAbort(executeToolCalls(sql, userId, calls, { timeoutMs: config.sqlTimeoutMs }), signal);
+    if (runnable.length > 0) {
+      const calls: QueryCall[] = runnable.flatMap((s) => [s.prepared.call, ...(s.prepared.extra ?? [])]);
+      const { results: raw, ms } = await raceAbort(executeQueries(queries, deps.db, userId, calls), signal);
       let at = 0;
-      for (const slot of dataSlots) {
+      for (const slot of runnable) {
         const r = raw[at++];
         const extras = (slot.prepared.extra ?? []).map(() => raw[at++]);
         const extraValues = extras.every((e) => e?.ok) ? extras.map((e) => (e?.ok ? e.value : null)) : [];
-        outcomes.set(slot, r?.ok ? { output: slot.prepared.shape(r.value, extraValues), error: null, ms } : { output: null, error: r?.error ?? 'No result.', ms });
+        outcomes.set(slot, r?.ok ? { output: slot.prepared.shape(r.value, extraValues), error: null, ms } : { output: null, error: r?.ok === false ? r.error : 'No result.', ms });
       }
-    }
-    for (const slot of slots) {
-      if (slot.prepared?.kind !== 'run_sql') continue;
-      const t0 = now();
-      const sql = await raceAbort(deps.openSql(), signal);
-      const res = await raceAbort(executeReadonlySql(sql, slot.prepared.query, { userId, maxRows: config.sqlMaxRows, timeoutMs: config.sqlTimeoutMs }), signal);
-      const summary = summarizeSql(res);
-      outcomes.set(slot, 'error' in summary ? { output: null, error: summary.error, ms: now() - t0 } : { output: summary, error: null, ms: now() - t0 });
     }
 
     return slots.map((slot): ChatMessage => {

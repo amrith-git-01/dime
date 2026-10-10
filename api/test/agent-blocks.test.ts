@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_BLOCKS, buildBlocks } from '../src/features/agent/blocks';
 import type { ToolResult } from '../src/features/agent/template';
 import { TOOL_BY_NAME } from '../src/features/agent/tools';
-import { JUNE, NOW, SUMMARY_JUNE, fakeDb, makeDeps, run, scriptedLlm, toolCall } from './agent-fixtures';
+import { JUNE, NOW, SUMMARY_JUNE, fakeQueries, makeDeps, run, scriptedLlm, toolCall } from './agent-fixtures';
 
 /** Mirrors `frontend/src/features/agent/types.ts` (AgentBlock) exactly: unknown keys are errors. */
 const payee = z.strictObject({ name: z.string(), amount: z.number(), share: z.number().nullable() });
@@ -123,22 +123,22 @@ describe('compare_months from compare_periods', () => {
   const sums = { a: { debit: 150, credit: 85000, net: 84850, count: 3 }, b: { debit: 70, credit: 0, net: -70, count: 1 } };
 
   const run1 = async (args: unknown, handlers: Record<string, unknown>) => {
-    const db = fakeDb(handlers);
+    const db = fakeQueries(handlers);
     const { llm } = scriptedLlm([{ calls: [toolCall('compare_periods', args)] }, { content: 'You spent ₹150 in July 2026 against ₹70 in June 2026.' }]);
-    const { result } = await run(makeDeps(llm, db.client), 'compare July 2026 and June 2026');
+    const { result } = await run(makeDeps(llm, db), 'compare July 2026 and June 2026');
     return { result, db };
   };
   const handlers = (a: unknown, b: unknown) => {
     let daily = 0;
     let top = 0;
     return {
-      agent_compare_periods: { by: 'total', ...sums, delta: { debit: 80, debit_pct: 114.3, credit: 85000, net: 84920 } },
-      agent_daily_cashflow: () => ({ days: daily++ === 0 ? a : b }),
-      agent_top_payees: () => ({ payees: top++ === 0 ? [swiggy] : [] }),
+      compare_periods: { by: 'total', ...sums, delta: { debit: 80, debit_pct: 114.3, credit: 85000, net: 84920 } },
+      daily_cashflow: () => ({ days: daily++ === 0 ? a : b }),
+      top_payees: () => ({ payees: top++ === 0 ? [swiggy] : [] }),
     };
   };
 
-  it('two calendar months -> a compare_months card in the exact frontend shape, fetched in the same transaction', async () => {
+  it('two calendar months -> a compare_months card in the exact frontend shape, fetched in the same step', async () => {
     const { result, db } = await run1({ a: { from: '2026-07-01', to: '2026-07-31' }, b: { from: '2026-06-01', to: '2026-06-30' } }, handlers(julyDays, juneDays));
     const blocks = parse(result.response.blocks);
     expect(blocks.map((b) => b.type)).toEqual(['compare_months']); // no compare_bar next to it, as before
@@ -149,9 +149,8 @@ describe('compare_months from compare_periods', () => {
     expect(card.period_a.cashflow).toHaveLength(31); // zero-filled over the whole month
     expect(card.period_a.cashflow[1]).toEqual({ date: '2026-07-02', expense: 100, income: 0 });
     expect(card.period_b.cashflow).toHaveLength(30);
-    // All five calls (compare + 2 daily + 2 payees) are ONE transaction; the model only saw the compare result.
-    expect(db.transactions).toHaveLength(1);
-    expect(db.calls().map((c) => /agent_\w+/.exec(c.query)?.[0])).toEqual(['agent_compare_periods', 'agent_daily_cashflow', 'agent_daily_cashflow', 'agent_top_payees', 'agent_top_payees']);
+    // All five queries (compare + 2 daily + 2 payees) run in the one step; the model only saw the compare result.
+    expect(db.calls().map((c) => c.name)).toEqual(['compare_periods', 'daily_cashflow', 'daily_cashflow', 'top_payees', 'top_payees']);
   });
 
   it('two years (full or year to date) -> monthly cashflow and chart_label "Monthly Spend"', async () => {
@@ -167,7 +166,7 @@ describe('compare_months from compare_periods', () => {
 
   it('falls back to compare_bar when the extra data is missing (an extra call failed)', () => {
     const p = TOOL_BY_NAME.get('compare_periods')?.prepare(JSON.stringify({ a: { from: '2026-07-01', to: '2026-07-31' }, b: { from: '2026-06-01', to: '2026-06-30' } }), { tz: 'Asia/Kolkata', nowMs: NOW });
-    if (p?.kind !== 'sql') throw new Error('expected a sql tool');
+    if (!p) throw new Error('expected a prepared tool');
     expect(p.extra).toHaveLength(4);
     const out = p.shape({ by: 'total', ...sums }, []);
     expect(out.blockData).toBeUndefined();
@@ -176,9 +175,9 @@ describe('compare_months from compare_periods', () => {
   });
 
   it('extra data stays out of the model prompt and out of verification', async () => {
-    const db = fakeDb(handlers(julyDays, juneDays));
+    const db = fakeQueries(handlers(julyDays, juneDays));
     const { llm, calls } = scriptedLlm([{ calls: [toolCall('compare_periods', { a: { from: '2026-07-01', to: '2026-07-31' }, b: { from: '2026-06-01', to: '2026-06-30' } })] }, { content: 'You spent ₹500 at Swiggy.' }]);
-    const { result } = await run(makeDeps(llm, db.client), 'compare July 2026 and June 2026');
+    const { result } = await run(makeDeps(llm, db), 'compare July 2026 and June 2026');
     const toolMsg = JSON.stringify(calls[1]?.messages.filter((m) => m.role === 'tool'));
     expect(toolMsg).not.toContain('Swiggy');
     expect(result.outcome).toBe('template'); // ₹500 only exists in block data: not a verified figure
@@ -186,7 +185,7 @@ describe('compare_months from compare_periods', () => {
 
   it('other tools take no extra calls', () => {
     const p = TOOL_BY_NAME.get('spending_summary')?.prepare(JSON.stringify(JUNE), { tz: 'Asia/Kolkata', nowMs: NOW });
-    expect(p?.kind === 'sql' && p.extra).toBeFalsy();
+    expect(p?.extra).toBeFalsy();
     expect(SUMMARY_JUNE.count).toBe(43);
   });
 });

@@ -6,35 +6,32 @@ import { currentUser, requireAuth } from '../../core/auth';
 import { limitBody } from '../../core/body-limit';
 import { defer } from '../../core/background';
 import { getConfig } from '../../core/env';
-import type { AppBindings, Bindings } from '../../core/env';
-import { AppError, ServiceUnavailableError } from '../../core/errors';
+import type { AppBindings } from '../../core/env';
+import { AppError } from '../../core/errors';
 import { log } from '../../core/logging';
 import { rateLimit } from '../../core/rate-limit';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { PermanentAiError, TransientAiError } from '../ai/errors';
-import { openAgentDb } from './db';
 import { resolveTimezone } from './dates';
 import { createDeepSeekClient, TurnAbortedError } from './llm';
 import { chatRequestSchema, feedbackRequestSchema } from './schemas';
 import type { AgentErrorBody } from './schemas';
 import { runAgentTurn, TurnTimeoutError } from './service';
 import type { AgentDeps, AgentEvent, TurnResult } from './service';
-import { AgentDbUnavailableError } from './sql-executor';
-import type { SqlClient } from './sql-executor';
+import type { AgentQueries } from './queries';
 import { recordUsage, saveFeedback, tokensUsedToday } from './usage';
 
 /** Seams for tests; production uses the defaults. */
 export interface AgentRouteDeps {
-  openSql: (env: Bindings) => Promise<SqlClient>;
+  /** Replaces single tool queries (tests). */
+  queries?: Partial<AgentQueries>;
   now: () => number;
 }
 
-const UNAVAILABLE = 'Assistant is temporarily unavailable. Try again shortly.';
-
 /** Contract C5: a failed turn is `{"error": {code, message}}` (HTTP 200, or the SSE `error` event). */
 export function agentErrorBody(err: unknown): AgentErrorBody {
-  if (err instanceof TurnTimeoutError || err instanceof TurnAbortedError || err instanceof TransientAiError || err instanceof AgentDbUnavailableError) {
+  if (err instanceof TurnTimeoutError || err instanceof TurnAbortedError || err instanceof TransientAiError) {
     return { error: { code: 'assistant_busy', message: 'The assistant is busy right now. Please try again in a moment.' } };
   }
   if (err instanceof PermanentAiError) {
@@ -51,7 +48,7 @@ const FEEDBACK_BODY_LIMIT_BYTES = 16 * 1024;
 async function refusal(c: Context<AppBindings>, userId: string, nowMs: number): Promise<AgentErrorBody['error'] | null> {
   const config = getConfig(c.env).agent;
   if (!config.enabled) return { code: 'agent_disabled', message: 'The assistant is switched off right now. Please try again later.' };
-  const used = await tokensUsedToday(getSupabase(c), userId, nowMs);
+  const used = await tokensUsedToday(getDb(c), userId, nowMs);
   if (used !== null && used >= config.dailyTokenBudget) {
     return { code: 'daily_limit', message: "You've reached today's assistant limit. It resets tomorrow." };
   }
@@ -59,7 +56,7 @@ async function refusal(c: Context<AppBindings>, userId: string, nowMs: number): 
 }
 
 export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono<AppBindings> {
-  const routeDeps: AgentRouteDeps = { openSql: openAgentDb, now: Date.now, ...overrides };
+  const routeDeps: AgentRouteDeps = { now: Date.now, ...overrides };
   const router = new Hono<AppBindings>();
   router.use(requireAuth);
 
@@ -77,23 +74,19 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
         : c.json({ error: refused });
     }
 
-    let sql: SqlClient | undefined;
     const deps: AgentDeps = {
       config: config.agent,
       llm: createDeepSeekClient({ baseUrl: config.agent.baseUrl, apiKey: config.ai.apiKey }),
-      openSql: async () => (sql ??= await routeDeps.openSql(c.env)),
+      db: getDb(c),
+      ...(routeDeps.queries ? { queries: routeDeps.queries } : {}),
       now: routeDeps.now,
-    };
-    // Hyperdrive keeps the real pool; just close this request's client without delaying the response.
-    const closeSql = () => {
-      if (sql) defer(c, sql.end({ timeout: 5 }), 'agent-db-close');
     };
     // Evals only: `X-Agent-Debug: 1` adds what the turn did (tools, model calls, tokens). It carries no user data.
     const debug = c.req.header('x-agent-debug') === '1';
     const payload = (result: TurnResult) => (debug ? { ...result.response, debug: { ...result.trace, tokens: result.usage } } : result.response);
     const track = (result: TurnResult) => {
       if (result.usage.promptTokens + result.usage.completionTokens > 0) {
-        defer(c, recordUsage(getSupabase(c), user.id, routeDeps.now(), result.usage), 'agent-usage');
+        defer(c, recordUsage(getDb(c), user.id, routeDeps.now(), result.usage), 'agent-usage');
       }
     };
 
@@ -103,15 +96,9 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
         track(result);
         return c.json(payload(result));
       } catch (err) {
-        if (err instanceof AgentDbUnavailableError) {
-          log.error('agent_db_unavailable', { err });
-          throw new ServiceUnavailableError(UNAVAILABLE, 10);
-        }
         if (err instanceof AppError) throw err; // e.g. a missing service key (503)
         log.error('agent_turn_failed', { err, userId: user.id });
         return c.json(agentErrorBody(err));
-      } finally {
-        closeSql();
       }
     }
 
@@ -133,7 +120,6 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
         send('error', agentErrorBody(err).error);
       } finally {
         await queue;
-        closeSql();
       }
     });
   });
@@ -141,7 +127,7 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
   router.post('/feedback', rateLimit('WRITE_LIMITER'), limitBody(FEEDBACK_BODY_LIMIT_BYTES), validate('json', feedbackRequestSchema), async (c) => {
     const user = currentUser(c);
     const body = c.req.valid('json');
-    await saveFeedback(getSupabase(c), user.id, { turnId: body.turn_id.toLowerCase(), rating: body.rating, comment: body.comment?.trim() || null });
+    await saveFeedback(getDb(c), user.id, { turnId: body.turn_id.toLowerCase(), rating: body.rating, comment: body.comment?.trim() || null });
     return c.json({ ok: true });
   });
 

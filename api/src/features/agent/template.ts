@@ -33,6 +33,13 @@ function span(data: Rec): string {
   return from === '' ? 'that period' : from === to ? from : `${from} to ${to}`;
 }
 
+const METRIC_TEXT: Record<string, string> = {
+  sum: 'total',
+  avg: 'average',
+  count: 'number of transactions',
+  count_distinct_payees: 'number of different payees',
+};
+
 const pct = (v: unknown): string => (typeof v === 'number' ? `${v}%` : '');
 
 function describe(name: ToolName, data: Rec): string | null {
@@ -82,11 +89,14 @@ function describe(name: ToolName, data: Rec): string | null {
       const names = list(data['matches']).map((m) => str(m['name']));
       return names.length > 0 ? `The closest matches are ${names.join(', ')}.` : 'I could not find a matching payee or category.';
     }
-    case 'run_sql': {
+    case 'aggregate_transactions': {
       const rows = list(data['rows']);
       const first = rows[0];
-      const cells = first ? Object.entries(first).map(([k, v]) => `${k}: ${str(v)}`).join(', ') : '';
-      return `The query returned ${str(data['row_count'])} rows${cells ? `. First row: ${cells}` : ''}.`;
+      if (!first || Number(first['count']) === 0) return `I found no matching transactions for ${span(data)}.`;
+      const what = METRIC_TEXT[str(data['metric'])] ?? 'result';
+      if (rows.length === 1 && str(first['group']) === 'all') return `For ${span(data)} the ${what} was **${disp(first, 'value')}** across ${str(first['count'])} transactions.`;
+      const top = rows.slice(0, 5).map((r) => `${str(r['group'])} ${disp(r, 'value')}`);
+      return `For ${span(data)} the ${what} by ${str(data['group_by'])}: ${top.join(', ')}.`;
     }
   }
 }

@@ -1,41 +1,22 @@
-import type { Session } from "@supabase/supabase-js";
 import { create } from "zustand";
 
-import { supabase } from "@/lib/supabase/client";
-import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
+import { getSession, subscribeSession } from "@/lib/auth/session";
+import type { AuthSession } from "@/lib/auth/types";
 
 type AuthSessionState = {
-  session: Session | null;
+  session: AuthSession | null;
   /** Changes only when the signed-in user changes, not on token refresh. */
   userId: string | undefined;
 };
 
 /** Seeded synchronously from the persisted session so first render already knows the user. */
 export const useAuthSessionStore = create<AuthSessionState>(() => {
-  const session = readStoredAuthSession();
+  const session = getSession();
   return { session, userId: session?.user.id };
 });
 
-function applySession(session: Session | null): void {
+// The single session subscription for the app; hooks read this store instead of subscribing.
+// A refresh the server rejects (revoked or expired refresh token) arrives here as null.
+subscribeSession((session) => {
   useAuthSessionStore.setState({ session, userId: session?.user.id });
-}
-
-// The single Supabase auth subscription for the app; hooks read this store instead of subscribing.
-let authEventSeen = false;
-
-supabase.auth.onAuthStateChange((_event, session) => {
-  authEventSeen = true;
-  applySession(session);
 });
-
-void supabase.auth
-  .getSession()
-  .then(({ data: { session } }) => {
-    // An auth event that already fired is newer than this initial read.
-    if (!authEventSeen) {
-      applySession(session);
-    }
-  })
-  .catch(() => {
-    // Keep the persisted session; the auth listener reconciles once Supabase is reachable.
-  });

@@ -5,18 +5,16 @@ import { daysBetween, daysInMonth, isoDate, parseIsoDate, today, toInstantRange 
 import type { InstantRange } from './dates';
 import type { ToolSpec } from './llm';
 import { withMoneyDisplay } from './money';
-import { RUN_SQL_SCHEMA } from './schema-context';
+import type { QueryCall } from './queries';
 
 /**
  * The agent's tools. Each one is a zod schema (the single source of truth: the JSON Schema sent to the
  * model is generated from it and the model's arguments are validated with it), a planner that turns
- * validated arguments into ONE parameterized SQL call of an `agent_*` Postgres function (migration
- * 20261005000100_agent_v2.sql), and a shaper that makes the function's jsonb compact and adds the
- * `<money>_display` twins.
+ * validated arguments into ONE query call (`queries.ts`, D1 prepared statements that always bind the
+ * user id), and a shaper that makes the query's document compact and adds the `<money>_display` twins.
  *
- * Date arguments are INCLUSIVE local dates (`YYYY-MM-DD`, the user's timezone). The database is always
- * called with the half-open UTC instants `[from 00:00, to + 1 day 00:00)`. Every value is bound as `text`
- * and cast in SQL (`$1::text::timestamptz`), so the driver never has to infer parameter types.
+ * Date arguments are INCLUSIVE local dates (`YYYY-MM-DD`, the user's timezone). The queries are always
+ * called with the half-open UTC instants `[from 00:00, to + 1 day 00:00)`.
  */
 
 export const TOOL_NAMES = [
@@ -28,7 +26,7 @@ export const TOOL_NAMES = [
   'compare_periods',
   'budget_status',
   'list_transactions',
-  'run_sql',
+  'aggregate_transactions',
 ] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -42,11 +40,6 @@ export interface ToolContext {
   nowMs: number;
 }
 
-export interface SqlCall {
-  text: string;
-  params: (string | null)[];
-}
-
 export interface ToolOutput {
   /** What the model sees (compact, money with display twins). */
   data: Record<string, unknown>;
@@ -56,16 +49,13 @@ export interface ToolOutput {
   blockData?: Record<string, unknown>;
 }
 
-export type Prepared =
-  | {
-      kind: 'sql';
-      call: SqlCall;
-      /** Additional calls pipelined in the same transaction; their results reach `shape` (and never the model). */
-      extra?: SqlCall[];
-      args: Record<string, unknown>;
-      shape: (raw: unknown, extra: readonly unknown[]) => ToolOutput;
-    }
-  | { kind: 'run_sql'; query: string; args: Record<string, unknown> };
+export interface Prepared {
+  call: QueryCall;
+  /** Additional calls run in the same step; their results reach `shape` (and never the model). */
+  extra?: QueryCall[];
+  args: Record<string, unknown>;
+  shape: (raw: unknown, extra: readonly unknown[]) => ToolOutput;
+}
 
 export interface AgentTool {
   name: ToolName;
@@ -126,7 +116,16 @@ const schemas = {
     limit: z.number().int().min(1).max(20).default(10).describe('How many rows, at most 20'),
     order: z.enum(['date_desc', 'date_asc', 'amount_desc', 'amount_asc']).default('date_desc'),
   }),
-  run_sql: z.object({ query: z.string().min(6).max(4000).describe('One read-only SELECT statement') }),
+  aggregate_transactions: z.object({
+    ...range,
+    metric: z.enum(['sum', 'avg', 'count', 'count_distinct_payees']).describe('sum = total amount, avg = average amount per transaction, count = number of transactions, count_distinct_payees = number of different payees'),
+    group_by: z.enum(['none', 'weekday', 'month', 'category', 'payee']).default('none').describe('none = one number for the whole period (default); weekday = Monday..Sunday; month = calendar months; category; payee'),
+    type: z.enum(['debit', 'credit', 'both']).default('debit').describe('debit = spending (default), credit = income, both'),
+    category: z.string().min(1).max(80).optional().describe('Only this category: its id (uuid) or its exact name'),
+    payee: z.string().min(1).max(120).optional().describe('Only this payee: its payee_key from resolve_entities or top_payees'),
+    min_amount: z.number().min(0).optional().describe('Only amounts at or above this many rupees'),
+    max_amount: z.number().min(0).optional().describe('Only amounts at or below this many rupees. For "under ₹200" use 199.99'),
+  }),
 } satisfies Record<ToolName, z.ZodType>;
 
 /* ----------------------------------------------------------------------------------------------
@@ -151,6 +150,7 @@ const MONEY_KEYS: ReadonlySet<string> = new Set([
   'daily_budget',
 ]);
 const SKIP_DISPLAY: ReadonlySet<string> = new Set(['days']);
+const VALUE_KEY: ReadonlySet<string> = new Set(['value']);
 
 const money = (raw: unknown): Record<string, unknown> => withMoneyDisplay(raw, MONEY_KEYS, SKIP_DISPLAY) as Record<string, unknown>;
 const obj = (raw: unknown): Record<string, unknown> => (typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {});
@@ -183,8 +183,9 @@ function monthOf(tz: string, at: string | undefined, nowMs: number): { from: Loc
   return { from: { ...ref, day: 1 }, to: { ...ref, day: daysInMonth(ref.year, ref.month) } };
 }
 
-const fn = (name: string, ...casts: string[]): string =>
-  `select public.${name}(${casts.map((c, i) => (c === 'text' ? `$${i + 1}::text` : `$${i + 1}::text::${c}`)).join(', ')}) as r`;
+/** Rupees (a JSON number) to whole cents, rounded the way the user means a bound: up for a minimum, down for a maximum. */
+const toCentsCeil = (rupees: number): number => Math.ceil(Math.round(rupees * 1e6) / 1e4);
+const toCentsFloor = (rupees: number): number => Math.floor(Math.round(rupees * 1e6) / 1e4);
 
 /** Parse and validate the model's JSON arguments with a tool's schema. */
 function parseArgs<S extends z.ZodType>(schema: S, raw: string): z.output<S> {
@@ -240,11 +241,8 @@ export interface EntityMatch {
   txnCount: number;
 }
 
-export function resolveEntitiesCall(phrases: readonly string[]): SqlCall {
-  return {
-    text: 'select public.agent_resolve_entities(array(select jsonb_array_elements_text($1::text::jsonb))) as r',
-    params: [JSON.stringify(phrases)],
-  };
+export function resolveEntitiesCall(phrases: readonly string[]): QueryCall {
+  return { name: 'resolve_entities', params: { phrases } };
 }
 
 export function parseEntityMatches(raw: unknown): EntityMatch[] {
@@ -282,10 +280,6 @@ function shapeEntities(raw: unknown): ToolOutput {
   return { data: { matches }, rows: matches.length };
 }
 
-/* ----------------------------------------------------------------------------------------------
- * run_sql
- * -------------------------------------------------------------------------------------------- */
-
 /** One tool definition: spec text + schema-driven preparation. */
 function define<N extends ToolName>(
   name: N,
@@ -312,7 +306,6 @@ export const TOOLS: readonly AgentTool[] = [
     'Looking up payees and categories',
     'Fuzzy-match a payee (merchant or person) or a category name to its id. Returns up to 5 matches with a score (1 = perfect) and exact=true when the name is identical. Use it when you need a payee_key or category_id that was not already resolved for you.',
     (args) => ({
-      kind: 'sql',
       call: resolveEntitiesCall([args.text]),
       args,
       shape: shapeEntities,
@@ -326,8 +319,7 @@ export const TOOLS: readonly AgentTool[] = [
     (args, ctx) => {
       const r = instants(ctx.tz, args.from, args.to);
       return {
-        kind: 'sql',
-        call: { text: fn('agent_spending_summary', 'timestamptz', 'timestamptz', 'uuid', 'text'), params: [r.from, r.to, args.category_id ?? null, args.payee_key ?? null] },
+        call: { name: 'spending_summary', params: { ...r, categoryId: args.category_id ?? null, payeeKey: args.payee_key ?? null } },
         args,
         shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: Number(obj(raw)['count']) || 0 }),
       };
@@ -341,8 +333,7 @@ export const TOOLS: readonly AgentTool[] = [
     (args, ctx) => {
       const r = instants(ctx.tz, args.from, args.to);
       return {
-        kind: 'sql',
-        call: { text: fn('agent_category_breakdown', 'timestamptz', 'timestamptz', 'text'), params: [r.from, r.to, args.type] },
+        call: { name: 'category_breakdown', params: { ...r, type: args.type } },
         args,
         shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['categories']) }),
       };
@@ -356,8 +347,7 @@ export const TOOLS: readonly AgentTool[] = [
     (args, ctx) => {
       const r = instants(ctx.tz, args.from, args.to);
       return {
-        kind: 'sql',
-        call: { text: fn('agent_top_payees', 'timestamptz', 'timestamptz', 'uuid', 'int'), params: [r.from, r.to, args.category_id ?? null, String(args.limit)] },
+        call: { name: 'top_payees', params: { ...r, categoryId: args.category_id ?? null, limit: args.limit } },
         args,
         shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['payees']) }),
       };
@@ -371,8 +361,7 @@ export const TOOLS: readonly AgentTool[] = [
     (args, ctx) => {
       const r = instants(ctx.tz, args.from, args.to, MAX_DAILY_DAYS);
       return {
-        kind: 'sql',
-        call: { text: fn('agent_daily_cashflow', 'timestamptz', 'timestamptz', 'text'), params: [r.from, r.to, ctx.tz] },
+        call: { name: 'daily_cashflow', params: { ...r, tz: ctx.tz } },
         args,
         shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['days']) }),
       };
@@ -388,15 +377,14 @@ export const TOOLS: readonly AgentTool[] = [
       const b = instants(ctx.tz, args.b.from, args.b.to);
       const kind = comparePairKind(args.a, args.b);
       // Whole months / years: the app draws a compare_months card, which needs per-period cashflow and payees.
-      const extra: SqlCall[] | undefined = kind
+      const extra: QueryCall[] | undefined = kind
         ? [
-            ...[a, b].map((r): SqlCall => ({ text: fn('agent_daily_cashflow', 'timestamptz', 'timestamptz', 'text'), params: [r.from, r.to, ctx.tz] })),
-            ...[a, b].map((r): SqlCall => ({ text: fn('agent_top_payees', 'timestamptz', 'timestamptz', 'uuid', 'int'), params: [r.from, r.to, null, '5'] })),
+            ...[a, b].map((r): QueryCall => ({ name: 'daily_cashflow', params: { ...r, tz: ctx.tz } })),
+            ...[a, b].map((r): QueryCall => ({ name: 'top_payees', params: { ...r, categoryId: null, limit: 5 } })),
           ]
         : undefined;
       return {
-        kind: 'sql',
-        call: { text: fn('agent_compare_periods', 'timestamptz', 'timestamptz', 'timestamptz', 'timestamptz', 'text'), params: [a.from, a.to, b.from, b.to, args.by] },
+        call: { name: 'compare_periods', params: { a, b, by: args.by } },
         extra,
         args,
         shape: (raw, more) => {
@@ -423,8 +411,7 @@ export const TOOLS: readonly AgentTool[] = [
       const month = monthOf(ctx.tz, args.at, ctx.nowMs);
       const r = toInstantRange(ctx.tz, month.from, month.to);
       return {
-        kind: 'sql',
-        call: { text: fn('agent_budget_status', 'timestamptz', 'timestamptz'), params: [r.from, r.to] },
+        call: { name: 'budget_status', params: r },
         args: { ...args, from: isoDate(month.from), to: isoDate(month.to) },
         shape: (raw) => ({
           data: { period: period_(isoDate(month.from), isoDate(month.to)), ...money(raw) },
@@ -441,10 +428,18 @@ export const TOOLS: readonly AgentTool[] = [
     (args, ctx) => {
       const r = instants(ctx.tz, args.from, args.to);
       return {
-        kind: 'sql',
         call: {
-          text: fn('agent_list_transactions', 'timestamptz', 'timestamptz', 'text', 'uuid', 'text', 'numeric', 'text', 'text', 'int'),
-          params: [r.from, r.to, ctx.tz, args.category_id ?? null, args.payee_key ?? null, args.min_amount === undefined ? null : String(args.min_amount), args.type ?? null, args.order, String(args.limit)],
+          name: 'list_transactions',
+          params: {
+            ...r,
+            tz: ctx.tz,
+            categoryId: args.category_id ?? null,
+            payeeKey: args.payee_key ?? null,
+            minCents: args.min_amount === undefined ? null : toCentsCeil(args.min_amount),
+            type: args.type ?? null,
+            order: args.order,
+            limit: args.limit,
+          },
         },
         args,
         shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['rows']) }),
@@ -453,10 +448,38 @@ export const TOOLS: readonly AgentTool[] = [
   ),
 
   define(
-    'run_sql',
-    'Running a custom query',
-    `FALLBACK ONLY, when no other tool can answer (for example averages, weekday patterns, custom filters). Runs one read-only SELECT; at most 20 rows come back. ${RUN_SQL_SCHEMA}`,
-    (args) => ({ kind: 'run_sql', query: args.query, args }),
+    'aggregate_transactions',
+    'Crunching your transactions',
+    'A flexible aggregate for what the other tools cannot answer: the average expense, totals or counts per weekday or month, the number of different payees, the number of expenses under or over an amount. metric = sum | avg | count | count_distinct_payees, optionally grouped by weekday, month, category or payee, with filters (type, category, payee, min_amount, max_amount). Returns rows of {group, value, count}. Prefer the specific tools when one fits.',
+    (args, ctx) => {
+      const r = instants(ctx.tz, args.from, args.to);
+      if (args.min_amount !== undefined && args.max_amount !== undefined && args.min_amount > args.max_amount) {
+        throw new ToolArgError(`min_amount (${args.min_amount}) is above max_amount (${args.max_amount}).`);
+      }
+      const isMoney = args.metric === 'sum' || args.metric === 'avg';
+      return {
+        call: {
+          name: 'aggregate_transactions',
+          params: {
+            ...r,
+            tz: ctx.tz,
+            metric: args.metric,
+            groupBy: args.group_by,
+            type: args.type,
+            category: args.category ?? null,
+            payee: args.payee ?? null,
+            minCents: args.min_amount === undefined ? null : toCentsCeil(args.min_amount),
+            maxCents: args.max_amount === undefined ? null : toCentsFloor(args.max_amount),
+          },
+        },
+        args,
+        shape: (raw) => {
+          // `value` is money for sum / avg and a plain count otherwise.
+          const doc = isMoney ? (withMoneyDisplay(raw, VALUE_KEY) as Record<string, unknown>) : obj(raw);
+          return { data: { period: period_(args.from, args.to), type: args.type, ...doc }, rows: len(obj(raw)['rows']) };
+        },
+      };
+    },
   ),
 ];
 

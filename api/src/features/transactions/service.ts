@@ -2,24 +2,22 @@ import { isUniqueViolation } from '../../core/db-errors';
 import { formatCents, formatMoney } from '../../core/decimal';
 import { ConflictError, NotFoundError } from '../../core/errors';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
 import { addDays, dateKey, lastNDaysRange, localDate, monthRange, parseTimezone } from '../../core/timezone';
 import type { IsoRange } from '../../core/timezone';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
+import { emit } from '../realtime/publish';
+import { inserted, updated as changed } from '../realtime/events';
+import type { Publish } from '../realtime/events';
 import { signMediaUrls } from '../media/storage';
-import type { SignOptions } from '../media/storage';
-import {
-  buildDaySummaries,
-  dailyDebitSeries,
-  dayTotalsFromRows,
-  debitByCategoryResponse,
-  periodSummaryFromRows,
-} from './aggregates';
+import type { MediaStore, SignOptions } from '../media/storage';
+import { buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse } from './aggregates';
 import type { DayTotals, PeriodSummary } from './aggregates';
 import { buildPaymentHash, buildSparseMergePatch, normalizedOrNull } from './dedupe';
 import * as repo from './repository';
+import type { NewTransactionRow } from './repository';
 import type {
   CounterpartyType,
   HomeOverviewResponse,
@@ -34,11 +32,15 @@ import type {
   TransactionWriteBody,
 } from './schemas';
 
-/** Everything the transaction services need from the request: DB client, user and media signing config. */
+/** Everything the transaction services need from the request: DB, media store, user and media signing config. */
 export interface TxContext {
-  db: DimeSupabaseClient;
+  db: Db;
+  /** R2 media (receipt / voice URL signing). */
+  storage: MediaStore;
   userId: string;
   media: SignOptions;
+  /** Live-update broadcast to this user's devices. Optional: absent = no broadcast (read-only callers, unit tests). */
+  publish?: Publish | undefined;
 }
 
 /** Aggregate loaders only need the DB and the user (the budget evaluator has no media config). */
@@ -79,7 +81,7 @@ async function loadEnrichment(
   const stored = rows.flatMap((r) => [r.receipt_url, r.voice_url]);
   const [meta, signed] = await Promise.all([
     fetchMetaByIds(ctx.db, ids, ctx.userId),
-    stored.some((v) => typeof v === 'string' && v) ? signMediaUrls(ctx.db, stored, ctx.media) : Promise.resolve(new Map<string, string | null>()),
+    stored.some((v) => typeof v === 'string' && v) ? signMediaUrls(ctx.storage, stored, ctx.media) : Promise.resolve(new Map<string, string | null>()),
   ]);
   return { meta, signed };
 }
@@ -130,21 +132,17 @@ export async function enrichRows(ctx: TxContext, rows: readonly TransactionRow[]
 }
 
 /* ----------------------------------------------------------------------------------------------
- * Aggregates with fallbacks
+ * Aggregates
  * -------------------------------------------------------------------------------------------- */
 
-/** Per local-day totals for `[from, to)`: the SQL function, or raw rows if it is not deployed yet. */
+/** Per local-day totals for `[from, to)`: rows are bucketed in TypeScript (SQLite has no IANA timezones). */
 export async function loadDayTotals(ctx: DbScope, range: IsoRange, tz: string): Promise<DayTotals[]> {
-  const fromRpc = await repo.rpcDailyTotals(ctx.db, ctx.userId, range, tz);
-  if (fromRpc) return fromRpc;
   return dayTotalsFromRows(await repo.fetchAmountTypeAtRows(ctx.db, ctx.userId, range), tz);
 }
 
-/** Credit/debit totals, count and debit-by-category for `[from, to)`: the RPC, or raw rows as fallback. */
-export async function loadPeriodSummary(ctx: DbScope, range: IsoRange): Promise<PeriodSummary> {
-  const fromRpc = await repo.rpcPeriodSummary(ctx.db, ctx.userId, range);
-  if (fromRpc) return fromRpc;
-  return periodSummaryFromRows(await repo.fetchAmountTypeCategoryRows(ctx.db, ctx.userId, range));
+/** Credit/debit totals, count and debit-by-category for `[from, to)`: one GROUP BY query. */
+export function loadPeriodSummary(ctx: DbScope, range: IsoRange): Promise<PeriodSummary> {
+  return repo.periodSummary(ctx.db, ctx.userId, range);
 }
 
 /* ----------------------------------------------------------------------------------------------
@@ -194,7 +192,7 @@ const RECENT_COUNT = 5;
 const WEEK_DAYS = 7;
 
 /**
- * Home dashboard. Round trips: month summary RPC + 7-day daily totals RPC + 5 newest rows run
+ * Home dashboard. Round trips: month summary + 7-day daily totals + 5 newest rows run
  * together, then one categories query (top categories and recent rows together) and one media
  * signing call. "Spent today" is the last day of the 7-day series (same local-day range Python used).
  */
@@ -306,7 +304,7 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
   ]);
 
-  const row: Record<string, unknown> = {
+  const row: NewTransactionRow = {
     user_id: ctx.userId,
     amount: input.amount,
     type: input.type,
@@ -320,13 +318,14 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     counterparty_normalized: normalized,
     payment_hash: paymentHash,
   };
-  if (input.counterpartyType) row['counterparty_type'] = input.counterpartyType;
+  if (input.counterpartyType) row.counterparty_type = input.counterpartyType;
 
   if (existing) {
     const patch = buildSparseMergePatch(existing, row);
     if (Object.keys(patch).length > 0) {
       log.info('transaction_dedupe_merge', { id: existing.id });
-      await repo.updateForUser(ctx.db, ctx.userId, existing.id, patch);
+      const merged = await repo.updateForUser(ctx.db, ctx.userId, existing.id, patch);
+      if (merged) await emit(ctx.publish, [changed('transactions', merged)]);
     } else {
       log.info('transaction_dedupe_skip', { id: existing.id });
     }
@@ -334,8 +333,9 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
   }
 
   try {
-    const id = await repo.insertTransaction(ctx.db, row);
-    return { kind: 'created', id, categoryId, paymentHash };
+    const stored = await repo.insertTransactionRow(ctx.db, row);
+    await emit(ctx.publish, [inserted('transactions', stored)]);
+    return { kind: 'created', id: stored.id, categoryId, paymentHash };
   } catch (err) {
     if (isUniqueViolation(err)) {
       const raced = await repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash);
@@ -410,9 +410,13 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     throw err;
   }
   if (!updated) throw new NotFoundError(NOT_FOUND);
+  await emit(ctx.publish, [changed('transactions', updated)]);
   return (await enrichRows(ctx, [updated]))[0] as TransactionResponse;
 }
 
 export async function deleteTransaction(ctx: TxContext, id: string): Promise<void> {
-  if (!(await repo.softDelete(ctx.db, ctx.userId, id))) throw new NotFoundError(NOT_FOUND);
+  const deletedRow = await repo.softDeleteRow(ctx.db, ctx.userId, id);
+  if (!deletedRow) throw new NotFoundError(NOT_FOUND);
+  // A soft delete reaches the app as an UPDATE with `deleted_at` set (what the app's handlers expect).
+  await emit(ctx.publish, [changed('transactions', deletedRow)]);
 }

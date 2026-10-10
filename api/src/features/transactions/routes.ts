@@ -1,17 +1,18 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-
 import { currentUser, requireAuth } from '../../core/auth';
 import { defer } from '../../core/background';
 import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { rateLimit } from '../../core/rate-limit';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
 import { parseTimezone } from '../../core/timezone';
 import { validate } from '../../core/validation';
 import { monthInsights } from '../insights/service';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey, runIdempotent } from '../jobs/idempotency';
+import { mediaStore } from '../media/storage';
 import { notifyAfterInsert } from '../notifications/after-insert';
+import { requestPublisher } from '../realtime/publish';
 import { idParamSchema, listQuerySchema, monthQuerySchema, timezoneQuerySchema, transactionWriteSchema } from './schemas';
 import * as service from './service';
 import type { TxContext } from './service';
@@ -21,13 +22,16 @@ export const transactionRoutes = new Hono<AppBindings>();
 
 transactionRoutes.use(requireAuth);
 
-/** DB client, user and media-signing config for one request. */
+/** DB, media store, user and media-signing config for one request. */
 function txContext(c: Context<AppBindings>): TxContext {
   const config = getConfig(c.env);
+  const userId = currentUser(c).id;
   return {
-    db: getSupabase(c),
-    userId: currentUser(c).id,
-    media: { defaultBucket: config.privateStorageBucket, expiresIn: config.signedUrlTtlSeconds },
+    db: getDb(c),
+    storage: mediaStore(c.env),
+    userId,
+    media: { expiresIn: config.signedUrlTtlSeconds },
+    publish: requestPublisher(c, userId),
   };
 }
 

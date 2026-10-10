@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-
 import { currentUser, requireAuth } from '../../core/auth';
 import { limitBody, limitUpload } from '../../core/body-limit';
 import { getConfig } from '../../core/env';
@@ -8,10 +7,11 @@ import type { AppBindings } from '../../core/env';
 import { BadRequestError, PayloadTooLargeError, UnsupportedMediaTypeError } from '../../core/errors';
 import { detectReceiptImageFormat } from '../../core/image-format';
 import { rateLimit } from '../../core/rate-limit';
-import { getSupabase } from '../../core/supabase';
+import { getDb } from '../../core/db';
 import { unprocessable, validate } from '../../core/validation';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../jobs/idempotency';
 import { detectAudioFormat } from '../media/audio-format';
+import { mediaStore } from '../media/storage';
 import { timezoneQuerySchema } from '../transactions/schemas';
 import { smsBatchSchema } from './schemas';
 import { acceptMedia, acceptSms, isReplay } from './service';
@@ -32,11 +32,13 @@ const SMS_BODY_LIMIT_BYTES = 1024 * 1024;
 const ACCEPTED = { accepted: true } as const;
 
 function ingestContext(c: Context<AppBindings>): IngestContext {
+  const { workersAi } = getConfig(c.env);
   return {
-    db: getSupabase(c),
+    db: getDb(c),
+    storage: mediaStore(c.env),
     userId: currentUser(c).id,
-    bucket: getConfig(c.env).privateStorageBucket,
     queue: c.env.INGEST_QUEUE,
+    limits: { dailyNeuronCap: workersAi.dailyNeuronCap, userDailyCaptures: workersAi.userDailyCaptures },
   };
 }
 
@@ -104,7 +106,7 @@ ingestRoutes.post(
 
     const file = await readFilePart(c, getConfig(c.env).maxVoiceUploadBytes);
     const detected = detectAudioFormat(await readHeader(file));
-    // CAF is sniffed but Groq cannot decode it and there is no ffmpeg here: refuse it up front
+    // CAF is sniffed but Whisper cannot decode it and there is no ffmpeg here: refuse it up front
     // instead of failing silently later (voice failures raise no notification).
     if (!detected || detected.ext === 'caf') throw new UnsupportedMediaTypeError('Unsupported audio type.');
     await acceptMedia(ctx, {

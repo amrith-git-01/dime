@@ -3,7 +3,7 @@ import { useCallback, useRef, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { prefetchSiblingTabQueries } from "@/lib/appBootstrap";
-import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
+import { readStoredAuthSession } from "@/lib/auth/authStorage";
 
 import { SplashBrandedShell } from "./SplashBrandedShell";
 import { useSplashReveal } from "./SplashRevealContext";

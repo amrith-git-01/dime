@@ -4,7 +4,8 @@ import { clarificationText, extractPhrases, runPrepass, selectEntities } from '.
 import { parseTimeHint } from '../src/features/agent/range';
 import { nowBlock, toInstantRange, wallIso } from '../src/features/agent/dates';
 import type { EntityMatch } from '../src/features/agent/tools';
-import { NOW, USER, fakeDb } from './agent-fixtures';
+import { NOW, USER, fakeQueries } from './agent-fixtures';
+import { testDb } from './db';
 
 const TZ = 'Asia/Kolkata';
 const hint = (text: string) => parseTimeHint(text, TZ, NOW);
@@ -139,26 +140,26 @@ describe('entity selection and ambiguity', () => {
 });
 
 describe('pre-pass with the database', () => {
+  const pre = (text: string, db: ReturnType<typeof fakeQueries>) => runPrepass({ text, tz: TZ, nowMs: NOW, userId: USER, memory: null, db: testDb(), queries: db.queries });
+
   it('skips the database when the question names no entity', async () => {
-    const db = fakeDb();
-    const pre = await runPrepass({ text: 'How much did I spend in June 2026?', tz: TZ, nowMs: NOW, userId: USER, memory: null, openSql: () => Promise.resolve(db.client), timeoutMs: 3000 });
-    expect(db.transactions).toHaveLength(0);
-    expect(pre.range?.from).toBe('2026-06-01');
-    expect(pre.entities).toEqual([]);
+    const db = fakeQueries();
+    const result = await pre('How much did I spend in June 2026?', db);
+    expect(db.calls()).toHaveLength(0);
+    expect(result.range?.from).toBe('2026-06-01');
+    expect(result.entities).toEqual([]);
   });
 
   it('survives a failing entity lookup (the model can call resolve_entities itself)', async () => {
-    const db = fakeDb({}, { fail: () => new Error('boom') });
-    const pre = await runPrepass({ text: 'spend at swiggy', tz: TZ, nowMs: NOW, userId: USER, memory: null, openSql: () => Promise.resolve(db.client), timeoutMs: 3000 });
-    expect(pre.entities).toEqual([]);
-    expect(pre.clarification).toBeNull();
+    const db = fakeQueries({}, { fail: { resolve_entities: new Error('boom') } });
+    const result = await pre('spend at swiggy', db);
+    expect(result.entities).toEqual([]);
+    expect(result.clarification).toBeNull();
   });
 
-  it('binds the phrases as ONE parameter and keeps the role switch before the lookup', async () => {
-    const db = fakeDb({ agent_resolve_entities: { matches: [] } });
-    await runPrepass({ text: 'how much did I spend at swiggy instamart', tz: TZ, nowMs: NOW, userId: USER, memory: null, openSql: () => Promise.resolve(db.client), timeoutMs: 3000 });
-    const statements = db.transactions[0]?.statements ?? [];
-    expect(statements.map((s) => s.query.split('(')[0])).toEqual(['select set_config', 'set local role authenticated', "set local statement_timeout = '3000ms'", 'select public.agent_resolve_entities']);
-    expect(JSON.parse(String(statements[3]?.params?.[0]))).toEqual(['swiggy instamart', 'instamart', 'swiggy']);
+  it('looks all phrases up in ONE query', async () => {
+    const db = fakeQueries({ resolve_entities: { matches: [] } });
+    await pre('how much did I spend at swiggy instamart', db);
+    expect(db.calls()).toEqual([{ name: 'resolve_entities', params: { phrases: ['swiggy instamart', 'instamart', 'swiggy'] } }]);
   });
 });

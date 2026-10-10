@@ -1,10 +1,14 @@
 import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
+import { addNeurons, assertJobAllowed, estimateCaptureNeurons } from '../ai/neuron-cap';
 import { parseReceipt, parseSms, parseVoice } from '../ai/service';
 import type { ParsedExpense } from '../ai/parse-output';
+import type { AiBinding, WorkersAiClient } from '../ai/workers-ai';
 import type { JobRow } from '../jobs/repository';
-import { downloadMedia, signShortLivedUrl } from '../media/storage';
+import { downloadMedia } from '../media/storage';
+import type { MediaStore } from '../media/storage';
+import type { Publisher } from '../realtime/events';
 import { notifyAfterInsert } from '../notifications/after-insert';
 import { parseDatetime } from '../transactions/schemas';
 import type { Instant } from '../transactions/schemas';
@@ -18,8 +22,14 @@ export class InvalidJobError extends Error {
   override name = 'InvalidJobError';
 }
 
-/** Lifetime of the URL handed to Groq: covers the fetch plus a slow model call, nothing more. */
-const RECEIPT_URL_TTL_SECONDS = 300;
+/** What a job needs: the D1 database, the R2 media store and the Workers AI binding. */
+export interface IngestStores {
+  db: Db;
+  storage: MediaStore;
+  ai: AiBinding | undefined;
+  /** Live-update broadcast (the created transaction reaches the user's open app). Absent in unit tests. */
+  publisher?: Publisher | undefined;
+}
 
 export interface JobOutcome {
   transactionId: string;
@@ -82,38 +92,47 @@ async function finish(ctx: TxContext, input: FinishInput): Promise<JobOutcome> {
  * upstream errors for the consumer to classify.
  */
 export async function runIngestJob(
-  db: DimeSupabaseClient,
+  { db, storage, ai, publisher }: IngestStores,
   config: AppConfig,
   job: Pick<JobRow, 'id' | 'user_id' | 'kind' | 'payload'>,
 ): Promise<JobOutcome> {
   const ctx: TxContext = {
     db,
+    storage,
     userId: job.user_id,
-    media: { defaultBucket: config.privateStorageBucket, expiresIn: config.signedUrlTtlSeconds },
+    media: { expiresIn: config.signedUrlTtlSeconds },
+    publish: publisher ? (events) => publisher(job.user_id, events) : undefined,
   };
 
   if (job.kind === 'receipt' || job.kind === 'voice') {
     const payload = mediaPayloadSchema.safeParse(job.payload);
     if (!payload.success) throw new InvalidJobError('Job payload is invalid.');
     const p = payload.data;
+    // Workers AI is billed past a free daily allowance: the day may have filled up since the upload.
+    const workersAi: WorkersAiClient = {
+      binding: ai,
+      config: config.workersAi,
+      timeoutMs: config.ai.timeoutMs,
+      recordNeurons: async (neurons) => {
+        try {
+          await addNeurons(db, Date.now(), neurons);
+        } catch (err) {
+          log.error('ai_usage_write_failed', { err, jobId: job.id, neurons }); // the call already succeeded: never fail the job for the counter
+        }
+      },
+    };
     if (job.kind === 'receipt') {
-      // Groq fetches the image itself from a short-lived signed URL (no bytes through the Worker, no
-      // 4 MB base64 limit); only when signing fails do we download and send base64.
-      const [signedUrl, categories] = await Promise.all([
-        signShortLivedUrl(db, config.privateStorageBucket, p.object_path, RECEIPT_URL_TTL_SECONDS),
-        loadCategoryContext(db, job.user_id),
-      ]);
-      const image = signedUrl
-        ? { url: signedUrl }
-        : { bytes: await downloadMedia(db, config.privateStorageBucket, p.object_path), mimeType: p.mime_type };
-      const parsed = await parseReceipt(config, image, categories);
+      const [media, categories] = await Promise.all([downloadMedia(storage, p.object_path), loadCategoryContext(db, job.user_id)]);
+      await assertJobAllowed(db, config.workersAi, estimateCaptureNeurons('receipt', media.byteLength));
+      const parsed = await parseReceipt(config, workersAi, { bytes: media, mimeType: p.mime_type }, categories);
       return finish(ctx, { jobId: job.id, parsed, detectedVia: 'scan', timezone: p.timezone, receiptUrl: p.object_path });
     }
     const [media, categories] = await Promise.all([
-      downloadMedia(db, config.privateStorageBucket, p.object_path),
+      downloadMedia(storage, p.object_path),
       loadCategoryContext(db, job.user_id),
     ]);
-    const parsed = await parseVoice(config, media, p.mime_type, categories);
+    await assertJobAllowed(db, config.workersAi, estimateCaptureNeurons('voice', media.byteLength));
+    const parsed = await parseVoice(config, workersAi, media, p.mime_type, categories);
     return finish(ctx, { jobId: job.id, parsed, detectedVia: 'voice', timezone: p.timezone, voiceUrl: p.object_path });
   }
 

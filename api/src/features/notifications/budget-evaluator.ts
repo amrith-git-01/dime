@@ -1,5 +1,5 @@
 import { toCents } from '../../core/decimal';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { dateKey, dayRange, localDate, monthRange, parseTimezone } from '../../core/timezone';
 import { fetchBudget, fetchCategoryBudget } from '../budgets/repository';
 import { fetchMetaByIds } from '../categories/repository';
@@ -43,7 +43,7 @@ interface ScopeMessages {
  * make every threshold fire once per period. Intended to run in the background (`waitUntil`).
  */
 export async function evaluateAfterDebit(
-  db: DimeSupabaseClient,
+  db: Db,
   emitter: Emitter,
   settings: UserSettings,
   input: EvaluateInput,

@@ -1,5 +1,5 @@
 import type { AuthUser } from '../../core/auth';
-import type { DimeSupabaseClient } from '../../core/supabase';
+import type { Db } from '../../core/db';
 import { log } from '../../core/logging';
 import type { EmailService } from '../email/service';
 import * as repo from './repository';
@@ -9,12 +9,15 @@ import type { MeResponse, ProfileUpdateBody, UserRow } from './schemas';
 export type Background = (task: Promise<unknown>, name: string) => void;
 
 function rowToMe(user: Pick<AuthUser, 'id' | 'email'>, row: UserRow | null): MeResponse {
+  // Sign-in creates the row with column defaults (currency 'INR'); until a username is set the account is
+  // not onboarded and answers exactly like the old "no row" case.
+  const profile = row?.username == null ? null : row;
   return {
     id: user.id,
     email: user.email ?? null,
-    username: typeof row?.username === 'string' ? row.username : null,
-    avatar_url: typeof row?.avatar_url === 'string' ? row.avatar_url : null,
-    currency: typeof row?.currency === 'string' ? row.currency : null,
+    username: typeof profile?.username === 'string' ? profile.username : null,
+    avatar_url: typeof profile?.avatar_url === 'string' ? profile.avatar_url : null,
+    currency: typeof profile?.currency === 'string' ? profile.currency : null,
   };
 }
 
@@ -24,7 +27,7 @@ function rowToMe(user: Pick<AuthUser, 'id' | 'email'>, row: UserRow | null): MeR
  * `email_sends` still guarantees it is sent once. Both side effects run in the background.
  */
 export async function getMe(
-  db: DimeSupabaseClient,
+  db: Db,
   user: AuthUser,
   deps: { email: EmailService; background: Background },
 ): Promise<MeResponse> {
@@ -34,7 +37,8 @@ export async function getMe(
   const email = user.email;
   if (email) {
     const emailChanged = row !== null && row.email !== email;
-    if (row === null || emailChanged) {
+    // Sign-in creates the row, so a row without a username is a not-yet-onboarded account: the old "no row" trigger.
+    if (row === null || row.username === null || emailChanged) {
       deps.background(
         (async () => {
           if (emailChanged) {
@@ -53,7 +57,7 @@ export async function getMe(
   return me;
 }
 
-export async function updateProfile(db: DimeSupabaseClient, user: AuthUser, body: ProfileUpdateBody): Promise<MeResponse> {
+export async function updateProfile(db: Db, user: AuthUser, body: ProfileUpdateBody): Promise<MeResponse> {
   const avatar = body.avatar_url?.trim();
   const row = await repo.upsertProfile(db, {
     userId: user.id,
