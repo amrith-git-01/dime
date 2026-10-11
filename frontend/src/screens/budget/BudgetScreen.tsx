@@ -1,21 +1,22 @@
-import { FlashList } from "@shopify/flash-list";
-import { LayoutGrid } from "lucide-react-native";
-import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { StyleSheet, View } from "react-native";
 
-import {
-  CategorySpendBentoRow,
-  type CategorySpendRowData,
-} from "@/components/categories/CategorySpendBentoRow";
+import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { TwoToneEmptyState } from "@/components/shared";
-import { colors, spacing } from "@/constants";
 import {
-  BUDGET_ROW_HEIGHT_SPENT_ONLY,
-  BUDGET_ROW_HEIGHT_WITH_PROGRESS,
+  CARD_SEGMENT_SHADOW_TOP_BLEED,
+  EmptyState,
+  emptyStateCopy,
+} from "@/components/shared";
+import { paper, surface } from "@/constants/colors";
+import { radius } from "@/constants/radius";
+import { shadows } from "@/constants/shadows";
+import { spacing } from "@/constants/spacing";
+import {
   BudgetCategoriesSectionHeader,
+  BudgetCategoryRow,
   BudgetCategoryRowsSkeleton,
-  BudgetMonthBentoCard,
+  BudgetSummaryCard,
 } from "@/features/budgets/components";
 
 import {
@@ -23,42 +24,31 @@ import {
   useBudgetScreenModel,
 } from "./useBudgetScreenModel";
 
-const CategoryListSeparator = memo(function CategoryListSeparator() {
-  return <View style={styles.separator} />;
-});
-
-const BudgetListFooter = memo(function BudgetListFooter() {
-  return <View style={styles.listFooter} />;
-});
-
-const BUDGET_LIST_DRAW_DISTANCE = Platform.select({
-  ios: 280,
-  android: 200,
-  default: 240,
-}) as number;
-
 function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
   return (
     item.id !== UNCATEGORIZED_SPEND_KEY && item.name !== "Unknown category"
   );
 }
 
+const SKELETON_ROW_COUNT = 10;
+const NO_ROWS: CategorySpendRowData[] = [];
+
 export default function BudgetScreen() {
-  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const {
     addCustomCategoryDisabled,
     budgetListKey,
+    canGoPrevMonth,
+    canGoNextMonth,
+    goPrevMonth,
+    goNextMonth,
     handleAddCustomCategory,
     handleEditBudget,
     handleEditCategory,
     openCategoryTransactions,
-    handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
     isListLoading,
     listData,
-    listExtraData,
-    monthOptions,
     monthSummary,
     monthSummaryFailed,
     monthlyBudgetAmount,
@@ -66,127 +56,107 @@ export default function BudgetScreen() {
     summaryLoading,
   } = useBudgetScreenModel();
 
-  const renderCategory = useCallback(
-    ({ item }: { item: CategorySpendRowData }) => (
-      <CategorySpendBentoRow
-        item={item}
-        hasMonthlyBudget={hasMonthlyBudget}
-        monthlyBudgetAmount={monthlyBudgetAmount}
-        onPress={() => openCategoryTransactions(item)}
-        onEditPress={
-          isBudgetCategoryEditable(item)
-            ? () => handleEditCategory(item.id)
-            : undefined
-        }
-      />
-    ),
-    [
-      handleEditCategory,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      openCategoryTransactions,
-    ],
-  );
+  // Keys carry the month so rows remount (and progress bars snap) when the month changes.
+  const keyExtractor = (item: CategorySpendRowData) =>
+    `${budgetListKey}:${item.id}`;
 
-  const overrideItemLayout = useCallback(
-    (layout: { span?: number; size?: number }, item: CategorySpendRowData) => {
-      const hasCategoryCap = (item.monthlyCap ?? 0) > 0;
-      const showProgress = hasCategoryCap || hasMonthlyBudget;
-      layout.size = showProgress
-        ? BUDGET_ROW_HEIGHT_WITH_PROGRESS
-        : BUDGET_ROW_HEIGHT_SPENT_ONLY;
-    },
-    [hasMonthlyBudget],
-  );
-
-  const listEmpty = useMemo(() => {
-    if (isListLoading) {
-      return <BudgetCategoryRowsSkeleton />;
-    }
-    return (
-      <TwoToneEmptyState
-        layout="inline"
-        icon={LayoutGrid}
-        title="No categories yet"
-        message="Sync categories to see budgets."
-      />
-    );
-  }, [isListLoading]);
-
-  const listFooter = useMemo(() => <BudgetListFooter />, []);
-
-  const listSectionHeader = useMemo(
-    () => (
-      <BudgetCategoriesSectionHeader
-        onAddPress={handleAddCustomCategory}
-        addDisabled={addCustomCategoryDisabled}
-      />
-    ),
-    [addCustomCategoryDisabled, handleAddCustomCategory],
+  const renderItem: ListRenderItem<CategorySpendRowData> = ({ item, index }) => (
+    <BudgetCategoryRow
+      item={item}
+      isFirst={index === 0}
+      isLast={index === listData.length - 1}
+      editable={isBudgetCategoryEditable(item)}
+      hasMonthlyBudget={hasMonthlyBudget}
+      monthlyBudgetAmount={monthlyBudgetAmount}
+      onOpen={openCategoryTransactions}
+      onEdit={handleEditCategory}
+    />
   );
 
   return (
     <TabScreenShell>
-      <View style={styles.screen}>
-        <View style={styles.summarySlot}>
-          <BudgetMonthBentoCard
-            selectedMonth={selectedMonth.label}
-            monthOptions={monthOptions}
-            onSelectMonth={handleSelectBudgetMonth}
-            hasMonthlyBudget={hasMonthlyBudget}
-            summary={monthSummary}
-            summaryLoading={summaryLoading}
-            summaryFailed={monthSummaryFailed}
-            onEditBudget={handleEditBudget}
-            onSetBudget={handleSetBudget}
-            onMonthMenuOpenChange={setMonthMenuOpen}
-          />
-        </View>
+      <FlashList
+        style={styles.list}
+        data={isListLoading ? NO_ROWS : listData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        extraData={{ hasMonthlyBudget, monthlyBudgetAmount }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={
+          <View>
+            <BudgetSummaryCard
+              selectedMonth={selectedMonth.label}
+              canGoPrevMonth={canGoPrevMonth}
+              canGoNextMonth={canGoNextMonth}
+              onPrevMonth={goPrevMonth}
+              onNextMonth={goNextMonth}
+              hasMonthlyBudget={hasMonthlyBudget}
+              summary={monthSummary}
+              summaryLoading={summaryLoading}
+              summaryFailed={monthSummaryFailed}
+              onEditBudget={handleEditBudget}
+              onSetBudget={handleSetBudget}
+              spentValue={monthSummary?.spentValue ?? 0}
+            />
 
-        <FlashList
-          key={budgetListKey}
-          style={styles.list}
-          scrollEnabled={!monthMenuOpen}
-          data={listData}
-          extraData={listExtraData}
-          keyExtractor={(item) => item.id}
-          renderItem={renderCategory}
-          overrideItemLayout={overrideItemLayout}
-          drawDistance={BUDGET_LIST_DRAW_DISTANCE}
-          contentContainerStyle={styles.content}
-          ItemSeparatorComponent={CategoryListSeparator}
-          ListEmptyComponent={listEmpty}
-          ListHeaderComponent={listSectionHeader}
-          ListFooterComponent={listFooter}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+            <View style={styles.sectionHeader}>
+              <BudgetCategoriesSectionHeader
+                onAddPress={handleAddCustomCategory}
+                addDisabled={addCustomCategoryDisabled}
+              />
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          isListLoading ? (
+            <View style={styles.categoryCard}>
+              <BudgetCategoryRowsSkeleton
+                rowCount={SKELETON_ROW_COUNT}
+                showProgress={hasMonthlyBudget}
+              />
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <EmptyState
+                layout="inset"
+                headline={emptyStateCopy.budgetCategories.headline}
+                subtext={emptyStateCopy.budgetCategories.subtext}
+              />
+            </View>
+          )
+        }
+      />
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  summarySlot: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl * 2,
-  },
   list: {
     flex: 1,
+    backgroundColor: paper,
   },
-  listFooter: {
-    height: spacing.xl,
+  content: {
+    paddingBottom: spacing.xl * 4,
   },
-  separator: {
-    height: spacing.md,
+  sectionHeader: {
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    // The first category segment reserves top room for its card shadow.
+    marginBottom: -CARD_SEGMENT_SHADOW_TOP_BLEED,
+  },
+  categoryCard: {
+    backgroundColor: surface,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    ...shadows.card,
+  },
+  emptyCard: {
+    backgroundColor: surface,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.lg,
+    overflow: "hidden",
+    ...shadows.card,
   },
 });

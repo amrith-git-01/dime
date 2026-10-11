@@ -1,6 +1,10 @@
 import { dimeApi } from "@/lib/api/dimeApi";
 
 import type { AppNotification, NotificationInboxFilter } from "../types";
+import {
+  NOTIFICATIONS_PAGE_LIMIT,
+  type NotificationsPage,
+} from "../utils/notificationPages";
 
 export type NotificationDto = {
   id: string;
@@ -50,14 +54,25 @@ export function mapNotificationDto(dto: NotificationDto): AppNotification {
   };
 }
 
-export async function fetchNotifications(
-  filter: NotificationInboxFilter,
-): Promise<AppNotification[]> {
-  const { data } = await dimeApi.get<{ items: NotificationDto[] }>(
-    "/api/v1/notifications",
-    { params: { filter } },
-  );
-  return data.items.map(mapNotificationDto);
+export async function fetchNotificationsPage(input: {
+  filter?: NotificationInboxFilter;
+  /** ISO timestamp cursor — the `next_cursor` of the previous page. */
+  before?: string;
+}): Promise<NotificationsPage> {
+  const { data } = await dimeApi.get<{
+    items: NotificationDto[];
+    next_cursor?: string | null;
+  }>("/api/v1/notifications", {
+    params: {
+      filter: input.filter ?? "all",
+      limit: NOTIFICATIONS_PAGE_LIMIT,
+      before: input.before,
+    },
+  });
+  return {
+    items: data.items.map(mapNotificationDto),
+    nextCursor: data.next_cursor ?? null,
+  };
 }
 
 export async function markNotificationRead(

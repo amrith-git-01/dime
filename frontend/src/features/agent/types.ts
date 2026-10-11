@@ -1,20 +1,6 @@
-export type AgentThread = {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type AgentMessageRole = "user" | "assistant" | "system";
-
-export type AgentMessage = {
-  id: string;
-  thread_id: string;
-  role: AgentMessageRole;
+export type AgentChatHistoryMessage = {
+  role: "user" | "assistant";
   content: string;
-  blocks_json: AgentBlock[] | null;
-  deep_link_json: AgentDeepLink | null;
-  created_at: string;
 };
 
 export type AgentBlockMetric = {
@@ -33,8 +19,18 @@ export type AgentBlockCategoryRow = {
 
 export type AgentBlockMiniChart = {
   type: "mini_chart";
-  chart_kind: "cashflow" | "donut";
-  payload: Record<string, unknown>;
+  chart_kind: "cashflow" | "donut" | "compare_bar";
+  payload: {
+    title?: string;
+    // donut
+    series?: { name: string; value: number }[];
+    // cashflow
+    points?: { date: string; amount: number }[];
+    // compare_bar
+    period_a_label?: string;
+    period_b_label?: string;
+    compare_series?: { name: string; period_a: number; period_b: number }[];
+  };
 };
 
 export type AgentBlockTxPreview = {
@@ -43,43 +39,83 @@ export type AgentBlockTxPreview = {
   total_count: number;
 };
 
+export type CompareMonthCashflowDay = {
+  date: string;
+  expense: number;
+  income: number;
+};
+
+export type CompareMonthPayee = {
+  name: string;
+  amount: number;
+  share: number | null;
+};
+
+export type CompareMonthPeriodData = {
+  spent: number;
+  income: number;
+  net: number;
+  cashflow: CompareMonthCashflowDay[];
+  payees: CompareMonthPayee[];
+};
+
+export type AgentBlockCompareMonths = {
+  type: "compare_months";
+  /** Override the cashflow section label. Defaults to "Daily Spend". Set to
+   *  "Monthly Spend" for year-pair comparisons. */
+  chart_label?: string;
+  period_a_label: string;
+  period_b_label: string;
+  period_a: CompareMonthPeriodData;
+  period_b: CompareMonthPeriodData;
+};
+
 export type AgentBlock =
   | AgentBlockMetric
   | AgentBlockCategoryRow
   | AgentBlockMiniChart
-  | AgentBlockTxPreview;
+  | AgentBlockTxPreview
+  | AgentBlockCompareMonths;
 
 export type AgentDeepLink = {
   screen: string;
   params: Record<string, unknown>;
+  label?: string;
 };
 
-export type AgentChatStatus =
-  | { phase: "idle" }
-  | { phase: "sql"; round: number }
-  | { phase: "reflect"; reason: string }
-  | { phase: "responding" }
-  | { phase: "error"; message: string };
+/** Failure body (C5): JSON mode answers HTTP 200 with this instead of a `ChatResponse`. */
+export type AgentChatErrorBody = {
+  error: { code: string; message: string };
+};
 
-export type AgentSseEvent =
-  | { event: "token"; text: string }
-  | { event: "sql_start"; round: number }
-  | { event: "sql_end"; round: number; row_count: number; summary: string }
-  | {
-      event: "reflect";
-      status: "sufficient" | "retry" | "give_up";
-      reason: string;
-    }
-  | { event: "block"; block: AgentBlock }
-  | { event: "deep_link"; screen: string; params: Record<string, unknown> }
-  | { event: "done"; message_id: string }
-  | { event: "error"; code: string; message: string };
+export type AgentChatResponse = {
+  answer: string;
+  blocks: AgentBlock[];
+  deep_link: AgentDeepLink | null;
+  /** Signed conversation memory; echo it back unchanged on the next turn. */
+  memory?: string | null;
+  /** Identifies this turn for `POST /agent/feedback`. */
+  turn_id?: string | null;
+};
 
-export type ChatStreamMessage = {
+export type AgentStepEvent = { tool: string; label: string };
+
+export type AgentFeedbackRating = "up" | "down";
+
+export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   blocks: AgentBlock[];
   deepLink: AgentDeepLink | null;
-  isStreaming?: boolean;
+  /** True while waiting for the server response. */
+  isPending?: boolean;
+  /** True when `content` is an error message; never sent back to the API as history. */
+  isError?: boolean;
+  /** Latest real progress label from a `step` event, shown until answer text arrives. */
+  stepLabel?: string | null;
+  /** Server turn id of a completed assistant message (enables feedback). */
+  turnId?: string | null;
+  /** The user's vote on this message; one vote per message. */
+  feedback?: AgentFeedbackRating | null;
 };

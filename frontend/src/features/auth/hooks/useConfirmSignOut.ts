@@ -1,33 +1,53 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 
 import { useSignOut } from "./useSignOut";
+import { reportError } from "@/lib/reportError";
+
+type SignOutConfirmModalProps = {
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  confirmLoading: boolean;
+};
 
 export function useConfirmSignOut() {
   const { signOut, loading } = useSignOut();
+  const [visible, setVisible] = useState(false);
 
   const performLogout = useCallback(async () => {
     try {
       await signOut();
+      setVisible(false);
     } catch (e) {
-      console.warn("[auth] logout failed", e);
+      reportError(e, "auth logout failed");
       Alert.alert(
-        "Couldn’t sign out",
+        "Couldn't sign out",
         e instanceof Error ? e.message : "Try again.",
       );
     }
   }, [signOut]);
 
   const confirmSignOut = useCallback(() => {
-    Alert.alert("Sign out?", "You’ll need to sign in again to use the app.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign out",
-        style: "destructive",
-        onPress: () => void performLogout(),
-      },
-    ]);
-  }, [performLogout]);
+    setVisible(true);
+  }, []);
 
-  return { confirmSignOut, signOutLoading: loading };
+  const dismissSignOut = useCallback(() => {
+    setVisible(false);
+  }, []);
+
+  const signOutConfirmModalProps: SignOutConfirmModalProps = {
+    visible,
+    onCancel: dismissSignOut,
+    onConfirm: () => {
+      void performLogout();
+    },
+    confirmLoading: loading,
+  };
+
+  return {
+    confirmSignOut,
+    signOutLoading: loading,
+    signOutConfirmModalProps,
+  };
 }

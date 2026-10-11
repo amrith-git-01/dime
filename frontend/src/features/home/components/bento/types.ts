@@ -1,4 +1,5 @@
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
+import type { RecurringItem } from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type HomeTopCategoryItem = CategorySpendRowData;
@@ -6,33 +7,58 @@ export type HomeTopCategoryItem = CategorySpendRowData;
 export type HomeBentoContentProps = {
   isError: boolean;
   isPending: boolean;
-  spentTodayDisplay: string;
-  spentMonthDisplay: string;
-  dayLabel: string;
+
+  // Month hero card
   monthLabel: string;
-  dailySubtext: string;
-  monthlySubtext: string;
+  /** Leftover this month — used in the hero subtitle when a budget exists. */
+  monthlyRemainingDisplay: string;
+  /** Formatted total spent this month — hero amount. */
+  spentMonthDisplay: string;
   monthlyProgress: number;
   hasMonthlyBudget: boolean;
+  /** "₹1.2k / ₹5k" compact remaining/total — used as hero subtitle. */
+  monthlySubtext: string;
+
+  // Daily cap strip
+  spentTodayDisplay: string;
+  dayLabel: string;
+  dailySubtext: string;
   hasDailyBudget: boolean;
-  last7DaysSpend: { date: string; total: number }[];
-  creditedDisplay: string;
-  debitedDisplay: string;
+  /** 0–1 ratio of today's spend vs daily budget. */
+  dailyProgress: number;
+
+  // Stat row
   netDisplay: string;
   netValue: number;
-  incomePending: boolean;
+  incomeValue: number;
+  spentMonthValue: number;
+  /** Month credits — Income cell on MonthStatRow. */
+  creditedDisplay: string;
+
+  // Sections
   topCategories: HomeTopCategoryItem[];
   monthlyBudgetAmount: number;
   recentTransactions: TransactionRow[];
   showRecentEmpty: boolean;
-  onCategoryPress: (item: HomeTopCategoryItem) => void;
+  incomePending: boolean;
+
+  // Upcoming recurring income / bills (next 30 days); empty hides the card
+  upcomingItems: RecurringItem[];
+  upcomingToday: Date;
+  onUpcomingPress: (item: RecurringItem) => void;
+
+  // Navigation
   onNavigateBudgets: () => void;
+  onNavigateTransactions: () => void;
   onAddMonthlyBudget: () => void;
   onAddDailyBudget: () => void;
-  onNavigateTransactions: () => void;
+  onCategoryPress: (item: HomeTopCategoryItem) => void;
   onTransactionPress: (tx: TransactionRow) => void;
-  /** Quick-add actions for section action bars */
   onManualAdd: () => void;
   onReceipt: () => void;
   onVoice: () => void;
+
+  // Unused in new design (kept for compat during migration)
+  last7DaysSpend: { date: string; total: number }[];
+  debitedDisplay: string;
 };

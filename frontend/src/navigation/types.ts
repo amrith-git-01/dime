@@ -1,5 +1,6 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
+import type { RecurringKind } from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type MainTabParamList = {
@@ -13,8 +14,14 @@ export type MainStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Settings: undefined;
   SettingsAccount: undefined;
-  SettingsCapture: undefined;
+  SettingsEmail: undefined;
   SettingsFeedback: undefined;
+  SettingsHaptic: undefined;
+  SettingsGlossary: undefined;
+  SettingsPermissions: undefined;
+  SettingsNotifications: undefined;
+  RecurringList: { kind: RecurringKind };
+  EditRecurring: { kind: RecurringKind; recurringId?: string };
   Notifications: undefined;
   ManualAddTransaction:
     | {
@@ -22,7 +29,14 @@ export type MainStackParamList = {
         createdCategoryName?: string;
       }
     | undefined;
-  CreateCustomCategory: { origin?: "budget" | "manual-add" } | undefined;
+  EditTransaction: {
+    transaction?: TransactionRow;
+    createdCategoryId?: string;
+    createdCategoryName?: string;
+  };
+  CreateCustomCategory:
+    | { origin?: "budget" | "manual-add" | "edit-transaction" }
+    | undefined;
   EditCategory: { categoryId: string };
   EditMonthlyBudget:
     | {
@@ -43,9 +57,14 @@ export type MainStackParamList = {
         filter: "payee";
         year: number;
         monthIndex0: number;
-        payeeKey: string;
+        /** Exact counterparty_normalized from the database (preferred). */
+        payeeId: string;
+        /** @deprecated Alias for payeeId — kept for older deep links. */
+        payeeKey?: string;
         payeeKeysTop: string[];
         payeeDisplayName: string;
+        fromIso?: string;
+        toIso?: string;
       }
     | {
         filter: "category";
@@ -53,6 +72,8 @@ export type MainStackParamList = {
         monthIndex0: number;
         categoryId: string;
         categoryDisplayName: string;
+        fromIso?: string;
+        toIso?: string;
       };
   InsightsMonthCompare: {
     monthA: {
@@ -69,6 +90,7 @@ export type MainStackParamList = {
 };
 
 export type RootStackParamList = {
+  WelcomeTour: undefined;
   Auth: undefined;
   ProfileSetup: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;

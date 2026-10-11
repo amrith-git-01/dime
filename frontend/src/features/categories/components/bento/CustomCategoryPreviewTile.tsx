@@ -1,15 +1,21 @@
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { View } from "react-native";
 
-import { CategorySpendBentoRow } from "@/components/categories/CategorySpendBentoRow";
-import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, radius, spacing } from "@/constants";
+import {
+  CategorySpendBentoRow,
+  type CategorySpendRowData,
+} from "@/components/categories/CategorySpendBentoRow";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
+import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 
 type CustomCategoryPreviewTileProps = {
   name: string;
   iconName: CustomCategoryIconName;
   color: string;
+  monthlyBudget: string;
+  hasMonthlyBudget: boolean;
+  monthlyBudgetAmount: number;
+  showBudgetSection?: boolean;
 };
 
 export const CustomCategoryPreviewTile = memo(
@@ -17,64 +23,32 @@ export const CustomCategoryPreviewTile = memo(
     name,
     iconName,
     color,
+    monthlyBudget,
+    hasMonthlyBudget,
+    monthlyBudgetAmount,
+    showBudgetSection = true,
   }: CustomCategoryPreviewTileProps) {
-    const displayName = name.trim().length > 0 ? name.trim() : "Name";
-
-    const previewItem = useMemo(
-      () => ({
-        id: "preview",
-        name: displayName,
+    const previewItem = useMemo((): CategorySpendRowData => {
+      const cap = showBudgetSection ? parseBudgetAmount(monthlyBudget) : null;
+      return {
+        id: "category-preview",
+        name: name.trim().length > 0 ? name.trim() : "Name",
         icon_name: iconName,
         color,
         spentMonth: 0,
         is_system: false,
-      }),
-      [color, displayName, iconName],
-    );
+        monthlyCap: cap,
+      };
+    }, [color, iconName, monthlyBudget, name, showBudgetSection]);
 
     return (
-      <View style={styles.wrap}>
-        <Text style={styles.label}>Preview</Text>
-        <View style={styles.rowShell}>
-          <CategorySpendBentoRow
-            item={previewItem}
-            hasMonthlyBudget={false}
-            monthlyBudgetAmount={0}
-            nameWraps
-          />
-        </View>
-        <Text style={styles.hint}>
-          Icon uses your color; tile background is the list tint
-        </Text>
+      <View pointerEvents="none">
+        <CategorySpendBentoRow
+          item={previewItem}
+          hasMonthlyBudget={showBudgetSection && hasMonthlyBudget}
+          monthlyBudgetAmount={monthlyBudgetAmount}
+        />
       </View>
     );
   },
 );
-
-const styles = StyleSheet.create({
-  wrap: {
-    gap: spacing.sm,
-  },
-  label: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  rowShell: {
-    backgroundColor: bento.sectionSurface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  hint: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-  },
-});

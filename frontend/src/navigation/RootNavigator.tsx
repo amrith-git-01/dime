@@ -1,6 +1,5 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import type { Session } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
@@ -8,11 +7,13 @@ import { colors } from "@/constants";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
-import { supabase } from "@/lib/supabase/client";
-import { readStoredAuthSession } from "@/lib/supabase/mmkvAuthStorage";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
+import WelcomeTourScreen from "@/screens/onboarding/WelcomeTourScreen";
+import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
+import { useGoogleAuthGate } from "@/stores/googleAuthGate";
+import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -31,15 +32,27 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-type RootAppRoute = "auth" | "bootstrapping" | "setup" | "main";
+type RootAppRoute =
+  | "welcome"
+  | "auth"
+  | "bootstrapping"
+  | "setup"
+  | "main";
+
+function resolveUnauthenticatedRoute(
+  welcomeTourCompleted: boolean,
+): "welcome" | "auth" {
+  return welcomeTourCompleted ? "auth" : "welcome";
+}
 
 function resolveRootAppRoute(
-  session: Session | null,
+  signedIn: boolean,
   profileGateReady: boolean,
   hasUsername: boolean,
+  welcomeTourCompleted: boolean,
 ): RootAppRoute {
-  if (!session) {
-    return "auth";
+  if (!signedIn) {
+    return resolveUnauthenticatedRoute(welcomeTourCompleted);
   }
   if (!profileGateReady) {
     return "bootstrapping";
@@ -52,40 +65,43 @@ function resolveRootAppRoute(
 
 export default function RootNavigator() {
   const { setContentReady } = useSplashReveal();
-  const [session, setSession] = useState<Session | null>(() =>
-    readStoredAuthSession(),
-  );
+  const profileUserId = useAuthSessionStore((s) => s.userId);
+  const signedIn = profileUserId !== undefined;
 
-  useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session: initial } }) => {
-      setSession(initial);
-    });
+  const googleAuthPending = useGoogleAuthGate((s) => s.isPending);
+  const welcomeTourCompleted = useWelcomeTourStore((s) => s.completed);
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const profileUserId = session?.user.id;
   useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
   const cachedProfile = useCurrentUserStore((s) => s.profile);
-  const meQuery = useCurrentUserProfileQuery(profileUserId);
+  const meQuery = useCurrentUserProfileQuery(
+    googleAuthPending ? undefined : profileUserId,
+  );
 
-  const resolvedProfile = meQuery.data ?? cachedProfile;
+  // A profile left on disk by another account must never decide this user's route.
+  const ownCachedProfile =
+    cachedProfile && cachedProfile.id === profileUserId ? cachedProfile : null;
+  const resolvedProfile = meQuery.data ?? ownCachedProfile;
   const hasUsername = hasEstablishedUsername(resolvedProfile);
 
-  const profileGateReady = !session || meQuery.isFetched || hasUsername;
-
+  const profileGateReady = !signedIn || meQuery.isFetched || hasUsername;
   const route = useMemo(
-    () => resolveRootAppRoute(session, profileGateReady, hasUsername),
-    [session, profileGateReady, hasUsername],
+    () =>
+      googleAuthPending
+        ? "auth"
+        : resolveRootAppRoute(
+            signedIn,
+            profileGateReady,
+            hasUsername,
+            welcomeTourCompleted,
+          ),
+    [
+      googleAuthPending,
+      hasUsername,
+      profileGateReady,
+      signedIn,
+      welcomeTourCompleted,
+    ],
   );
 
   useEffect(() => {
@@ -94,21 +110,21 @@ export default function RootNavigator() {
 
   return (
     <View style={styles.root}>
-      {route === "bootstrapping" ? null : (
-        <Stack.Navigator screenOptions={rootStackScreenOptions}>
-          {route === "auth" ? (
-            <Stack.Screen name="Auth" component={AuthScreen} />
-          ) : route === "setup" ? (
-            <Stack.Screen
-              name="ProfileSetup"
-              component={ProfileSetupScreen}
-              options={{ gestureEnabled: false }}
-            />
-          ) : (
-            <Stack.Screen name="Main" component={MainStackNavigator} />
-          )}
-        </Stack.Navigator>
-      )}
+      <Stack.Navigator screenOptions={rootStackScreenOptions}>
+        {route === "welcome" ? (
+          <Stack.Screen name="WelcomeTour" component={WelcomeTourScreen} />
+        ) : route === "auth" || route === "bootstrapping" ? (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : route === "setup" ? (
+          <Stack.Screen
+            name="ProfileSetup"
+            component={ProfileSetupScreen}
+            options={{ gestureEnabled: false }}
+          />
+        ) : (
+          <Stack.Screen name="Main" component={MainStackNavigator} />
+        )}
+      </Stack.Navigator>
     </View>
   );
 }

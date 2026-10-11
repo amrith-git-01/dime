@@ -1,11 +1,33 @@
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
-import { SegmentChip } from "@/components/ui";
-import { bento, colors, radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import {
+  accent,
+  danger,
+  fontFamilies,
+  inkFaint,
+  inkSoft,
+  line,
+  radius,
+  shadow,
+  spacing,
+  success,
+  surface,
+} from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
-
-import { BENTO_FORM_SECTION_PADDING } from "@/components/bento";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ManualAddAmountSectionProps = {
   amountText: string;
@@ -16,31 +38,86 @@ type ManualAddAmountSectionProps = {
   txType: TransactionType;
   onSetExpense: () => void;
   onSetIncome: () => void;
+  /**
+   * Show the Expense / Income switch (default). Hide it where the type is fixed by the screen
+   * (recurring income / subscriptions): `txType` then only picks the amount colour.
+   */
+  showTypeToggle?: boolean;
 };
+
+const TRACK_HEIGHT = 44;
+const PILL_INSET = 3;
+
+const pillShadow = Platform.select({
+  android: { elevation: 2 } as const,
+  default: {
+    shadowColor: shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  } as const,
+});
 
 export function ManualAddAmountSection({
   amountText,
-  amountFocused,
   onAmountChange,
   onAmountFocus,
   onAmountBlur,
   txType,
   onSetExpense,
   onSetIncome,
+  showTypeToggle = true,
 }: ManualAddAmountSectionProps) {
+  const translateX = useSharedValue(0);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const tabWidth = trackWidth / 2;
+  const selectedIndex = txType === "debit" ? 0 : 1;
+
+  useEffect(() => {
+    if (trackWidth > 0) {
+      translateX.value = withSpring(selectedIndex * tabWidth, {
+        damping: 18,
+        stiffness: 220,
+        mass: 0.9,
+      });
+    }
+  }, [selectedIndex, tabWidth, translateX, trackWidth]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const handleExpensePress = () => {
+    if (txType === "debit") return;
+    void triggerHaptic();
+    onSetExpense();
+  };
+
+  const handleIncomePress = () => {
+    if (txType === "credit") return;
+    void triggerHaptic();
+    onSetIncome();
+  };
+
+  const hasValue = amountText !== "" && amountText !== "0";
+  const amountColor = hasValue
+    ? txType === "debit"
+      ? danger
+      : success
+    : inkFaint;
+
   return (
-    <View style={styles.headerInner}>
-      <Text style={styles.amountKicker}>Amount</Text>
-      <View
-        style={[styles.amountRow, amountFocused && styles.amountRowFocused]}
-      >
-        <View style={styles.currencyPrefixWrap}>
-          <Text style={styles.currencyPrefix}>{"\u20b9"}</Text>
-        </View>
+    <View style={styles.container}>
+      <Text style={styles.amountKicker}>AMOUNT</Text>
+
+      <View style={styles.amountRow}>
+        <Text style={[styles.currencyPrefix, { color: amountColor }]}>
+          {"\u20b9"}
+        </Text>
         <TextInput
-          style={styles.amountInput}
-          placeholder="0.00"
-          placeholderTextColor={bento.onPastel.muted}
+          style={[styles.amountInput, { color: amountColor }]}
+          placeholder="0"
+          placeholderTextColor={inkFaint}
           keyboardType="decimal-pad"
           value={amountText}
           onChangeText={onAmountChange}
@@ -49,96 +126,142 @@ export function ManualAddAmountSection({
           underlineColorAndroid="transparent"
         />
       </View>
-      <View style={styles.segmentRow}>
-        <SegmentChip
-          label="Expense"
-          selected={txType === "debit"}
-          onPress={onSetExpense}
-        />
-        <SegmentChip
-          label="Income"
-          selected={txType === "credit"}
-          onPress={onSetIncome}
-        />
-      </View>
+
+      {showTypeToggle ? (
+        <View
+          style={styles.track}
+          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        >
+          {trackWidth > 0 ? (
+            <Animated.View
+              style={[
+                styles.pill,
+                { width: tabWidth - PILL_INSET * 2 },
+                pillStyle,
+              ]}
+              pointerEvents="none"
+            />
+          ) : null}
+          <Pressable
+            style={styles.tab}
+            onPress={handleExpensePress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: txType === "debit" }}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                txType === "debit"
+                  ? styles.expenseSelected
+                  : styles.labelUnselected,
+              ]}
+            >
+              Expense
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.tab}
+            onPress={handleIncomePress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: txType === "credit" }}
+          >
+            <Text
+              style={[
+                styles.tabLabel,
+                txType === "credit"
+                  ? styles.incomeSelected
+                  : styles.labelUnselected,
+              ]}
+            >
+              Income
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerInner: {
-    paddingHorizontal: BENTO_FORM_SECTION_PADDING,
-    paddingTop: BENTO_FORM_SECTION_PADDING,
+  container: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   amountKicker: {
     fontFamily: fontFamilies.medium,
-    fontSize: 10,
-    lineHeight: 14,
-    color: bento.onPastel.muted,
-    textTransform: "uppercase",
+    fontSize: 11,
     letterSpacing: 0.6,
+    color: accent,
+    textTransform: "uppercase",
   },
   amountRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: bento.twoToneBodySurface,
-  },
-  amountRowFocused: {
-    borderColor: colors.primary,
-    backgroundColor: colors.barBackground,
-  },
-  currencyPrefixWrap: {
-    marginRight: spacing.xs,
-    justifyContent: "center",
-    ...Platform.select({
-      android: { height: 26 },
-    }),
+    gap: spacing.md,
   },
   currencyPrefix: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: bento.onPastel.primary,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 42,
+    fontVariant: ["tabular-nums"],
     ...Platform.select({
-      android: {
-        includeFontPadding: false,
-        lineHeight: 26,
-      },
-      default: {
-        lineHeight: 30,
-      },
+      android: { lineHeight: 50, includeFontPadding: false },
+      default: { lineHeight: 50 },
     }),
   },
   amountInput: {
     flex: 1,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 24,
-    color: bento.onPastel.primary,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 42,
+    fontVariant: ["tabular-nums"],
     padding: 0,
     margin: 0,
     ...Platform.select({
       android: {
-        height: "100%",
-        paddingVertical: 0,
         includeFontPadding: false,
         textAlignVertical: "center",
-        lineHeight: 26,
-      },
-      ios: {
-        lineHeight: 30,
-        paddingVertical: 2,
+        height: "100%",
+        paddingVertical: 0,
       },
     }),
   },
-  segmentRow: {
+  track: {
+    height: TRACK_HEIGHT,
+    borderRadius: radius.full,
+    backgroundColor: line,
     flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
+    position: "relative",
+    overflow: "hidden",
+  },
+  pill: {
+    position: "absolute",
+    top: PILL_INSET,
+    left: PILL_INSET,
+    bottom: PILL_INSET,
+    borderRadius: radius.full,
+    backgroundColor: surface,
+    ...pillShadow,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabLabel: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  expenseSelected: {
+    fontFamily: fontFamilies.semiBold,
+    color: danger,
+  },
+  incomeSelected: {
+    fontFamily: fontFamilies.semiBold,
+    color: success,
+  },
+  labelUnselected: {
+    fontFamily: fontFamilies.regular,
+    color: inkSoft,
   },
 });

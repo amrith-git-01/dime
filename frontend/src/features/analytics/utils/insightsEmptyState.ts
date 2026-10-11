@@ -3,6 +3,7 @@ import type { InsightsMonthSummary } from "../components/InsightsMonthSummaryCar
 import type { InsightsBurnRateMetrics } from "./computeBurnRateMetrics";
 
 const EM_DASH = "\u2014";
+const ZERO = formatInrCompact(0);
 
 export function buildEmptyInsightsMonthSummary(
   hasMonthlyBudget: boolean,
@@ -11,6 +12,7 @@ export function buildEmptyInsightsMonthSummary(
   return {
     transactionCount: 0,
     hasMonthlyBudget,
+    hasIncome: false,
     isOverBudget: false,
     budgetDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
@@ -21,10 +23,12 @@ export function buildEmptyInsightsMonthSummary(
     remainingDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
       : EM_DASH,
-    spentDisplay: EM_DASH,
-    incomeDisplay: EM_DASH,
-    netDisplay: EM_DASH,
+    spentDisplay: ZERO,
+    incomeDisplay: ZERO,
+    netDisplay: ZERO,
+    heroDisplay: ZERO,
     netValue: 0,
+    savingsRatePct: null,
   };
 }
 
@@ -43,9 +47,10 @@ export function buildEmptyBurnRateMetrics(
   return {
     spentSoFar: 0,
     spentDisplay: EM_DASH,
+    spentLabel: "Spent so far",
     idealPace: null,
     idealDisplay: EM_DASH,
-    idealLabel: hasMonthlyBudget ? "Ideal by today" : "Ideal by today",
+    idealLabel: "Ideal by today",
     hasMonthlyBudget: budget != null,
     monthlyBudget: budget,
     isOverPace: false,

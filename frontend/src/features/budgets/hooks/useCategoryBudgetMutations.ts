@@ -4,7 +4,8 @@ import {
   deleteCategoryBudget,
   upsertCategoryBudget,
 } from "../api/categoryBudgetsApi";
-import { categoryBudgetsQueryKey } from "./useCategoryBudgetsQuery";
+import { invalidateBudgetAlertQueries } from "../cache/invalidateBudgetQueries";
+import { categoryBudgetsQueryKeys } from "../queryKeys";
 
 export function useUpsertCategoryBudgetMutation() {
   const qc = useQueryClient();
@@ -16,8 +17,10 @@ export function useUpsertCategoryBudgetMutation() {
       categoryId: string;
       monthlyAmount: number;
     }) => upsertCategoryBudget(categoryId, monthlyAmount),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKey }),
+    onSuccess: () => {
+      invalidateBudgetAlertQueries(qc);
+      return qc.invalidateQueries({ queryKey: categoryBudgetsQueryKeys.all });
+    },
   });
 }
 
@@ -25,7 +28,9 @@ export function useDeleteCategoryBudgetMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (categoryId: string) => deleteCategoryBudget(categoryId),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: categoryBudgetsQueryKey }),
+    onSuccess: () => {
+      invalidateBudgetAlertQueries(qc);
+      return qc.invalidateQueries({ queryKey: categoryBudgetsQueryKeys.all });
+    },
   });
 }

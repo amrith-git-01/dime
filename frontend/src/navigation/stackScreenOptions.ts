@@ -1,10 +1,10 @@
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
+import { createElement } from "react";
 
-import { colors } from "@/constants";
+import { ScreenHeader } from "@/components/layout/ScreenHeader";
 
 export const stackScreenOptions: NativeStackNavigationOptions = {
   headerShown: true,
-  headerTintColor: colors.primary,
-  headerStyle: { backgroundColor: colors.pageBackground },
   headerShadowVisible: false,
+  header: (props) => createElement(ScreenHeader, props),
 };

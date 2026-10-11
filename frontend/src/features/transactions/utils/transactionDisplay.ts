@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns";
 import { colors, hexToRgba } from "@/constants";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
+import { toPaise } from "@/utils/paise";
 
 export type TransactionCategory = {
   name: string;
@@ -31,6 +32,12 @@ export function signedAmount(tx: TransactionRow): number {
   return tx.type === "credit" ? n : -n;
 }
 
+/** Signed amount in integer paise (credits positive), for exact summing. */
+export function signedAmountPaise(tx: TransactionRow): number {
+  const paise = toPaise(tx.amount);
+  return tx.type === "credit" ? paise : -paise;
+}
+
 export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
   const parsed = parseISO(tx.transaction_at);
   const dateKey = format(parsed, "yyyy-MM-dd");
@@ -54,6 +61,13 @@ export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,
   };
+}
+
+/** Parse API decimal string totals for display math. */
+export function parseTransactionAmount(value: string | undefined): number {
+  if (value === undefined) return 0;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
 }
 
 /** List and section totals: signed whole rupees with +/- prefix. */

@@ -1,37 +1,56 @@
 /**
- * Merges static `app.json` with dynamic Android options.
+ * Merges static `app.json` with dynamic options.
  *
- * Google Play Protect often hard-blocks sideloaded APKs that declare SMS access
- * (READ_SMS / RECEIVE_SMS) with “financial fraud” messaging. For day-to-day dev
- * installs, omit those unless you explicitly opt in.
+ * Cleartext (http://) traffic is DEV ONLY. Release builds talk HTTPS to the Cloudflare Worker, so
+ * Android `usesCleartextTraffic` and iOS `NSAllowsLocalNetworking` are only enabled for development:
  *
- * Opt-in for a native rebuild: set EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS=true in `.env`
- * (or your shell) before `expo prebuild` / `expo run:android` / EAS build.
+ * - `APP_VARIANT=development`  -> allowed (set explicitly in the `development` EAS profile);
+ * - any other `APP_VARIANT`    -> not allowed;
+ * - no `APP_VARIANT`, building on EAS (`EAS_BUILD_PROFILE` set) -> allowed only for the `development` profile,
+ *   so `preview` and `production` builds are HTTPS-only;
+ * - no `APP_VARIANT`, not on EAS (`expo start`, local `expo prebuild`) -> allowed, so `wrangler dev` / a
+ *   LAN backend keep working while developing.
  */
-module.exports = ({ config }) => {
-  const includeSensitiveSms =
-    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS === "true" ||
-    process.env.EXPO_PUBLIC_INCLUDE_SENSITIVE_SMS === "1";
+function allowsCleartextTraffic() {
+  const variant = process.env.APP_VARIANT;
+  if (variant) return variant === "development";
+  const easProfile = process.env.EAS_BUILD_PROFILE;
+  if (easProfile) return easProfile === "development";
+  return true;
+}
 
+module.exports = ({ config }) => {
   const previous = config.android?.permissions;
   const baseList = Array.isArray(previous) ? previous : [];
-  const withoutSms = baseList.filter(
-    (p) => p !== "READ_SMS" && p !== "RECEIVE_SMS",
+  const permissions = new Set(
+    baseList.filter((p) => p !== "RECEIVE_SMS" && p !== "READ_SMS"),
   );
-
-  const permissions = new Set(withoutSms);
   permissions.add("POST_NOTIFICATIONS");
 
-  if (includeSensitiveSms) {
-    permissions.add("READ_SMS");
-    permissions.add("RECEIVE_SMS");
+  const cleartext = allowsCleartextTraffic();
+
+  const ios = { ...config.ios };
+  if (cleartext) {
+    ios.infoPlist = {
+      ...ios.infoPlist,
+      NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
+    };
   }
 
   return {
     ...config,
+    ios,
     android: {
       ...config.android,
+      // Backups would restore the encrypted stores without their Keystore keys.
+      allowBackup: false,
       permissions: Array.from(permissions),
     },
+    plugins: [
+      ...(config.plugins ?? []),
+      ...(cleartext
+        ? [["expo-build-properties", { android: { usesCleartextTraffic: true } }]]
+        : []),
+    ],
   };
 };

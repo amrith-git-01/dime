@@ -4,8 +4,8 @@
 import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
 
-/** Must match splash background in app.json and `splashBackgroundColor`. */
-const SPLASH_BACKGROUND = "#f9f9ff";
+/** Must match splash background in app.json and `splashBackgroundColor` (`paper` in constants/colors.ts). */
+const SPLASH_BACKGROUND = "#FAFAFA";
 
 void SplashScreen.preventAutoHideAsync();
 void SystemUI.setBackgroundColorAsync(SPLASH_BACKGROUND);

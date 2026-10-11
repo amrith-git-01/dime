@@ -1,23 +1,21 @@
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
   fetchBudget,
   upsertBudget,
   type UpsertBudgetInput,
 } from "@/features/budgets/api/budgetsApi";
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export const budgetQueryKey = ["budget"] as const;
+import { invalidateBudgetAlertQueries } from "../cache/invalidateBudgetQueries";
+import { budgetQueryKeys } from "../queryKeys";
 
 export function useBudgetQuery(options?: { enabled?: boolean }) {
+  const { userId } = useSessionUserId();
+
   return useQuery({
-    queryKey: budgetQueryKey,
+    queryKey: budgetQueryKeys.current(userId),
     queryFn: fetchBudget,
     enabled: options?.enabled ?? true,
-    placeholderData: keepPreviousData,
   });
 }
 
@@ -26,7 +24,8 @@ export function useUpsertBudgetMutation() {
   return useMutation({
     mutationFn: (input: UpsertBudgetInput) => upsertBudget(input),
     onSuccess: () => {
-      void qc.invalidateQueries({ refetchType: "active" });
+      void qc.invalidateQueries({ queryKey: budgetQueryKeys.all });
+      invalidateBudgetAlertQueries(qc);
     },
   });
 }

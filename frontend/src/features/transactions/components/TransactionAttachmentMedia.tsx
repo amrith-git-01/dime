@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { ReceiptImageViewer } from "./ReceiptImageViewer";
 
@@ -21,12 +21,12 @@ export function TransactionReceiptImage({ url }: TransactionReceiptImageProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const openViewer = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setViewerOpen(true);
   }, []);
 
   const closeViewer = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setViewerOpen(false);
   }, []);
 
@@ -92,7 +92,7 @@ export function TransactionVoicePlayer({ url }: TransactionVoicePlayerProps) {
   const status = useAudioPlayerStatus(player);
 
   const togglePlayback = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (status.playing) {
       player.pause();
     } else {

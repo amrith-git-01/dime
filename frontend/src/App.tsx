@@ -15,6 +15,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppBootstrap } from "@/components/app/AppBootstrap";
+import { AppErrorBoundary } from "@/components/app/AppErrorBoundary";
 import { SplashBrandedShell } from "@/components/app/SplashBrandedShell";
 import {
   SplashRevealProvider,
@@ -32,12 +33,16 @@ import {
   VoiceCaptureBar,
 } from "@/features/transactions/components";
 import {
-  appQueryPersistOptions,
   createAppQueryClient,
+  subscribeQueryClientLifecycle,
 } from "@/lib/appBootstrap";
+import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
+import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
+import { appQueryPersistOptions } from "@/lib/queryPersister";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
 import { appNavigationTheme } from "@/navigation/theme";
+import { reportError } from "@/lib/reportError";
 
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
@@ -86,9 +91,15 @@ function AppSplashCoordinator({
 }
 
 function AppRoot() {
+  const { handleNavigationReady } = useNotificationOpenHandler();
+
   return (
     <>
-      <NavigationContainer ref={navigationRef} theme={appNavigationTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={appNavigationTheme}
+        onReady={handleNavigationReady}
+      >
         <RootNavigator />
         <ReceiptScanBusyOverlay />
         <VoiceCaptureBar />
@@ -101,6 +112,12 @@ function AppRoot() {
 export default function App() {
   const [queryClient] = useState(() => createAppQueryClient());
   const [fontsLoaded, fontError] = useFonts(loadableAppFonts);
+
+  useEffect(() => {
+    configureExpoNotifications();
+  }, []);
+
+  useEffect(() => subscribeQueryClientLifecycle(queryClient), [queryClient]);
 
   useEffect(() => {
     return persistQueryClientSubscribe({
@@ -128,7 +145,7 @@ export default function App() {
   }, [fontError]);
 
   if (fontError) {
-    console.error("[App] useFonts failed:", fontError);
+    reportError(fontError, "App useFonts failed");
     return (
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
@@ -146,13 +163,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <SplashRevealProvider>
-            <KeyboardProvider>
-              <AppSplashCoordinator fontsReady={fontsLoaded}>
-                <AppRoot />
-              </AppSplashCoordinator>
-            </KeyboardProvider>
-          </SplashRevealProvider>
+          <AppErrorBoundary>
+            <SplashRevealProvider>
+              <KeyboardProvider>
+                <AppSplashCoordinator fontsReady={fontsLoaded}>
+                  <AppRoot />
+                </AppSplashCoordinator>
+              </KeyboardProvider>
+            </SplashRevealProvider>
+          </AppErrorBoundary>
           <StatusBar style="auto" />
         </SafeAreaProvider>
       </GestureHandlerRootView>

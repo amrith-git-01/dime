@@ -1,3 +1,6 @@
+export { ManualAddAmountSection } from "./ManualAddAmountSection";
+export { ManualAddCategorySection } from "./ManualAddCategorySection";
+export type { ManualAddDateTimePickerMode } from "./ManualAddDateField";
 export { ManualAddTransactionEditor } from "./ManualAddTransactionEditor";
 export { TRANSACTION_DETAIL_SECTION_GAP } from "./transactionDetailBentoTokens";
 export { TransactionDetailHeroTile } from "./TransactionDetailHeroTile";

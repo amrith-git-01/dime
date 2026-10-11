@@ -11,20 +11,25 @@ import {
   View,
 } from "react-native";
 
-import { formStyles } from "@/constants/formStyles";
 import { colors, spacing } from "@/constants";
+import { formStyles } from "@/constants/formStyles";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;
+  /** When false, only the input shell is rendered (section title lives outside). */
+  hideLabel?: boolean;
   /** Shown on the same row as the label, right-aligned (e.g. character count). */
   labelRight?: ReactNode;
   errorMessage?: string | null;
   showClear?: boolean;
   showPasswordToggle?: boolean;
+  /** Multiline shell min height (textarea). Defaults to 132 when multiline. */
+  minInputHeight?: number;
 };
 
 export function TextField({
   label,
+  hideLabel = false,
   labelRight,
   errorMessage,
   showClear = true,
@@ -35,6 +40,8 @@ export function TextField({
   editable = true,
   onFocus,
   onBlur,
+  multiline,
+  minInputHeight,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
@@ -43,32 +50,45 @@ export function TextField({
   const effectiveSecure = isPassword ? hidden : secureTextEntry;
   const hasValue = Boolean(value && String(value).length > 0);
   const showClearButton = showClear && hasValue && editable !== false;
+  const isMultiline = Boolean(multiline);
+  const textareaMinHeight = minInputHeight ?? (isMultiline ? 132 : undefined);
   return (
     <View>
-      {labelRight ? (
-        <View style={styles.labelRow}>
-          <Text style={[formStyles.fieldLabel, styles.labelInRow]}>
-            {label}
-          </Text>
-          {labelRight}
-        </View>
-      ) : (
-        <Text style={formStyles.fieldLabel}>{label}</Text>
-      )}
+      {!hideLabel ? (
+        labelRight ? (
+          <View style={styles.labelRow}>
+            <Text style={[formStyles.fieldLabel, styles.labelInRow]}>
+              {label}
+            </Text>
+            {labelRight}
+          </View>
+        ) : (
+          <Text style={formStyles.fieldLabel}>{label}</Text>
+        )
+      ) : null}
       <View
         style={[
           formStyles.fieldShell,
+          isMultiline && styles.textareaShell,
+          textareaMinHeight != null && { minHeight: textareaMinHeight },
           focused && formStyles.fieldShellFocused,
           Boolean(errorMessage) && formStyles.fieldShellError,
         ]}
       >
         <TextInput
-          style={formStyles.fieldInput}
+          style={[
+            formStyles.fieldInput,
+            isMultiline && styles.textareaInput,
+            textareaMinHeight != null && {
+              minHeight: textareaMinHeight - spacing.md,
+            },
+          ]}
           placeholderTextColor={colors.inactive}
           value={value}
           onChangeText={onChangeText}
           editable={editable}
           secureTextEntry={effectiveSecure}
+          multiline={multiline}
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
@@ -78,11 +98,18 @@ export function TextField({
             onBlur?.(e);
           }}
           underlineColorAndroid="transparent"
-          textAlignVertical={Platform.OS === "android" ? "center" : undefined}
+          textAlignVertical={
+            isMultiline
+              ? "top"
+              : Platform.OS === "android"
+                ? "center"
+                : undefined
+          }
           {...rest}
         />
         {isPassword ? (
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={hidden ? "Show password" : "Hide password"}
             hitSlop={12}
             style={formStyles.iconButton}
@@ -97,9 +124,10 @@ export function TextField({
         ) : null}
         {showClearButton ? (
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Clear text"
             hitSlop={12}
-            style={formStyles.iconButton}
+            style={[formStyles.iconButton, isMultiline && styles.textareaClear]}
             onPress={() => onChangeText?.("")}
           >
             <X size={18} color={colors.inactive} />
@@ -124,5 +152,17 @@ const styles = StyleSheet.create({
   labelInRow: {
     flex: 1,
     marginBottom: 0,
+  },
+  textareaShell: {
+    alignItems: "flex-start",
+    paddingVertical: spacing.sm,
+  },
+  textareaInput: {
+    height: undefined,
+    paddingTop: Platform.OS === "android" ? spacing.xs : undefined,
+    textAlignVertical: "top",
+  },
+  textareaClear: {
+    marginTop: spacing.xs,
   },
 });

@@ -1,13 +1,12 @@
-import { SendHorizontal, Sparkles, X } from "lucide-react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Sparkles } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
+  FlatList,
   Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -16,47 +15,47 @@ import Animated, {
   interpolate,
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
-import { colors, overlays, radius, spacing, timings } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import { AGENT_SUGGESTED_PROMPTS } from "@/features/agent/constants/suggestedPrompts";
-import { useAgentChat } from "@/features/agent/hooks/useAgentChat";
-import { useAgentMessagesQuery } from "@/features/agent/hooks/useAgentMessagesQuery";
-import { useAgentThreadsQuery } from "@/features/agent/hooks/useAgentThreadsQuery";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import {
+  accent,
+  overlays,
+  radius,
+  shadow,
+  spacing,
+  surface,
+  timings,
+} from "@/constants";
+import {
+  useAgentChat,
+  useAgentDailyLimitReached,
+} from "@/features/agent/hooks/useAgentChat";
+import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
+import { getAgentAvailability } from "@/features/limits/utils/limitsFormat";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import type { MainStackParamList } from "@/navigation/types";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 
-import type { AgentChatStatus, AgentDeepLink } from "../types";
+import type { AgentDeepLink, ChatMessage } from "../types";
 import { navigateAgentDeepLink } from "../utils/agentDeepLink";
 
+import { AgentChatComposer } from "./AgentChatComposer";
+import { AgentChatHeader } from "./AgentChatHeader";
 import { AgentMessageRenderer } from "./AgentMessageRenderer";
+import { AgentSuggestionsHeader } from "./AgentSuggestionsHeader";
 
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
 const MODAL_WIDTH_RATIO = 0.92;
 const MODAL_HEIGHT_RATIO = 0.72;
+
 /** Extra lift above the tab bar (above prior `spacing.sm` gap). */
 const FAB_LIFT = spacing.xl + spacing.md;
-
-function statusLabel(status: AgentChatStatus): string | null {
-  switch (status.phase) {
-    case "sql":
-      return "Looking up your data…";
-    case "reflect":
-      return "Checking the results…";
-    case "responding":
-      return "Writing answer…";
-    case "error":
-      return status.message;
-    default:
-      return null;
-  }
-}
 
 type AgentChatOverlayProps = {
   /** When false, hides the entry FAB (e.g. during tab shell bootstrap). */
@@ -72,8 +71,8 @@ export function AgentChatOverlay({
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const scrollRef = useRef<ScrollView>(null);
-  const [draft, setDraft] = useState("");
+  const flatListRef = useRef<FlatList<ChatMessage>>(null);
+  const [composerResetToken, setComposerResetToken] = useState(0);
   const [overlayMounted, setOverlayMounted] = useState(false);
 
   const progress = useSharedValue(0);
@@ -97,64 +96,64 @@ export function AgentChatOverlay({
   const collapsedScaleY = FAB_SIZE / panelHeight;
   const collapsedCornerRadius = Math.min(panelWidth, panelHeight) / 2;
 
+  /** Shared worklet value — panel's bottom anchor as keyboard animates in/out. */
+  const anchorBottom = useDerivedValue(() =>
+    interpolate(
+      keyboardProgress.value,
+      [0, 1],
+      [fabBottom, spacing.md],
+      "clamp",
+    ),
+  );
+
   const {
-    threadId,
     messages,
-    status,
-    isStreaming,
+    isPending,
     sendMessage,
     resetConversation,
-    loadThreadHistory,
-    isCreatingThread,
+    submitFeedback,
   } = useAgentChat();
+  const storeLimitReached = useAgentDailyLimitReached();
+  const { data: limits } = useLimitsQuery();
+  const agentAvailability = getAgentAvailability(limits);
+  const limitReached = storeLimitReached || agentAvailability.exhausted;
+  const stackNavigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
-  const threadsQuery = useAgentThreadsQuery({ enabled: visible });
-  const latestThreadId = threadsQuery.data?.[0]?.id ?? null;
-  const historyQuery = useAgentMessagesQuery(latestThreadId, {
-    enabled:
-      visible && !threadId && messages.length === 0 && Boolean(latestThreadId),
-  });
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      if (messages.length === 0) return;
+      flatListRef.current?.scrollToEnd({ animated });
+    },
+    [messages.length],
+  );
 
+  // New message, or turn finished (the final answer may add charts). Streaming growth is
+  // handled by `onContentSizeChange`: a debounce here would starve under 50 ms flushes.
   useEffect(() => {
-    if (!visible || threadId || messages.length > 0) {
-      return;
-    }
-    const rows = historyQuery.data;
-    if (rows && latestThreadId && rows.length > 0) {
-      loadThreadHistory(rows, latestThreadId);
-    }
-  }, [
-    visible,
-    threadId,
-    messages.length,
-    historyQuery.data,
-    latestThreadId,
-    loadThreadHistory,
-  ]);
-
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, 80);
+    if (!visible) return;
+    const timer = setTimeout(() => scrollToBottom(), 80);
     return () => clearTimeout(timer);
-  }, [visible, messages, status]);
+  }, [visible, messages.length, isPending, scrollToBottom]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (isPending) {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [isPending]);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
-      setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, 80);
+    if (!visible) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const sub = Keyboard.addListener("keyboardDidShow", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => scrollToBottom(), 80);
     });
     return () => {
-      showSubscription.remove();
+      clearTimeout(timer);
+      sub.remove();
     };
-  }, [visible]);
+  }, [visible, scrollToBottom]);
 
   useEffect(() => {
     return () => {
@@ -178,11 +177,10 @@ export function AgentChatOverlay({
         runOnJS(setOverlayMounted)(false);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- shared values
-  }, [visible, overlayMounted]);
+  }, [visible, overlayMounted, isOpen, progress]);
 
   const handleOpen = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     setOverlayMounted(true);
     progress.value = 0;
     open();
@@ -192,42 +190,63 @@ export function AgentChatOverlay({
     close();
   }, [close]);
 
-  const handleNewThread = useCallback(() => {
-    void triggerLightHaptic();
+  const handleResetChat = useCallback(() => {
+    void triggerHaptic();
     resetConversation();
-    setDraft("");
+    setComposerResetToken((token) => token + 1);
   }, [resetConversation]);
 
-  const handleSend = useCallback(() => {
-    const text = draft.trim();
-    if (!text || isStreaming) {
-      return;
-    }
-    void triggerLightHaptic();
-    setDraft("");
-    void sendMessage(text);
-  }, [draft, isStreaming, sendMessage]);
+  const handleSend = useCallback(
+    (text: string) => {
+      if (isPending || limitReached) {
+        return;
+      }
+      void triggerHaptic();
+      void sendMessage(text);
+    },
+    [isPending, limitReached, sendMessage],
+  );
 
   const handleSuggestedPrompt = useCallback(
     (prompt: string) => {
-      if (isStreaming) {
+      if (isPending || limitReached) {
         return;
       }
-      void triggerLightHaptic();
+      void triggerHaptic();
       void sendMessage(prompt);
     },
-    [isStreaming, sendMessage],
+    [isPending, limitReached, sendMessage],
   );
 
   const handleDeepLink = useCallback(
     (link: AgentDeepLink) => {
-      const navigated = navigateAgentDeepLink(link);
-      if (navigated) {
-        close();
-      }
+      void triggerHaptic();
+      navigateAgentDeepLink(link, stackNavigation);
     },
-    [close],
+    [stackNavigation],
   );
+
+  const renderMessage = useCallback(
+    ({ item }: { item: ChatMessage }) => (
+      <AgentMessageRenderer
+        id={item.id}
+        role={item.role}
+        content={item.content}
+        blocks={item.blocks}
+        deepLink={item.deepLink}
+        isPending={item.isPending}
+        isError={item.isError}
+        stepLabel={item.stepLabel}
+        turnId={item.turnId}
+        feedback={item.feedback}
+        onDeepLinkPress={handleDeepLink}
+        onFeedback={submitFeedback}
+      />
+    ),
+    [handleDeepLink, submitFeedback],
+  );
+
+  const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.35, 1], [0, 0.4, 1]),
@@ -238,18 +257,10 @@ export function AgentChatOverlay({
   // As the keyboard opens we animate `bottom` from `fabBottom` → `spacing.md` so the
   // panel ends up sitting just above the keyboard with a small gap. Without this,
   // `bottom` stays at `fabBottom` and the visible gap equals `fabBottom` (~150 pt).
-  const panelAnchorStyle = useAnimatedStyle(() => {
-    const anchorBottom = interpolate(
-      keyboardProgress.value,
-      [0, 1],
-      [fabBottom, spacing.md],
-      "clamp",
-    );
-    return {
-      bottom: anchorBottom,
-      transform: [{ translateY: keyboardHeight.value }],
-    };
-  });
+  const panelAnchorStyle = useAnimatedStyle(() => ({
+    bottom: anchorBottom.value,
+    transform: [{ translateY: keyboardHeight.value }],
+  }));
 
   /**
    * Morph from bottom-right: scaleX/scaleY independently so collapsed state is a
@@ -258,19 +269,15 @@ export function AgentChatOverlay({
   const panelStyle = useAnimatedStyle(() => {
     const p = progress.value;
     const keyboardInset = Math.abs(keyboardHeight.value);
-    // anchorBottom mirrors the value computed in panelAnchorStyle so the max height
-    // stays consistent with the panel's actual bottom position.
-    const anchorBottom = interpolate(
-      keyboardProgress.value,
-      [0, 1],
-      [fabBottom, spacing.md],
-      "clamp",
-    );
     const expandedHeight = Math.min(
       panelHeight,
       Math.max(
         FAB_SIZE,
-        screenHeight - insets.top - spacing.md - anchorBottom - keyboardInset,
+        screenHeight -
+          insets.top -
+          spacing.md -
+          anchorBottom.value -
+          keyboardInset,
       ),
     );
     const scaleX = interpolate(p, [0, 1], [collapsedScaleX, 1], "clamp");
@@ -305,10 +312,7 @@ export function AgentChatOverlay({
   /** Static circle under the morph during collapse — avoids pill artifact at the end. */
   const showCollapseHandoffFab =
     showEntryFab && overlayMounted && !visible && !fabOpen;
-  const statusText = statusLabel(status);
-  const showSuggestions =
-    messages.length === 0 && !isStreaming && !isCreatingThread;
-  const composerDisabled = isStreaming || isCreatingThread;
+  const showSuggestions = messages.length === 0 && !isPending;
 
   return (
     <>
@@ -326,11 +330,7 @@ export function AgentChatOverlay({
             pressed && !showCollapseHandoffFab && styles.fabPressed,
           ]}
         >
-          <Sparkles
-            size={20}
-            color={colors.headerGradientStart}
-            strokeWidth={2}
-          />
+          <Sparkles size={20} color={surface} strokeWidth={2} />
         </Pressable>
       ) : null}
 
@@ -360,156 +360,45 @@ export function AgentChatOverlay({
                 style={[styles.collapsedIcon, collapsedIconStyle]}
                 pointerEvents="none"
               >
-                <Sparkles
-                  size={20}
-                  color={colors.headerGradientStart}
-                  strokeWidth={2}
-                />
+                <Sparkles size={20} color={surface} strokeWidth={2} />
               </Animated.View>
 
               <Animated.View style={[styles.panelInner, contentStyle]}>
-                <View style={styles.header}>
-                  <View style={styles.headerTitleRow}>
-                    <Sparkles
-                      size={20}
-                      color={colors.headerGradientStart}
-                      strokeWidth={2}
-                    />
-                    <Text style={styles.headerTitle}>Dime Agent</Text>
-                  </View>
-                  <View style={styles.headerActions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Start new chat"
-                      onPress={handleNewThread}
-                      hitSlop={8}
-                      style={({ pressed }) => [
-                        styles.newChatButton,
-                        pressed && styles.newChatButtonPressed,
-                      ]}
-                    >
-                      <Text style={styles.newChatButtonText}>New chat</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Close"
-                      onPress={handleClose}
-                      hitSlop={10}
-                      style={styles.iconButton}
-                    >
-                      <X
-                        size={22}
-                        color={colors.textSecondary}
-                        strokeWidth={2}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
+                <AgentChatHeader
+                  onReset={handleResetChat}
+                  onClose={handleClose}
+                />
 
-                <ScrollView
-                  ref={scrollRef}
+                <FlatList
+                  ref={flatListRef}
+                  data={messages}
+                  keyExtractor={keyExtractor}
+                  renderItem={renderMessage}
                   style={styles.messages}
                   contentContainerStyle={styles.messagesContent}
+                  onContentSizeChange={handleContentSizeChange}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
-                >
-                  {showSuggestions ? (
-                    <View style={styles.suggestions}>
-                      <Text style={styles.suggestionsTitle}>
-                        Ask about your money
-                      </Text>
-                      <View style={styles.suggestionList}>
-                        {AGENT_SUGGESTED_PROMPTS.map((prompt) => (
-                          <Pressable
-                            key={prompt}
-                            accessibilityRole="button"
-                            accessibilityLabel={prompt}
-                            onPress={() => handleSuggestedPrompt(prompt)}
-                            style={({ pressed }) => [
-                              styles.suggestionRow,
-                              pressed && styles.suggestionRowPressed,
-                            ]}
-                          >
-                            <Text style={styles.suggestionRowText}>
-                              {prompt}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  ) : null}
-
-                  {messages.map((message) => (
-                    <AgentMessageRenderer
-                      key={message.id}
-                      role={message.role}
-                      content={message.content}
-                      blocks={message.blocks}
-                      deepLink={message.deepLink}
-                      isStreaming={message.isStreaming}
-                      onDeepLinkPress={handleDeepLink}
-                    />
-                  ))}
-
-                  {statusText ? (
-                    <View style={styles.statusRow}>
-                      {status.phase !== "error" ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.headerGradientStart}
-                        />
-                      ) : null}
-                      <Text
-                        style={[
-                          styles.statusText,
-                          status.phase === "error" && styles.statusError,
-                        ]}
-                      >
-                        {statusText}
-                      </Text>
-                    </View>
-                  ) : null}
-                </ScrollView>
-
-                <View style={styles.composer}>
-                  <TextInput
-                    value={draft}
-                    onChangeText={setDraft}
-                    placeholder="Ask a question…"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.input}
-                    multiline
-                    maxLength={4000}
-                    editable={!composerDisabled}
-                    onSubmitEditing={handleSend}
-                    returnKeyType="send"
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Send message"
-                    disabled={composerDisabled || draft.trim().length === 0}
-                    onPress={handleSend}
-                    style={({ pressed }) => [
-                      styles.sendButton,
-                      (composerDisabled || draft.trim().length === 0) &&
-                        styles.sendButtonDisabled,
-                      pressed && !composerDisabled && styles.sendButtonPressed,
-                    ]}
-                  >
-                    {isStreaming ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.barBackground}
+                  removeClippedSubviews
+                  windowSize={5}
+                  maxToRenderPerBatch={4}
+                  initialNumToRender={10}
+                  ListHeaderComponent={
+                    showSuggestions ? (
+                      <AgentSuggestionsHeader
+                        onSelectPrompt={handleSuggestedPrompt}
                       />
-                    ) : (
-                      <SendHorizontal
-                        size={20}
-                        color={colors.barBackground}
-                        strokeWidth={2}
-                      />
-                    )}
-                  </Pressable>
-                </View>
+                    ) : null
+                  }
+                />
+
+                <AgentChatComposer
+                  disabled={isPending}
+                  limitReached={limitReached}
+                  caption={agentAvailability.caption}
+                  onSend={handleSend}
+                  resetToken={composerResetToken}
+                />
               </Animated.View>
             </Animated.View>
           </Animated.View>
@@ -526,16 +415,14 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: colors.barBackground,
-    borderWidth: 3,
-    borderColor: colors.headerGradientEnd,
+    backgroundColor: accent,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.headerGradientStart,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowColor: shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
   },
   fabPressed: {
     opacity: 0.9,
@@ -558,14 +445,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   panel: {
-    backgroundColor: colors.barBackground,
-    borderWidth: 3,
-    borderColor: colors.headerGradientEnd,
+    backgroundColor: surface,
     overflow: "hidden",
-    shadowColor: colors.headerGradientStart,
+    shadowColor: shadow,
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     elevation: 16,
   },
   collapsedIcon: {
@@ -575,51 +460,7 @@ const styles = StyleSheet.create({
   },
   panelInner: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
-  },
-  headerTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 18,
-    color: colors.textPrimary,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  newChatButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-  },
-  newChatButtonPressed: {
-    opacity: 0.7,
-  },
-  newChatButtonText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    color: colors.headerGradientStart,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: surface,
   },
   messages: {
     flex: 1,
@@ -628,90 +469,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexGrow: 1,
-  },
-  suggestions: {
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  suggestionsTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    color: colors.textSecondary,
-  },
-  suggestionList: {
-    gap: spacing.sm,
-  },
-  suggestionRow: {
-    width: "100%",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  suggestionRowPressed: {
-    opacity: 0.85,
-    backgroundColor: colors.surfaceTint,
-  },
-  suggestionRowText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    color: colors.textPrimary,
-    lineHeight: 22,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  statusText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  statusError: {
-    color: colors.danger,
-  },
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
-    backgroundColor: colors.barBackground,
-  },
-  input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.pageBackground,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.headerGradientStart,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: {
-    opacity: 0.45,
-  },
-  sendButtonPressed: {
-    opacity: 0.85,
   },
 });

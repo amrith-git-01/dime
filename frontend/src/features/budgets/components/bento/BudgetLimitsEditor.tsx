@@ -1,13 +1,23 @@
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import {
-  BentoEditorFooter,
-  BENTO_FORM_BODY_GAP,
-  BENTO_FORM_SECTION_PADDING,
-} from "@/components/bento";
-import { TwoToneCard } from "@/components/shared";
-import { bento, typography } from "@/constants";
+  accent,
+  danger,
+  inkSoft,
+  paper,
+  radius,
+  spacing,
+  surface,
+} from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 
 import { BudgetAmountStepSlider } from "./BudgetAmountStepSlider";
 import {
@@ -133,88 +143,144 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   const saveTitle = isEditMode ? "Update" : "Save";
 
   return (
-    <TwoToneCard
-      header={
-        <View style={styles.headerInner}>
-          <Text style={styles.title}>
-            {isEditMode ? "Update budget limits" : "Budget limits"}
-          </Text>
-          <Text style={styles.description}>
-            Slide to a preset or choose Custom. Daily and monthly caps stay
-            independent.
-          </Text>
-          <BudgetLimitsBentoRow
-            dailyInputRef={dailyInputRef}
-            monthlyInputRef={monthlyInputRef}
-            dailyDisplayAmount={dailyDisplayAmount}
-            monthlyDisplayAmount={monthlyDisplayAmount}
-            dailyIsCustom={dailyIsCustom}
-            monthlyIsCustom={monthlyIsCustom}
-            dailyValue={dailyValue}
-            monthlyValue={monthlyValue}
-            onDailyChange={onDailyChange}
-            onMonthlyChange={onMonthlyChange}
-            onDailyAmountPress={handleDailyTilePress}
-            onMonthlyAmountPress={handleMonthlyTilePress}
-            onSubmitEditing={onSave}
-          />
-        </View>
-      }
-      body={
-        <View style={styles.bodyInner}>
-          <View style={styles.slidersBlock}>
-            <BudgetAmountStepSlider
-              label="Daily cap"
-              presets={DAILY_BUDGET_PRESETS}
-              stepIndex={dailyStepIndex}
-              onStepChange={handleDailyStepChange}
-            />
-            <BudgetAmountStepSlider
-              label="Monthly cap"
-              presets={MONTHLY_BUDGET_PRESETS}
-              stepIndex={monthlyStepIndex}
-              onStepChange={handleMonthlyStepChange}
-            />
-          </View>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.description}>
+        Slide to a preset or choose Custom. Daily and monthly caps stay
+        independent.
+      </Text>
 
-          <BentoEditorFooter
-            onClear={handleClear}
-            onSave={onSave}
-            saveTitle={saveTitle}
-            saveLoading={saveLoading}
-            saveDisabled={saveDisabled}
-          />
-        </View>
-      }
-    />
+      {/* Cap tiles */}
+      <BudgetLimitsBentoRow
+        dailyInputRef={dailyInputRef}
+        monthlyInputRef={monthlyInputRef}
+        dailyDisplayAmount={dailyDisplayAmount}
+        monthlyDisplayAmount={monthlyDisplayAmount}
+        dailyIsCustom={dailyIsCustom}
+        monthlyIsCustom={monthlyIsCustom}
+        dailyValue={dailyValue}
+        monthlyValue={monthlyValue}
+        onDailyChange={onDailyChange}
+        onMonthlyChange={onMonthlyChange}
+        onDailyAmountPress={handleDailyTilePress}
+        onMonthlyAmountPress={handleMonthlyTilePress}
+        onSubmitEditing={onSave}
+      />
+
+      {/* Sliders */}
+      <View style={styles.slidersBlock}>
+        <BudgetAmountStepSlider
+          label="Daily cap"
+          presets={DAILY_BUDGET_PRESETS}
+          stepIndex={dailyStepIndex}
+          onStepChange={handleDailyStepChange}
+        />
+        <BudgetAmountStepSlider
+          label="Monthly cap"
+          presets={MONTHLY_BUDGET_PRESETS}
+          stepIndex={monthlyStepIndex}
+          onStepChange={handleMonthlyStepChange}
+        />
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Pressable
+          onPress={handleClear}
+          style={({ pressed }) => [
+            styles.clearBtn,
+            pressed && styles.clearBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Clear budget"
+        >
+          <Text style={styles.clearBtnText}>Clear</Text>
+        </Pressable>
+        <Pressable
+          onPress={onSave}
+          disabled={saveDisabled || saveLoading}
+          style={({ pressed }) => [
+            styles.saveBtn,
+            (saveDisabled || saveLoading) && styles.saveBtnDisabled,
+            pressed && !saveDisabled && !saveLoading && styles.saveBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={saveTitle}
+        >
+          <Text style={styles.saveBtnText}>
+            {saveLoading ? "Saving…" : saveTitle}
+          </Text>
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 });
 
 const styles = StyleSheet.create({
-  headerInner: {
-    paddingHorizontal: BENTO_FORM_SECTION_PADDING,
-    paddingTop: BENTO_FORM_SECTION_PADDING,
-    paddingBottom: BENTO_FORM_SECTION_PADDING,
-    gap: BENTO_FORM_BODY_GAP,
+  scroll: {
+    flex: 1,
+    backgroundColor: paper,
   },
-  title: {
-    fontFamily: typography.headerUsernameLine.fontFamily,
-    fontSize: 16,
-    color: bento.onPastel.primary,
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl * 3,
+    gap: spacing.xl,
   },
   description: {
-    fontFamily: typography.screenSubtitle.fontFamily,
-    fontSize: 13,
-    lineHeight: 18,
-    color: bento.onPastel.secondary,
-  },
-  bodyInner: {
-    paddingHorizontal: BENTO_FORM_SECTION_PADDING,
-    paddingTop: BENTO_FORM_SECTION_PADDING,
-    paddingBottom: BENTO_FORM_SECTION_PADDING,
-    gap: BENTO_FORM_BODY_GAP,
+    fontFamily: fontFamilies.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: inkSoft,
   },
   slidersBlock: {
-    gap: BENTO_FORM_BODY_GAP,
+    gap: spacing.xl,
+  },
+  footer: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  clearBtn: {
+    flex: 1,
+    borderRadius: radius.full,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: danger,
+  },
+  clearBtnPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  clearBtnText: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: danger,
+  },
+  saveBtn: {
+    flex: 2,
+    borderRadius: radius.full,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: accent,
+  },
+  saveBtnDisabled: {
+    opacity: 0.45,
+  },
+  saveBtnPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  saveBtnText: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: surface,
   },
 });

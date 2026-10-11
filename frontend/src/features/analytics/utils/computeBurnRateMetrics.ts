@@ -7,6 +7,7 @@ import { calendarDaysInMonth, isCurrentMonth } from "./buildCashflowWindow";
 export type InsightsBurnRateMetrics = {
   spentSoFar: number;
   spentDisplay: string;
+  spentLabel: string;
   idealPace: number | null;
   idealDisplay: string;
   idealLabel: string;
@@ -49,15 +50,12 @@ export function computeBurnRateMetrics(
   const dailyRate = referenceDay > 0 ? spentSoFar / referenceDay : 0;
   const projected = dailyRate * daysInMonth;
 
-  const idealLabel = hasMonthlyBudget
-    ? current
-      ? "Ideal by today"
-      : "Ideal"
-    : "Ideal by today";
+  const idealLabel = current ? "Ideal by today" : "Ideal pace";
 
   return {
     spentSoFar,
     spentDisplay: formatInrCompact(spentSoFar),
+    spentLabel: current ? "Spent so far" : "Total spent",
     idealPace,
     idealDisplay: idealPace != null ? formatInrCompact(idealPace) : "\u2014",
     idealLabel,
@@ -66,6 +64,6 @@ export function computeBurnRateMetrics(
     isOverPace: idealPace != null && idealPace > 0 && spentSoFar > idealPace,
     projected,
     projectedDisplay: formatInrCompact(projected),
-    projectedLabel: "At this pace",
+    projectedLabel: current ? "At this pace" : "Final total",
   };
 }

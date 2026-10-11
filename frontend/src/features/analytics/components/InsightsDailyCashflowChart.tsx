@@ -1,144 +1,53 @@
-import {
-  ChartTooltipOverlay,
-  netTone,
-  TwoToneCard,
-  type ChartTooltipAnchor,
-} from "@/components/shared";
-import { bento, colors, spacing, surfaces } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { spacing } from "@/constants";
 import type { DailyCashflowRow } from "@/features/analytics/types";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
-import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
-import { format, parseISO } from "date-fns";
+import { useIsFocused } from "@react-navigation/native";
 import {
   memo,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type MutableRefObject,
 } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
+import { INSIGHTS_CHART_BAR_ANIMATION } from "@/features/analytics/constants/chartAnimation";
+import { useChartInViewport } from "@/features/analytics/hooks/useChartInViewport";
+import { useVictoryChartEntry } from "@/features/analytics/hooks/useVictoryChartEntry";
+import { zeroCashflowChartRows } from "@/features/analytics/utils/chartEntryData";
 import {
-  buildCashflowChartScale,
+  useCashflowDayTooltip,
+  type InsightsCashflowDaySelection,
+} from "../hooks/useCashflowDayTooltip";
+import {
   buildFullMonthCashflowDays,
-  CASHFLOW_DAY_SLOT_WIDTH,
+  buildMonthlyCashflowChartModel,
   cashflowChartScrollWidth,
+  cashflowScrollOffsetForToday,
   CHART_LEADING_ANCHOR_DAY,
   chartTrailingAnchorDay,
-  formatCashflowXLabel,
-  maxCashflowChartY,
 } from "../utils/buildCashflowWindow";
+import {
+  CashflowLegend,
+  CashflowXLabels,
+  CashflowYAxis,
+} from "./CashflowChartChrome";
+import { CashflowDayHitRow } from "./CashflowDayHitRow";
+import { CashflowDayTooltip } from "./CashflowDayTooltip";
 import { CashflowVictoryChart } from "./CashflowVictoryChart";
 import { InsightsCashflowChartSkeleton } from "./InsightsAnalyticsSkeletons";
-import {
-  NET_DEFICIT_BAR,
-  NET_SURPLUS_BAR,
-} from "./insightsCashflowChartTokens";
+import { InsightsCard } from "./InsightsCard";
 
 const CHART_PLOT_HEIGHT = 212;
-const X_LABEL_ROW_HEIGHT = 22;
-const Y_AXIS_GUTTER = 46;
 
-const ZERO_CHART_ROW = {
-  expense: 0,
-  income: 0,
-  netSurplus: 0,
-  netDeficit: 0,
-} as const;
-
-export type InsightsCashflowDaySelection = {
-  day: number;
-  date: string;
-  expense: number;
-  income: number;
-  net: number;
-};
-
-type CashflowDayPress = InsightsCashflowDaySelection;
-
-type SelectedDay = {
-  selection: CashflowDayPress;
-  anchorWindow: ChartTooltipAnchor;
-};
-
-function cashflowTooltipTitle(
-  day: CashflowDayPress,
-  todayDay: number | null,
-): string {
-  if (todayDay != null && day.day === todayDay) {
-    return "Today";
-  }
-  return format(parseISO(day.date), "d MMM");
-}
-
-function toDayPress(row: {
-  day: number;
-  date: string;
-  expense: number;
-  income: number;
-  net: number;
-}): CashflowDayPress {
-  return {
-    day: row.day,
-    date: row.date,
-    expense: row.expense,
-    income: row.income,
-    net: row.net,
-  };
-}
-
-function netBarInnerPadding(dayCount: number): number {
-  if (dayCount <= 10) return 0.22;
-  if (dayCount <= 20) return 0.14;
-  return 0.2;
-}
-
-type CashflowDayHitCellProps = {
-  width: number;
-  selected: boolean;
-  onPress: (anchor: ChartTooltipAnchor) => void;
-  accessibilityLabel: string;
-};
-
-const CashflowDayHitCell = memo(function CashflowDayHitCell({
-  width,
-  selected,
-  onPress,
-  accessibilityLabel,
-}: CashflowDayHitCellProps) {
-  const cellRef = useRef<View>(null);
-
-  return (
-    <Pressable
-      ref={cellRef}
-      style={[
-        styles.dayHitCell,
-        { width },
-        selected && styles.dayHitCellSelected,
-      ]}
-      onPress={() => {
-        void triggerLightHaptic();
-        cellRef.current?.measureInWindow((x, y, w, h) => {
-          onPress({ x, y, width: w, height: h });
-        });
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
-    />
-  );
-});
+export type { InsightsCashflowDaySelection };
 
 export type InsightsDailyCashflowChartProps = {
   dailyCashflow: DailyCashflowRow[];
   year: number;
   monthIndex0: number;
-  /** Tab-focus generation — forces Victory remount so cached MMKV data still animates. */
-  focusGeneration: number;
-  loading?: boolean;
+  chartsDataSettled: boolean;
+  chartLoading?: boolean;
   /** Parent scroll views can call this ref to dismiss an open day tooltip. */
   tooltipDismissRef?: MutableRefObject<(() => void) | null>;
   /** Fired when the user taps View in the day tooltip (navigation wired later). */
@@ -150,11 +59,14 @@ export const InsightsDailyCashflowChart = memo(
     dailyCashflow,
     year,
     monthIndex0,
-    focusGeneration,
-    loading = false,
+    chartsDataSettled,
+    chartLoading = false,
     tooltipDismissRef,
     onViewDayPress,
   }: InsightsDailyCashflowChartProps) {
+    const { containerRef, onChartLayout, isFullyVisible } =
+      useChartInViewport();
+
     const { monthDays, lastDay, todayDay } = useMemo(
       () => buildFullMonthCashflowDays(dailyCashflow, year, monthIndex0),
       [dailyCashflow, monthIndex0, year],
@@ -167,29 +79,10 @@ export const InsightsDailyCashflowChart = memo(
 
     const trailingAnchorDay = chartTrailingAnchorDay(lastDay);
 
-    const { chartData, yMax, barPadding, yTickValues } = useMemo(() => {
-      const monthRows = monthDays.map((d) => ({
-        day: d.day,
-        expense: d.expense,
-        income: d.income,
-        netSurplus: d.net > 0 ? d.net : 0,
-        netDeficit: d.net < 0 ? Math.abs(d.net) : 0,
-      }));
-      const data = [
-        { day: CHART_LEADING_ANCHOR_DAY, ...ZERO_CHART_ROW },
-        ...monthRows,
-        { day: trailingAnchorDay, ...ZERO_CHART_ROW },
-      ];
-      const { yDomainMax, yTickValues } = buildCashflowChartScale(
-        maxCashflowChartY(data),
-      );
-      return {
-        chartData: data,
-        yMax: yDomainMax,
-        barPadding: netBarInnerPadding(monthRows.length),
-        yTickValues,
-      };
-    }, [monthDays, trailingAnchorDay]);
+    const { chartData, yMax, barPadding, yTickValues } = useMemo(
+      () => buildMonthlyCashflowChartModel(monthDays, trailingAnchorDay),
+      [monthDays, trailingAnchorDay],
+    );
 
     const domain = useMemo(
       () => ({
@@ -199,267 +92,138 @@ export const InsightsDailyCashflowChart = memo(
       [trailingAnchorDay, yMax],
     );
 
-    const [selected, setSelected] = useState<SelectedDay | null>(null);
+    const zeroChartData = useMemo(
+      () => zeroCashflowChartRows(chartData),
+      [chartData],
+    );
 
-    const dismissTooltip = useCallback(() => {
-      setSelected(null);
-    }, []);
+    const { data: entryChartData, animate: chartAnimate } =
+      useVictoryChartEntry({
+        identity: `cashflow-${year}-${monthIndex0}`,
+        zeroData: zeroChartData,
+        targetData: chartData,
+        enabled: chartsDataSettled && !chartLoading,
+        isFullyVisible,
+        animateConfig: INSIGHTS_CHART_BAR_ANIMATION,
+      });
+
+    const victoryChartData = chartLoading ? zeroChartData : entryChartData;
+    const victoryAnimate = chartLoading ? undefined : chartAnimate;
+
+    // Income dot flags — derived from victoryChartData so dots only appear
+    // once bars animate in (zero phase has income=0, target phase shows real data).
+    const incomeFlags = useMemo(
+      () => victoryChartData.map((row) => row.income > 0),
+      [victoryChartData],
+    );
+
+    const {
+      selected,
+      selectedDay,
+      dismissTooltip,
+      handleDayPress,
+      handleViewPress,
+    } = useCashflowDayTooltip({ tooltipDismissRef, onViewDayPress });
+
+    const scrollRef = useRef<ScrollView>(null);
+    const [viewportWidth, setViewportWidth] = useState(0);
+    const isFocused = useIsFocused();
 
     useEffect(() => {
-      if (!tooltipDismissRef) {
+      if (
+        !isFocused ||
+        chartLoading ||
+        todayDay == null ||
+        viewportWidth <= 0
+      ) {
         return;
       }
-      tooltipDismissRef.current = dismissTooltip;
-      return () => {
-        tooltipDismissRef.current = null;
-      };
-    }, [dismissTooltip, tooltipDismissRef]);
-
-    const handleDayPress = useCallback(
-      (row: (typeof monthDays)[number], anchorWindow: ChartTooltipAnchor) => {
-        const next = toDayPress(row);
-        setSelected((prev) =>
-          prev?.selection.day === next.day
-            ? null
-            : { selection: next, anchorWindow },
-        );
-      },
-      [],
-    );
-
-    const tooltipRows = useMemo(() => {
-      if (!selected) {
-        return null;
-      }
-      const { expense, income, net } = selected.selection;
-      return [
-        {
-          label: "Expense",
-          value: formatInrCompact(expense),
-          tone: "debit" as const,
-        },
-        {
-          label: "Income",
-          value: formatInrCompact(income),
-          tone: "credit" as const,
-        },
-        {
-          label: "Net",
-          value: formatInrCompact(net),
-          tone: netTone(net),
-        },
-      ];
-    }, [selected]);
-
-    const tooltipTitle =
-      selected != null
-        ? cashflowTooltipTitle(selected.selection, todayDay)
-        : "";
-
-    const handleTooltipViewPress = useCallback(() => {
-      const day = selected?.selection;
-      if (!day) {
-        return;
-      }
-      dismissTooltip();
-      onViewDayPress?.(day);
-    }, [dismissTooltip, onViewDayPress, selected]);
-
-    const tooltipViewAction = useMemo(
-      () => ({ onPress: handleTooltipViewPress }),
-      [handleTooltipViewPress],
-    );
+      scrollRef.current?.scrollTo({
+        x: cashflowScrollOffsetForToday(todayDay, viewportWidth, scrollWidth),
+        animated: false,
+      });
+    }, [
+      chartLoading,
+      entryChartData,
+      isFocused,
+      scrollWidth,
+      todayDay,
+      viewportWidth,
+      year,
+      monthIndex0,
+    ]);
 
     return (
       <>
-        <TwoToneCard
-          header={
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Daily cash flow</Text>
-              <Text style={styles.headerSubtitle}>
-                Income, spending, and net each day
-              </Text>
-            </View>
-          }
-          body={
+        <View ref={containerRef} collapsable={false} onLayout={onChartLayout}>
+          <InsightsCard
+            kicker="DAILY CASH FLOW"
+            subtitle="Expense each day this month"
+          >
             <View style={styles.body}>
-              {loading ? (
+              {chartLoading ? (
                 <InsightsCashflowChartSkeleton />
               ) : (
                 <>
                   <View style={styles.chartRow}>
-                    <View
-                      style={[
-                        styles.yAxisColumn,
-                        { height: CHART_PLOT_HEIGHT },
-                        yTickValues.length === 1 &&
-                          styles.yAxisColumnOriginOnly,
-                      ]}
-                    >
-                      {[...yTickValues].reverse().map((tick) => (
-                        <Text key={`y-${tick}`} style={styles.yAxisLabel}>
-                          {formatInrChartAxis(tick)}
-                        </Text>
-                      ))}
-                    </View>
+                    <CashflowYAxis
+                      tickValues={yTickValues}
+                      plotHeight={CHART_PLOT_HEIGHT}
+                    />
 
                     <ScrollView
+                      ref={scrollRef}
                       horizontal
                       nestedScrollEnabled
                       showsHorizontalScrollIndicator
                       style={styles.chartScroll}
                       contentContainerStyle={styles.chartScrollContent}
+                      onLayout={(e) =>
+                        setViewportWidth(e.nativeEvent.layout.width)
+                      }
                       onScrollBeginDrag={dismissTooltip}
                       onMomentumScrollBegin={dismissTooltip}
                     >
                       <View style={{ width: scrollWidth }}>
                         <View style={styles.chartPlot}>
                           <CashflowVictoryChart
-                            key={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
-                            animationKey={`cashflow-${year}-${monthIndex0}-${focusGeneration}`}
-                            chartData={chartData}
+                            animate={victoryAnimate}
+                            chartData={victoryChartData}
                             domain={domain}
                             barPadding={barPadding}
                             plotHeight={CHART_PLOT_HEIGHT}
                             plotWidth={scrollWidth}
+                            incomeFlags={incomeFlags}
+                            todayDay={todayDay}
                           />
 
-                          <View
-                            style={styles.dayHitRow}
-                            pointerEvents="box-none"
-                          >
-                            <Pressable
-                              style={[
-                                styles.dayHitCell,
-                                { width: CASHFLOW_DAY_SLOT_WIDTH },
-                              ]}
-                              onPress={dismissTooltip}
-                              accessibilityRole="button"
-                              accessibilityLabel="Dismiss chart details"
-                            />
-                            {monthDays.map((d) => {
-                              const isSelected =
-                                selected?.selection.day === d.day;
-                              return (
-                                <CashflowDayHitCell
-                                  key={d.date}
-                                  width={CASHFLOW_DAY_SLOT_WIDTH}
-                                  selected={isSelected}
-                                  onPress={(anchor) =>
-                                    handleDayPress(d, anchor)
-                                  }
-                                  accessibilityLabel={`Day ${d.day} cash flow`}
-                                />
-                              );
-                            })}
-                            <Pressable
-                              style={[
-                                styles.dayHitCell,
-                                { width: CASHFLOW_DAY_SLOT_WIDTH },
-                              ]}
-                              onPress={dismissTooltip}
-                              accessibilityRole="button"
-                              accessibilityLabel="Dismiss chart details"
-                            />
-                          </View>
+                          <CashflowDayHitRow
+                            monthDays={monthDays}
+                            selectedDay={selectedDay}
+                            onDismiss={dismissTooltip}
+                            onDayPress={handleDayPress}
+                          />
                         </View>
 
-                        <View
-                          style={[
-                            styles.xLabelsRow,
-                            { height: X_LABEL_ROW_HEIGHT },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.xLabelCell,
-                              { width: CASHFLOW_DAY_SLOT_WIDTH },
-                            ]}
-                          />
-                          {monthDays.map((d) => {
-                            const isToday =
-                              todayDay != null && d.day === todayDay;
-                            return (
-                              <View
-                                key={d.date}
-                                style={[
-                                  styles.xLabelCell,
-                                  { width: CASHFLOW_DAY_SLOT_WIDTH },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.xLabelText,
-                                    isToday && styles.xLabelToday,
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {formatCashflowXLabel(d.day, todayDay)}
-                                </Text>
-                              </View>
-                            );
-                          })}
-                          <View
-                            style={[
-                              styles.xLabelCell,
-                              { width: CASHFLOW_DAY_SLOT_WIDTH },
-                            ]}
-                          />
-                        </View>
+                        <CashflowXLabels
+                          monthDays={monthDays}
+                          todayDay={todayDay}
+                        />
                       </View>
                     </ScrollView>
                   </View>
 
-                  <View style={styles.legendRow}>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendLine,
-                          { backgroundColor: colors.danger },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Expense</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendLine,
-                          { backgroundColor: colors.success },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Income</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendBar,
-                          { backgroundColor: NET_SURPLUS_BAR },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Net +</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                      <View
-                        style={[
-                          styles.legendBar,
-                          { backgroundColor: NET_DEFICIT_BAR },
-                        ]}
-                      />
-                      <Text style={styles.legendLabel}>Net −</Text>
-                    </View>
-                  </View>
+                  <CashflowLegend />
                 </>
               )}
             </View>
-          }
-        />
-        <ChartTooltipOverlay
-          visible={selected != null && tooltipRows != null}
+          </InsightsCard>
+        </View>
+        <CashflowDayTooltip
+          selected={selected}
+          todayDay={todayDay}
           onDismiss={dismissTooltip}
-          title={tooltipTitle}
-          rows={tooltipRows ?? []}
-          anchor={selected?.anchorWindow ?? null}
-          viewAction={tooltipViewAction}
+          onViewPress={handleViewPress}
         />
       </>
     );
@@ -467,51 +231,15 @@ export const InsightsDailyCashflowChart = memo(
 );
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.primary,
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: bento.onPastel.muted,
-  },
   body: {
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
   chartRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-  },
-  yAxisColumn: {
-    width: Y_AXIS_GUTTER,
-    justifyContent: "space-between",
-    paddingTop: 10,
-    paddingBottom: 4,
-    paddingRight: 4,
-  },
-  yAxisColumnOriginOnly: {
-    justifyContent: "flex-end",
-    paddingTop: 0,
-  },
-  yAxisLabel: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 8,
-    lineHeight: 10,
-    color: bento.onPastel.muted,
-    textAlign: "right",
   },
   chartScroll: {
     flex: 1,
@@ -521,65 +249,5 @@ const styles = StyleSheet.create({
   },
   chartPlot: {
     position: "relative",
-  },
-  dayHitRow: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: "row",
-    zIndex: 2,
-  },
-  dayHitCell: {
-    height: "100%",
-  },
-  dayHitCellSelected: {
-    backgroundColor: surfaces.primaryTint08,
-  },
-  xLabelsRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingTop: 2,
-  },
-  xLabelCell: {
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-  xLabelText: {
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 9,
-    lineHeight: 12,
-    color: bento.onPastel.muted,
-    textAlign: "center",
-  },
-  xLabelToday: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 8,
-    lineHeight: 11,
-    color: colors.textPrimary,
-  },
-  legendRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.md,
-    paddingHorizontal: spacing.xs,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  legendLine: {
-    width: 12,
-    height: 3,
-    borderRadius: 2,
-  },
-  legendBar: {
-    width: 8,
-    height: 10,
-    borderRadius: 2,
-  },
-  legendLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 10,
-    lineHeight: 13,
-    color: bento.onPastel.muted,
   },
 });

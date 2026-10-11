@@ -1,17 +1,29 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import { stackScrollGrowShellConfig } from "@/components/layout/stackScrollGrowShellConfig";
+import {
+  notificationsInboxShellConfig,
+  stackScrollGrowShellConfig,
+  stackVirtualizedListShellConfig,
+} from "@/components/layout/stackScrollGrowShellConfig";
 import { colors } from "@/constants";
+import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
+import EditRecurringScreenBase from "@/screens/recurring/EditRecurringScreen";
+import RecurringListScreenBase from "@/screens/recurring/RecurringListScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
-import SettingsCaptureScreenBase from "@/screens/settings/SettingsCaptureScreen";
+import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
+import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
+import SettingsHapticScreenBase from "@/screens/settings/SettingsHapticScreen";
+import SettingsNotificationsScreenBase from "@/screens/settings/SettingsNotificationsScreen";
+import SettingsPermissionsScreenBase from "@/screens/settings/SettingsPermissionsScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
+import EditTransactionScreenBase from "@/screens/transactions/EditTransactionScreen";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
@@ -28,19 +40,34 @@ const SettingsScreen = withStackScreen(
   settingsStackShellConfig,
 );
 const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
-const SettingsCaptureScreen = withStackScreen(SettingsCaptureScreenBase);
+const SettingsEmailScreen = withStackScreen(SettingsEmailScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
+const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
+const SettingsGlossaryScreen = withStackScreen(
+  SettingsGlossaryScreenBase,
+  settingsStackShellConfig,
+);
+const SettingsPermissionsScreen = withStackScreen(
+  SettingsPermissionsScreenBase,
+  settingsStackShellConfig,
+);
+const SettingsNotificationsScreen = withStackScreen(
+  SettingsNotificationsScreenBase,
+);
+const RecurringListScreen = withStackScreen(RecurringListScreenBase);
+const EditRecurringScreen = withStackScreen(EditRecurringScreenBase);
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
-  stackScrollGrowShellConfig,
+  notificationsInboxShellConfig,
 );
 const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
-const TransactionDetailScreen = withStackScreen(TransactionDetailScreenBase);
+const EditTransactionScreen = withStackScreen(EditTransactionScreenBase);
+// TransactionDetail renders its own overlay — no shell wrapper
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
-  stackScrollGrowShellConfig,
+  stackVirtualizedListShellConfig,
 );
 const InsightsMonthCompareScreen = withStackScreen(
   InsightsMonthCompareScreenBase,
@@ -72,14 +99,52 @@ export default function MainStackNavigator() {
         options={{ ...stackScreenOptions, title: "Account" }}
       />
       <Stack.Screen
-        name="SettingsCapture"
-        component={SettingsCaptureScreen}
-        options={{ ...stackScreenOptions, title: "Capture" }}
+        name="SettingsEmail"
+        component={SettingsEmailScreen}
+        options={{ ...stackScreenOptions, title: "Email summaries" }}
       />
       <Stack.Screen
         name="SettingsFeedback"
         component={SettingsFeedbackScreen}
         options={{ ...stackScreenOptions, title: "Feedback" }}
+      />
+      <Stack.Screen
+        name="SettingsHaptic"
+        component={SettingsHapticScreen}
+        options={{ ...stackScreenOptions, title: "Haptic feedback" }}
+      />
+      <Stack.Screen
+        name="SettingsGlossary"
+        component={SettingsGlossaryScreen}
+        options={{ ...stackScreenOptions, title: "Glossary" }}
+      />
+      <Stack.Screen
+        name="SettingsPermissions"
+        component={SettingsPermissionsScreen}
+        options={{ ...stackScreenOptions, title: "Permissions" }}
+      />
+      <Stack.Screen
+        name="SettingsNotifications"
+        component={SettingsNotificationsScreen}
+        options={{ ...stackScreenOptions, title: "Notifications & alerts" }}
+      />
+      <Stack.Screen
+        name="RecurringList"
+        component={RecurringListScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: RECURRING_COPY[route.params.kind].screenTitle,
+        })}
+      />
+      <Stack.Screen
+        name="EditRecurring"
+        component={EditRecurringScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: route.params.recurringId
+            ? RECURRING_COPY[route.params.kind].editTitle
+            : RECURRING_COPY[route.params.kind].addTitle,
+        })}
       />
       <Stack.Screen
         name="Notifications"
@@ -92,9 +157,19 @@ export default function MainStackNavigator() {
         options={{ ...stackScreenOptions, title: "Add transaction" }}
       />
       <Stack.Screen
+        name="EditTransaction"
+        component={EditTransactionScreen}
+        options={{ ...stackScreenOptions, title: "Edit transaction" }}
+      />
+      <Stack.Screen
         name="TransactionDetail"
-        component={TransactionDetailScreen}
-        options={{ ...stackScreenOptions, title: "Transaction" }}
+        component={TransactionDetailScreenBase}
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          animation: "fade",
+          contentStyle: { backgroundColor: "transparent" },
+        }}
       />
       <Stack.Screen
         name="TransactionsList"

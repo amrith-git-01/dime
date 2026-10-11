@@ -1,38 +1,15 @@
-import * as Haptics from "expo-haptics";
-import { Platform } from "react-native";
+import { performHaptic } from "./hapticEngine";
+import { getHapticFeedbackEnabled } from "./hapticPreferencesStorage";
 
 /**
- * Trigger haptics using native haptic engines only.
- * - Android: `performAndroidHapticsAsync` (no Vibrator fallback)
- * - iOS: UIFeedbackGenerator via impact APIs
- * - Unsupported devices: no-op
+ * App-wide haptic feedback — respects the user's haptic preference.
+ * Android: `performAndroidHapticsAsync` (Context_Click).
  */
-export async function triggerLightHaptic(): Promise<void> {
-  try {
-    if (Platform.OS === "android") {
-      await Haptics.performAndroidHapticsAsync(
-        Haptics.AndroidHaptics.Context_Click,
-      );
-      return;
-    }
-    if (Platform.OS === "ios") {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  } catch {
-    // Device does not support native haptics -> intentionally no fallback.
+export async function triggerHaptic(): Promise<void> {
+  if (!getHapticFeedbackEnabled()) {
+    return;
   }
+  await performHaptic();
 }
 
-export async function triggerMediumHaptic(): Promise<void> {
-  try {
-    if (Platform.OS === "android") {
-      await Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Confirm);
-      return;
-    }
-    if (Platform.OS === "ios") {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  } catch {
-    // Device does not support native haptics -> intentionally no fallback.
-  }
-}
+export { performHaptic } from "./hapticEngine";

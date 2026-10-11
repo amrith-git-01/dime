@@ -1,31 +1,24 @@
 import { Image } from "expo-image";
 import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { bento, colors, radius, spacing, surfaces } from "@/constants";
+import { ink, inkFaint, inkSoft, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
-import { SETTINGS_HERO_AVATAR_SIZE } from "./settingsBentoTokens";
-
-const cardShadowStyle = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: bento.surface.lavender,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-  },
-});
+import { SETTINGS_HERO_AVATAR_SIZE } from "../constants/settingsTokens";
 
 export type SettingsHubHeroProps = {
   displayName: string;
+  email: string | null;
   avatarUrl: string;
   onPress: () => void;
 };
 
 export const SettingsHubHero = memo(function SettingsHubHero({
   displayName,
+  email,
   avatarUrl,
   onPress,
 }: SettingsHubHeroProps) {
@@ -33,101 +26,65 @@ export const SettingsHubHero = memo(function SettingsHubHero({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Account and profile"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        cardShadowStyle,
-        pressed && styles.pressed,
-      ]}
+      onPress={() => {
+        void triggerHaptic();
+        onPress();
+      }}
+      android_ripple={{ color: "transparent" }}
+      style={styles.row}
     >
-      <View style={styles.avatarRing}>
-        <Image
-          source={{ uri: avatarUrl }}
-          style={styles.avatar}
-          accessibilityLabel="Profile photo"
-        />
-      </View>
+      <Image
+        source={{ uri: avatarUrl }}
+        style={styles.avatar}
+        accessibilityLabel="Profile photo"
+      />
 
       <View style={styles.textCol}>
-        <Text style={styles.kicker}>Your account</Text>
         <Text style={styles.name} numberOfLines={1}>
           {displayName}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          Profile & display name
-        </Text>
+        {email ? (
+          <Text style={styles.email} numberOfLines={1}>
+            {email}
+          </Text>
+        ) : null}
       </View>
 
-      <View style={styles.chevronWrap}>
-        <ChevronRight
-          size={22}
-          color={colors.brandPrimary}
-          strokeWidth={2.25}
-        />
-      </View>
+      <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
     </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
-  card: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: bento.twoToneHeaderSurface,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    overflow: "visible",
-  },
-  pressed: {
-    opacity: 0.88,
-  },
-  avatarRing: {
-    padding: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.barBackground,
-    borderWidth: 2,
-    borderColor: surfaces.primaryBorder28,
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 56,
+    borderRadius: radius.sm,
   },
   avatar: {
     width: SETTINGS_HERO_AVATAR_SIZE,
     height: SETTINGS_HERO_AVATAR_SIZE,
     borderRadius: SETTINGS_HERO_AVATAR_SIZE / 2,
-    backgroundColor: bento.twoToneBodySurface,
   },
   textCol: {
     flex: 1,
     minWidth: 0,
     gap: 2,
   },
-  kicker: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: colors.brandPrimary,
-  },
   name: {
     fontFamily: fontFamilies.semiBold,
-    fontSize: 20,
-    lineHeight: 26,
-    color: bento.onPastel.primary,
+    fontSize: 18,
+    lineHeight: 24,
+    color: ink,
   },
-  subtitle: {
+  email: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: bento.onPastel.muted,
-  },
-  chevronWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: surfaces.primaryTint10,
+    color: inkSoft,
   },
 });

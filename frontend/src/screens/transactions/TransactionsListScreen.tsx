@@ -1,151 +1,294 @@
-import { Calendar, LayoutGrid, Receipt } from "lucide-react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { memo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BENTO_GAP, BENTO_SECTION_HEADER_GAP } from "@/components/bento";
-import { BentoTransactionTile, TwoToneEmptyState } from "@/components/shared";
-import { bento, colors, spacing, typography } from "@/constants";
+import {
+  CARD_SEGMENT_SHADOW_BLEED,
+  CARD_SEGMENT_SHADOW_TOP_BLEED,
+  EmptyState,
+  emptyStateCopy,
+  SurfaceCardSegment,
+} from "@/components/shared";
+import {
+  accent,
+  danger,
+  inkSoft,
+  line,
+  paper,
+  spacing,
+  success,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import type { TransactionRow } from "@/features/transactions/types";
-import type { TransactionListSection } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { TransactionRow } from "@/features/transactions/components";
+import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
+import type {
+  TransactionListHeaderItem,
+  TransactionListItem,
+  TransactionListRowItem,
+} from "@/features/transactions/utils/buildTransactionFlashListData";
+import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
 
-const TransactionsListSection = memo(function TransactionsListSection({
-  section,
-  onTransactionPress,
-}: {
-  section: TransactionListSection;
-  onTransactionPress: (transaction: TransactionRow) => void;
-}) {
+type DayHeaderProps = {
+  item: TransactionListHeaderItem;
+};
+
+const DayHeader = memo(function DayHeader({ item }: DayHeaderProps) {
+  const netTotal = item.netTotal;
+  const netColor = netTotal < 0 ? danger : netTotal > 0 ? success : inkSoft;
+
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{section.title}</Text>
-      <View style={styles.tileStack}>
-        {section.data.map((transaction) => (
-          <BentoTransactionTile
-            key={transaction.id}
-            transaction={transaction}
-            onPress={onTransactionPress}
-          />
-        ))}
-      </View>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{item.title}</Text>
+      <Text style={[styles.sectionTotal, { color: netColor }]}>
+        {formatTransactionListAmount(netTotal)}
+      </Text>
     </View>
   );
 });
 
+type TransactionListRowViewProps = {
+  item: TransactionListRowItem;
+  onTransactionPress: (transaction: TransactionRowType) => void;
+};
+
+const TransactionListRowView = memo(function TransactionListRowView({
+  item,
+  onTransactionPress,
+}: TransactionListRowViewProps) {
+  return (
+    <View style={item.isLastInSection ? styles.lastRowInSection : undefined}>
+      <SurfaceCardSegment
+        isFirst={item.isFirstInSection}
+        isLast={item.isLastInSection}
+      >
+        {item.isFirstInSection ? null : <View style={styles.rowDivider} />}
+        <TransactionRow
+          transaction={item.transaction}
+          onPress={onTransactionPress}
+        />
+      </SurfaceCardSegment>
+    </View>
+  );
+});
+
+function keyExtractor(item: TransactionListItem): string {
+  return item.id;
+}
+
+function getItemType(item: TransactionListItem): TransactionListItem["kind"] {
+  return item.kind;
+}
+
+function resolveListEmptyCopy(
+  filter: "day" | "category" | "payee",
+  usesRange: boolean,
+) {
+  if (filter === "day") {
+    return emptyStateCopy.transactionsListDay;
+  }
+  if (filter === "category") {
+    return usesRange
+      ? emptyStateCopy.transactionsListCategoryRange
+      : emptyStateCopy.transactionsListCategory;
+  }
+  return usesRange
+    ? emptyStateCopy.transactionsListPayeeRange
+    : emptyStateCopy.transactionsListPayee;
+}
+
 export default function TransactionsListScreen() {
   const {
-    listSections,
+    listItems,
+    stickyHeaderIndices,
     filter,
+    usesRange,
     isEmpty,
     isError,
+    hasLoadedRows,
+    isRetrying,
+    retry,
     openTransactionDetail,
     showInitialLoading,
     showLoadingMore,
+    loadMore,
+    transactionCountLabel,
+    transactionCountIsPlural,
+    monthLabel,
   } = useTransactionsListScreenModel();
+  const insets = useSafeAreaInsets();
+
+  const renderItem: ListRenderItem<TransactionListItem> = ({ item }) =>
+    item.kind === "header" ? (
+      <DayHeader item={item} />
+    ) : (
+      <TransactionListRowView
+        item={item}
+        onTransactionPress={openTransactionDetail}
+      />
+    );
 
   if (showInitialLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={styles.loadingText}>Loading transactions...</Text>
+        <ActivityIndicator color={accent} size="large" />
       </View>
     );
   }
 
-  if (isError) {
+  // Only a failure with nothing loaded replaces the list; otherwise the rows stay and the footer retries.
+  if (isError && !hasLoadedRows) {
     return (
-      <TwoToneEmptyState
-        layout="centered"
-        icon={Receipt}
-        title="Could not load transactions"
-        message="Check your connection and try again."
-      />
+      <View style={styles.fill}>
+        <EmptyState
+          layout="centered"
+          headline={emptyStateCopy.transactionsListError.headline}
+          subtext={emptyStateCopy.transactionsListError.subtext}
+        />
+      </View>
     );
   }
 
   if (isEmpty) {
-    const emptyIcon =
-      filter === "day"
-        ? Calendar
-        : filter === "category"
-          ? LayoutGrid
-          : Receipt;
-    const emptyTitle =
-      filter === "day"
-        ? "No transactions on this day"
-        : filter === "category"
-          ? "No transactions in this category"
-          : "No transactions for this payee";
-    const emptyMessage =
-      filter === "day"
-        ? "Nothing was recorded for this date in the selected month."
-        : filter === "category"
-          ? "No debits were recorded in this category for the selected month."
-          : "No debits matched this payee in the selected month.";
-
+    const copy = resolveListEmptyCopy(filter, usesRange);
     return (
-      <TwoToneEmptyState
-        layout="centered"
-        icon={emptyIcon}
-        title={emptyTitle}
-        message={emptyMessage}
-      />
+      <View style={styles.fill}>
+        <EmptyState
+          layout="centered"
+          headline={copy.headline}
+          subtext={copy.subtext}
+        />
+      </View>
     );
   }
 
   return (
-    <View style={styles.root}>
-      {listSections.map((section) => (
-        <TransactionsListSection
-          key={section.key}
-          section={section}
-          onTransactionPress={openTransactionDetail}
-        />
-      ))}
-      {showLoadingMore ? (
-        <View style={styles.footer}>
-          <ActivityIndicator color={colors.primary} />
+    <FlashList
+      style={styles.fill}
+      data={listItems}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      getItemType={getItemType}
+      stickyHeaderIndices={stickyHeaderIndices}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{
+        backgroundColor: paper,
+        paddingHorizontal: spacing.lg + spacing.md,
+        paddingTop: spacing.lg + spacing.md,
+        paddingBottom: spacing.xl * 3 + insets.bottom,
+      }}
+      ListHeaderComponent={
+        <View style={styles.subtitleRow}>
+          <Text style={styles.subtitle}>
+            {`${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""} · ${monthLabel}`}
+          </Text>
         </View>
-      ) : null}
-    </View>
+      }
+      ListFooterComponent={
+        isError ? (
+          <View style={styles.loadingMore}>
+            <Text style={styles.footerError}>
+              {emptyStateCopy.transactionsListError.headline}
+            </Text>
+            <Pressable
+              onPress={retry}
+              disabled={isRetrying}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading transactions"
+              hitSlop={8}
+            >
+              <Text style={styles.footerRetry}>
+                {isRetrying ? "Retrying…" : "Retry"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : showLoadingMore ? (
+          <View style={styles.loadingMore}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : null
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flexGrow: 1,
-    gap: spacing.lg,
+  fill: {
+    flex: 1,
+    backgroundColor: paper,
   },
-  section: {
-    gap: BENTO_SECTION_HEADER_GAP,
+  subtitleRow: {
+    paddingBottom: spacing.xl,
   },
-  sectionTitle: {
-    ...typography.sectionTitle,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: bento.onPastel.muted,
-  },
-  tileStack: {
-    gap: BENTO_GAP,
-  },
-  centered: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.md,
-  },
-  loadingText: {
+  subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
-  footer: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xs,
+    // The first row segment reserves top room for its card shadow.
+    paddingBottom: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
+    backgroundColor: paper,
+  },
+  sectionTitle: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  sectionTotal: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    fontVariant: ["tabular-nums"],
+  },
+  lastRowInSection: {
+    // The last row segment reserves bottom room for its card shadow.
+    paddingBottom: spacing.xl - CARD_SEGMENT_SHADOW_BLEED,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: line,
+    marginLeft: spacing.lg + 40 + spacing.md,
+  },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: paper,
+  },
+  loadingMore: {
     paddingVertical: spacing.lg,
     alignItems: "center",
+  },
+  footerError: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: inkSoft,
+  },
+  footerRetry: {
+    marginTop: spacing.sm,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: accent,
   },
 });

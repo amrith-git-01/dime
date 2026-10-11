@@ -15,8 +15,16 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
+import {
+  accent,
+  inkFaint,
+  inkSoft,
+  line,
+  radius,
+  spacing,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants";
 
 import { BUDGET_SLIDER_SPRING } from "./budgetEditorBentoTokens";
 import {
@@ -281,7 +289,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: colors.textSecondary,
+    color: inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -303,7 +311,7 @@ const styles = StyleSheet.create({
   trackBg: {
     height: TRACK_HEIGHT,
     borderRadius: radius.full,
-    backgroundColor: colors.border,
+    backgroundColor: line,
     overflow: "hidden",
   },
   trackFill: {
@@ -311,9 +319,8 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.primary,
+    backgroundColor: accent,
     borderRadius: radius.full,
-    opacity: 0.4,
   },
   thumb: {
     position: "absolute",
@@ -326,12 +333,12 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    backgroundColor: colors.barBackground,
+    backgroundColor: surface,
     borderWidth: 2,
-    borderColor: colors.primary,
-    shadowColor: colors.shadowBrand,
+    borderColor: accent,
+    shadowColor: inkSoft,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -349,23 +356,23 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.barBackground,
+    backgroundColor: surface,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: line,
   },
   tickActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryMuted,
+    borderColor: accent,
+    backgroundColor: accent,
   },
   label: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 14,
-    color: colors.inactive,
+    color: inkFaint,
     textAlign: "center",
   },
   labelActive: {
-    color: colors.primary,
+    color: accent,
     fontFamily: fontFamilies.semiBold,
   },
 });

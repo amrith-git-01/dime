@@ -1,6 +1,11 @@
 import { lastDayOfMonth } from "date-fns";
 
 import type { DailyCashflowRow } from "../types";
+import {
+  buildClusteredCashflowScale,
+  collectCashflowRowValues,
+  scaleCashflowVictoryRow,
+} from "./cashflowClusterScale";
 
 export type DailyCashflowDay = {
   date: string;
@@ -32,6 +37,14 @@ export function parseDailyCashflow(
 export function isCurrentMonth(year: number, monthIndex0: number): boolean {
   const now = new Date();
   return now.getFullYear() === year && now.getMonth() === monthIndex0;
+}
+
+export function isPastMonth(year: number, monthIndex0: number): boolean {
+  const now = new Date();
+  return (
+    year < now.getFullYear() ||
+    (year === now.getFullYear() && monthIndex0 < now.getMonth())
+  );
 }
 
 /** Last calendar day in the month (28–31), including future days in the current month. */
@@ -101,6 +114,21 @@ export type CashflowChartRowY = {
   netDeficit: number;
 };
 
+export const ZERO_CASHFLOW_CHART_ROW: CashflowChartRowY = {
+  expense: 0,
+  income: 0,
+  netSurplus: 0,
+  netDeficit: 0,
+};
+
+export type CashflowVictoryChartRow = { day: number } & CashflowChartRowY;
+
+export function netBarInnerPadding(dayCount: number): number {
+  if (dayCount <= 10) return 0.22;
+  if (dayCount <= 20) return 0.14;
+  return 0.2;
+}
+
 export function maxCashflowChartY(rows: CashflowChartRowY[]): number {
   let maxY = 0;
   for (const row of rows) {
@@ -115,42 +143,52 @@ export function maxCashflowChartY(rows: CashflowChartRowY[]): number {
   return maxY;
 }
 
-export type CashflowChartScale = {
-  /** Y domain max for the chart library (minimum 1 when the series is all zeros). */
-  yDomainMax: number;
+export type MonthlyCashflowChartModel = {
+  chartData: CashflowVictoryChartRow[];
+  yMax: number;
+  barPadding: number;
   yTickValues: number[];
+  yScale: ClusteredCashflowScaleRef;
 };
 
-/** Scale + axis ticks; empty months show only ₹0 at the origin. */
-export function buildCashflowChartScale(
-  maxDataY: number,
-  tickCount = 4,
-): CashflowChartScale {
-  if (maxDataY <= 0) {
-    return {
-      yDomainMax: 1,
-      yTickValues: [0],
-    };
-  }
-  const domainMax = maxDataY + maxDataY * 0.1;
-  return {
-    yDomainMax: domainMax,
-    yTickValues: buildCashflowYTickValues(domainMax, tickCount),
-  };
-}
+/** Clustered scale metadata exposed to chart consumers (axis labels). */
+export type ClusteredCashflowScaleRef = {
+  breaks: number[];
+  rawMax: number;
+};
 
-export function buildCashflowYTickValues(
-  yMax: number,
-  tickCount = 4,
-): number[] {
-  if (yMax <= 0) {
-    return [0];
-  }
-  const ticks: number[] = [];
-  for (let i = 0; i <= tickCount; i += 1) {
-    ticks.push((yMax / tickCount) * i);
-  }
-  return ticks;
+/** Shared Victory cashflow rows + clustered y-scale for Insights and compare charts. */
+export function buildMonthlyCashflowChartModel(
+  monthDays: DailyCashflowDay[],
+  trailingAnchorDay: number,
+): MonthlyCashflowChartModel {
+  const monthRows = monthDays.map((d) => ({
+    day: d.day,
+    expense: d.expense,
+    income: d.income,
+    netSurplus: d.net > 0 ? d.net : 0,
+    netDeficit: d.net < 0 ? Math.abs(d.net) : 0,
+  }));
+  const rawChartData: CashflowVictoryChartRow[] = [
+    { day: CHART_LEADING_ANCHOR_DAY, ...ZERO_CASHFLOW_CHART_ROW },
+    ...monthRows,
+    { day: trailingAnchorDay, ...ZERO_CASHFLOW_CHART_ROW },
+  ];
+
+  const yScale = buildClusteredCashflowScale(
+    collectCashflowRowValues(rawChartData),
+  );
+  const chartData = rawChartData.map((row) =>
+    scaleCashflowVictoryRow(row, yScale),
+  );
+
+  return {
+    chartData,
+    yMax: yScale.yDomainMax,
+    barPadding: netBarInnerPadding(monthRows.length),
+    yTickValues: yScale.yTickLabels,
+    yScale: { breaks: yScale.breaks, rawMax: yScale.rawMax },
+  };
 }
 
 export function formatCashflowXLabel(
@@ -161,4 +199,16 @@ export function formatCashflowXLabel(
     return "Today";
   }
   return String(day);
+}
+
+/** Horizontal scroll offset that centers today's column in the viewport. */
+export function cashflowScrollOffsetForToday(
+  todayDay: number,
+  viewportWidth: number,
+  contentWidth: number,
+): number {
+  const todayStart = todayDay * CASHFLOW_DAY_SLOT_WIDTH;
+  const centered = todayStart - viewportWidth / 2 + CASHFLOW_DAY_SLOT_WIDTH / 2;
+  const maxOffset = Math.max(0, contentWidth - viewportWidth);
+  return Math.min(maxOffset, Math.max(0, centered));
 }

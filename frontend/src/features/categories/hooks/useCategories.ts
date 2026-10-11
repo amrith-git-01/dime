@@ -8,12 +8,12 @@ import { sortCategories } from "../utils/sortCategories";
 
 /** React Query hook — sorted list, MMKV-persisted via app-level persister. */
 export function useCategoriesQuery() {
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
 
   return useQuery({
-    queryKey: categoriesQueryKeys.list(),
+    queryKey: categoriesQueryKeys.list(userId),
     queryFn: fetchCategories,
-    enabled: authReady && Boolean(userId),
+    enabled: Boolean(userId),
     select: sortCategories,
   });
 }

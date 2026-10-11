@@ -1,221 +1,147 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HorizontalSlidePanel } from "@/components/animations/HorizontalSlidePanel";
-import { Button, TextField } from "@/components/ui";
-import { colors, spacing } from "@/constants";
+import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
+import { StackScreenShell } from "@/components/layout/StackScreenShell";
+import { BUTTON_LOADER_SIZE, InfinityButtonLoader } from "@/components/ui";
+import {
+  accent,
+  danger,
+  paper,
+  radius,
+  shadows,
+  spacing,
+  surface,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { AuthScreenLayout } from "@/components/auth/AuthScreenLayout";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 
+const wordmark = require("../../../assets/images/splash-wordmark.png");
+
 export default function AuthScreen() {
   const model = useAuthScreenModel();
+  const insets = useSafeAreaInsets();
 
   return (
-    <AuthScreenLayout mode={model.mode} onModeChange={model.setMode}>
-      <View style={styles.slideRoot}>
-        {model.mode === "login" ? (
-          <HorizontalSlidePanel panelKey="auth-login" preset="fromStart">
-            <View style={styles.formCard}>
-              <TextField
-                label="Email"
-                value={model.email}
-                onChangeText={model.updateEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="emailAddress"
-                editable={!model.busy}
-              />
-              <TextField
-                label="Password"
-                value={model.password}
-                onChangeText={model.updatePassword}
-                showPasswordToggle
-                showClear={false}
-                textContentType="password"
-                editable={!model.busy}
-              />
-              {model.loginBanner ? (
-                <Text style={styles.bannerError}>{model.loginBanner}</Text>
-              ) : null}
-
-              <Button
-                title="Sign in"
-                loading={model.signInLoading}
-                disabled={model.busy}
-                onPress={model.submitSignIn}
-              />
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <PressableGoogleRow
-                disabled={model.busy}
-                loading={model.googleLoading}
-                onPress={model.submitGoogle}
-              />
-
-              <Text style={styles.legal}>
-                By continuing you agree to our Terms and Privacy Policy.
-              </Text>
-            </View>
-          </HorizontalSlidePanel>
-        ) : (
-          <HorizontalSlidePanel panelKey="auth-register" preset="fromEnd">
-            <View style={styles.formCard}>
-              <TextField
-                label="Email"
-                value={model.email}
-                onChangeText={model.updateEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="emailAddress"
-                editable={!model.busy}
-              />
-              <TextField
-                label="Password"
-                value={model.password}
-                onChangeText={model.updatePassword}
-                showPasswordToggle
-                showClear={false}
-                textContentType="newPassword"
-                editable={!model.busy}
-              />
-              <TextField
-                label="Confirm password"
-                value={model.passwordConfirm}
-                onChangeText={model.updatePasswordConfirm}
-                showPasswordToggle
-                showClear={false}
-                textContentType="newPassword"
-                editable={!model.busy}
-              />
-              {model.registerBanner ? (
-                <Text style={styles.bannerError}>{model.registerBanner}</Text>
-              ) : null}
-
-              <Button
-                title="Create account"
-                loading={model.signUpLoading}
-                disabled={model.busy}
-                onPress={model.submitSignUp}
-              />
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <PressableGoogleRow
-                disabled={model.busy}
-                loading={model.googleLoading}
-                onPress={model.submitGoogle}
-              />
-
-              <Text style={styles.legal}>
-                By continuing you agree to our Terms and Privacy Policy.
-              </Text>
-            </View>
-          </HorizontalSlidePanel>
-        )}
-      </View>
-    </AuthScreenLayout>
-  );
-}
-
-function PressableGoogleRow({
-  disabled,
-  loading,
-  onPress,
-}: {
-  disabled: boolean;
-  loading: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled || loading}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: 48,
-        borderRadius: 12,
-        paddingHorizontal: spacing.lg,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: spacing.sm,
-        backgroundColor: colors.barBackground,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        opacity: pressed && !disabled ? 0.9 : 1,
-      })}
+    <StackScreenShell
+      scrollEnabled={false}
+      contentContainerStyle={styles.shellContent}
     >
-      <MaterialCommunityIcons
-        name="google"
-        size={22}
-        color={colors.oauthGoogle}
-      />
-      <Text style={styles.googleLabel}>
-        {loading ? "Opening Google..." : "Continue with Google"}
-      </Text>
-    </Pressable>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.brandHeader}>
+          <Image
+            source={wordmark}
+            style={styles.wordmark}
+            accessibilityLabel="Dime"
+            resizeMode="contain"
+          />
+        </View>
+
+        <View style={styles.heroRegion}>
+          <AuthHeroLottie />
+        </View>
+
+        <View
+          style={[
+            styles.ctaRegion,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) },
+          ]}
+        >
+          {model.googleError ? (
+            <Text style={styles.errorText}>{model.googleError}</Text>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            disabled={model.busy}
+            onPress={() => {
+              void triggerHaptic();
+              model.submitGoogle();
+            }}
+            style={({ pressed }) => [
+              styles.googleButton,
+              pressed && !model.busy && styles.googleButtonPressed,
+              model.busy && styles.googleButtonDisabled,
+            ]}
+          >
+            {model.googleLoading ? (
+              <InfinityButtonLoader color={surface} size={BUTTON_LOADER_SIZE} />
+            ) : (
+              <MaterialCommunityIcons name="google" size={22} color={surface} />
+            )}
+            <Text style={styles.googleLabel}>
+              {model.googleLoading ? "Signing in…" : "Continue with Google"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </StackScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  slideRoot: {
-    width: "100%",
+  shellContent: {
+    flex: 1,
+    backgroundColor: paper,
   },
-  formCard: {
-    backgroundColor: colors.barBackground,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    rowGap: spacing.lg,
+  screen: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  bannerError: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.error,
-    textAlign: "center",
+  brandHeader: {
+    alignItems: "flex-start",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
-  dividerRow: {
+  wordmark: {
+    width: 132,
+    height: 44,
+  },
+  heroRegion: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 0,
+    paddingBottom: spacing.sm,
+  },
+  ctaRegion: {
+    gap: spacing.md,
+    paddingTop: spacing.md,
+  },
+  googleButton: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: spacing.md,
+    justifyContent: "center",
+    gap: spacing.sm,
+    minHeight: 54,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: accent,
+    ...shadows.cardElevated,
   },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+  googleButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
-  dividerText: {
+  googleButtonDisabled: {
+    opacity: 0.55,
+  },
+  googleLabel: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: surface,
+  },
+  errorText: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.inactive,
-  },
-  googleLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.primary,
-  },
-  legal: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
+    color: danger,
     textAlign: "center",
   },
 });

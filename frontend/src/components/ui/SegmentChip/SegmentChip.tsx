@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 
 import { bento, colors, hero, radius, spacing, surfaces } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 export type SegmentChipVariant = "default" | "onDark";
 
@@ -30,7 +31,10 @@ export const SegmentChip = memo(function SegmentChip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        void triggerHaptic();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.chip,
         onDark && styles.chipOnDark,
@@ -40,6 +44,7 @@ export const SegmentChip = memo(function SegmentChip({
       ]}
     >
       <Text
+        numberOfLines={1}
         style={[
           styles.chipText,
           onDark && styles.chipTextOnDark,
@@ -63,7 +68,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.pageBackground,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   chipSelected: {
     backgroundColor: surfaces.primaryTint10,

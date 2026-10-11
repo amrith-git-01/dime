@@ -2,30 +2,33 @@ import { ChevronRight, type LucideIcon } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import {
+  accent,
+  accentTint,
+  ink,
+  inkFaint,
+  inkSoft,
+  line,
+  radius,
+  spacing,
+} from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing } from "@/constants";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
-export type SettingsNavRowIconAccent = {
-  backgroundColor: string;
-  iconColor: string;
-};
+import { SETTINGS_NAV_ICON_WELL_SIZE } from "../constants/settingsTokens";
 
 export type SettingsNavRowProps = {
   label: string;
   subtitle?: string;
   icon: LucideIcon;
-  iconAccent: SettingsNavRowIconAccent;
   onPress: () => void;
   showSeparator?: boolean;
 };
-
-const ICON_WELL_SIZE = 44;
 
 export const SettingsNavRow = memo(function SettingsNavRow({
   label,
   subtitle,
   icon: Icon,
-  iconAccent,
   onPress,
   showSeparator = false,
 }: SettingsNavRowProps) {
@@ -33,16 +36,15 @@ export const SettingsNavRow = memo(function SettingsNavRow({
     <View>
       <Pressable
         accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        onPress={() => {
+          void triggerHaptic();
+          onPress();
+        }}
+        android_ripple={{ color: "transparent" }}
+        style={styles.row}
       >
-        <View
-          style={[
-            styles.iconWell,
-            { backgroundColor: iconAccent.backgroundColor },
-          ]}
-        >
-          <Icon size={22} color={iconAccent.iconColor} strokeWidth={2} />
+        <View style={styles.iconWell}>
+          <Icon size={20} color={accent} strokeWidth={2} />
         </View>
         <View style={styles.textCol}>
           <Text style={styles.label}>{label}</Text>
@@ -52,7 +54,7 @@ export const SettingsNavRow = memo(function SettingsNavRow({
             </Text>
           ) : null}
         </View>
-        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+        <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
       </Pressable>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>
@@ -61,9 +63,10 @@ export const SettingsNavRow = memo(function SettingsNavRow({
 
 const styles = StyleSheet.create({
   iconWell: {
-    width: ICON_WELL_SIZE,
-    height: ICON_WELL_SIZE,
-    borderRadius: radius.md,
+    width: SETTINGS_NAV_ICON_WELL_SIZE,
+    height: SETTINGS_NAV_ICON_WELL_SIZE,
+    borderRadius: radius.sm,
+    backgroundColor: accentTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -72,10 +75,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
     paddingVertical: spacing.sm,
-    minHeight: 56,
-  },
-  rowPressed: {
-    opacity: 0.7,
+    paddingHorizontal: spacing.sm,
+    minHeight: 52,
+    borderRadius: radius.sm,
   },
   textCol: {
     flex: 1,
@@ -85,19 +87,19 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
-    lineHeight: 20,
-    color: colors.textPrimary,
+    lineHeight: 22,
+    color: ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginLeft: ICON_WELL_SIZE + spacing.md,
-    marginVertical: spacing.xs,
+    backgroundColor: line,
+    marginLeft: SETTINGS_NAV_ICON_WELL_SIZE + spacing.md + spacing.sm,
+    marginRight: spacing.sm,
   },
 });

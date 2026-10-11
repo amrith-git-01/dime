@@ -27,9 +27,19 @@ export type TransactionRow = {
   voice_url: string | null;
 };
 
+export type DayTransactionSummary = {
+  date: string;
+  credit_total: string;
+  debit_total: string;
+  net: string;
+  transaction_count: number;
+};
+
 export type TransactionListPage = {
   items: TransactionRow[];
   has_more: boolean;
+  /** Per-day totals for the requested range; first page only. */
+  day_summaries?: Record<string, DayTransactionSummary>;
 };
 
 export type MonthSummary = {

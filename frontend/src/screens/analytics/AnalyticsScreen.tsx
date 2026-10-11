@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
@@ -9,108 +9,131 @@ import {
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsHeavyChartsPlaceholder,
+  InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
   InsightsMonthSummaryCard,
   InsightsTopExpensesCard,
 } from "@/features/analytics/components";
-import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
+import {
+  InsightsScrollVisibilityProvider,
+  useInsightsScrollVisibility,
+} from "@/features/analytics/hooks/useInsightsScrollVisibility";
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 
-export default function AnalyticsScreen() {
-  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+function AnalyticsInsightsScroll() {
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
+  const { reportScroll } = useInsightsScrollVisibility();
   const {
-    hasInsightsData,
+    chartsReady,
+    chartsDataSettled,
     monthOptions,
     selectedMonth,
     selectedMonthIndex,
-    handleSelectMonth,
     openInsightsMonthCompare,
     summary,
     summaryLoading,
     summaryFailed,
+    hasMonthlyBudget,
     chartLoading,
     burnRateMetrics,
     dailyCashflow,
     chartYear,
     chartMonthIndex0,
     counterpartySpend,
+    counterpartyIncome,
     topExpenses,
     openTransactionDetail,
     openTransactionsListForDay,
     openTransactionsListForPayee,
     onManualAdd,
-    onReceipt,
-    onVoice,
+    canGoPrevMonth,
+    canGoNextMonth,
+    goPrevMonth,
+    goNextMonth,
   } = useAnalyticsScreenModel();
-  const { chartsReady, focusGeneration } =
-    useDeferredHeavyCharts(hasInsightsData);
 
   return (
-    <TabScreenShell>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        scrollEnabled={!monthMenuOpen}
-        showsVerticalScrollIndicator={false}
-        onScrollBeginDrag={() => {
-          cashflowTooltipDismissRef.current?.();
-          payeeTooltipDismissRef.current?.();
-        }}
-      >
-        <InsightsMonthSummaryCard
-          selectedMonth={selectedMonth.label}
-          monthOptions={monthOptions}
-          onSelectMonth={handleSelectMonth}
-          onMonthMenuOpenChange={setMonthMenuOpen}
-          summary={summary}
-          summaryLoading={summaryLoading}
-          summaryFailed={summaryFailed}
-        />
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
+      onScroll={reportScroll}
+      onScrollBeginDrag={() => {
+        cashflowTooltipDismissRef.current?.();
+        payeeTooltipDismissRef.current?.();
+        reportScroll();
+      }}
+      onMomentumScrollEnd={reportScroll}
+    >
+      <InsightsMonthSummaryCard
+        selectedMonth={selectedMonth.label}
+        canGoPrevMonth={canGoPrevMonth}
+        canGoNextMonth={canGoNextMonth}
+        onPrevMonth={goPrevMonth}
+        onNextMonth={goNextMonth}
+        summary={summary}
+        summaryLoading={summaryLoading}
+        summaryFailed={summaryFailed}
+        hasMonthlyBudget={hasMonthlyBudget}
+      />
 
-        {chartsReady ? (
-          <>
-            <InsightsBurnRateMetricCard
-              metrics={burnRateMetrics}
-              loading={chartLoading}
-            />
-            <InsightsDailyCashflowChart
-              dailyCashflow={dailyCashflow}
-              year={chartYear}
-              monthIndex0={chartMonthIndex0}
-              focusGeneration={focusGeneration}
-              loading={chartLoading}
-              tooltipDismissRef={cashflowTooltipDismissRef}
-              onViewDayPress={openTransactionsListForDay}
-            />
-            <InsightsCounterpartyDonutCard
-              counterpartySpend={counterpartySpend}
-              chartYear={chartYear}
-              chartMonthIndex0={chartMonthIndex0}
-              focusGeneration={focusGeneration}
-              loading={chartLoading}
-              tooltipDismissRef={payeeTooltipDismissRef}
-              onViewPayeePress={openTransactionsListForPayee}
-            />
-            <InsightsTopExpensesCard
-              topExpenses={topExpenses}
-              loading={chartLoading}
-              onTransactionPress={openTransactionDetail}
-              onManualAdd={onManualAdd}
-              onReceipt={onReceipt}
-              onVoice={onVoice}
-            />
-          </>
-        ) : (
-          <InsightsHeavyChartsPlaceholder />
-        )}
-        <InsightsMonthCompareLauncherCard
-          monthOptions={monthOptions}
-          insightsSelectedMonthIndex={selectedMonthIndex}
-          onCompare={openInsightsMonthCompare}
-        />
-      </ScrollView>
+      {chartsReady ? (
+        <>
+          <InsightsBurnRateMetricCard
+            metrics={burnRateMetrics}
+            loading={chartLoading}
+            year={chartYear}
+            monthIndex0={chartMonthIndex0}
+          />
+          <InsightsDailyCashflowChart
+            dailyCashflow={dailyCashflow}
+            year={chartYear}
+            monthIndex0={chartMonthIndex0}
+            chartsDataSettled={chartsDataSettled}
+            chartLoading={chartLoading}
+            tooltipDismissRef={cashflowTooltipDismissRef}
+            onViewDayPress={openTransactionsListForDay}
+          />
+          <InsightsCounterpartyDonutCard
+            counterpartySpend={counterpartySpend}
+            chartYear={chartYear}
+            chartMonthIndex0={chartMonthIndex0}
+            chartsDataSettled={chartsDataSettled}
+            chartLoading={chartLoading}
+            tooltipDismissRef={payeeTooltipDismissRef}
+            onViewPayeePress={openTransactionsListForPayee}
+          />
+          <InsightsIncomeSourcesCard
+            counterpartyIncome={counterpartyIncome}
+            loading={chartLoading}
+          />
+          <InsightsTopExpensesCard
+            topExpenses={topExpenses}
+            loading={chartLoading}
+            onTransactionPress={openTransactionDetail}
+            onManualAdd={onManualAdd}
+          />
+        </>
+      ) : (
+        <InsightsHeavyChartsPlaceholder />
+      )}
+      <InsightsMonthCompareLauncherCard
+        monthOptions={monthOptions}
+        insightsSelectedMonthIndex={selectedMonthIndex}
+        onCompare={openInsightsMonthCompare}
+      />
+    </ScrollView>
+  );
+}
+
+export default function AnalyticsScreen() {
+  return (
+    <TabScreenShell>
+      <InsightsScrollVisibilityProvider>
+        <AnalyticsInsightsScroll />
+      </InsightsScrollVisibilityProvider>
     </TabScreenShell>
   );
 }

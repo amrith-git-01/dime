@@ -1,19 +1,29 @@
 /**
- * Bento grid surfaces — design system §2.7.
+ * Bento grid surfaces — updated for Monochrome Design System.
+ *
+ * The colorful pastel tile surfaces are retained only for category icon tiles
+ * (the one governed exception). Everything else now uses neutral surfaces.
  */
-import { colors } from "./colors";
+import {
+  accent,
+  accentTint,
+  ink,
+  inkFaint,
+  inkSoft,
+  surface,
+  surfaceSunken,
+} from "./colors";
 
 export const bento = {
-  /** Soft sky pastel — month spend tile background. */
-  monthSpendSurface: "#E0F2FE",
-  /** Soft lavender pastel — cash-flow tile background. */
-  incomeExpenseSurface: "#EDE9FE",
-  /** Two-tone card header — Transactions month + Budget summary (brand violet). */
-  twoToneHeaderSurface: "#EEEDFB",
-  /** Two-tone card body — stats row beneath header (clean white). */
-  twoToneBodySurface: "#FFFFFF",
-  /** Outer wrapper for section bento boxes (recent, categories). */
-  sectionSurface: "#F5F3FF",
+  // Pastel backgrounds removed — replaced by neutral card system.
+  // Keeping only for category color tiles (governed exception).
+  monthSpendSurface: surfaceSunken,
+  incomeExpenseSurface: surfaceSunken,
+  twoToneHeaderSurface: surfaceSunken,
+  twoToneBodySurface: surface,
+  sectionSurface: surfaceSunken,
+
+  /** Category icon tile palettes — retained for recognition. */
   surface: {
     lavender: "#8B7FF5",
     mint: "#4ADE80",
@@ -24,41 +34,46 @@ export const bento = {
     indigo: "#818CF8",
     rose: "#F472B6",
   },
-  /** White type on saturated / gradient tiles (today, category cells). */
+  /** Type on white/light neutral surfaces (standard token usage). */
   onSurface: {
+    primary: ink,
+    secondary: inkSoft,
+    muted: inkFaint,
+  },
+  /** Type on saturated category tile surfaces (unchanged — still colorful). */
+  onCategoryTile: {
     primary: "#FFFFFF",
     secondary: "rgba(255,255,255,0.85)",
     muted: "rgba(255,255,255,0.65)",
   },
-  /** Dark type on soft pastel tile backgrounds. */
+  /** Type on soft pastel tile backgrounds. */
   onPastel: {
-    primary: colors.textPrimary,
-    secondary: colors.textSecondary,
-    muted: colors.textListSecondary,
-    accent: colors.primary,
+    primary: ink,
+    secondary: inkSoft,
+    muted: inkFaint,
+    accent,
   },
   chart: {
-    track: "rgba(255,255,255,0.28)",
-    fill: "#FFFFFF",
+    track: surfaceSunken,
+    fill: accent,
   },
-  /** Progress ring on light pastel surfaces. */
   chartOnPastel: {
-    track: "rgba(99, 85, 232, 0.16)",
-    fill: colors.brandPrimary,
+    track: accentTint,
+    fill: accent,
   },
   icon: {
-    bg: "rgba(255,255,255,0.18)",
-    fg: "#FFFFFF",
+    bg: surfaceSunken,
+    fg: ink,
   },
-  /** Pastel circles for quick-add icon buttons. */
+  /** FAB action bubble fills — now ink-colored. */
   actionIcon: {
-    manual: "#8B7FF5",
-    receipt: "#38BDF8",
-    voice: "#4ADE80",
+    manual: ink,
+    receipt: ink,
+    voice: ink,
   },
 } as const;
 
-/** Preset hex options for custom category creation. */
+/** Preset hex options for custom category creation — unchanged (governs category marks). */
 export const customCategoryColorOptions = [
   bento.surface.coral,
   bento.surface.teal,
@@ -69,8 +84,8 @@ export const customCategoryColorOptions = [
   bento.surface.indigo,
   bento.surface.rose,
   "#34D399",
-  colors.categoryDefault,
-  colors.brandPrimary,
+  "#94A3B8",
+  accent,
   "#EF4444",
   "#0EA5E9",
   "#14B8A6",

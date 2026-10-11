@@ -18,4 +18,4 @@ export const SPLASH_WORDMARK_WIDTH_DP = Platform.select({
 })!;
 
 /** `splash-wordmark.png` pixel aspect (width / height). */
-export const SPLASH_WORDMARK_ASPECT = 928 / 395;
+export const SPLASH_WORDMARK_ASPECT = 1413 / 587;

@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchCategoryBudgets } from "../api/categoryBudgetsApi";
+import { useSessionUserId } from "@/hooks/useSessionUserId";
 
-export const categoryBudgetsQueryKey = ["categoryBudgets"] as const;
+import { fetchCategoryBudgets } from "../api/categoryBudgetsApi";
+import { categoryBudgetsQueryKeys } from "../queryKeys";
 
 export function useCategoryBudgetsQuery() {
+  const { userId } = useSessionUserId();
+
   return useQuery({
-    queryKey: categoryBudgetsQueryKey,
+    queryKey: categoryBudgetsQueryKeys.list(userId),
     queryFn: fetchCategoryBudgets,
   });
 }

@@ -1,13 +1,15 @@
 import { memo } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 
-import { HomeBentoContent } from "@/features/home/components";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { layout } from "@/constants";
+import { HomeContent } from "@/features/home/components";
+import { useHomeNativePermissionsPrompt } from "@/hooks/useHomeNativePermissionsPrompt";
 
 import { useHomeScreenModel } from "./useHomeScreenModel";
 
 export default memo(function HomeScreen() {
+  useHomeNativePermissionsPrompt();
   const model = useHomeScreenModel();
 
   return (
@@ -17,7 +19,7 @@ export default memo(function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <HomeBentoContent {...model} />
+        <HomeContent {...model} />
       </ScrollView>
     </TabScreenShell>
   );

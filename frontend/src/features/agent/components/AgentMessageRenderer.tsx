@@ -1,21 +1,37 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BENTO_GAP } from "@/components/bento";
 import { BentoStatCell } from "@/components/shared";
-import { TwoToneCard } from "@/components/shared/TwoToneCard";
-import { colors, radius, spacing } from "@/constants";
+import { accent, colors, ink, inkSoft, radius, shadow, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
-import type { AgentBlock, AgentDeepLink } from "../types";
+import type {
+  AgentBlock,
+  AgentDeepLink,
+  AgentFeedbackRating,
+} from "../types";
+
+import { AgentCompareMonthsBlock } from "./AgentCompareMonthsBlock";
+import { AgentFeedbackButtons } from "./AgentFeedbackButtons";
+import { AgentMessageProse } from "./AgentMessageProse";
+import { AgentMiniChartBlock } from "./AgentMiniChartBlock";
+import { AgentThinkingBubble } from "./AgentThinkingBubble";
 
 type AgentMessageRendererProps = {
+  id: string;
   role: "user" | "assistant";
   content: string;
   blocks: AgentBlock[];
   deepLink: AgentDeepLink | null;
-  isStreaming?: boolean;
+  isPending?: boolean;
+  isError?: boolean;
+  stepLabel?: string | null;
+  /** Present on completed assistant answers; enables the feedback row. */
+  turnId?: string | null;
+  feedback?: AgentFeedbackRating | null;
   onDeepLinkPress?: (link: AgentDeepLink) => void;
+  onFeedback?: (messageId: string, rating: AgentFeedbackRating) => void;
 };
 
 function MetricBlock({
@@ -24,17 +40,12 @@ function MetricBlock({
   block: Extract<AgentBlock, { type: "metric" }>;
 }) {
   return (
-    <TwoToneCard
-      header={
-        <View style={styles.metricHeader}>
-          <BentoStatCell label={block.label} value={block.value} />
-          {block.delta ? (
-            <Text style={styles.metricDelta}>{block.delta}</Text>
-          ) : null}
-        </View>
-      }
-      body={<View />}
-    />
+    <View style={styles.metricCard}>
+      <BentoStatCell label={block.label} value={block.value} />
+      {block.delta ? (
+        <Text style={styles.metricDelta}>{block.delta}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -92,29 +103,6 @@ function TxPreviewBlock({
   );
 }
 
-function MiniChartBlock({
-  block,
-}: {
-  block: Extract<AgentBlock, { type: "mini_chart" }>;
-}) {
-  const label =
-    block.chart_kind === "donut" ? "Spending breakdown" : "Daily cashflow";
-  const pointCount = Array.isArray(block.payload?.points)
-    ? block.payload.points.length
-    : Array.isArray(block.payload?.series)
-      ? block.payload.series.length
-      : 0;
-
-  return (
-    <View style={styles.chartPlaceholder}>
-      <Text style={styles.chartTitle}>{label}</Text>
-      <Text style={styles.chartMeta}>
-        {pointCount > 0 ? `${pointCount} data points` : "Chart data"}
-      </Text>
-    </View>
-  );
-}
-
 function BlockView({ block }: { block: AgentBlock }) {
   switch (block.type) {
     case "metric":
@@ -124,21 +112,37 @@ function BlockView({ block }: { block: AgentBlock }) {
     case "tx_preview":
       return <TxPreviewBlock block={block} />;
     case "mini_chart":
-      return <MiniChartBlock block={block} />;
+      return <AgentMiniChartBlock block={block} />;
+    case "compare_months": {
+      const revealKey = `compare_months|${block.period_a_label}|${block.period_b_label}`;
+      return <AgentCompareMonthsBlock {...block} revealKey={revealKey} />;
+    }
     default:
       return null;
   }
 }
 
 export const AgentMessageRenderer = memo(function AgentMessageRenderer({
+  id,
   role,
   content,
   blocks,
   deepLink,
-  isStreaming,
+  isPending,
+  isError,
+  stepLabel,
+  turnId,
+  feedback,
   onDeepLinkPress,
+  onFeedback,
 }: AgentMessageRendererProps) {
   const isUser = role === "user";
+  const hasContent =
+    content.length > 0 || blocks.length > 0 || Boolean(deepLink?.screen);
+
+  if (!isUser && isPending && !hasContent) {
+    return <AgentThinkingBubble label={stepLabel} />;
+  }
 
   return (
     <View
@@ -153,19 +157,18 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
           isUser ? styles.bubbleUser : styles.bubbleAssistant,
         ]}
       >
-        {content.length > 0 ? (
-          <Text style={[styles.prose, isUser && styles.proseUser]}>
-            {content}
-            {isStreaming ? "▍" : ""}
-          </Text>
-        ) : null}
-
         {blocks.length > 0 ? (
           <View style={styles.blocks}>
             {blocks.map((block, index) => (
               <BlockView key={`${block.type}-${index}`} block={block} />
             ))}
           </View>
+        ) : null}
+        {content.length > 0 ? (
+          <AgentMessageProse
+            content={content}
+            variant={isUser ? "user" : "assistant"}
+          />
         ) : null}
 
         {deepLink?.screen ? (
@@ -174,8 +177,18 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
             onPress={() => onDeepLinkPress?.(deepLink)}
             style={styles.deepLink}
           >
-            <Text style={styles.deepLinkText}>View details →</Text>
+            <Text style={styles.deepLinkText}>
+              {deepLink.label ?? "View details →"}
+            </Text>
           </Pressable>
+        ) : null}
+
+        {!isUser && !isPending && !isError && turnId && onFeedback ? (
+          <AgentFeedbackButtons
+            messageId={id}
+            feedback={feedback ?? null}
+            onFeedback={onFeedback}
+          />
         ) : null}
       </View>
     </View>
@@ -200,33 +213,42 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   bubbleUser: {
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: accent,
   },
   bubbleAssistant: {
-    backgroundColor: colors.barBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  prose: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  proseUser: {
-    color: colors.barBackground,
+    backgroundColor: surface,
+    ...Platform.select({
+      android: { elevation: 2 },
+      default: {
+        shadowColor: shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+    }),
   },
   blocks: {
     gap: BENTO_GAP,
   },
-  metricHeader: {
-    padding: spacing.md,
-    gap: spacing.xs,
+  metricCard: {
+    backgroundColor: surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...Platform.select({
+      android: { elevation: 2 },
+      default: {
+        shadowColor: shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+    }),
   },
   metricDelta: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   categoryRow: {
     flexDirection: "row",
@@ -239,7 +261,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   categoryMeta: {
     alignItems: "flex-end",
@@ -248,12 +270,12 @@ const styles = StyleSheet.create({
   categoryAmount: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   categoryPct: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   txPreview: {
     gap: spacing.xs,
@@ -268,7 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.regular,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: ink,
   },
   txAmount: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -281,24 +303,8 @@ const styles = StyleSheet.create({
   txMore: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: inkSoft,
     marginTop: spacing.xs,
-  },
-  chartPlaceholder: {
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.pageBackground,
-    gap: spacing.xs,
-  },
-  chartTitle: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  chartMeta: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   deepLink: {
     alignSelf: "flex-start",
@@ -307,6 +313,6 @@ const styles = StyleSheet.create({
   deepLinkText: {
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: colors.headerGradientStart,
+    color: accent,
   },
 });

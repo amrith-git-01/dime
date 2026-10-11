@@ -1,165 +1,184 @@
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react-native";
-import { useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { NotificationBentoRow } from "@/components/notifications/NotificationBentoRow";
-import { NotificationsFilterTabs } from "@/components/notifications/NotificationsFilterTabs";
-import { TwoToneEmptyState } from "@/components/shared";
-import { spacing } from "@/constants";
-import { NotificationsInboxSkeleton } from "@/features/notifications/components/NotificationsInboxSkeleton";
-import { useNotificationsFeed } from "@/features/notifications/hooks/useNotificationsFeed";
-import type { AppNotification } from "@/features/notifications/types";
-import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
-import { SettingsSection } from "@/features/settings/components";
-import { useToast } from "@/features/toast/useToast";
-import type { MainStackParamList } from "@/navigation/types";
+import { EmptyState, emptyStateCopy } from "@/components/shared";
+import { accent, colors, spacing, typography } from "@/constants";
+import {
+  NotificationBentoRow,
+  NotificationsFilterTabs,
+  NotificationsInboxSkeleton,
+} from "@/features/notifications/components";
+import type { NotificationListItem } from "@/features/notifications/utils/flattenNotificationGroups";
 
 import {
   NOTIFICATION_FILTER_EMPTY,
   NOTIFICATION_INBOX_EMPTY,
 } from "./notificationEmptyCopy";
+import { useNotificationsScreenModel } from "./useNotificationsScreenModel";
 
 export default function NotificationsScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const queryClient = useQueryClient();
-  const { showToast } = useToast();
   const {
     filter,
     setFilter,
-    groups,
+    listItems,
     isInboxEmpty,
     isFilterEmpty,
-    markRead,
-    deleteNotification,
     isUnread,
     isInitialLoading,
     isError,
-  } = useNotificationsFeed();
+    isFetchingNextPage,
+    loadMore,
+    markRead,
+    handlePress,
+    handleDelete,
+    handleSwipeWillStart,
+  } = useNotificationsScreenModel();
 
-  const handlePress = useCallback(
-    (notification: AppNotification) => {
-      markRead(notification.id);
+  const insets = useSafeAreaInsets();
 
-      switch (notification.action.type) {
-        case "home":
-          navigation.goBack();
-          break;
-        case "manual_add":
-          navigation.navigate("ManualAddTransaction");
-          break;
-        case "transaction_detail": {
-          const transaction = findTransactionInCache(
-            queryClient,
-            notification.action.transactionId,
-          );
-          if (transaction) {
-            navigation.navigate("TransactionDetail", { transaction });
-          } else {
-            showToast({
-              variant: "info",
-              message: "Open Transactions to view this entry",
-            });
-            navigation.navigate("MainTabs", { screen: "Transactions" });
-          }
-          break;
-        }
-        case "none":
-          break;
-        default:
-          break;
-      }
-    },
-    [markRead, navigation, queryClient, showToast],
-  );
-
-  const handleMarkRead = useCallback(
-    (id: string) => {
-      markRead(id);
-    },
-    [markRead],
-  );
-
-  const handleDelete = useCallback(
-    (id: string) => {
-      deleteNotification(id);
-    },
-    [deleteNotification],
-  );
+  const renderItem: ListRenderItem<NotificationListItem> = ({ item }) => {
+    if (item.kind === "header") {
+      return (
+        <Text style={[styles.groupHeader, !item.isFirst && styles.groupGap]}>
+          {item.title}
+        </Text>
+      );
+    }
+    return (
+      <View style={styles.rowWrap}>
+        <NotificationBentoRow
+          notification={item.notification}
+          unread={isUnread(item.notification)}
+          onPress={handlePress}
+          onMarkRead={markRead}
+          onDelete={handleDelete}
+          onSwipeWillStart={handleSwipeWillStart}
+        />
+      </View>
+    );
+  };
 
   if (isInitialLoading) {
-    return <NotificationsInboxSkeleton />;
+    return (
+      <View style={styles.paddedFill}>
+        <NotificationsInboxSkeleton />
+      </View>
+    );
   }
 
   if (isError) {
     return (
-      <TwoToneEmptyState
-        layout="centered"
-        icon={Bell}
-        title="Could not load notifications"
-        message="Check your connection and pull to refresh from the tab bar."
-      />
+      <View style={styles.paddedFill}>
+        <EmptyState
+          layout="centered"
+          headline={emptyStateCopy.notificationsError.headline}
+          subtext={emptyStateCopy.notificationsError.subtext}
+        />
+      </View>
     );
   }
 
   if (isInboxEmpty) {
     return (
-      <TwoToneEmptyState
-        layout="centered"
-        icon={Bell}
-        {...NOTIFICATION_INBOX_EMPTY}
-      />
+      <View style={styles.paddedFill}>
+        <EmptyState
+          layout="centered"
+          headline={NOTIFICATION_INBOX_EMPTY.title}
+          subtext={NOTIFICATION_INBOX_EMPTY.message}
+        />
+      </View>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <NotificationsFilterTabs value={filter} onChange={setFilter} />
-
-      {isFilterEmpty ? (
-        <View style={styles.filterEmptyWrap}>
-          <TwoToneEmptyState
-            layout="centered"
-            icon={Bell}
-            {...NOTIFICATION_FILTER_EMPTY[filter]}
-          />
+    <FlashList
+      style={styles.scroll}
+      data={isFilterEmpty ? NO_ITEMS : listItems}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      getItemType={getItemType}
+      renderScrollComponent={ScrollView}
+      contentContainerStyle={{
+        backgroundColor: colors.pageBackground,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xl + insets.bottom,
+      }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      overScrollMode="never"
+      bounces={false}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      ListHeaderComponent={
+        <View style={styles.tabsWrap}>
+          <NotificationsFilterTabs value={filter} onChange={setFilter} />
         </View>
-      ) : (
-        <View style={styles.sections}>
-          {groups.map((group) => (
-            <SettingsSection key={group.key} title={group.title} compact>
-              {group.items.map((item, index) => (
-                <NotificationBentoRow
-                  key={item.id}
-                  notification={item}
-                  unread={isUnread(item)}
-                  onPress={handlePress}
-                  onMarkRead={handleMarkRead}
-                  onDelete={handleDelete}
-                  showSeparator={index < group.items.length - 1}
-                />
-              ))}
-            </SettingsSection>
-          ))}
-        </View>
-      )}
-    </View>
+      }
+      ListEmptyComponent={
+        isFilterEmpty ? (
+          <View style={styles.filterEmptyWrap}>
+            <EmptyState
+              layout="centered"
+              headline={NOTIFICATION_FILTER_EMPTY[filter].title}
+              subtext={NOTIFICATION_FILTER_EMPTY[filter].message}
+            />
+          </View>
+        ) : null
+      }
+      ListFooterComponent={
+        isFetchingNextPage ? (
+          <View style={styles.loadingMore}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : null
+      }
+    />
   );
 }
 
+const NO_ITEMS: NotificationListItem[] = [];
+
+function keyExtractor(item: NotificationListItem): string {
+  return item.id;
+}
+
+function getItemType(item: NotificationListItem): NotificationListItem["kind"] {
+  return item.kind;
+}
+
 const styles = StyleSheet.create({
-  root: {
-    flexGrow: 1,
-    gap: spacing.md,
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.pageBackground,
   },
-  sections: {
-    gap: spacing.md,
+  paddedFill: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    backgroundColor: colors.pageBackground,
+  },
+  tabsWrap: {
+    paddingBottom: spacing.md,
   },
   filterEmptyWrap: {
-    flexGrow: 1,
+    minHeight: 320,
     justifyContent: "center",
+  },
+  groupHeader: {
+    ...typography.eyebrow,
+    paddingBottom: spacing.md,
+  },
+  groupGap: {
+    paddingTop: spacing.lg,
+  },
+  rowWrap: {
+    paddingBottom: spacing.md,
+  },
+  loadingMore: {
+    paddingVertical: spacing.lg,
+    alignItems: "center",
   },
 });

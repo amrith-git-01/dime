@@ -1,48 +1,40 @@
-import { isToday, isYesterday, parseISO } from "date-fns";
+import { format, isSameDay, isSameYear, parseISO, subDays } from "date-fns";
 
-import type {
-  AppNotification,
-  NotificationDateGroup,
-  NotificationDateGroupKey,
-} from "../types";
+import type { AppNotification, NotificationDateGroup } from "../types";
 
-const GROUP_ORDER: NotificationDateGroupKey[] = [
-  "today",
-  "yesterday",
-  "earlier",
-];
-
-const GROUP_TITLES: Record<NotificationDateGroupKey, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  earlier: "Earlier",
-};
-
-function bucketForDate(date: Date): NotificationDateGroupKey {
-  if (isToday(date)) return "today";
-  if (isYesterday(date)) return "yesterday";
-  return "earlier";
+function groupTitle(date: Date, now: Date): { key: string; title: string } {
+  if (isSameDay(date, now)) {
+    return { key: "today", title: "Today" };
+  }
+  if (isSameDay(date, subDays(now, 1))) {
+    return { key: "yesterday", title: "Yesterday" };
+  }
+  const key = format(date, "yyyy-MM-dd");
+  const title = isSameYear(date, now)
+    ? format(date, "d MMM")
+    : format(date, "d MMM yyyy");
+  return { key, title };
 }
 
 export function groupNotificationsByDate(
   items: AppNotification[],
+  now: Date = new Date(),
 ): NotificationDateGroup[] {
-  const buckets = new Map<NotificationDateGroupKey, AppNotification[]>();
+  const buckets = new Map<string, NotificationDateGroup>();
 
   const sorted = [...items].sort(
     (a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime(),
   );
 
   for (const item of sorted) {
-    const key = bucketForDate(parseISO(item.createdAt));
-    const list = buckets.get(key) ?? [];
-    list.push(item);
-    buckets.set(key, list);
+    const { key, title } = groupTitle(parseISO(item.createdAt), now);
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      buckets.set(key, { key, title, items: [item] });
+    }
   }
 
-  return GROUP_ORDER.filter((key) => buckets.has(key)).map((key) => ({
-    key,
-    title: GROUP_TITLES[key],
-    items: buckets.get(key) ?? [],
-  }));
+  return [...buckets.values()];
 }

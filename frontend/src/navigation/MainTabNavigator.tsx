@@ -8,8 +8,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
+import { AgentChatOverlay } from "@/features/agent/components";
+import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
+import { getCaptureAvailability } from "@/features/limits/utils/limitsFormat";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { useToast } from "@/features/toast/useToast";
+import { useReceiptCameraTransaction } from "@/features/transactions/hooks/useReceiptCameraTransaction";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
@@ -31,17 +36,35 @@ export default function MainTabNavigator() {
     [headerReady, tabBarReady],
   );
   const onNotificationsPress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     stackNavigation.navigate("Notifications");
   }, [stackNavigation]);
   const onSettingsPress = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     stackNavigation.navigate("Settings");
   }, [stackNavigation]);
 
   const onManualAddPress = useCallback(() => {
     stackNavigation.navigate("ManualAddTransaction");
   }, [stackNavigation]);
+  const captureReceiptAndCreate = useReceiptCameraTransaction();
+  const onCaptureReceiptPress = useCallback(() => {
+    void captureReceiptAndCreate();
+  }, [captureReceiptAndCreate]);
+  const { showToast } = useToast();
+  const { data: limits } = useLimitsQuery();
+  const receiptOption = useMemo(() => {
+    const a = getCaptureAvailability("receipt", limits);
+    return { ...a, blockedMessage: a.message };
+  }, [limits]);
+  const voiceOption = useMemo(() => {
+    const a = getCaptureAvailability("voice", limits);
+    return { ...a, blockedMessage: a.message };
+  }, [limits]);
+  const onBlockedOptionPress = useCallback(
+    (message: string) => showToast({ variant: "info", message }),
+    [showToast],
+  );
   const unreadQuery = useUnreadNotificationCount();
   const showUnreadNotificationDot = (unreadQuery.data ?? 0) > 0;
 
@@ -62,11 +85,15 @@ export default function MainTabNavigator() {
               {...props}
               onFirstLayout={() => setTabBarReady(true)}
               onManualAddPress={onManualAddPress}
+              onCaptureReceiptPress={onCaptureReceiptPress}
+              receiptOption={receiptOption}
+              voiceOption={voiceOption}
+              onBlockedOptionPress={onBlockedOptionPress}
             />
           )}
           screenListeners={{
             tabPress: () => {
-              void triggerLightHaptic();
+              void triggerHaptic();
             },
           }}
           screenOptions={{
@@ -111,6 +138,7 @@ export default function MainTabNavigator() {
           </View>
         ) : null}
       </View>
+      <AgentChatOverlay showEntryFab={shellReady} />
     </View>
   );
 }

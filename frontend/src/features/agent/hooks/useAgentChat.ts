@@ -1,256 +1,171 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 
+import { postAgentFeedback, streamAgentChat } from "@/features/agent/api/agentApi";
+import type { AgentFeedbackRating, ChatMessage } from "@/features/agent/types";
 import {
-  createAgentThread,
-  streamAgentChat,
-} from "@/features/agent/api/agentApi";
-import { agentQueryKeys } from "@/features/agent/queryKeys";
-import type {
-  AgentBlock,
-  AgentChatStatus,
-  AgentDeepLink,
-  ChatStreamMessage,
-} from "@/features/agent/types";
-import { useSessionUserId } from "@/hooks/useSessionUserId";
+  agentChatReducer,
+  buildAgentHistory,
+  initialAgentChatState,
+} from "@/features/agent/utils/agentChatState";
+import { getAgentErrorMessage } from "@/features/agent/utils/agentErrorMessage";
+import { createDeltaBatcher } from "@/features/agent/utils/createDeltaBatcher";
+import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
+import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
+
+const ONE_DAY_S = 24 * 60 * 60;
+
+/** Seconds until the next UTC midnight, when the server resets the daily allowance. */
+function secondsToUtcMidnight(now: number): number {
+  return Math.max(1, ONE_DAY_S - Math.floor((now / 1000) % ONE_DAY_S));
+}
+
+function selectDailyLimitReached(s: { limitedUntil: number | null }): boolean {
+  return s.limitedUntil !== null && s.limitedUntil > Date.now();
+}
+
+/** True while today's agent allowance is used up (input should stay disabled). */
+export function useAgentDailyLimitReached(): boolean {
+  return useAgentChatUiStore(selectDailyLimitReached);
+}
 
 function newLocalId(): string {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function historyToChatMessages(
-  rows: {
-    id: string;
-    role: string;
-    content: string;
-    blocks_json: AgentBlock[] | null;
-    deep_link_json: AgentDeepLink | null;
-  }[],
-): ChatStreamMessage[] {
-  return rows
-    .filter((row) => row.role === "user" || row.role === "assistant")
-    .map((row) => ({
-      id: row.id,
-      role: row.role as "user" | "assistant",
-      content: row.content,
-      blocks: row.blocks_json ?? [],
-      deepLink: row.deep_link_json,
-    }));
-}
-
 export function useAgentChat() {
+  const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
   const queryClient = useQueryClient();
-  const { userId } = useSessionUserId();
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatStreamMessage[]>([]);
-  const [status, setStatus] = useState<AgentChatStatus>({ phase: "idle" });
-  const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const threadIdRef = useRef<string | null>(null);
+  // Mirror of `state` so the callbacks stay stable. Written in an effect, never in render.
+  const stateRef = useRef(state);
+  const isPendingRef = useRef(false);
+  // Identifies the in-flight request so late events from an older one are ignored.
+  const requestIdRef = useRef(0);
+  const batcherRef = useRef<ReturnType<typeof createDeltaBatcher> | null>(null);
 
   useEffect(() => {
-    threadIdRef.current = threadId;
-  }, [threadId]);
+    stateRef.current = state;
+  }, [state]);
 
-  const createThreadMutation = useMutation({
-    mutationFn: () => createAgentThread(),
-    onSuccess: (thread) => {
-      setThreadId(thread.id);
-      void queryClient.invalidateQueries({
-        queryKey: agentQueryKeys.threads(userId),
-      });
-    },
-  });
-
-  const resetConversation = useCallback(() => {
+  const cancelInFlight = useCallback(() => {
+    requestIdRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
-    setThreadId(null);
-    setMessages([]);
-    setStatus({ phase: "idle" });
-    setIsStreaming(false);
+    batcherRef.current?.cancel();
+    batcherRef.current = null;
+    isPendingRef.current = false;
   }, []);
 
-  const ensureThread = useCallback(async (): Promise<string> => {
-    if (threadIdRef.current) {
-      return threadIdRef.current;
-    }
-    const thread = await createThreadMutation.mutateAsync();
-    setThreadId(thread.id);
-    return thread.id;
-  }, [createThreadMutation]);
+  useEffect(() => cancelInFlight, [cancelInFlight]);
 
-  const sendMessage = useCallback(
-    async (rawContent: string) => {
-      const content = rawContent.trim();
-      if (!content || isStreaming) {
+  const resetConversation = useCallback(() => {
+    cancelInFlight();
+    dispatch({ type: "reset" });
+  }, [cancelInFlight]);
+
+  const sendMessage = useCallback(async (rawContent: string) => {
+    const content = rawContent.trim();
+    if (!content || isPendingRef.current) {
+      return;
+    }
+
+    const { messages, memory } = stateRef.current;
+    const history = buildAgentHistory(messages);
+
+    const userMessage: ChatMessage = {
+      id: newLocalId(),
+      role: "user",
+      content,
+      blocks: [],
+      deepLink: null,
+    };
+    const assistantMessage: ChatMessage = {
+      id: newLocalId(),
+      role: "assistant",
+      content: "",
+      blocks: [],
+      deepLink: null,
+      isPending: true,
+    };
+
+    const requestId = ++requestIdRef.current;
+    isPendingRef.current = true;
+    dispatch({ type: "send", requestId, userMessage, assistantMessage });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const batcher = createDeltaBatcher((text) =>
+      dispatch({ type: "delta", requestId, text }),
+    );
+    batcherRef.current = batcher;
+
+    const finish = () => {
+      batcher.cancel();
+      if (requestIdRef.current === requestId) {
+        isPendingRef.current = false;
+        abortRef.current = null;
+        batcherRef.current = null;
+      }
+    };
+
+    await streamAgentChat(
+      { content, history, memory, signal: controller.signal },
+      {
+        onStep: (step) =>
+          dispatch({ type: "step", requestId, label: step.label }),
+        onDelta: batcher.push,
+        onFinal: (response) => {
+          finish();
+          invalidateLimitsQueries(queryClient);
+          dispatch({ type: "final", requestId, response });
+        },
+        onError: ({ code, message, retryAfterSeconds }) => {
+          finish();
+          invalidateLimitsQueries(queryClient);
+          if (code === "daily_limit") {
+            const now = Date.now();
+            useAgentChatUiStore
+              .getState()
+              .setLimitedUntil(
+                now + (retryAfterSeconds ?? secondsToUtcMidnight(now)) * 1000,
+              );
+          }
+          dispatch({
+            type: "error",
+            requestId,
+            message: getAgentErrorMessage(code, message),
+          });
+        },
+      },
+    );
+
+    if (controller.signal.aborted) {
+      dispatch({ type: "abort", requestId });
+    }
+  }, [queryClient]);
+
+  const submitFeedback = useCallback(
+    (messageId: string, rating: AgentFeedbackRating) => {
+      const message = stateRef.current.messages.find(
+        (msg) => msg.id === messageId,
+      );
+      if (!message?.turnId || message.feedback) {
         return;
       }
-
-      const userMessage: ChatStreamMessage = {
-        id: newLocalId(),
-        role: "user",
-        content,
-        blocks: [],
-        deepLink: null,
-      };
-      const assistantId = newLocalId();
-      const assistantMessage: ChatStreamMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        blocks: [],
-        deepLink: null,
-        isStreaming: true,
-      };
-
-      setMessages((prev) => [...prev, userMessage, assistantMessage]);
-      setIsStreaming(true);
-      setStatus({ phase: "sql", round: 1 });
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const activeThreadId = await ensureThread();
-        let answerText = "";
-        let blocks: AgentBlock[] = [];
-        let deepLink: AgentDeepLink | null = null;
-
-        await streamAgentChat({
-          threadId: activeThreadId,
-          content,
-          signal: controller.signal,
-          onEvent: (event) => {
-            switch (event.event) {
-              case "sql_start":
-                setStatus({ phase: "sql", round: event.round });
-                break;
-              case "sql_end":
-                setStatus({ phase: "sql", round: event.round });
-                break;
-              case "reflect":
-                if (event.status === "retry") {
-                  setStatus({ phase: "reflect", reason: event.reason });
-                }
-                break;
-              case "token":
-                answerText = event.text;
-                setStatus({ phase: "responding" });
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId
-                      ? { ...msg, content: answerText }
-                      : msg,
-                  ),
-                );
-                break;
-              case "block":
-                blocks = [...blocks, event.block];
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId ? { ...msg, blocks } : msg,
-                  ),
-                );
-                break;
-              case "deep_link":
-                deepLink = {
-                  screen: event.screen,
-                  params: event.params,
-                };
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId ? { ...msg, deepLink } : msg,
-                  ),
-                );
-                break;
-              case "error":
-                setStatus({ phase: "error", message: event.message });
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantId
-                      ? {
-                          ...msg,
-                          content: event.message,
-                          isStreaming: false,
-                        }
-                      : msg,
-                  ),
-                );
-                break;
-              case "done":
-                setStatus({ phase: "idle" });
-                break;
-              default:
-                break;
-            }
-          },
-        });
-
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantId
-              ? {
-                  ...msg,
-                  content: answerText || msg.content,
-                  blocks,
-                  deepLink,
-                  isStreaming: false,
-                }
-              : msg,
-          ),
-        );
-        setStatus({ phase: "idle" });
-
-        void queryClient.invalidateQueries({
-          queryKey: agentQueryKeys.threads(userId),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: agentQueryKeys.messages(userId, activeThreadId),
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to send message";
-        if (message !== "Chat cancelled") {
-          setStatus({ phase: "error", message });
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantId
-                ? { ...msg, content: message, isStreaming: false }
-                : msg,
-            ),
-          );
-        }
-      } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
-      }
-    },
-    [ensureThread, isStreaming, queryClient, userId],
-  );
-
-  const loadThreadHistory = useCallback(
-    (rows: Parameters<typeof historyToChatMessages>[0], id: string) => {
-      setThreadId(id);
-      setMessages(historyToChatMessages(rows));
-      setStatus({ phase: "idle" });
+      dispatch({ type: "feedback", messageId, rating });
+      postAgentFeedback({ turn_id: message.turnId, rating }).catch(() =>
+        dispatch({ type: "feedbackFailed", messageId }),
+      );
     },
     [],
   );
 
-  const cancelStream = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
-
   return {
-    threadId,
-    messages,
-    status,
-    isStreaming,
+    messages: state.messages,
+    isPending: state.activeRequestId !== null,
     sendMessage,
     resetConversation,
-    loadThreadHistory,
-    cancelStream,
-    isCreatingThread: createThreadMutation.isPending,
+    submitFeedback,
   };
 }

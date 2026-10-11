@@ -1,0 +1,85 @@
+name: Deploy API
+
+# Push to main -> CI (api, frontend) -> D1 migrations -> deploy -> smoke test. One environment: production.
+# Manual re-run: Actions -> Deploy API -> Run workflow.
+#
+# Repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   token with Workers Scripts:Edit, D1:Edit, Workers R2 Storage:Edit, Queues:Edit, Workers AI:Read, Account Settings:Read
+#   CLOUDFLARE_ACCOUNT_ID  the account id (`npx wrangler whoami`)
+#
+# Worker secrets (AUTH_JWT_SECRET, MEDIA_URL_SECRET, DEEPSEEK_API_KEY, ...) are NOT managed here: set them once with
+# `wrangler secret put` (see api/DEPLOY.md). The D1 database, R2 bucket and queues must already exist.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; never cancel a deploy that is already running.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For workflow_run, deploy exactly the commit CI validated.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Install
+        working-directory: api
+        run: npm ci
+      - name: Typecheck, lint and test (manual runs skip CI)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: api
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+      - name: Refuse to deploy placeholder config
+        working-directory: api
+        run: |
+          if grep -q 'REPLACE-ME' wrangler.jsonc; then echo "wrangler.jsonc still contains REPLACE-ME placeholders (EMAIL_PUBLIC_BASE_URL)"; exit 1; fi
+          if grep -q '"database_id": "00000000-0000-0000-0000-000000000000"' wrangler.jsonc; then echo "wrangler.jsonc still has the placeholder D1 database_id"; exit 1; fi
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: d1 migrations apply DB --remote
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          wranglerVersion: "4"
+          command: deploy
+      - name: Smoke test
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then echo "wrangler-action returned no deployment-url"; exit 1; fi
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "$DEPLOY_URL/api/v1/health"
+          # A bogus bearer must be refused with 401. 503 means a Worker secret (AUTH_JWT_SECRET) is missing.
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --retry 5 --retry-delay 5 --retry-connrefused             -H 'Authorization: Bearer smoke-test-invalid' "$DEPLOY_URL/api/v1/me")
+          if [ "$status" != "401" ]; then echo "GET /api/v1/me with a bogus bearer returned $status (expected 401; 503 = missing secret)"; exit 1; fi

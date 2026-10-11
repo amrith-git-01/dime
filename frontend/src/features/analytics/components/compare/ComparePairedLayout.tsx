@@ -1,12 +1,13 @@
 import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { TwoToneCard } from "@/components/shared";
-import { bento, colors, spacing } from "@/constants";
+import { danger, inkSoft, line, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
+import { InsightsCard } from "../InsightsCard";
+
 export type ComparePairedLayoutProps = {
-  title: string;
+  kicker: string;
   subtitle: string;
   leftLabel: string;
   rightLabel: string;
@@ -50,7 +51,7 @@ export const ComparePairedColumns = memo(function ComparePairedColumns({
 });
 
 export const ComparePairedLayout = memo(function ComparePairedLayout({
-  title,
+  kicker,
   subtitle,
   leftLabel,
   rightLabel,
@@ -58,21 +59,13 @@ export const ComparePairedLayout = memo(function ComparePairedLayout({
   children,
 }: ComparePairedLayoutProps) {
   return (
-    <TwoToneCard
-      header={
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{title}</Text>
-          <Text style={styles.headerSubtitle}>{subtitle}</Text>
-        </View>
-      }
-      body={
-        <View style={styles.body}>
-          <CompareColumnHeaders leftLabel={leftLabel} rightLabel={rightLabel} />
-          {children}
-          {footer}
-        </View>
-      }
-    />
+    <InsightsCard kicker={kicker} subtitle={subtitle}>
+      <View style={styles.body}>
+        <CompareColumnHeaders leftLabel={leftLabel} rightLabel={rightLabel} />
+        {children}
+        {footer}
+      </View>
+    </InsightsCard>
   );
 });
 
@@ -80,37 +73,11 @@ export const CompareColumnError = memo(function CompareColumnError() {
   return <Text style={styles.columnError}>Could not load</Text>;
 });
 
-export const CompareColumnEmpty = memo(function CompareColumnEmpty({
-  message,
-}: {
-  message: string;
-}) {
-  return <Text style={styles.columnEmpty}>{message}</Text>;
-});
-
 const styles = StyleSheet.create({
-  header: {
+  body: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.primary,
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: bento.onPastel.muted,
-  },
-  body: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
   columnHeaders: {
@@ -122,7 +89,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 11,
     lineHeight: 15,
-    color: bento.onPastel.muted,
+    color: inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     textAlign: "center",
@@ -139,23 +106,15 @@ const styles = StyleSheet.create({
   columnDivider: {
     width: StyleSheet.hairlineWidth,
     alignSelf: "stretch",
-    backgroundColor: colors.borderList,
+    backgroundColor: line,
     marginHorizontal: spacing.xs,
   },
   columnError: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.danger,
+    color: danger,
     textAlign: "center",
     paddingVertical: spacing.md,
-  },
-  columnEmpty: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: bento.onPastel.muted,
-    textAlign: "center",
-    paddingVertical: spacing.sm,
   },
 });

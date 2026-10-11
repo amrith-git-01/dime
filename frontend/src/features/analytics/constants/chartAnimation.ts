@@ -2,27 +2,29 @@ import type {
   WithSpringConfig,
   WithTimingConfig,
 } from "react-native-reanimated";
-
-import { springs, timings } from "@/constants/motion";
+import { Easing } from "react-native-reanimated";
 
 export type ChartPathAnimationConfig =
   | ({ type: "spring" } & WithSpringConfig)
   | ({ type: "timing" } & WithTimingConfig);
 
-/** Bar grow — spring per Victory Native XL mount guidance. */
+/** Bar rise — smooth ease-out when the card enters the viewport. */
 export const INSIGHTS_CHART_BAR_ANIMATION = {
-  type: "spring" as const,
-  damping: springs.gentle.damping,
-  stiffness: springs.gentle.stiffness,
-  mass: springs.gentle.mass,
+  type: "timing" as const,
+  duration: 720,
+  easing: Easing.out(Easing.cubic),
 } satisfies ChartPathAnimationConfig;
 
-/** Line path — timing for predictable month transitions. */
+/** Income / expense lines — matched to bar rise for a unified reveal. */
 export const INSIGHTS_CHART_LINE_ANIMATION = {
   type: "timing" as const,
-  duration: timings.normal.duration,
-  easing: timings.normal.easing,
+  duration: 720,
+  easing: Easing.out(Easing.cubic),
 } satisfies ChartPathAnimationConfig;
 
-/** Pie / donut slice sweep — spring grow on focus. */
-export const INSIGHTS_CHART_PIE_ANIMATION = INSIGHTS_CHART_BAR_ANIMATION;
+/** Donut slice sweep — slightly longer than bars for a calm reveal. */
+export const INSIGHTS_CHART_DONUT_ANIMATION = {
+  type: "timing" as const,
+  duration: 800,
+  easing: Easing.out(Easing.cubic),
+} satisfies ChartPathAnimationConfig;

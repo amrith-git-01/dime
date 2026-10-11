@@ -1,8 +1,8 @@
 import { forwardRef, memo } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { ink, inkFaint } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors } from "@/constants";
 
 export type BudgetLimitAmountVariant = "onDark" | "onPastel";
 
@@ -13,7 +13,8 @@ const AMOUNT_LINE_HEIGHT = 30;
 type BudgetLimitAmountInputProps = {
   value: string;
   onChangeText: (text: string) => void;
-  variant: BudgetLimitAmountVariant;
+  /** @deprecated kept for backward compatibility; ignored, colors now always monochrome */
+  variant?: BudgetLimitAmountVariant;
   showSoftInputOnFocus?: boolean;
   onSubmitEditing?: () => void;
 };
@@ -21,35 +22,21 @@ type BudgetLimitAmountInputProps = {
 export const BudgetLimitAmountInput = memo(
   forwardRef<TextInput, BudgetLimitAmountInputProps>(
     function BudgetLimitAmountInput(
-      {
-        value,
-        onChangeText,
-        variant,
-        showSoftInputOnFocus = true,
-        onSubmitEditing,
-      },
+      { value, onChangeText, showSoftInputOnFocus = true, onSubmitEditing },
       ref,
     ) {
-      const textColor =
-        variant === "onDark" ? bento.onSurface.primary : bento.onPastel.primary;
-      const placeholderColor =
-        variant === "onDark" ? bento.onSurface.muted : colors.inactive;
       const isEmpty = value.trim().length === 0;
 
       return (
         <View style={styles.shell}>
           <View style={styles.prefixWrap}>
-            <Text style={[styles.amountGlyph, { color: textColor }]}>₹</Text>
+            <Text style={styles.amountGlyph}>₹</Text>
           </View>
 
           <View style={styles.inputWrap}>
             {isEmpty ? (
               <Text
-                style={[
-                  styles.amountGlyph,
-                  styles.placeholderGuide,
-                  { color: placeholderColor },
-                ]}
+                style={[styles.amountGlyph, styles.placeholderGuide]}
                 pointerEvents="none"
               >
                 0
@@ -57,7 +44,7 @@ export const BudgetLimitAmountInput = memo(
             ) : null}
             <TextInput
               ref={ref}
-              style={[styles.input, { color: textColor }]}
+              style={styles.input}
               placeholder=""
               keyboardType="decimal-pad"
               value={value}
@@ -98,11 +85,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: AMOUNT_FONT_SIZE,
     lineHeight: AMOUNT_LINE_HEIGHT,
+    color: ink,
     ...Platform.select({
       android: { includeFontPadding: false },
     }),
   },
   placeholderGuide: {
+    color: inkFaint,
     position: "absolute",
     left: 0,
     height: AMOUNT_LINE_HEIGHT,
@@ -111,6 +100,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: AMOUNT_FONT_SIZE,
+    color: ink,
     padding: 0,
     margin: 0,
     height: AMOUNT_LINE_HEIGHT,

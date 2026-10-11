@@ -32,6 +32,8 @@ export type BudgetMonthBentoSummary = {
   isOverBudget: boolean;
   overageDisplay: string;
   usagePct: number;
+  /** Whole percent of budget spent (uncapped — can exceed 100). */
+  usagePercentUsed: number;
   usageLabel: string;
 };
 

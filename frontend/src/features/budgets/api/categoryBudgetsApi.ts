@@ -18,7 +18,7 @@ export async function upsertCategoryBudget(
 ): Promise<CategoryBudgetItem> {
   const { data } = await dimeApi.put<CategoryBudgetItem>(
     `/api/v1/budget/categories/${categoryId}`,
-    { monthly_amount: monthlyAmount },
+    { monthly_amount: monthlyAmount.toFixed(2) },
   );
   return data;
 }

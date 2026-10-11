@@ -1,46 +1,58 @@
 import { useCallback, useState } from "react";
 
+import { paiseToAmountString, parseAmountInputToPaise } from "@/utils/paise";
+
 import type { CreateTransactionBody } from "../api/transactionsApi";
 import {
   DEFAULT_COUNTERPARTY_TYPE,
   type CounterpartyType,
 } from "../counterpartyTypes";
 import type { TransactionType } from "../types";
+import type { ManualAddFormSnapshot } from "../utils/transactionRowToFormState";
 
-function parsePositiveAmount(raw: string): number | null {
-  const normalized = raw.replace(/,/g, "").trim();
-  if (normalized.length === 0) {
-    return null;
-  }
-  const n = Number.parseFloat(normalized);
-  if (!Number.isFinite(n) || n <= 0) {
-    return null;
-  }
-  return Math.round(n * 100) / 100;
-}
-
-export function useManualAddTransactionForm() {
-  const [amountText, setAmountText] = useState("");
-  const [txType, setTxType] = useState<TransactionType>("debit");
-  const [counterpartyName, setCounterpartyName] = useState("");
-  const [counterpartyType, setCounterpartyType] = useState<CounterpartyType>(
-    DEFAULT_COUNTERPARTY_TYPE,
+export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
+  const [amountText, setAmountText] = useState(initial?.amountText ?? "");
+  const [txType, setTxType] = useState<TransactionType>(
+    initial?.txType ?? "debit",
   );
-  const [category, setCategory] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [transactionAt, setTransactionAt] = useState(() => new Date());
+  const [counterpartyName, setCounterpartyName] = useState(
+    initial?.counterpartyName ?? "",
+  );
+  const [counterpartyType, setCounterpartyType] = useState<CounterpartyType>(
+    initial?.counterpartyType ?? DEFAULT_COUNTERPARTY_TYPE,
+  );
+  const [category, setCategory] = useState(initial?.category ?? "");
+  const [categoryId, setCategoryId] = useState<string | null>(
+    initial?.categoryId ?? null,
+  );
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [transactionAt, setTransactionAt] = useState(
+    () => initial?.transactionAt ?? new Date(),
+  );
+
+  const applySnapshot = useCallback((snap: ManualAddFormSnapshot) => {
+    setAmountText(snap.amountText);
+    setTxType(snap.txType);
+    setCounterpartyName(snap.counterpartyName);
+    setCounterpartyType(snap.counterpartyType);
+    setCategory(snap.category);
+    setCategoryId(snap.categoryId);
+    setNote(snap.note);
+    setTransactionAt(snap.transactionAt);
+  }, []);
 
   const reset = useCallback(() => {
-    setAmountText("");
-    setTxType("debit");
-    setCounterpartyName("");
-    setCounterpartyType(DEFAULT_COUNTERPARTY_TYPE);
-    setCategory("");
-    setCategoryId(null);
-    setNote("");
-    setTransactionAt(new Date());
-  }, []);
+    applySnapshot({
+      amountText: "",
+      txType: "debit",
+      counterpartyName: "",
+      counterpartyType: DEFAULT_COUNTERPARTY_TYPE,
+      category: "",
+      categoryId: null,
+      note: "",
+      transactionAt: new Date(),
+    });
+  }, [applySnapshot]);
 
   const selectCategory = useCallback((id: string, name: string) => {
     setCategoryId(id);
@@ -53,8 +65,8 @@ export function useManualAddTransactionForm() {
   }, []);
 
   const buildPayload = useCallback((): CreateTransactionBody | null => {
-    const amount = parsePositiveAmount(amountText);
-    if (amount === null) {
+    const amountPaise = parseAmountInputToPaise(amountText);
+    if (amountPaise === null) {
       return null;
     }
     const name = counterpartyName.trim();
@@ -62,7 +74,7 @@ export function useManualAddTransactionForm() {
       return null;
     }
     return {
-      amount,
+      amount: paiseToAmountString(amountPaise),
       type: txType,
       counterparty_name: name,
       counterparty_type: counterpartyType,
@@ -100,6 +112,7 @@ export function useManualAddTransactionForm() {
     transactionAt,
     setTransactionAt,
     reset,
+    applySnapshot,
     selectCategory,
     clearCategory,
     buildPayload,

@@ -1,11 +1,11 @@
 import { Plus } from "lucide-react-native";
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 
-import { BENTO_SECTION_HEADER_GAP } from "@/components/bento";
-import { BentoActionPill } from "@/components/shared";
-import { spacing, typography } from "@/constants";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { ScreenSectionHeader } from "@/components/shared";
+import { accent, accentTint, radius, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type BudgetCategoriesSectionHeaderProps = {
   onAddPress: () => void;
@@ -18,33 +18,52 @@ export const BudgetCategoriesSectionHeader = memo(
     addDisabled,
   }: BudgetCategoriesSectionHeaderProps) {
     return (
-      <View style={styles.row}>
-        <Text style={styles.title}>All categories</Text>
-        <BentoActionPill
-          label="Add"
-          icon={Plus}
-          accessibilityLabel="Add custom category"
-          disabled={addDisabled}
-          onPress={() => {
-            void triggerLightHaptic();
-            onAddPress();
-          }}
-        />
-      </View>
+      <ScreenSectionHeader
+        title="All categories"
+        action={
+          <Pressable
+            onPress={() => {
+              void triggerHaptic();
+              onAddPress();
+            }}
+            disabled={addDisabled}
+            style={({ pressed }) => [
+              styles.addBtn,
+              addDisabled && styles.addBtnDisabled,
+              pressed && !addDisabled && styles.addBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Add custom category"
+          >
+            <Plus size={14} color={accent} strokeWidth={2.5} />
+            <Text style={styles.addBtnText}>Add</Text>
+          </Pressable>
+        }
+      />
     );
   },
 );
 
 const styles = StyleSheet.create({
-  row: {
+  addBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: BENTO_SECTION_HEADER_GAP,
+    gap: spacing.xs,
+    backgroundColor: accentTint,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
   },
-  title: {
-    ...typography.sectionTitle,
-    flex: 1,
-    marginRight: spacing.sm,
+  addBtnDisabled: {
+    opacity: 0.4,
+  },
+  addBtnPressed: {
+    opacity: 0.7,
+  },
+  addBtnText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: accent,
   },
 });

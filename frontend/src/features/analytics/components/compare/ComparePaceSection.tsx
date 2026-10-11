@@ -78,7 +78,7 @@ export const ComparePaceSection = memo(function ComparePaceSection({
 }: ComparePaceSectionProps) {
   return (
     <ComparePairedLayout
-      title="Monthly pace"
+      kicker="MONTHLY PACE"
       subtitle="How fast spending added up each month"
       leftLabel={leftLabel}
       rightLabel={rightLabel}

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { netTone } from "@/components/shared";
-import { bento, spacing } from "@/constants";
+import { inkFaint, line, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 
@@ -95,7 +95,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
 }: CompareSummarySectionProps) {
   return (
     <ComparePairedLayout
-      title="Month summary"
+      kicker="MONTH SUMMARY"
       subtitle="Spending, income, and budget at a glance"
       leftLabel={leftLabel}
       rightLabel={rightLabel}
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: bento.onPastel.muted,
+    borderTopColor: line,
     gap: spacing.sm,
   },
   deltaRow: {
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: bento.onPastel.muted,
+    color: inkFaint,
     textAlign: "center",
   },
 });

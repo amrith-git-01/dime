@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import { TwoToneConfirmModal } from "@/components/shared";
-import { SelectDropdown } from "@/components/ui";
+import { CategoryPill } from "@/components/categories/CategoryPill";
+import { ConfirmModal } from "@/components/shared";
+import { accent, spacing, typography } from "@/constants";
 import { useCategoryDeleteImpactQuery } from "@/features/categories/hooks/useCategoryDeleteImpactQuery";
 import type { CategoryRow } from "@/features/categories/types";
 
@@ -35,18 +37,15 @@ export function DeleteCategorySheet({
   const impactLoading =
     visible && (isPending || (isFetching && impact == null));
 
-  const moveToOptions = useMemo(
-    () =>
-      categories
-        .filter((row) => row.id !== category.id)
-        .map((row) => ({ value: row.id, label: row.name })),
+  const reassignCategories = useMemo(
+    () => categories.filter((row) => row.id !== category.id),
     [categories, category.id],
   );
 
   const needsReassign =
     transactionCount != null &&
     transactionCount > 0 &&
-    moveToOptions.length > 0;
+    reassignCategories.length > 0;
 
   const confirmDisabled =
     deleteLoading ||
@@ -65,7 +64,7 @@ export function DeleteCategorySheet({
     if (transactionCount == null || isError) {
       return;
     }
-    if (transactionCount > 0 && moveToOptions.length > 0) {
+    if (transactionCount > 0 && reassignCategories.length > 0) {
       if (!moveToCategoryId) {
         return;
       }
@@ -76,8 +75,8 @@ export function DeleteCategorySheet({
   }, [
     isError,
     moveToCategoryId,
-    moveToOptions.length,
     onConfirmDelete,
+    reassignCategories.length,
     transactionCount,
   ]);
 
@@ -92,17 +91,26 @@ export function DeleteCategorySheet({
     return `${transactionCount} ${noun} use this category. Choose where to move them, then delete.`;
   }, [impactLoading, transactionCount]);
 
-  const extraBody = needsReassign ? (
-    <SelectDropdown
-      label="Move to"
-      options={moveToOptions}
-      value={moveToCategoryId}
-      onChange={setMoveToCategoryId}
-      placeholder="Select category"
-      menuPlacement="modal"
-      menuOpenDirection="below"
-      size="compact"
-    />
+  const reassignPicker = needsReassign ? (
+    <View style={styles.reassignSection}>
+      <Text style={styles.reassignLabel}>MOVE TO</Text>
+      <View style={styles.categoryGrid}>
+        {reassignCategories.map((row) => (
+          <CategoryPill
+            key={row.id}
+            label={row.name}
+            iconName={row.icon_name}
+            iconColor={row.color}
+            selected={moveToCategoryId === row.id}
+            onPress={() =>
+              setMoveToCategoryId((current) =>
+                current === row.id ? "" : row.id,
+              )
+            }
+          />
+        ))}
+      </View>
+    </View>
   ) : null;
 
   const errorMessage =
@@ -110,13 +118,13 @@ export function DeleteCategorySheet({
       ? "Could not load transaction count. Try again."
       : transactionCount != null &&
           transactionCount > 0 &&
-          moveToOptions.length === 0 &&
+          reassignCategories.length === 0 &&
           !impactLoading
         ? "Add another category before deleting this one."
         : null;
 
   return (
-    <TwoToneConfirmModal
+    <ConfirmModal
       visible={visible}
       title={`Delete ${category.name}?`}
       message={errorMessage ? null : message}
@@ -130,7 +138,23 @@ export function DeleteCategorySheet({
       loading={impactLoading}
       errorMessage={errorMessage}
     >
-      {extraBody}
-    </TwoToneConfirmModal>
+      {reassignPicker}
+    </ConfirmModal>
   );
 }
+
+const styles = StyleSheet.create({
+  reassignSection: {
+    gap: spacing.sm,
+  },
+  reassignLabel: {
+    ...typography.eyebrow,
+    color: accent,
+    textAlign: "left",
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+});

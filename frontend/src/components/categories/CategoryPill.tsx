@@ -1,8 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, surfaces } from "@/constants";
+import { accent, accentTint, fontFamilies, ink, inkSoft, line, radius, spacing, surface } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 
 export type CategoryPillProps = {
@@ -52,8 +51,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
+    borderColor: line,
+    backgroundColor: surface,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     flexDirection: "row",
@@ -62,20 +61,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pillSelected: {
-    borderColor: colors.primary,
-    backgroundColor: surfaces.primaryTint10,
+    borderColor: accent,
+    borderWidth: 1.5,
+    backgroundColor: accentTint,
   },
   pillPressed: {
-    opacity: 0.92,
+    opacity: 0.85,
   },
   label: {
     flexShrink: 0,
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: inkSoft,
   },
   labelOn: {
-    color: colors.textPrimary,
+    color: ink,
   },
 });

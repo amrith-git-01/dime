@@ -1,9 +1,7 @@
 import { memo, useCallback } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { View } from "react-native";
 
 import { TextField } from "@/components/ui";
-import { colors, spacing } from "@/constants";
-import { formStyles } from "@/constants/formStyles";
 
 type CategoryBudgetSectionProps = {
   value: string;
@@ -35,9 +33,10 @@ export const CategoryBudgetSection = memo(function CategoryBudgetSection({
   );
 
   return (
-    <View style={styles.wrap}>
+    <View>
       <TextField
-        label="Monthly budget (optional)"
+        hideLabel
+        label="Monthly budget"
         placeholder="e.g. 5000"
         value={value}
         onChangeText={handleChange}
@@ -46,21 +45,6 @@ export const CategoryBudgetSection = memo(function CategoryBudgetSection({
         autoCorrect={false}
         returnKeyType="done"
       />
-      <Text style={styles.hint}>
-        Leave empty for no cap. Budget tab shows share of this category budget.
-      </Text>
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  wrap: {
-    gap: spacing.xs,
-  },
-  hint: {
-    fontFamily: formStyles.fieldError.fontFamily,
-    fontSize: formStyles.fieldError.fontSize,
-    lineHeight: formStyles.fieldError.lineHeight,
-    color: colors.textSecondary,
-  },
 });

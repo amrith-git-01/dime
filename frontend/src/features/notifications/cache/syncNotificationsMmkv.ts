@@ -6,44 +6,66 @@ import {
 } from "@/lib/notifications/notificationsMmkv";
 
 import { notificationQueryKeys } from "../queryKeys";
-import type { AppNotification } from "../types";
+import {
+  buildInboxData,
+  NOTIFICATIONS_PAGE_LIMIT,
+  resolveSeedCursor,
+  type NotificationsInboxData,
+} from "../utils/notificationPages";
 
 /** Seeds React Query from the dedicated notifications MMKV key at cold start. */
 export function hydrateNotificationsFromMmkv(
   queryClient: QueryClient,
+  userId: string | undefined,
 ): boolean {
-  const snapshot = readPersistedNotifications();
+  const snapshot = readPersistedNotifications(userId);
   if (!snapshot) {
     return false;
   }
 
-  queryClient.setQueryData(notificationQueryKeys.inboxList(), snapshot.inbox);
   queryClient.setQueryData(
-    notificationQueryKeys.unreadCount(),
+    notificationQueryKeys.inboxList(userId),
+    buildInboxData(
+      snapshot.inbox,
+      resolveSeedCursor(
+        snapshot.inbox,
+        snapshot.nextCursor,
+        NOTIFICATIONS_PAGE_LIMIT,
+      ),
+    ),
+  );
+  queryClient.setQueryData(
+    notificationQueryKeys.unreadCount(userId),
     snapshot.unreadCount,
   );
   return true;
 }
 
-/** Writes the current React Query notification caches to MMKV. */
+/**
+ * Writes the current React Query notification caches to MMKV. Only the first page is kept:
+ * it is a cold-start seed, and older pages are fetched on demand.
+ */
 export function persistNotificationsMmkvFromQueryClient(
   queryClient: QueryClient,
+  userId: string,
 ): void {
-  const inbox = queryClient.getQueryData<AppNotification[]>(
-    notificationQueryKeys.inboxList(),
+  const inbox = queryClient.getQueryData<NotificationsInboxData>(
+    notificationQueryKeys.inboxList(userId),
   );
   const unreadCount = queryClient.getQueryData<number>(
-    notificationQueryKeys.unreadCount(),
+    notificationQueryKeys.unreadCount(userId),
   );
 
   if (inbox === undefined && unreadCount === undefined) {
     return;
   }
 
-  const existing = readPersistedNotifications();
+  const existing = readPersistedNotifications(userId);
+  const firstPage = inbox?.pages[0];
 
-  writePersistedNotifications({
-    inbox: inbox ?? existing?.inbox ?? [],
+  writePersistedNotifications(userId, {
+    inbox: firstPage?.items ?? existing?.inbox ?? [],
     unreadCount: unreadCount ?? existing?.unreadCount ?? 0,
+    nextCursor: firstPage ? firstPage.nextCursor : existing?.nextCursor,
   });
 }

@@ -11,6 +11,7 @@ export function buildInsightsMonthSummary(
   data: InsightsSummary | undefined,
   hasMonthlyBudget: boolean,
   monthlyBudgetAmount: number,
+  isPast: boolean,
 ): InsightsMonthSummary {
   if (!data || data.transaction_count === 0) {
     return buildEmptyInsightsMonthSummary(
@@ -41,24 +42,39 @@ export function buildInsightsMonthSummary(
     : hasSpentMonth
       ? `${Math.round(usagePct * 100)}%`
       : "0%";
+  const incomeNum = Number.parseFloat(data.credit_total);
+  const hasIncome = Number.isFinite(incomeNum) && incomeNum > 0;
+  const savingsRatePct = hasIncome
+    ? Math.round((netValue / incomeNum) * 100)
+    : null;
+  const spentDisplay = formatSpendMagnitude(data.debit_total);
+  const netDisplay = formatNetDisplay(data.net);
+
   return {
     transactionCount: data.transaction_count,
     hasMonthlyBudget,
+    hasIncome,
     isOverBudget,
     budgetDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
       : "\u2014",
     usedPctDisplay,
     remainingValue,
-    remainingLabel: isOverBudget ? "Over" : "Remaining",
+    remainingLabel: isOverBudget
+      ? "Over budget"
+      : isPast
+        ? "Saved"
+        : "Remaining",
     remainingDisplay: !hasMonthlyBudget
       ? "\u2014"
       : isOverBudget
         ? formatInrCompact(overageValue)
         : formatInrCompact(remainingValue),
-    spentDisplay: formatSpendMagnitude(data.debit_total),
+    spentDisplay,
     incomeDisplay: formatSpendMagnitude(data.credit_total),
-    netDisplay: formatNetDisplay(data.net),
+    netDisplay,
+    heroDisplay: hasIncome ? netDisplay : spentDisplay,
     netValue,
+    savingsRatePct,
   };
 }

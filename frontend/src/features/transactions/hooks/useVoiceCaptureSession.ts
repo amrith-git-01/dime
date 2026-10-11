@@ -1,24 +1,27 @@
+import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
 } from "expo-audio";
+import { randomUUID } from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 
 import { submitVoice } from "../api/submitTransactionApi";
+import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
 import { guessVoiceUploadMeta } from "../voice/guessVoiceMime";
 import {
   MIN_VOICE_RECORDING_SECONDS,
   VOICE_RECORDING_TOO_SHORT_MESSAGE,
 } from "../voice/voiceCaptureConstants";
+import { VOICE_RECORDING_OPTIONS } from "../voice/voiceRecordingOptions";
 
 type CapturePhase = "idle" | "preparing" | "recording";
 
@@ -42,13 +45,13 @@ function recordingDurationSeconds(
 export function useVoiceCaptureSession() {
   const visible = useVoiceCaptureUiStore((s) => s.visible);
   const close = useVoiceCaptureUiStore((s) => s.close);
-  const { userId, authReady } = useSessionUserId();
+  const { userId } = useSessionUserId();
   const { showToast } = useToast();
   const qc = useQueryClient();
   const showBusy = useReceiptScanUiStore((s) => s.show);
   const hideBusy = useReceiptScanUiStore((s) => s.hide);
 
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
 
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const isRecordingRef = useRef(false);
@@ -78,7 +81,7 @@ export function useVoiceCaptureSession() {
   }, [cleanupRecording, close]);
 
   const requestDismiss = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (isRecordingRef.current) {
       Alert.alert("Discard recording?", "Your voice note will not be saved.", [
         { text: "Keep", style: "cancel" },
@@ -108,10 +111,6 @@ export function useVoiceCaptureSession() {
 
     void (async () => {
       setPhase("preparing");
-
-      if (!authReady) {
-        return;
-      }
 
       if (!userId) {
         Alert.alert(
@@ -185,10 +184,10 @@ export function useVoiceCaptureSession() {
       sessionAbortRef.current = true;
       void cleanupRecording();
     };
-  }, [visible, authReady, userId, cleanupRecording, hardClose, recorder]);
+  }, [visible, userId, cleanupRecording, hardClose, recorder]);
 
   const stopAndSubmit = useCallback(async () => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     if (!isRecordingRef.current) {
       return;
     }
@@ -245,12 +244,13 @@ export function useVoiceCaptureSession() {
         fileUri: uri,
         fileName,
         mimeType,
+        idempotencyKey: randomUUID(),
       });
       showToast({
         variant: "success",
         message: "Voice transaction added",
       });
-      void qc.invalidateQueries({ refetchType: "active" });
+      invalidateTransactionDerivedQueries(qc);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
@@ -261,6 +261,7 @@ export function useVoiceCaptureSession() {
       Alert.alert("Something went wrong", message);
     } finally {
       hideBusy();
+      invalidateLimitsQueries(qc);
     }
   }, [close, hardClose, hideBusy, qc, recorder, showBusy, showToast]);
 

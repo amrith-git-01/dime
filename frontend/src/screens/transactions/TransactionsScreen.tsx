@@ -1,208 +1,128 @@
-import { FlashList, type FlashListRef } from "@shopify/flash-list";
-import { Calendar, Receipt } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { StyleSheet, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { CARD_SEGMENT_SHADOW_TOP_BLEED } from "@/components/shared";
+import { paper, spacing } from "@/constants";
 import {
-  BentoQuickAddPills,
-  BentoSectionCardSegment,
-  BentoTransactionTile,
-  TwoToneEmptyState,
-} from "@/components/shared";
-import { colors, spacing } from "@/constants";
-import {
-  TransactionsBentoHeader,
-  TransactionsListRowsSkeleton,
+  TransactionCalendarCard,
+  TransactionDayCardFooter,
+  TransactionDayCardHeader,
+  TransactionDayCardPlaceholder,
+  TransactionDayCardRow,
 } from "@/features/transactions/components";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
 
-const TransactionsListFooter = memo(function TransactionsListFooter({
-  show,
-}: {
-  show: boolean;
-}) {
-  if (!show) {
-    return null;
-  }
-  return (
-    <View style={styles.listFooter}>
-      <ActivityIndicator color={colors.primary} />
-    </View>
-  );
-});
+const NO_ROWS: TransactionFlashListItem[] = [];
+
+function keyExtractor(item: TransactionFlashListItem): string {
+  return item.id;
+}
 
 export default function TransactionsScreen() {
-  const listRef = useRef<FlashListRef<TransactionFlashListItem>>(null);
-  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const {
-    canGoNextDay,
-    canGoPrevDay,
-    dayRowCount,
+    canGoPrevMonth,
+    canGoNextMonth,
+    dayExpenseTotal,
+    dayIncomeTotal,
+    dayNetTotal,
     emptyVariant,
     flashListData,
-    goNextDay,
-    goPrevDay,
-    handleLoadMore,
-    handleSelectMonth,
-    lastRowIndex,
-    listExtraData,
-    monthHasNoTransactions,
-    monthOptions,
-    onManualAdd,
-    onReceipt,
-    onVoice,
+    goPrevMonth,
+    goNextMonth,
     openTransactionDetail,
+    onManualAdd,
+    selectDay,
     selectedDayKey,
+    selectedDayTransactionCount,
     selectedMonth,
-    showListFooter,
     showMonthLoading,
-    summary,
-    summaryFailed,
-    summaryLoading,
+    spendByDay,
   } = useTransactionsScreenModel();
 
-  useEffect(() => {
-    listRef.current?.scrollToTop({ animated: false });
-  }, [listExtraData.dayKey, listExtraData.monthIndex]);
+  const isDayLoading =
+    emptyVariant === "month-loading" || emptyVariant === "day-loading";
+  const isFetching = emptyVariant === "day-loading";
+  const hasActivity = selectedDayTransactionCount > 0;
+  // Rows are only shown once the day is known to have activity (matches the summary count).
+  const visibleRows = isDayLoading || !hasActivity ? NO_ROWS : flashListData;
 
-  const renderFlashRow = useCallback(
-    ({ item, index }: { item: TransactionFlashListItem; index: number }) => {
-      const isFirst = index === 0;
-      const isLast = index === lastRowIndex;
-      return (
-        <BentoSectionCardSegment
-          isFirst={isFirst}
-          isLast={isLast}
-          showGapAfter={!isLast}
-        >
-          <BentoTransactionTile
-            transaction={item.transaction}
-            onPress={openTransactionDetail}
-          />
-        </BentoSectionCardSegment>
-      );
-    },
-    [lastRowIndex, openTransactionDetail],
-  );
-
-  const keyExtractor = useCallback(
-    (item: TransactionFlashListItem) => item.id,
-    [],
-  );
-  const getItemType = useCallback(() => "row" as const, []);
-
-  // Tile (64) + gap (16) for typical non-first/non-last items
-  const overrideItemLayout = useCallback(
-    (layout: { span?: number; size?: number }) => {
-      layout.size = 80;
-    },
-    [],
-  );
-
-  const listEmptyComponent = useMemo(() => {
-    if (emptyVariant === null) {
-      return null;
-    }
-    if (emptyVariant === "month-loading" || emptyVariant === "day-loading") {
-      return <TransactionsListRowsSkeleton />;
-    }
-    return (
-      <TwoToneEmptyState
-        layout="inline"
-        icon={monthHasNoTransactions ? Receipt : Calendar}
-        title={
-          monthHasNoTransactions
-            ? "No transactions here"
-            : "No transactions on this day"
-        }
-        message={
-          monthHasNoTransactions
-            ? "No transactions are available for this period."
-            : "Try another day or add a transaction."
-        }
-        footer={
-          monthHasNoTransactions ? (
-            <BentoQuickAddPills
-              onManualAdd={onManualAdd}
-              onReceipt={onReceipt}
-              onVoice={onVoice}
-            />
-          ) : undefined
-        }
-      />
-    );
-  }, [emptyVariant, monthHasNoTransactions, onManualAdd, onReceipt, onVoice]);
-
-  const listFooter = useMemo(
-    () => <TransactionsListFooter show={showListFooter} />,
-    [showListFooter],
+  const renderItem: ListRenderItem<TransactionFlashListItem> = ({ item }) => (
+    <TransactionDayCardRow
+      transaction={item.transaction}
+      showDivider={item.sectionRowIndex > 0}
+      onPress={openTransactionDetail}
+    />
   );
 
   return (
     <TabScreenShell>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <TransactionsBentoHeader
-            selectedMonthLabel={selectedMonth.label}
-            summary={summary}
-            summaryLoading={summaryLoading}
-            summaryFailed={summaryFailed}
-            monthOptions={monthOptions}
-            onSelectMonth={handleSelectMonth}
-            selectedDayKey={selectedDayKey}
-            transactionCount={dayRowCount}
-            canGoPrevDay={canGoPrevDay}
-            canGoNextDay={canGoNextDay}
-            onPrevDay={goPrevDay}
-            onNextDay={goNextDay}
-            onMonthMenuOpenChange={setMonthMenuOpen}
-            dayBarLoading={showMonthLoading}
-            dayBarCountLoading={emptyVariant === "day-loading"}
-          />
-        </View>
-        <FlashList
-          ref={listRef}
-          style={styles.list}
-          scrollEnabled={!monthMenuOpen}
-          data={flashListData}
-          extraData={listExtraData}
-          renderItem={renderFlashRow}
-          keyExtractor={keyExtractor}
-          getItemType={getItemType}
-          overrideItemLayout={overrideItemLayout}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.35}
-          ListEmptyComponent={listEmptyComponent}
-          ListFooterComponent={listFooter}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+      <FlashList
+        style={styles.list}
+        data={visibleRows}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <TransactionCalendarCard
+              year={selectedMonth.year}
+              monthIndex0={selectedMonth.monthIndex0}
+              spendByDay={spendByDay}
+              selectedDayKey={selectedDayKey}
+              onSelectDay={selectDay}
+              onPrevMonth={goPrevMonth}
+              onNextMonth={goNextMonth}
+              canGoPrevMonth={canGoPrevMonth}
+              canGoNextMonth={canGoNextMonth}
+              isLoading={showMonthLoading}
+            />
+            <TransactionDayCardHeader
+              dayKey={selectedDayKey}
+              dayNetTotal={dayNetTotal}
+              hasActivity={hasActivity}
+              isFetching={isFetching}
+            />
+          </View>
+        }
+        ListEmptyComponent={
+          isDayLoading || !hasActivity ? (
+            <TransactionDayCardPlaceholder
+              dayKey={selectedDayKey}
+              isLoading={isDayLoading}
+              onManualAdd={onManualAdd}
+            />
+          ) : null
+        }
+        ListFooterComponent={
+          hasActivity && !isDayLoading ? (
+            <TransactionDayCardFooter
+              transactionCount={selectedDayTransactionCount}
+              dayIncomeTotal={dayIncomeTotal}
+              dayExpenseTotal={dayExpenseTotal}
+            />
+          ) : null
+        }
+      />
     </TabScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.pageBackground,
-  },
-  headerSlot: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
   list: {
     flex: 1,
+    backgroundColor: paper,
   },
-  listFooter: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-  listContent: {
+  content: {
     paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  header: {
+    // The day-card header segment reserves top room for its card shadow.
+    gap: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
   },
 });

@@ -11,10 +11,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, hero, overlays, spacing, typography } from "@/constants";
+import {
+  danger,
+  ink,
+  inkFaint,
+  inkSoft,
+  overlays,
+  skeleton,
+  surface,
+} from "@/constants/colors";
+import { fontFamilies } from "@/constants/fonts";
+import { radius } from "@/constants/radius";
+import { shadows } from "@/constants/shadows";
+import { spacing } from "@/constants/spacing";
 import { useUserProfile } from "@/hooks/useUserProfile";
-
-import { HeaderGradientFill } from "./HeaderGradientFill";
 
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
@@ -24,14 +34,13 @@ export type AppHeaderProps = {
 };
 
 const AVATAR_SIZE = 40;
-const BELL_ICON = 20;
-const BELL_CIRCLE = 36;
-const UNREAD_BADGE_SIZE = 8;
+const ICON_SIZE = 20;
+const UNREAD_DOT_SIZE = 8;
 
-function timeOfDayGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour <= 11) return "Good morning";
-  if (hour >= 12 && hour <= 17) return "Good afternoon";
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h <= 11) return "Good morning";
+  if (h >= 12 && h <= 17) return "Good afternoon";
   return "Good evening";
 }
 
@@ -43,16 +52,15 @@ export function AppHeader({
 }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
-  const greeting = timeOfDayGreeting();
-  const [avatarImageLoading, setAvatarImageLoading] = useState(true);
-  const [avatarImageError, setAvatarImageError] = useState(false);
-  const headerReadyNotifiedRef = useRef(false);
+  const [imgLoading, setImgLoading] = useState(true);
+  const [imgError, setImgError] = useState(false);
+  const notifiedRef = useRef(false);
 
-  const onHeaderLayout = useCallback(
+  const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
       const { width, height } = e.nativeEvent.layout;
-      if (!headerReadyNotifiedRef.current && width > 0 && height > 0) {
-        headerReadyNotifiedRef.current = true;
+      if (!notifiedRef.current && width > 0 && height > 0) {
+        notifiedRef.current = true;
         onHeaderReady?.();
       }
     },
@@ -60,241 +68,196 @@ export function AppHeader({
   );
 
   return (
-    <View style={styles.root}>
-      <View
-        style={[
-          styles.gradientShell,
-          {
-            borderBottomLeftRadius: spacing.headerCurveRadius,
-            borderBottomRightRadius: spacing.headerCurveRadius,
-          },
-        ]}
-        onLayout={onHeaderLayout}
-      >
-        <HeaderGradientFill />
-
-        <View
-          style={[
-            styles.gradientInner,
-            { paddingTop: insets.top + spacing.lg },
-          ]}
-        >
-          <View style={styles.row}>
-            {loading ? (
-              <View style={styles.avatarSkeleton} />
-            ) : (
-              <View style={styles.avatarRing}>
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={styles.avatar}
-                  accessibilityLabel="Profile avatar"
-                  cachePolicy="memory-disk"
-                  onLoadStart={() => {
-                    setAvatarImageLoading(true);
-                    setAvatarImageError(false);
-                  }}
-                  onLoad={() => {
-                    setAvatarImageLoading(false);
-                    setAvatarImageError(false);
-                  }}
-                  onError={() => {
-                    setAvatarImageLoading(false);
-                    setAvatarImageError(true);
-                  }}
-                />
-                {avatarImageLoading ? (
-                  <View style={styles.avatarSpinnerWrap}>
-                    <ActivityIndicator
-                      size="small"
-                      color={colors.textOnPrimary}
-                    />
-                  </View>
-                ) : null}
-                {avatarImageError ? (
-                  <View style={styles.avatarErrorTint} />
-                ) : null}
+    <View
+      style={[styles.header, { paddingTop: insets.top + spacing.sm }]}
+      onLayout={onLayout}
+    >
+      <View style={styles.row}>
+        {/* Avatar */}
+        {loading ? (
+          <View style={styles.avatarSkeleton} />
+        ) : (
+          <View style={styles.avatar}>
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImg}
+              accessibilityLabel="Profile avatar"
+              cachePolicy="memory-disk"
+              onLoadStart={() => {
+                setImgLoading(true);
+                setImgError(false);
+              }}
+              onLoad={() => setImgLoading(false)}
+              onError={() => {
+                setImgLoading(false);
+                setImgError(true);
+              }}
+            />
+            {imgLoading && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color={inkFaint} />
               </View>
             )}
-
-            <View style={styles.titles} accessibilityRole="header">
-              <Text style={styles.greeting}>{greeting}</Text>
-              {loading ? (
-                <View style={styles.nameBlock}>
-                  <View style={styles.nameLineShort} />
-                  <View style={styles.nameLineLong} />
-                </View>
-              ) : (
-                <Text style={styles.displayName} numberOfLines={1}>
-                  {displayName.length > 0 ? displayName : "You"}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.spacer} />
-
-            {onSettingsPress ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Settings"
-                hitSlop={8}
-                onPress={onSettingsPress}
-                style={({ pressed }) => [
-                  styles.bellCircle,
-                  pressed && styles.bellPressed,
-                  styles.headerIconGap,
-                ]}
-              >
-                <Settings
-                  size={BELL_ICON}
-                  color={colors.textOnPrimary}
-                  strokeWidth={1.5}
-                />
-              </Pressable>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Notifications"
-              hitSlop={8}
-              onPress={onNotificationsPress}
-              style={({ pressed }) => [
-                styles.bellCircle,
-                pressed && styles.bellPressed,
-              ]}
-            >
-              <Bell
-                size={BELL_ICON}
-                color={colors.textOnPrimary}
-                strokeWidth={1.5}
-              />
-              {showUnreadNotificationDot ? (
-                <View style={styles.unreadBadge} />
-              ) : null}
-            </Pressable>
+            {imgError && (
+              <View style={[styles.avatarOverlay, styles.avatarError]} />
+            )}
           </View>
+        )}
+
+        {/* Greeting + name */}
+        <View style={styles.titles} accessibilityRole="header">
+          <Text style={styles.greetingText}>{greeting()}</Text>
+          {loading ? (
+            <View style={styles.nameSkeleton}>
+              <View style={[styles.nameSkeletonBar, { width: "45%" }]} />
+              <View
+                style={[styles.nameSkeletonBar, { width: "70%", height: 14 }]}
+              />
+            </View>
+          ) : (
+            <Text style={styles.nameText} numberOfLines={1}>
+              {displayName.length > 0 ? displayName : "You"}
+            </Text>
+          )}
         </View>
+
+        {/* Icon buttons */}
+        {onSettingsPress && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={spacing.sm}
+            onPress={onSettingsPress}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              styles.iconGap,
+              pressed && styles.iconBtnPressed,
+            ]}
+          >
+            <Settings size={ICON_SIZE} color={inkSoft} strokeWidth={1.5} />
+          </Pressable>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+          hitSlop={spacing.sm}
+          onPress={onNotificationsPress}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
+        >
+          <Bell size={ICON_SIZE} color={inkSoft} strokeWidth={1.5} />
+          {showUnreadNotificationDot && <View style={styles.unreadDot} />}
+        </Pressable>
       </View>
 
-      {fetchError ? (
+      {fetchError && (
         <Text style={styles.errorHint}>
           Profile could not be refreshed. Showing account defaults.
         </Text>
-      ) : null}
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    width: "100%",
-    alignSelf: "stretch",
-    flexShrink: 0,
-    position: "relative",
-  },
-  gradientShell: {
-    width: "100%",
-    overflow: "hidden",
-  },
-  gradientInner: {
-    width: "100%",
+  header: {
+    backgroundColor: surface,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
+    ...shadows.header,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 52,
+    gap: spacing.sm,
+    minHeight: 48,
   },
-  avatarRing: {
+  avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    borderWidth: 2,
-    borderColor: colors.headerAvatarRingBorder,
-    backgroundColor: hero.avatarRing,
     overflow: "hidden",
+    backgroundColor: skeleton.surface,
+    ...shadows.card,
   },
-  avatar: {
+  avatarImg: {
     width: "100%",
     height: "100%",
   },
-  avatarSpinnerWrap: {
+  avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: overlays.avatarFallback,
   },
-  avatarErrorTint: {
-    ...StyleSheet.absoluteFillObject,
+  avatarError: {
     backgroundColor: overlays.avatarError,
   },
   avatarSkeleton: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: overlays.avatarSkeleton,
+    backgroundColor: skeleton.surface,
   },
   titles: {
     flex: 1,
-    marginLeft: spacing.md,
     minWidth: 0,
   },
-  greeting: {
-    ...typography.headerGreetingLine,
+  greetingText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: inkSoft,
   },
-  displayName: {
-    ...typography.headerUsernameLine,
-    marginTop: 2,
+  nameText: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.18,
+    color: ink,
+    marginTop: 1,
   },
-  nameBlock: {
-    marginTop: spacing.xs,
-    gap: spacing.xs,
+  nameSkeleton: {
+    marginTop: 4,
+    gap: 4,
   },
-  nameLineShort: {
+  nameSkeletonBar: {
     height: 10,
-    width: "45%",
-    borderRadius: 5,
-    backgroundColor: hero.skeletonShort,
+    borderRadius: 4,
+    backgroundColor: skeleton.surface,
   },
-  nameLineLong: {
-    height: 14,
-    width: "70%",
-    borderRadius: 7,
-    backgroundColor: hero.skeletonLong,
-  },
-  spacer: {
-    width: spacing.sm,
-  },
-  bellCircle: {
-    position: "relative",
-    overflow: "visible",
-    width: BELL_CIRCLE,
-    height: BELL_CIRCLE,
-    borderRadius: BELL_CIRCLE / 2,
-    backgroundColor: colors.headerBellCircleBg,
+  iconBtn: {
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: radius.sm,
   },
-  bellPressed: {
-    opacity: 0.85,
+  iconBtnPressed: {
+    opacity: 0.6,
   },
-  unreadBadge: {
+  iconGap: {
+    marginRight: 4,
+  },
+  unreadDot: {
     position: "absolute",
-    top: 2,
-    right: 2,
-    width: UNREAD_BADGE_SIZE,
-    height: UNREAD_BADGE_SIZE,
-    borderRadius: UNREAD_BADGE_SIZE / 2,
-    backgroundColor: colors.primary,
-  },
-  headerIconGap: {
-    marginRight: spacing.sm,
+    top: 6,
+    right: 6,
+    width: UNREAD_DOT_SIZE,
+    height: UNREAD_DOT_SIZE,
+    borderRadius: UNREAD_DOT_SIZE / 2,
+    backgroundColor: danger,
   },
   errorHint: {
-    ...typography.screenSubtitle,
-    paddingHorizontal: spacing.lg,
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: inkSoft,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    color: colors.textSecondary,
+    paddingBottom: 4,
   },
 });

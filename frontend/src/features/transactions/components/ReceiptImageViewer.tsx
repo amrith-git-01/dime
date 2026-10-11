@@ -14,12 +14,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, overlays, spacing } from "@/constants";
-import { triggerLightHaptic } from "@/lib/haptics/nativeHaptics";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import {
   ReceiptZoomableImage,
   type ReceiptImageZoomRef,
-} from "./receiptZoom/ReceiptZoomableImage";
+} from "./receipt-zoom/ReceiptZoomableImage";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -60,13 +60,13 @@ export function ReceiptImageViewer({
   }, [visible]);
 
   const handleClose = useCallback(() => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     zoomRef.current?.reset();
     onClose();
   }, [onClose]);
 
   const handleShare = useCallback(async () => {
-    void triggerLightHaptic();
+    void triggerHaptic();
     try {
       const extension = guessReceiptExtension(url);
       if (!cacheDirectory) {

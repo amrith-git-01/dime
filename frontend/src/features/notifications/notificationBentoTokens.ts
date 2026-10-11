@@ -1,21 +1,31 @@
 import type { LucideIcon } from "lucide-react-native";
 import { AlertTriangle, ScanLine } from "lucide-react-native";
 
-import { colors, surfaces } from "@/constants";
+import {
+  danger,
+  dangerTint,
+  iconAccentSky,
+  ink,
+  inkFaint,
+  inkSoft,
+  surfaces,
+  warning,
+  warningTint,
+} from "@/constants";
 
 import type { NotificationKind } from "./types";
 
-/** Inbox row copy — unread vs read (no dot indicator). */
+/** Inbox row copy — unread vs read. */
 export const NOTIFICATION_INBOX_TEXT = {
   unread: {
-    title: colors.textListPrimary,
-    body: colors.textSecondary,
-    time: colors.textListSecondary,
+    title: ink,
+    body: inkSoft,
+    time: inkFaint,
   },
   read: {
-    title: colors.textListSecondary,
-    body: colors.inactive,
-    time: colors.inactive,
+    title: inkSoft,
+    body: inkFaint,
+    time: inkFaint,
   },
 } as const;
 
@@ -25,24 +35,8 @@ export type NotificationRowVisual = {
   iconColor: string;
 };
 
-export type NotificationActionAccent = {
-  iconColor: string;
-  backgroundColor: string;
-};
-
-/** Circular tinted wells for row actions (mark read / delete). */
-export const NOTIFICATION_ROW_ACTIONS = {
-  markRead: {
-    iconColor: colors.success,
-    backgroundColor: surfaces.successTint14,
-  },
-  delete: {
-    iconColor: colors.danger,
-    backgroundColor: surfaces.dangerTint08,
-  },
-} as const satisfies Record<string, NotificationActionAccent>;
-
-export const NOTIFICATION_ACTION_WELL_SIZE = 28;
+export const NOTIFICATION_ICON_WELL_SIZE = 36;
+export const NOTIFICATION_SWIPE_ACTION_WIDTH = 64;
 
 export const NOTIFICATION_ROW_VISUALS: Record<
   NotificationKind,
@@ -51,16 +45,16 @@ export const NOTIFICATION_ROW_VISUALS: Record<
   transaction_auto: {
     icon: ScanLine,
     backgroundColor: surfaces.iconWellSky,
-    iconColor: colors.iconAccentSky,
+    iconColor: iconAccentSky,
   },
   budget_threshold: {
     icon: AlertTriangle,
-    backgroundColor: surfaces.iconWellOrange,
-    iconColor: colors.iconAccentOrange,
+    backgroundColor: warningTint,
+    iconColor: warning,
   },
   capture_failed: {
     icon: AlertTriangle,
-    backgroundColor: surfaces.iconWellDanger,
-    iconColor: colors.danger,
+    backgroundColor: dangerTint,
+    iconColor: danger,
   },
 };

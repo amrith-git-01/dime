@@ -4,18 +4,10 @@
     "strict": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "baseUrl": ".",
     "paths": {
-      "@/assets/*": [
-        "./assets/*"
-      ],
-      "@/*": [
-        "./src/*"
-      ]
+      "@/assets/*": ["./assets/*"],
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ]
+  "include": ["**/*.ts", "**/*.tsx"]
 }

@@ -1,12 +1,16 @@
-import { charts } from "@/constants";
+import { accent, hexToRgba, skeleton } from "@/constants";
 
-/** Rolled-up payees beyond the top six. */
+/** Rolled-up payees beyond the top four. */
 export const COUNTERPARTY_DONUT_OTHER_KEY = "__other__";
 
-/**
- * Distinct categorical hues for top payee slices — not brand primary / indigo family.
- * @see docs/specs/2026-05-30-analytics-insights-design.md (Block 3)
- */
-export const COUNTERPARTY_DONUT_SLICE_COLORS = charts.payeeSliceColors;
+/** Single-hue accent opacity gradient for monochrome donut. Largest slice first. */
+export const COUNTERPARTY_DONUT_SLICE_COLORS = [
+  accent,
+  hexToRgba(accent, 0.72),
+  hexToRgba(accent, 0.5),
+  hexToRgba(accent, 0.32),
+  hexToRgba(accent, 0.18),
+];
 
-export const COUNTERPARTY_DONUT_OTHER_COLOR = charts.payeeOther;
+/** Neutral gray for the rolled-up "Other" slice and legend swatch. */
+export const COUNTERPARTY_DONUT_OTHER_COLOR = skeleton.onSurface;
