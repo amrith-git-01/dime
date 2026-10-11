@@ -43,7 +43,7 @@
     "AGENT_LLM_TIMEOUT_SECONDS": "12",
     "AGENT_DAILY_TOKEN_BUDGET": "200000",
     "AGENT_DAILY_QUESTIONS": "5",
-    "EMAIL_FROM": "Dime <hello@localhost>",
+    "EMAIL_FROM": "Dime <dime.app.mail@gmail.com>",
     "EMAIL_APP_LINK": "https://play.google.com/store",
     "EMAIL_PUBLIC_BASE_URL": "https://dime-api.selvarajamrith958.workers.dev"
   },
