@@ -23,7 +23,7 @@ import {
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
-import { RecurringSection, RecurringSheet } from "@/features/recurring/components";
+import { RecurringSection } from "@/features/recurring/components";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import {
@@ -146,12 +146,6 @@ export default function BudgetScreen() {
             </View>
           )
         }
-      />
-      <RecurringSheet
-        visible={recurring.sheetVisible}
-        kind={recurring.sheetKind}
-        item={recurring.sheetItem}
-        onClose={recurring.onSheetClose}
       />
     </TabScreenShell>
   );

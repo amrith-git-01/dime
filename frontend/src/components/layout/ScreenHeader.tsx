@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   backBtn: {
-    marginStart: -spacing.sm,
+    marginStart: spacing.xs,
   },
   title: {
     flex: 1,

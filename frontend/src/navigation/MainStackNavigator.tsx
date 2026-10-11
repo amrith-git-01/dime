@@ -8,6 +8,7 @@ import {
 import { colors } from "@/constants";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
+import RecurringEditorScreenBase from "@/screens/recurring/RecurringEditorScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
@@ -24,6 +25,8 @@ import EditTransactionScreenBase from "@/screens/transactions/EditTransactionScr
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
 import TransactionDetailScreenBase from "@/screens/transactions/TransactionDetailScreen";
 import TransactionsListScreenBase from "@/screens/transactions/TransactionsListScreen";
+
+import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 
 import MainTabNavigator from "./MainTabNavigator";
 import { withStackScreen } from "./stackScreenHosts";
@@ -73,6 +76,7 @@ const CreateCustomCategoryScreen = withStackScreen(
 );
 const EditCategoryScreen = withStackScreen(EditCategoryScreenBase);
 const EditMonthlyBudgetScreen = withStackScreen(EditMonthlyBudgetScreenBase);
+const RecurringEditorScreen = withStackScreen(RecurringEditorScreenBase);
 
 export default function MainStackNavigator() {
   return (
@@ -177,6 +181,16 @@ export default function MainStackNavigator() {
             route.params?.mode === "edit"
               ? "Update budget limits"
               : "Budget limits",
+        })}
+      />
+      <Stack.Screen
+        name="RecurringEditor"
+        component={RecurringEditorScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: route.params.item
+            ? RECURRING_COPY[route.params.kind].editTitle
+            : RECURRING_COPY[route.params.kind].addTitle,
         })}
       />
     </Stack.Navigator>
