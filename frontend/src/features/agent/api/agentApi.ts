@@ -172,33 +172,29 @@ async function readEventStream(
   });
 
   const reader = body.getReader();
+  // Read to the natural end even after the terminal event: expo/fetch closes its stream when the native
+  // request completes without checking for a cancel, so cancelling early throws "The stream is not in a
+  // state that permits close". The server ends the response right after `final` / `error`.
+  let ended = false;
   try {
     for (;;) {
-      let chunk: ReadableStreamReadResult<Uint8Array>;
-      try {
-        chunk = await reader.read();
-      } catch (error) {
-        // expo/fetch can reject the last read with "The stream is not in a state that permits close"
-        // after the server has already sent everything: keep what arrived, fail only without a terminal event.
-        parser.end();
-        if (terminal) {
-          break;
-        }
-        throw error;
-      }
-      const { done, value } = chunk;
+      const { done, value } = await reader.read();
       if (done) {
+        ended = true;
         break;
       }
-      parser.feed(decoder.decode(value, { stream: true }));
-      if (terminal) {
-        break;
+      if (!terminal) {
+        parser.feed(decoder.decode(value, { stream: true }));
       }
     }
-    parser.feed(decoder.decode());
-    parser.end();
+    if (!terminal) {
+      parser.feed(decoder.decode());
+      parser.end();
+    }
   } finally {
-    reader.cancel().catch(() => undefined);
+    if (!ended) {
+      reader.cancel().catch(() => undefined);
+    }
   }
   if (!terminal) {
     handlers.onError({ code: "stream_incomplete", message: "" });
