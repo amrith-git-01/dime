@@ -81,5 +81,10 @@ jobs:
           if [ -z "$DEPLOY_URL" ]; then echo "wrangler-action returned no deployment-url"; exit 1; fi
           curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "$DEPLOY_URL/api/v1/health"
           # A bogus bearer must be refused with 401. 503 means a Worker secret (AUTH_JWT_SECRET) is missing.
-          status=$(curl --silent --output /dev/null --write-out '%{http_code}' --retry 5 --retry-delay 5 --retry-connrefused             -H 'Authorization: Bearer smoke-test-invalid' "$DEPLOY_URL/api/v1/me")
+          # Retried: right after a deploy the edge can briefly answer 404 while the new version propagates.
+          for i in 1 2 3 4 5 6; do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Authorization: Bearer smoke-test-invalid' "$DEPLOY_URL/api/v1/me")
+            [ "$status" = "401" ] && break
+            sleep 5
+          done
           if [ "$status" != "401" ]; then echo "GET /api/v1/me with a bogus bearer returned $status (expected 401; 503 = missing secret)"; exit 1; fi
