@@ -1,10 +1,7 @@
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import {
-  BUTTON_LOADER_SIZE,
-  InfinityButtonLoader,
-} from "@/components/ui";
+import { ButtonBusyContent } from "@/components/ui";
 import {
   accent,
   ink,
@@ -21,6 +18,8 @@ export type BentoEditorFooterProps = {
   onClear: () => void;
   onSave: () => void;
   saveTitle?: string;
+  /** Continuous-tense label while saving; derived from `saveTitle` when omitted. */
+  saveBusyLabel?: string;
   clearTitle?: string;
   saveLoading?: boolean;
   saveDisabled?: boolean;
@@ -35,6 +34,7 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
   onClear,
   onSave,
   saveTitle = "Save",
+  saveBusyLabel,
   clearTitle = "Clear",
   saveLoading = false,
   saveDisabled = false,
@@ -88,11 +88,13 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
           pressed && !saveBlocked && styles.saveBtnPressed,
         ]}
       >
-        {saveLoading ? (
-          <InfinityButtonLoader color={surface} size={BUTTON_LOADER_SIZE} />
-        ) : (
-          <Text style={styles.saveBtnText}>{saveTitle}</Text>
-        )}
+        <ButtonBusyContent
+          loading={saveLoading}
+          label={saveTitle}
+          busyLabel={saveBusyLabel}
+          color={surface}
+          textStyle={styles.saveBtnText}
+        />
       </Pressable>
     </View>
   );
@@ -150,6 +152,5 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: surface,
   },
 });

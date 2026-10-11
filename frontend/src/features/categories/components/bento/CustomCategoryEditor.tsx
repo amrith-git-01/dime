@@ -1,15 +1,13 @@
 import { memo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { TextField } from "@/components/ui";
+import { BentoEditorFooter } from "@/components/bento";
+import { ButtonBusyContent, TextField } from "@/components/ui";
 import {
   accent,
   danger,
-  ink,
   inkFaint,
   inkSoft,
-  line,
-  paper,
   radius,
   shadows,
   spacing,
@@ -75,12 +73,7 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.content}>
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.sectionLabel}>PREVIEW</Text>
@@ -169,66 +162,30 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
             accessibilityRole="button"
             accessibilityLabel="Delete category"
           >
-            <Text style={styles.deleteBtnText}>
-              {deleteLoading ? "Deleting…" : "Delete category"}
-            </Text>
+            <ButtonBusyContent
+              loading={deleteLoading}
+              label="Delete category"
+              busyLabel="Deleting"
+              color={surface}
+              textStyle={styles.deleteBtnText}
+            />
           </Pressable>
         ) : null}
 
-        <View style={styles.footer}>
-          <Pressable
-            onPress={onClear}
-            disabled={atLimit}
-            style={({ pressed }) => [
-              styles.clearBtn,
-              atLimit && styles.clearBtnDisabled,
-              pressed && !atLimit && styles.clearBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Clear"
-          >
-            <Text
-              style={[
-                styles.clearBtnText,
-                atLimit && styles.clearBtnTextDisabled,
-              ]}
-            >
-              Clear
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onSave}
-            disabled={saveDisabled || atLimit || saveLoading}
-            style={({ pressed }) => [
-              styles.saveBtn,
-              (saveDisabled || atLimit || saveLoading) &&
-                styles.saveBtnDisabled,
-              pressed &&
-                !(saveDisabled || atLimit || saveLoading) &&
-                styles.saveBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Save"
-          >
-            <Text style={styles.saveBtnText}>
-              {saveLoading ? "Saving…" : "Save"}
-            </Text>
-          </Pressable>
-        </View>
+        <BentoEditorFooter
+          onClear={onClear}
+          onSave={onSave}
+          saveLoading={saveLoading}
+          saveDisabled={saveDisabled || atLimit}
+          clearDisabled={atLimit}
+        />
       </View>
-    </ScrollView>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-    backgroundColor: paper,
-  },
   content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl * 3,
     gap: spacing.lg,
   },
   card: {
@@ -275,54 +232,6 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     marginTop: spacing.sm,
   },
-  footer: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  clearBtn: {
-    flex: 1,
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: line,
-  },
-  clearBtnDisabled: {
-    opacity: 0.4,
-  },
-  clearBtnPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  clearBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: ink,
-  },
-  clearBtnTextDisabled: {
-    color: inkFaint,
-  },
-  saveBtn: {
-    flex: 2,
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    backgroundColor: accent,
-  },
-  saveBtnDisabled: {
-    opacity: 0.45,
-  },
-  saveBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  saveBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: surface,
-  },
   deleteBtn: {
     borderRadius: radius.full,
     paddingVertical: 14,
@@ -340,6 +249,5 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: surface,
   },
 });

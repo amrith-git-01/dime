@@ -6,12 +6,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   type TextInputProps,
   View,
 } from "react-native";
 
 import { colors, spacing } from "@/constants";
+import { AppTextInput } from "../AppTextInput/AppTextInput";
 import { formStyles } from "@/constants/formStyles";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
@@ -75,7 +75,8 @@ export function TextField({
           Boolean(errorMessage) && formStyles.fieldShellError,
         ]}
       >
-        <TextInput
+        <AppTextInput
+          containerStyle={styles.inputSlot}
           style={[
             formStyles.fieldInput,
             isMultiline && styles.textareaInput,
@@ -142,6 +143,11 @@ export function TextField({
 }
 
 const styles = StyleSheet.create({
+  inputSlot: {
+    flex: 1,
+    alignSelf: "stretch",
+    justifyContent: "center",
+  },
   labelRow: {
     flexDirection: "row",
     alignItems: "center",

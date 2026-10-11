@@ -2,7 +2,7 @@
  * Live-update events, shaped like the `postgres_changes` payloads the app's cache handlers were written for:
  * `{ table, eventType, new, old }`. Rows carry the raw column names (`amount` as a decimal string, `deleted_at` set by a soft delete = an UPDATE).
  */
-export type ChangeTable = 'transactions' | 'categories';
+export type ChangeTable = 'transactions' | 'categories' | 'notifications';
 export type ChangeType = 'INSERT' | 'UPDATE' | 'DELETE';
 
 export interface ChangeEvent {

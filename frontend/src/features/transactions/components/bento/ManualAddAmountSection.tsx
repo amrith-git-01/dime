@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import Animated, {
@@ -27,6 +26,7 @@ import {
   surface,
 } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
+import { AppTextInput } from "@/components/ui";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 type ManualAddAmountSectionProps = {
@@ -114,7 +114,8 @@ export function ManualAddAmountSection({
         <Text style={[styles.currencyPrefix, { color: amountColor }]}>
           {"\u20b9"}
         </Text>
-        <TextInput
+        <AppTextInput
+          containerStyle={styles.amountInputSlot}
           style={[styles.amountInput, { color: amountColor }]}
           placeholder="0"
           placeholderTextColor={inkFaint}
@@ -209,6 +210,11 @@ const styles = StyleSheet.create({
       android: { lineHeight: 50, includeFontPadding: false },
       default: { lineHeight: 50 },
     }),
+  },
+  amountInputSlot: {
+    flex: 1,
+    alignSelf: "stretch",
+    justifyContent: "center",
   },
   amountInput: {
     flex: 1,

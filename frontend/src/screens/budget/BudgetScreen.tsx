@@ -1,4 +1,9 @@
-import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import {
+  FlashList,
+  type FlashListRef,
+  type ListRenderItem,
+} from "@shopify/flash-list";
+import { useRef } from "react";
 import { StyleSheet, View } from "react-native";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
@@ -18,7 +23,9 @@ import {
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
+import { RecurringSection, RecurringSheet } from "@/features/recurring/components";
 
+import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import {
   UNCATEGORIZED_SPEND_KEY,
   useBudgetScreenModel,
@@ -55,6 +62,8 @@ export default function BudgetScreen() {
     selectedMonth,
     summaryLoading,
   } = useBudgetScreenModel();
+  const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
+  const recurring = useBudgetRecurringModel(listRef);
 
   // Keys carry the month so rows remount (and progress bars snap) when the month changes.
   const keyExtractor = (item: CategorySpendRowData) =>
@@ -76,6 +85,7 @@ export default function BudgetScreen() {
   return (
     <TabScreenShell>
       <FlashList
+        ref={listRef}
         style={styles.list}
         data={isListLoading ? NO_ROWS : listData}
         renderItem={renderItem}
@@ -99,6 +109,16 @@ export default function BudgetScreen() {
               onSetBudget={handleSetBudget}
               spentValue={monthSummary?.spentValue ?? 0}
             />
+
+            <View onLayout={recurring.onSectionLayout}>
+              <RecurringSection
+                income={recurring.income}
+                subscriptions={recurring.subscriptions}
+                today={recurring.today}
+                onAdd={recurring.onAdd}
+                onItemPress={recurring.onItemPress}
+              />
+            </View>
 
             <View style={styles.sectionHeader}>
               <BudgetCategoriesSectionHeader
@@ -126,6 +146,12 @@ export default function BudgetScreen() {
             </View>
           )
         }
+      />
+      <RecurringSheet
+        visible={recurring.sheetVisible}
+        kind={recurring.sheetKind}
+        item={recurring.sheetItem}
+        onClose={recurring.onSheetClose}
       />
     </TabScreenShell>
   );

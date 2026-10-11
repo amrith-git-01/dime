@@ -55,6 +55,7 @@ export async function postOccurrence(ctx: TxContext, item: RecurringRow, due: Lo
         categoryId: result.categoryId,
         amount,
         counterpartyName: item.name,
+        publish: ctx.publish,
       }).catch((err: unknown) => log.warn('recurring_notify_failed', { id: item.id, err: String(err) })),
     );
   }

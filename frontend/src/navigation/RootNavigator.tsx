@@ -6,6 +6,7 @@ import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { colors } from "@/constants";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
+import { useNotificationsRealtimeSync } from "@/features/notifications/hooks/useNotificationsRealtimeSync";
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
@@ -73,6 +74,7 @@ export default function RootNavigator() {
 
   useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
+  useNotificationsRealtimeSync(profileUserId ?? null);
   const cachedProfile = useCurrentUserStore((s) => s.profile);
   const meQuery = useCurrentUserProfileQuery(
     googleAuthPending ? undefined : profileUserId,

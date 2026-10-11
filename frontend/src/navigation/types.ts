@@ -6,7 +6,8 @@ import type { TransactionRow } from "@/features/transactions/types";
 export type MainTabParamList = {
   Home: undefined;
   Transactions: undefined;
-  Budgets: undefined;
+  /** `recurringKind`: scroll to the Recurring section (from Home / Settings). */
+  Budgets: { recurringKind?: RecurringKind } | undefined;
   Insights: undefined;
 };
 
@@ -20,8 +21,6 @@ export type MainStackParamList = {
   SettingsGlossary: undefined;
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;
-  RecurringList: { kind: RecurringKind };
-  EditRecurring: { kind: RecurringKind; recurringId?: string };
   Notifications: undefined;
   ManualAddTransaction:
     | {

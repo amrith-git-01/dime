@@ -1,6 +1,9 @@
 import { toCents } from '../../core/decimal';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
+import { inserted as insertedEvent } from '../realtime/events';
+import type { Publish } from '../realtime/events';
+import { emit as emitChanges } from '../realtime/publish';
 import { deleteByToken, listTokens } from '../push-tokens/repository';
 import type { UserSettings } from '../user-settings/snapshot';
 import { sendExpoPush } from './push';
@@ -53,6 +56,7 @@ export function createEmitter(
   userId: string,
   settings: UserSettings,
   pushSend: PushSender = sendExpoPush,
+  publish?: Publish,
 ): Emitter {
   async function maybePush(row: NotificationRow): Promise<void> {
     if (!settings.device_notifications_enabled) return;
@@ -78,7 +82,10 @@ export function createEmitter(
 
   async function emit(row: Omit<NewNotification, 'user_id'>): Promise<void> {
     const inserted = await insertDeduped(db, { user_id: userId, ...row });
-    if (inserted) await maybePush(inserted);
+    if (!inserted) return;
+    // Live update first so the in-app bell/list refresh at once; push is best effort after it.
+    await emitChanges(publish, [insertedEvent('notifications', inserted)]);
+    await maybePush(inserted);
   }
 
   return {

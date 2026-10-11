@@ -4,17 +4,13 @@ import { memo, useState } from "react";
 import {
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
-import {
-  BUTTON_LOADER_SIZE,
-  InfinityButtonLoader,
-} from "@/components/ui";
+import { BentoEditorFooter } from "@/components/bento";
+import { AppTextInput } from "@/components/ui";
 import {
   accent,
   accentTint,
@@ -138,12 +134,7 @@ export const ManualAddTransactionEditor = memo(
     const requiredTag = <Text style={styles.requiredHint}>(required)</Text>;
 
     return (
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.content}>
         {/* Amount card */}
         <View style={[styles.amountCard, cardShadow]}>
           <ManualAddAmountSection
@@ -182,7 +173,7 @@ export const ManualAddTransactionEditor = memo(
             <Text style={styles.sectionLabel}>COUNTERPARTY NAME</Text>
             {requiredTag}
           </View>
-          <TextInput
+          <AppTextInput
             style={[
               styles.nameInput,
               styles.nameInputFirst,
@@ -240,7 +231,7 @@ export const ManualAddTransactionEditor = memo(
             <Text style={styles.sectionLabel}>NOTE</Text>
             {optionalTag}
           </View>
-          <TextInput
+          <AppTextInput
             style={[styles.nameInput, noteFocused && styles.nameInputFocused]}
             placeholder="Add a short note"
             placeholderTextColor={inkFaint}
@@ -263,41 +254,19 @@ export const ManualAddTransactionEditor = memo(
           />
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.clearBtn}
-            onPress={onClear}
-          >
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={[styles.saveBtn, saveDisabled && styles.saveBtnDisabled]}
-            onPress={onSave}
-            disabled={saveDisabled}
-          >
-            {saveLoading ? (
-              <InfinityButtonLoader color={surface} size={BUTTON_LOADER_SIZE} />
-            ) : (
-              <Text style={styles.saveText}>Save</Text>
-            )}
-          </Pressable>
-        </View>
-      </ScrollView>
+        <BentoEditorFooter
+          onClear={onClear}
+          onSave={onSave}
+          saveLoading={saveLoading}
+          saveDisabled={saveDisabled}
+        />
+      </View>
     );
   },
 );
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
   content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
     gap: spacing.lg,
   },
   amountCard: {
@@ -391,34 +360,10 @@ const styles = StyleSheet.create({
   dateRow: {
     paddingHorizontal: 4,
   },
-  footer: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  clearBtn: {
-    flex: 1,
-    height: 50,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   clearText: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     color: inkSoft,
-  },
-  saveBtn: {
-    flex: 2,
-    height: 50,
-    borderRadius: radius.full,
-    backgroundColor: accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveBtnDisabled: {
-    opacity: 0.4,
   },
   saveText: {
     fontFamily: fontFamilies.semiBold,

@@ -66,10 +66,10 @@ export const RecurringListRow = memo(function RecurringListRow({
         />
       </View>
       <View style={styles.meta}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={styles.name} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
+        <Text style={styles.subtitle} numberOfLines={2}>
           {formatRecurringSubtitle(item, today)}
         </Text>
       </View>

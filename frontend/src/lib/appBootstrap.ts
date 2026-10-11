@@ -213,7 +213,12 @@ export function prefetchSiblingTabQueries(
       });
 
       if (settings.deviceNotificationsEnabled) {
-        await syncExpoPushTokenForUser(true);
+        // Remote push registration must never block the local schedules below.
+        try {
+          await syncExpoPushTokenForUser(true);
+        } catch (error) {
+          reportError(error, "appBootstrap failed to register push token");
+        }
       }
 
       await syncDailyExpenseReminderSchedule({

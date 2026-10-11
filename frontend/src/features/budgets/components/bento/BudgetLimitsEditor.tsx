@@ -1,21 +1,15 @@
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
+import { BentoEditorFooter } from "@/components/bento";
 import {
-  accent,
-  danger,
   inkSoft,
-  paper,
-  radius,
   spacing,
-  surface,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
@@ -143,12 +137,7 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   const saveTitle = isEditMode ? "Update" : "Save";
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.content}>
       <Text style={styles.description}>
         Slide to a preset or choose Custom. Daily and monthly caps stay
         independent.
@@ -188,47 +177,19 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
       </View>
 
       {/* Footer */}
-      <View style={styles.footer}>
-        <Pressable
-          onPress={handleClear}
-          style={({ pressed }) => [
-            styles.clearBtn,
-            pressed && styles.clearBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Clear budget"
-        >
-          <Text style={styles.clearBtnText}>Clear</Text>
-        </Pressable>
-        <Pressable
-          onPress={onSave}
-          disabled={saveDisabled || saveLoading}
-          style={({ pressed }) => [
-            styles.saveBtn,
-            (saveDisabled || saveLoading) && styles.saveBtnDisabled,
-            pressed && !saveDisabled && !saveLoading && styles.saveBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={saveTitle}
-        >
-          <Text style={styles.saveBtnText}>
-            {saveLoading ? "Saving…" : saveTitle}
-          </Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+      <BentoEditorFooter
+        onClear={handleClear}
+        onSave={onSave}
+        saveTitle={saveTitle}
+        saveLoading={saveLoading}
+        saveDisabled={saveDisabled}
+      />
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-    backgroundColor: paper,
-  },
   content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl * 3,
     gap: spacing.xl,
   },
   description: {
@@ -239,48 +200,5 @@ const styles = StyleSheet.create({
   },
   slidersBlock: {
     gap: spacing.xl,
-  },
-  footer: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  clearBtn: {
-    flex: 1,
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: danger,
-  },
-  clearBtnPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  clearBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: danger,
-  },
-  saveBtn: {
-    flex: 2,
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    backgroundColor: accent,
-  },
-  saveBtnDisabled: {
-    opacity: 0.45,
-  },
-  saveBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  saveBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: surface,
   },
 });

@@ -135,6 +135,7 @@ async function emitScope(input: {
   emit: (threshold: number, title: string, body: string) => Promise<void>;
 }): Promise<void> {
   const { warn, over } = crossedThresholds(input.spent, input.cap, input.warnPct);
-  if (warn) await input.emit(input.warnPct, input.messages.titleWarn, input.messages.bodyWarn);
+  // One debit can cross both thresholds at once: only the highest one is worth a notification.
   if (over) await input.emit(100, input.messages.titleOver, input.messages.bodyOver);
+  else if (warn) await input.emit(input.warnPct, input.messages.titleWarn, input.messages.bodyWarn);
 }

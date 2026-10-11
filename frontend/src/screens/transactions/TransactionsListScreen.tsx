@@ -16,6 +16,7 @@ import {
   emptyStateCopy,
   SurfaceCardSegment,
 } from "@/components/shared";
+import { ButtonBusyContent } from "@/components/ui";
 import {
   accent,
   danger,
@@ -207,9 +208,12 @@ export default function TransactionsListScreen() {
               accessibilityLabel="Retry loading transactions"
               hitSlop={8}
             >
-              <Text style={styles.footerRetry}>
-                {isRetrying ? "Retrying…" : "Retry"}
-              </Text>
+              <ButtonBusyContent
+                loading={isRetrying}
+                label="Retry"
+                color={accent}
+                textStyle={styles.footerRetry}
+              />
             </Pressable>
           </View>
         ) : showLoadingMore ? (

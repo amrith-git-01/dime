@@ -4,8 +4,6 @@ import {
   Clock,
   CreditCard,
   FileText,
-  Pencil,
-  Trash2,
   X,
 } from "lucide-react-native";
 import { useEffect, type ReactNode } from "react";
@@ -18,9 +16,9 @@ import Animated, {
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { ConfirmModal } from "@/components/shared";
+import { Button } from "@/components/ui";
 import {
   accent,
-  danger,
   ink,
   inkFaint,
   inkSoft,
@@ -128,34 +126,10 @@ export default function TransactionDetailScreen() {
                 strokeWidth={1.5}
               />
             </View>
-            <Text style={styles.merchantName} numberOfLines={1}>
+            <Text style={styles.merchantName}>
               {ui.merchant}
             </Text>
             <View style={styles.headerActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit"
-                hitSlop={12}
-                onPress={model.handleEdit}
-                style={({ pressed }) => [
-                  styles.closeBtn,
-                  pressed && styles.closeBtnPressed,
-                ]}
-              >
-                <Pencil size={20} color={ink} strokeWidth={1.5} />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Delete"
-                hitSlop={12}
-                onPress={model.handleDeletePress}
-                style={({ pressed }) => [
-                  styles.closeBtn,
-                  pressed && styles.closeBtnPressed,
-                ]}
-              >
-                <Trash2 size={20} color={danger} strokeWidth={1.5} />
-              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close"
@@ -232,7 +206,22 @@ export default function TransactionDetailScreen() {
               isLast
             />
           </View>
-          <View style={styles.cardBottom} />
+          <View style={styles.actionsRow}>
+            <View style={styles.actionSlot}>
+              <Button
+                title="Edit"
+                variant="secondary"
+                onPress={model.handleEdit}
+              />
+            </View>
+            <View style={styles.actionSlot}>
+              <Button
+                title="Delete"
+                variant="danger"
+                onPress={model.handleDeletePress}
+              />
+            </View>
+          </View>
         </Animated.View>
       </View>
 
@@ -242,6 +231,7 @@ export default function TransactionDetailScreen() {
         message="This removes it from Home, Insights, and budgets. You can’t undo this."
         cancelLabel="Cancel"
         confirmLabel="Delete"
+        confirmBusyLabel="Deleting"
         confirmTone="danger"
         confirmLoading={model.deleteLoading}
         onCancel={model.handleCancelDelete}
@@ -275,13 +265,20 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     paddingTop: spacing.lg,
   },
-  cardBottom: {
-    height: spacing.lg,
+  actionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  actionSlot: {
+    flex: 1,
   },
   // Card header
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     gap: spacing.md,
@@ -302,6 +299,7 @@ const styles = StyleSheet.create({
   },
   merchantName: {
     flex: 1,
+    paddingTop: spacing.sm,
     fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,

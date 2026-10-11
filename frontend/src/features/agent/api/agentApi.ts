@@ -174,7 +174,19 @@ async function readEventStream(
   const reader = body.getReader();
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (error) {
+        // expo/fetch can reject the last read with "The stream is not in a state that permits close"
+        // after the server has already sent everything: keep what arrived, fail only without a terminal event.
+        parser.end();
+        if (terminal) {
+          break;
+        }
+        throw error;
+      }
+      const { done, value } = chunk;
       if (done) {
         break;
       }

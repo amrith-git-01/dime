@@ -8,7 +8,7 @@
  * injected (`RealtimeDeps`), which keeps it testable. The app wires the real ones in `index.ts`.
  */
 
-export type RealtimeTable = "transactions" | "categories";
+export type RealtimeTable = "transactions" | "categories" | "notifications";
 
 export type RealtimeEvent = {
   table: RealtimeTable;

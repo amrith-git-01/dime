@@ -75,6 +75,7 @@ async function finish(ctx: TxContext, input: FinishInput): Promise<JobOutcome> {
       categoryId: result.categoryId,
       amount: parsed.amount,
       counterpartyName: parsed.counterpartyName,
+      publish: ctx.publish,
     });
   } catch (err) {
     log.error('ingest_notify_failed', { err, jobId: input.jobId, transactionId: result.id });
