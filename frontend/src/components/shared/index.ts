@@ -19,7 +19,6 @@ export {
   type ChartTooltipOverlayProps,
   type ChartTooltipViewAction,
 } from "./ChartPressTooltip";
-export { BottomSheet, type BottomSheetProps } from "./BottomSheet";
 export { ConfirmModal, type ConfirmModalProps } from "./ConfirmModal";
 export {
   EmptyState,

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { CategoryPill } from "@/components/categories/CategoryPill";
-import { BottomSheet, ConfirmModal } from "@/components/shared";
+import { ConfirmModal } from "@/components/shared";
 import {
   Button,
   SegmentChip,
@@ -18,13 +18,13 @@ import type { RecurringItem, RecurringKind } from "../types";
 import { postCurrentPeriodLabel } from "../utils/recurringDisplay";
 import { MONTH_NAMES } from "../utils/recurringForm";
 
-export type RecurringSheetProps = {
-  visible: boolean;
-  /** Kind preselected by the card that opened the sheet. */
+export type RecurringEditorProps = {
+  /** Kind preselected by the card that opened the page. */
   kind: RecurringKind;
   /** Item to edit; omit to add a new one. */
   item?: RecurringItem;
-  onClose: () => void;
+  /** Called after a save or delete (the screen goes back). */
+  onDone: () => void;
 };
 
 const MONTH_OPTIONS = MONTH_NAMES.map((label, index) => ({
@@ -32,47 +32,29 @@ const MONTH_OPTIONS = MONTH_NAMES.map((label, index) => ({
   label,
 }));
 
-/** Add / edit a recurring income or subscription in a bottom sheet. */
-export const RecurringSheet = memo(function RecurringSheet({
-  visible,
-  kind,
+/** Add / edit form of a recurring income or subscription (the RecurringEditor page). */
+export const RecurringEditor = memo(function RecurringEditor({
+  kind: initialKind,
   item,
-  onClose,
-}: RecurringSheetProps) {
-  // The body mounts per open, so every open starts from a fresh form.
-  if (!visible) {
-    return null;
-  }
-  return <RecurringSheetBody kind={kind} item={item} onClose={onClose} />;
-});
-
-type BodyProps = Omit<RecurringSheetProps, "visible">;
-
-function RecurringSheetBody({ kind: initialKind, item, onClose }: BodyProps) {
-  const model = useRecurringSheetModel({ kind: initialKind, item, onClose });
+  onDone,
+}: RecurringEditorProps) {
+  const model = useRecurringSheetModel({ kind: initialKind, item, onClose: onDone });
   const { form, errors, update, copy, isEditing, kind } = model;
   const isYearly = form.cadence === "yearly";
 
   return (
-    <BottomSheet
-      visible
-      title={isEditing ? copy.editTitle : copy.addTitle}
-      onClose={onClose}
-      dismissDisabled={model.busy}
-      overlay={
-        <ConfirmModal
-          visible={model.deleteVisible}
-          title={copy.deleteTitle}
-          message={copy.deleteMessage}
-          confirmLabel="Delete"
-          confirmBusyLabel="Deleting"
-          confirmTone="danger"
-          confirmLoading={model.deleting}
-          onCancel={model.onDeleteCancel}
-          onConfirm={model.onDeleteConfirm}
-        />
-      }
-    >
+    <View style={styles.content}>
+      <ConfirmModal
+        visible={model.deleteVisible}
+        title={copy.deleteTitle}
+        message={copy.deleteMessage}
+        confirmLabel="Delete"
+        confirmBusyLabel="Deleting"
+        confirmTone="danger"
+        confirmLoading={model.deleting}
+        onCancel={model.onDeleteCancel}
+        onConfirm={model.onDeleteConfirm}
+      />
       {!isEditing ? (
         <View>
           <Text style={formStyles.fieldLabel}>Type</Text>
@@ -215,11 +197,14 @@ function RecurringSheetBody({ kind: initialKind, item, onClose }: BodyProps) {
           onPress={model.onDeletePress}
         />
       ) : null}
-    </BottomSheet>
+    </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
+  content: {
+    gap: spacing.lg,
+  },
   chipRow: {
     flexDirection: "row",
     gap: spacing.sm,

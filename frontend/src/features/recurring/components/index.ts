@@ -4,4 +4,4 @@ export {
   type RecurringKindData,
   type RecurringSectionProps,
 } from "./RecurringSection";
-export { RecurringSheet, type RecurringSheetProps } from "./RecurringSheet";
+export { RecurringEditor, type RecurringEditorProps } from "./RecurringEditor";
