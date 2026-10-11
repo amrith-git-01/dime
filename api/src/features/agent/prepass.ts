@@ -3,15 +3,14 @@ import { log } from '../../core/logging';
 import type { AgentMemory } from './memory';
 import { parseTimeHint } from './range';
 import type { DateRange } from './range';
-import { executeQueries } from './queries';
+import { parseEntityMatches } from './entities';
+import type { EntityMatch } from './entities';
 import type { AgentQueries } from './queries';
-import { parseEntityMatches, resolveEntitiesCall } from './tools';
-import type { EntityMatch } from './tools';
 
 /**
  * The deterministic pre-pass (no LLM): a time hint from the question or the memory, fuzzy entity
  * resolution with trigram similarity (payees and categories mentioned in the question) and a clarification when a
- * name is genuinely ambiguous. Resolved entities are handed to the model so it can call the data tools
+ * name is genuinely ambiguous. Resolved entities are handed to the model so it can write its SQL
  * right away with exact ids.
  */
 
@@ -147,11 +146,9 @@ export async function runPrepass(input: {
 
   let matches: EntityMatch[] = [];
   try {
-    const { results } = await executeQueries(input.queries, input.db, input.userId, [resolveEntitiesCall(phrases)]);
-    const first = results[0];
-    if (first?.ok) matches = parseEntityMatches(first.value);
+    matches = parseEntityMatches(await input.queries.resolve_entities(input.db, input.userId, { phrases }));
   } catch (err) {
-    // A failing lookup only costs the pre-resolved entities: the model can call resolve_entities itself.
+    // A failing lookup only costs the pre-resolved entities: the model can call find_entities itself.
     log.warn('agent_prepass_failed', { err: String(err) });
   }
 

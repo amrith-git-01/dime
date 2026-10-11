@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { PermanentAiError, TransientAiError } from '../src/features/ai/errors';
+import { SYSTEM_PROMPT } from '../src/features/agent/prompts';
 import { TurnAbortedError } from '../src/features/agent/llm';
 import type { ChatMessage } from '../src/features/agent/llm';
 import { verifyMemory } from '../src/features/agent/memory';
-import { QueryUserError } from '../src/features/agent/queries';
 import { TurnTimeoutError } from '../src/features/agent/service';
-import { JUNE, NOW, SECRET, SUMMARY_JUNE, USER, fakeQueries, makeDeps, noEntities, run, scriptedLlm, toolCall } from './agent-fixtures';
+import { JUNE_RESULT, JUNE_SQL, NOW, SECRET, USER, fakeQueries, makeDeps, noEntities, run, scriptedLlm, sqlError, sqlOk, toolCall } from './agent-fixtures';
+import { seedCategory, seedTransaction, testDb } from './db';
 
 const toolMessages = (messages: ChatMessage[]) => messages.filter((m): m is Extract<ChatMessage, { role: 'tool' }> => m.role === 'tool');
 const userMessage = (messages: ChatMessage[]): string => {
@@ -14,47 +15,46 @@ const userMessage = (messages: ChatMessage[]): string => {
   return typeof m?.content === 'string' ? m.content : '';
 };
 
-describe('agent loop: tool selection, execution, answer', () => {
-  it('calls the model, runs the tool query, then answers with a verified answer', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
-    const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('spending_summary', JUNE)] },
-      { content: 'You spent **₹18,388.50** in June 2026 and earned ₹85,000.' },
-    ]);
+const ANSWER = 'You spent **₹18,388.50** in June 2026 and earned ₹85,000.';
+
+describe('agent loop: SQL, execution, answer', () => {
+  it('calls the model, runs the SQL, then answers with a verified answer', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
+    const { llm, calls } = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }, { content: ANSWER }]);
     const { result, events } = await run(makeDeps(llm, db), 'How much did I spend in June 2026?');
 
     expect(result.outcome).toBe('ok');
-    expect(result.response.answer).toBe('You spent **₹18,388.50** in June 2026 and earned ₹85,000.');
-    expect(result.response.blocks.map((b) => b['type'])).toEqual(['metric', 'metric', 'metric']); // Spent, Income, Net
+    expect(result.response.answer).toBe(ANSWER);
+    expect(result.response.blocks).toEqual([]);
     expect(result.response.deep_link).toBeNull();
     expect(result.response.turn_id).toBe('00000000-0000-4000-8000-000000000abc');
     expect(result.usage).toEqual({ promptTokens: 200, completionTokens: 40, cacheHitTokens: 120 });
+    expect(result.trace.verified).toBe('pass');
 
-    // Two model calls: the second sees the assistant tool call and the wrapped tool result.
+    // Two model calls: the second sees the assistant tool call and the wrapped result.
     expect(calls).toHaveLength(2);
     const first = calls[0];
     expect(first?.request.model).toBe('deepseek-v4-flash');
     expect(first?.request.toolChoice).toBe('auto');
-    expect(first?.request.tools).toHaveLength(9);
-    expect(first?.messages[0]?.role).toBe('system');
+    expect(first?.request.tools?.map((t) => t.function.name)).toEqual(['run_sql', 'find_entities', 'link_transactions', 'show_chart']);
+    expect(first?.messages[0]).toEqual({ role: 'system', content: SYSTEM_PROMPT });
+    expect(SYSTEM_PROMPT).toContain('### transactions');
     const prompt = userMessage(first?.messages ?? []);
     expect(prompt).toContain('Today: 2026-10-05 (Monday). Timezone: Asia/Kolkata');
     expect(prompt).toContain('Time range from the question: 2026-06-01 to 2026-06-30 (June 2026)');
     expect(prompt.endsWith('## Question\nHow much did I spend in June 2026?')).toBe(true);
     const tools = toolMessages(calls[1]?.messages ?? []);
     expect(tools).toHaveLength(1);
-    expect(tools[0]?.tool_call_id).toBe('call_spending_summary');
-    expect(tools[0]?.content).toMatch(/^<data tool="spending_summary">/);
-    expect(tools[0]?.content).toContain('"debit":"18388.50"');
-    expect(tools[0]?.content).toContain('"debit_display":"₹18,388.50"');
+    expect(tools[0]?.tool_call_id).toBe('call_run_sql');
+    expect(tools[0]?.content).toMatch(/^<data tool="run_sql">/);
+    expect(tools[0]?.content).toContain('"result_id":"r1"');
+    expect(tools[0]?.content).toContain('"rows":[[18388.5,85000]]');
 
-    // One query, bound with the half-open IST instants (the user id comes from the token, never from the model).
-    expect(db.calls()).toEqual([
-      { name: 'spending_summary', params: { from: '2026-05-31T18:30:00.000Z', to: '2026-06-30T18:30:00.000Z', categoryId: null, payeeKey: null } },
-    ]);
+    // The query goes to the database seam with the SQL as written and the IST offset (the user id never comes from the model).
+    expect(db.calls()).toEqual([{ name: 'run_sql', params: { sql: JUNE_SQL.sql, tzOffsetMinutes: 330, signal: expect.any(AbortSignal) as AbortSignal } }]);
 
-    // `step` first, then the streamed answer pieces.
-    expect(events[0]).toEqual({ type: 'step', tool: 'spending_summary', label: 'Totalling your spending' });
+    // `step` first (labelled by the purpose), then the streamed answer pieces.
+    expect(events[0]).toEqual({ type: 'step', tool: 'run_sql', label: 'Totalling June' });
     const deltas = events.slice(1);
     expect(deltas.length).toBeGreaterThan(0);
     expect(deltas.every((e) => e.type === 'delta')).toBe(true);
@@ -69,116 +69,163 @@ describe('agent loop: tool selection, execution, answer', () => {
     expect(result.outcome).toBe('ok');
   });
 
-  it('runs up to 3 independent tool calls of one step together and rejects the fourth', async () => {
-    const db = fakeQueries({
-      spending_summary: SUMMARY_JUNE,
-      category_breakdown: { type: 'debit', total: 18388.5, count: 40, categories: [] },
-      top_payees: { total: 18388.5, payee_count: 0, payees: [] },
-    });
+  it('runs up to 3 independent calls of one step together and rejects the fourth', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT, resolve_entities: noEntities });
     const { llm, calls } = scriptedLlm([
       {
         calls: [
-          toolCall('spending_summary', JUNE, 'a'),
-          toolCall('category_breakdown', JUNE, 'b'),
-          toolCall('top_payees', JUNE, 'c'),
-          toolCall('daily_cashflow', JUNE, 'd'),
+          toolCall('run_sql', JUNE_SQL, 'a'),
+          toolCall('run_sql', JUNE_SQL, 'b'),
+          toolCall('find_entities', { phrases: ['swiggy'] }, 'c'),
+          toolCall('run_sql', JUNE_SQL, 'd'),
         ],
       },
       { content: 'You spent ₹18,388.50 in June 2026.' },
     ]);
     const { result, events } = await run(makeDeps(llm, db), 'spend in June 2026');
 
-    expect(db.calls().map((c) => c.name)).toEqual(['spending_summary', 'category_breakdown', 'top_payees']);
-    expect(events.filter((e) => e.type === 'step').map((e) => (e.type === 'step' ? e.tool : ''))).toEqual(['spending_summary', 'category_breakdown', 'top_payees']);
+    expect(db.calls().filter((c) => c.name === 'run_sql')).toHaveLength(2);
+    expect(db.calls().filter((c) => c.name === 'resolve_entities')).toHaveLength(1); // find_entities (the question has no name for the pre-pass)
+    expect(events.filter((e) => e.type === 'step')).toHaveLength(3);
     const tools = toolMessages(calls[1]?.messages ?? []);
     expect(tools.map((t) => t.tool_call_id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(tools[0]?.content).toContain('"result_id":"r1"');
+    expect(tools[1]?.content).toContain('"result_id":"r2"');
     expect(tools[3]?.content).toContain('At most 3 tool calls per step');
     expect(result.outcome).toBe('ok');
   });
 
-  it('feeds argument validation errors back to the model, which then retries correctly', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
+  it('feeds argument errors back to the model, which then retries correctly', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
     const { llm, calls } = scriptedLlm([
-      {
-        calls: [
-          toolCall('spending_summary', { from: '2026-06-30', to: '2026-06-01' }, 'reversed'),
-          toolCall('spending_summary', { from: 'June 1', to: '2026-06-30' }, 'format'),
-          toolCall('spending_summary', '{not json', 'json'),
-          toolCall('nope', {}, 'unknown'),
-        ],
-      },
-      { calls: [toolCall('spending_summary', JUNE, 'fixed')] },
-      { content: 'You spent ₹18,388.50 in June 2026.' },
+      { calls: [toolCall('run_sql', '{not json', 'json'), toolCall('run_sql', {}, 'missing'), toolCall('nope', {}, 'unknown')] },
+      { calls: [toolCall('run_sql', JUNE_SQL, 'fixed')] },
+      { content: ANSWER },
     ]);
-    const { result } = await run(makeDeps(llm, db, {}, { maxSteps: 4 }), 'spend in June 2026');
+    const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
 
     const errors = toolMessages(calls[1]?.messages ?? []);
-    expect(errors[0]?.content).toContain('is before');
-    expect(errors[1]?.content).toContain('from: use the format YYYY-MM-DD');
-    expect(errors[2]?.content).toContain('not valid JSON');
-    expect(errors[3]?.content).toContain('Unknown tool');
-    expect(db.calls()).toHaveLength(1); // only the corrected call touched the database
+    expect(errors[0]?.content).toContain('not valid JSON');
+    expect(errors[1]?.content).toContain('sql:');
+    expect(errors[2]?.content).toContain('Unknown tool');
+    expect(db.calls().filter((c) => c.name === 'run_sql')).toHaveLength(1); // only the corrected call touched the database
     expect(result.response.answer).toContain('18,388.50');
   });
 
-  it('caps daily_cashflow at 40 days with a message the model can act on', async () => {
-    const db = fakeQueries();
-    const { llm, calls } = scriptedLlm([{ calls: [toolCall('daily_cashflow', { from: '2026-01-01', to: '2026-06-30' })] }, { content: 'That range is too long for a daily view.' }]);
-    await run(makeDeps(llm, db), 'daily spending this year');
-    expect(toolMessages(calls[1]?.messages ?? [])[0]?.content).toContain('at most 40 days');
-    expect(db.calls()).toHaveLength(0);
+  it('shows the model the SQLite error, lets it fix the query and rerun, and answers from the second result', async () => {
+    const db = fakeQueries({ run_sql: (p: { sql: string }) => (p.sql.includes('amt') ? sqlError('no such column: amt') : JUNE_RESULT) });
+    const { llm, calls } = scriptedLlm([
+      { calls: [toolCall('run_sql', { sql: 'SELECT SUM(amt) FROM transactions', purpose: 'Totalling' }, 'bad')] },
+      { calls: [toolCall('run_sql', JUNE_SQL, 'good')] },
+      { content: ANSWER },
+    ]);
+    const { result } = await run(makeDeps(llm, db), 'How much did I spend in June 2026?');
+    expect(toolMessages(calls[1]?.messages ?? [])[0]?.content).toBe('<data tool="run_sql">\n{"error":"no such column: amt"}\n</data>');
+    expect(toolMessages(calls[2]?.messages ?? [])[1]?.content).toContain('"result_id":"r2"');
+    expect(result.response.answer).toBe(ANSWER);
+    expect(result.outcome).toBe('ok');
+    // The trace holds the SQL length and the error, never the query text or the rows.
+    expect(result.trace.steps).toMatchObject([
+      { tool: 'run_sql', ok: false, rows: 0, sql_chars: 'SELECT SUM(amt) FROM transactions'.length, error: 'no such column: amt' },
+      { tool: 'run_sql', ok: true, rows: 1, sql_chars: JUNE_SQL.sql.length },
+    ]);
+    expect(JSON.stringify(result.trace)).not.toContain('SUM(amt)');
+    expect(JSON.stringify(result.trace)).not.toContain('18388');
+    expect(result.trace.tool_steps).toBe(2);
   });
 
-  it('reports a failing database call to the model instead of failing the turn', async () => {
-    const db = fakeQueries({}, { fail: { spending_summary: new Error('D1_ERROR: boom') } });
-    const { llm, calls } = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)] }, { content: 'I could not load that right now.' }]);
+  it('runs the real SQL guard on the real database: a bad column, then a fix, then a verified answer', async () => {
+    const food = await seedCategory({ name: 'Dining Out' });
+    await seedTransaction({ amount: '100.50', counterparty_name: 'Swiggy', category_id: food, transaction_at: '2026-06-10T10:00:00.000Z' });
+    await seedTransaction({ amount: '40', counterparty_name: 'Uber', transaction_at: '2026-06-11T10:00:00.000Z' });
+    await seedTransaction({ amount: '999', counterparty_name: 'Other month', transaction_at: '2026-05-11T10:00:00.000Z' });
+    const { llm, calls } = scriptedLlm([
+      { calls: [toolCall('run_sql', { sql: "SELECT SUM(amt) FROM transactions WHERE type = 'debit'" }, 'bad')] },
+      { calls: [toolCall('run_sql', { sql: "SELECT ROUND(SUM(amount), 2) AS spent FROM transactions WHERE type = 'debit' AND substr(local_date, 1, 7) = '2026-06'", purpose: 'Totalling June' }, 'good')] },
+      { content: 'You spent **₹140.50** in June 2026.' },
+    ]);
+    const deps = { ...makeDeps(llm, null), queries: {}, db: testDb() };
+    const { result } = await run(deps, 'How much did I spend in June 2026?');
+    expect(toolMessages(calls[1]?.messages ?? [])[0]?.content).toContain('no such column: amt');
+    expect(toolMessages(calls[2]?.messages ?? []).at(-1)?.content).toContain('"rows":[[140.5]]');
+    expect(result.outcome).toBe('ok');
+    expect(result.trace.verified).toBe('pass');
+  });
+
+  it('reports a failing database seam to the model instead of failing the turn, without database detail', async () => {
+    const db = fakeQueries({}, { fail: { run_sql: new Error('D1_ERROR: boom at secret.sql') } });
+    const { llm, calls } = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }, { content: 'I could not load that right now.' }]);
     const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
     const message = toolMessages(calls[1]?.messages ?? [])[0]?.content ?? '';
-    expect(message).toContain('The query failed');
-    expect(message).not.toContain('boom'); // database detail never reaches the model
+    expect(message).toContain('The lookup failed');
+    expect(message).not.toContain('boom');
     expect(result.outcome).toBe('ok');
   });
 
-  it('shows the model a query error it can act on (an unknown category name)', async () => {
-    const db = fakeQueries({}, { fail: { aggregate_transactions: new QueryUserError('There is no category named "Foo". Call resolve_entities to find the right name or id.') } });
-    const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('aggregate_transactions', { ...JUNE, metric: 'avg', category: 'Foo' })] },
-      { content: 'I could not find that category.' },
+  it('attaches the link and the chart the model asked for, built from the database and not from its text', async () => {
+    const db = fakeQueries({
+      run_sql: sqlOk(['category', 'total'], [['Rent', 9000], ['Food', 4000]]),
+      link_target: { name: 'Swiggy' },
+      resolve_entities: noEntities,
+    });
+    const { llm } = scriptedLlm([
+      { calls: [toolCall('run_sql', JUNE_SQL, 'q')] },
+      { calls: [toolCall('show_chart', { kind: 'donut', title: 'June by category', result_id: 'r1', label_column: 'category', value_columns: ['total'] }, 'c'), toolCall('link_transactions', { filter: 'payee', payee_key: 'swiggy', from: '2026-06-01', to: '2026-06-30' }, 'l')] },
+      { content: 'Rent was ₹9,000 and food ₹4,000 in June 2026.' },
     ]);
-    await run(makeDeps(llm, db), 'average in Foo');
-    expect(toolMessages(calls[1]?.messages ?? [])[0]?.content).toContain('There is no category named');
+    const { result, events } = await run(makeDeps(llm, db), 'break down June 2026');
+    expect(result.outcome).toBe('ok');
+    expect(result.response.blocks).toEqual([{ type: 'mini_chart', chart_kind: 'donut', payload: { title: 'June by category', series: [{ name: 'Rent', value: 9000 }, { name: 'Food', value: 4000 }] } }]);
+    expect(result.response.deep_link).toMatchObject({ label: 'View Swiggy', params: { filter: 'payee', payeeKey: 'swiggy', payeeDisplayName: 'Swiggy' } });
+    expect(events.filter((e) => e.type === 'step').map((e) => (e.type === 'step' ? e.tool : ''))).toEqual(['run_sql', 'show_chart', 'link_transactions']);
+    const memory = await verifyMemory(SECRET, result.response.memory, USER, NOW);
+    expect(memory?.last_tools).toEqual(['run_sql', 'show_chart', 'link_transactions']);
+    expect(memory?.entities).toEqual([{ type: 'payee', id: 'swiggy', name: 'Swiggy' }]);
+    expect(memory?.time_range).toEqual({ from: '2026-06-01', to: '2026-06-30', label: 'June 2026' });
+  });
+
+  it('a link to a payee that is not the user\'s is refused and no link is attached', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT, link_target: null });
+    const { llm, calls } = scriptedLlm([
+      { calls: [toolCall('run_sql', JUNE_SQL)] },
+      { calls: [toolCall('link_transactions', { filter: 'payee', payee_key: 'victim', from: '2026-06-01', to: '2026-06-30' })] },
+      { content: ANSWER },
+    ]);
+    const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
+    expect(toolMessages(calls[2]?.messages ?? []).at(-1)?.content).toContain('No payee with payee_key');
+    expect(result.response.deep_link).toBeNull();
   });
 });
 
 describe('agent loop: guards', () => {
   it('stops after maxSteps tool steps by forcing a plain answer (tool_choice none)', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
     const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('spending_summary', JUNE, 'a')] },
-      { calls: [toolCall('spending_summary', JUNE, 'b')] },
+      { calls: [toolCall('run_sql', JUNE_SQL, 'a')] },
+      { calls: [toolCall('run_sql', JUNE_SQL, 'b')] },
       { content: 'You spent ₹18,388.50 in June 2026.' },
     ]);
     const { result } = await run(makeDeps(llm, db, {}, { maxSteps: 2 }), 'spend in June 2026');
     expect(calls).toHaveLength(3);
     expect(calls.map((c) => c.request.toolChoice)).toEqual(['auto', 'auto', 'none']);
-    expect(calls[2]?.request.tools).toHaveLength(9); // the prefix (and cache) stays identical
-    expect(db.calls()).toHaveLength(2);
+    expect(calls[2]?.request.tools).toHaveLength(4); // the prefix (and cache) stays identical
+    expect(db.calls().filter((c) => c.name === 'run_sql')).toHaveLength(2);
     expect(result.outcome).toBe('ok');
   });
 
-  it('falls back to the template when the model keeps calling tools after the limit', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
-    const { llm, calls } = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)] }]);
+  it('falls back to the last result when the model keeps calling tools after the limit', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
+    const { llm, calls } = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }]);
     const { result } = await run(makeDeps(llm, db, {}, { maxSteps: 1 }), 'spend in June 2026');
     expect(calls).toHaveLength(2);
     expect(result.outcome).toBe('template');
-    expect(result.response.answer).toBe('For 2026-06-01 to 2026-06-30 you spent **₹18,388.50** across 40 transactions and received **₹85,000** (net ₹66,611.50).');
+    expect(result.response.answer).toBe("Here's what I found:\n- spent: ₹18,388.50, income: ₹85,000");
   });
 
-  it('answers from the tool results when the turn deadline passes between steps', async () => {
+  it('answers from the results when the turn deadline passes between steps', async () => {
     let t = NOW;
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
-    const { llm, calls } = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)], before: () => void (t += 24_000) }]);
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
+    const { llm, calls } = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)], before: () => void (t += 24_000) }]);
     const { result } = await run(makeDeps(llm, db, { now: () => t }, { turnTimeoutMs: 25_000 }), 'spend in June 2026');
     expect(calls).toHaveLength(1);
     expect(result.outcome).toBe('deadline');
@@ -193,9 +240,9 @@ describe('agent loop: guards', () => {
 
   it('rethrows when the client went away (no answer is built)', async () => {
     const controller = new AbortController();
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
     const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('spending_summary', JUNE)] },
+      { calls: [toolCall('run_sql', JUNE_SQL)] },
       { error: new TurnAbortedError('gone'), before: () => controller.abort() },
     ]);
     await expect(run(makeDeps(llm, db), 'spend in June 2026', {}, { signal: controller.signal })).rejects.toBeInstanceOf(TurnAbortedError);
@@ -215,9 +262,9 @@ describe('agent loop: guards', () => {
     expect(slow.calls).toHaveLength(1);
   });
 
-  it('uses the tool results when the model fails after the first step, and fails when there are none', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
-    const { llm } = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)] }, { error: new TransientAiError('down') }]);
+  it('uses the results when the model fails after the first step, and fails when there are none', async () => {
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
+    const { llm } = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }, { error: new TransientAiError('down') }]);
     const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
     expect(result.outcome).toBe('template');
     expect(result.response.answer).toContain('₹18,388.50');
@@ -225,26 +272,33 @@ describe('agent loop: guards', () => {
     const dead = scriptedLlm([{ error: new PermanentAiError('401') }]);
     await expect(run(makeDeps(dead.llm, null), 'Hi!')).rejects.toBeInstanceOf(PermanentAiError);
   });
+
+  it('only failed queries are not data: the model failing after them is an error, not an answer', async () => {
+    const db = fakeQueries({ run_sql: sqlError('no such column: x') });
+    const { llm } = scriptedLlm([{ calls: [toolCall('run_sql', { sql: 'SELECT x' })] }, { error: new TransientAiError('down') }]);
+    await expect(run(makeDeps(llm, db), 'spend in June 2026')).rejects.toBeInstanceOf(TransientAiError);
+  });
 });
 
 describe('agent loop: answer verification', () => {
-  const setup = (answers: string[]) => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
-    const script = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)] }, ...answers.map((content) => ({ content }))]);
+  const setup = (answers: string[], result = JUNE_RESULT) => {
+    const db = fakeQueries({ run_sql: result });
+    const script = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }, ...answers.map((content) => ({ content }))]);
     return { db, ...script };
   };
 
-  it('keeps an answer whose numbers all come from the tool results (any formatting)', async () => {
-    const { db, llm } = setup(['You spent Rs. 18388.50, about 40 transactions, and earned ₹85,000 (₹66,611.50 net).']);
+  it('keeps an answer whose numbers all come from the query results (any formatting)', async () => {
+    const { db, llm } = setup(['You spent Rs. 18388.50 and earned ₹85,000.']);
     const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
     expect(result.outcome).toBe('ok');
     expect(result.response.answer).toContain('18388.50');
   });
 
-  it('regenerates once when a number is not in the tool results and keeps the corrected answer', async () => {
+  it('regenerates once when a number is not in the results and keeps the corrected answer', async () => {
     const { db, llm, calls } = setup(['You spent ₹20,000 in June 2026.', 'You spent **₹18,388.50** in June 2026.']);
     const { result, events } = await run(makeDeps(llm, db), 'spend in June 2026');
     expect(result.response.answer).toBe('You spent **₹18,388.50** in June 2026.');
+    expect(result.trace.verified).toBe('regenerated');
     expect(calls).toHaveLength(3);
     const regen = calls[2];
     expect(regen?.request.toolChoice).toBe('none');
@@ -256,13 +310,29 @@ describe('agent loop: answer verification', () => {
     expect(events.some((e) => e.type === 'delta')).toBe(true);
   });
 
-  it('falls back to the deterministic template when the regeneration is wrong too', async () => {
+  it('a figure the model computed in its head is caught (a difference of two result cells)', async () => {
+    const { db, llm } = setup(['You kept ₹66,611.50 after spending.', 'You spent ₹18,388.50 and earned ₹85,000.']);
+    const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
+    expect(result.trace.verified).toBe('regenerated');
+    expect(result.response.answer).toContain('earned');
+  });
+
+  it('falls back to the rows of the last result when the regeneration is wrong too', async () => {
     const { db, llm, calls } = setup(['You spent ₹20,000.', 'You spent ₹21,000.']);
     const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
     expect(calls).toHaveLength(3); // exactly one regeneration
     expect(result.outcome).toBe('template');
-    expect(result.response.answer).toContain('₹18,388.50');
+    expect(result.trace.verified).toBe('template');
+    expect(result.response.answer).toBe("Here's what I found:\n- spent: ₹18,388.50, income: ₹85,000");
     expect(result.response.answer).not.toContain('20,000');
+  });
+
+  it('only trusts the rows the model was shown (row 51 of 60 does not back a number)', async () => {
+    const rows = Array.from({ length: 60 }, (_, i) => [`Shop ${i}`, 1000 + i * 7]);
+    const { db, llm } = setup(['Your last shop cost ₹1,413.', 'Your first shop cost ₹1,000.'], sqlOk(['payee', 'total'], rows));
+    const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
+    expect(result.trace.verified).toBe('regenerated'); // 1000 + 59 * 7 = 1413 was never shown
+    expect(result.response.answer).toBe('Your first shop cost ₹1,000.');
   });
 
   it('refuses an unsupported number when there is no data at all', async () => {
@@ -272,7 +342,13 @@ describe('agent loop: answer verification', () => {
     expect(result.response.answer).toContain("couldn't get that information");
   });
 
-  it('uses the template for an empty answer', async () => {
+  it('an empty result gives an honest fallback instead of invented numbers', async () => {
+    const { db, llm } = setup(['You spent ₹9,999.', 'You spent ₹8,888.'], sqlOk(['spent'], []));
+    const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
+    expect(result.response.answer).toBe("I couldn't find any matching data for that.");
+  });
+
+  it('uses the fallback for an empty answer', async () => {
     const { db, llm } = setup(['   ']);
     const { result } = await run(makeDeps(llm, db), 'spend in June 2026');
     expect(result.outcome).toBe('template');
@@ -298,26 +374,25 @@ describe('agent loop: pre-pass, clarification and memory', () => {
     expect(memory?.entities.map((e) => e.name)).toEqual(['Swiggy', 'Swiggy Instamart']);
   });
 
-  it('hands exact matches to the model as ids, so it can skip resolve_entities', async () => {
+  it('hands exact matches to the model as keys, so it can skip find_entities', async () => {
     const db = fakeQueries({
       resolve_entities: { matches: [{ phrase: 'swiggy', type: 'payee', id: 'swiggy', name: 'Swiggy', score: 1, similarity: 1, txn_count: 30 }] },
-      spending_summary: SUMMARY_JUNE,
+      run_sql: JUNE_RESULT,
     });
-    const { llm, calls } = scriptedLlm([{ calls: [toolCall('spending_summary', { ...JUNE, payee_key: 'swiggy' })] }, { content: 'You spent ₹18,388.50 at Swiggy in June 2026.' }]);
+    const { llm, calls } = scriptedLlm([
+      { calls: [toolCall('run_sql', { sql: "SELECT SUM(amount) FROM transactions WHERE payee_key = 'swiggy'", purpose: 'Totalling Swiggy' })] },
+      { content: 'You spent ₹18,388.50 at Swiggy in June 2026.' },
+    ]);
     const { result } = await run(makeDeps(llm, db), 'How much did I spend at Swiggy in June 2026?');
     expect(userMessage(calls[0]?.messages ?? [])).toContain('payee "Swiggy" (payee_key: swiggy), exact name');
-    expect(db.calls().map((c) => c.name)).toEqual(['resolve_entities', 'spending_summary']);
-    expect(db.calls()[1]?.params).toMatchObject({ payeeKey: 'swiggy' });
-    // The deep link is built from the tool call and the pre-resolved name, never from model text.
-    expect(result.response.deep_link).toMatchObject({
-      screen: 'TransactionsList',
-      params: { filter: 'payee', payeeId: 'swiggy', payeeDisplayName: 'Swiggy', year: 2026, monthIndex0: 5, fromIso: '2026-06-01T00:00:00+05:30', toIso: '2026-06-30T23:59:59.999999+05:30' },
-    });
+    expect(db.calls().map((c) => c.name)).toEqual(['resolve_entities', 'run_sql']);
+    const memory = await verifyMemory(SECRET, result.response.memory, USER, NOW);
+    expect(memory?.entities).toEqual([{ type: 'payee', id: 'swiggy', name: 'Swiggy' }]);
   });
 
   it('carries range and entities across turns through the signed memory, and ignores a tampered token', async () => {
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE, resolve_entities: noEntities });
-    const first = scriptedLlm([{ calls: [toolCall('spending_summary', JUNE)] }, { content: 'You spent ₹18,388.50 in June 2026.' }]);
+    const db = fakeQueries({ run_sql: JUNE_RESULT, resolve_entities: noEntities });
+    const first = scriptedLlm([{ calls: [toolCall('run_sql', JUNE_SQL)] }, { content: 'You spent ₹18,388.50 in June 2026.' }]);
     const turn1 = await run(makeDeps(first.llm, db), 'How much did I spend in June 2026?');
     const token = turn1.result.response.memory;
     expect(token).toMatch(/^[\w-]+\.[\w-]+$/);
@@ -327,7 +402,7 @@ describe('agent loop: pre-pass, clarification and memory', () => {
     const prompt = userMessage(second.calls[0]?.messages ?? []);
     expect(prompt).toContain('## Memory from the previous turn');
     expect(prompt).toContain('Range: 2026-06-01 to 2026-06-30 (June 2026)');
-    expect(prompt).toContain('Tools used: spending_summary');
+    expect(prompt).toContain('Tools used: run_sql');
     // "July" is in the question, so the question's own range wins in the resolved block.
     expect(prompt).toContain('Time range from the question: 2026-07-01 to 2026-07-31 (July 2026)');
 
@@ -360,62 +435,5 @@ describe('agent loop: pre-pass, clarification and memory', () => {
     const { llm } = scriptedLlm([{ content: 'Hello' }]);
     const { result } = await run(makeDeps(llm, null, {}, { memorySecret: undefined }), 'Hi!', { memory: 'whatever.token' });
     expect(result.response.memory).toBe('');
-  });
-});
-
-describe('agent loop: aggregate_transactions', () => {
-  it('plans the aggregate from validated arguments and shows the model money as strings', async () => {
-    const db = fakeQueries({
-      aggregate_transactions: { metric: 'avg', group_by: 'none', groups: 1, rows: [{ group: 'all', value: 1050.69, count: 41 }] },
-    });
-    const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('aggregate_transactions', { from: '2026-07-01', to: '2026-07-31', metric: 'avg', max_amount: 199.99 })] },
-      { content: 'Your average expense in July 2026 was **₹1,050.69**.' },
-    ]);
-    const { result } = await run(makeDeps(llm, db), 'average expense in July 2026');
-    expect(db.calls()[0]).toEqual({
-      name: 'aggregate_transactions',
-      params: {
-        from: '2026-06-30T18:30:00.000Z',
-        to: '2026-07-31T18:30:00.000Z',
-        tz: 'Asia/Kolkata',
-        metric: 'avg',
-        groupBy: 'none',
-        type: 'debit',
-        category: null,
-        payee: null,
-        minCents: null,
-        maxCents: 19999,
-      },
-    });
-    const content = toolMessages(calls[1]?.messages ?? [])[0]?.content ?? '';
-    expect(content).toContain('"value":"1050.69"');
-    expect(content).toContain('"value_display":"₹1,050.69"');
-    expect(result.outcome).toBe('ok');
-  });
-
-  it('keeps counts as plain numbers', async () => {
-    const db = fakeQueries({ aggregate_transactions: { metric: 'count', group_by: 'none', groups: 1, rows: [{ group: 'all', value: 10, count: 10 }] } });
-    const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('aggregate_transactions', { ...JUNE, metric: 'count', max_amount: 199.99 })] },
-      { content: 'You had 10 such expenses in June 2026.' },
-    ]);
-    await run(makeDeps(llm, db), 'how many expenses under 200 in June 2026');
-    const content = toolMessages(calls[1]?.messages ?? [])[0]?.content ?? '';
-    expect(content).toContain('"value":10');
-    expect(content).not.toContain('value_display');
-  });
-
-  it('rejects arguments the model cannot mean (min above max, unknown metric) before any query', async () => {
-    const db = fakeQueries();
-    const { llm, calls } = scriptedLlm([
-      { calls: [toolCall('aggregate_transactions', { ...JUNE, metric: 'sum', min_amount: 500, max_amount: 100 }, 'a'), toolCall('aggregate_transactions', { ...JUNE, metric: 'median' }, 'b')] },
-      { content: 'I could not do that.' },
-    ]);
-    await run(makeDeps(llm, db), 'median');
-    const tools = toolMessages(calls[1]?.messages ?? []);
-    expect(tools[0]?.content).toContain('is above max_amount');
-    expect(tools[1]?.content).toContain('metric');
-    expect(db.calls().filter((c) => c.name === 'aggregate_transactions')).toHaveLength(0);
   });
 });

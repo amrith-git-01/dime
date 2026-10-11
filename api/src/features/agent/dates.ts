@@ -2,8 +2,8 @@ import { addDays, dateKey, localDate, parseTimezone, startOfLocalDay, tzOffsetMs
 import type { LocalDate } from '../../core/timezone';
 
 /**
- * Calendar helpers for the agent. Tool arguments are INCLUSIVE local dates (`YYYY-MM-DD`, the
- * timezone of the app); the database always sees HALF-OPEN UTC instants `[from 00:00, to + 1 day 00:00)`.
+ * Calendar helpers for the agent: local dates (`YYYY-MM-DD`, the timezone of the app), the NOW block of
+ * the prompt and the wall-clock instants of deep links.
  */
 
 export const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
@@ -63,21 +63,6 @@ export function weekdayMon0(d: LocalDate): number {
 }
 
 export const today = (tz: string, nowMs: number): LocalDate => localDate(tz, nowMs);
-
-export interface InstantRange {
-  /** Inclusive, ISO-8601 UTC. */
-  from: string;
-  /** Exclusive, ISO-8601 UTC. */
-  to: string;
-}
-
-/** `[from 00:00, to + 1 day 00:00)` in `tz` for two inclusive local dates. */
-export function toInstantRange(tz: string, from: LocalDate, to: LocalDate): InstantRange {
-  return {
-    from: new Date(startOfLocalDay(tz, from)).toISOString(),
-    to: new Date(startOfLocalDay(tz, addDays(to, 1))).toISOString(),
-  };
-}
 
 function formatOffset(offsetMs: number): string {
   const total = Math.round(offsetMs / 60_000);

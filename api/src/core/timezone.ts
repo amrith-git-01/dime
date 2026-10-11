@@ -78,6 +78,11 @@ export function tzOffsetMs(tz: string, utcMs: number): number {
   return asUtc - Math.floor(utcMs / 1000) * 1000;
 }
 
+/** `tz` offset from UTC in whole minutes at an instant (positive east of Greenwich), e.g. 330 for Asia/Kolkata. */
+export function utcOffsetMinutes(tz: string, utcMs: number): number {
+  return Math.round(tzOffsetMs(tz, utcMs) / 60_000);
+}
+
 const DAY_MS = 86_400_000;
 
 /**

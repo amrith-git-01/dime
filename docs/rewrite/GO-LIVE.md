@@ -1,6 +1,6 @@
 # Go-live checklist: Dime on Cloudflare
 
-Ordered. Each step makes the next one safe. Detail lives in `api/DEPLOY.md` (resources, secrets, deploy, rollback, cost guards). The whole backend is one Cloudflare Worker (D1, R2, Workers AI, a Durable Object, Queues, Cron). The Python `backend/` is reference only and cannot run against it.
+Ordered. Each step makes the next one safe. Detail lives in `api/DEPLOY.md` (resources, secrets, deploy, rollback, cost guards). The whole backend is one Cloudflare Worker (D1, R2, Workers AI, a Durable Object, Queues, Cron).
 
 All data in the old Supabase project is **test data. Nothing is migrated.** The new database starts empty (plus the 10 system categories).
 

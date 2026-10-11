@@ -268,7 +268,7 @@ describe('config', () => {
     expect(cfg.maxVoiceUploadBytes).toBe(15 * 1024 * 1024);
     expect(cfg.signedUrlTtlSeconds).toBe(6 * 60 * 60);
     expect(cfg.avatarUrlAllowedHosts).toEqual(['api.dicebear.com']);
-    expect(cfg.agent).toMatchObject({ enabled: true, maxSteps: 4, turnTimeoutMs: 25_000, llmTimeoutMs: 12_000, dailyTokenBudget: 200_000 });
+    expect(cfg.agent).toMatchObject({ enabled: true, maxSteps: 6, turnTimeoutMs: 25_000, llmTimeoutMs: 12_000, dailyTokenBudget: 200_000 });
   });
 
   it('media: secret from MEDIA_URL_SECRET (unset = undefined) and the public origin from EMAIL_PUBLIC_BASE_URL', () => {

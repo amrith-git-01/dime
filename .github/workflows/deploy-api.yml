@@ -1,6 +1,6 @@
 name: Deploy API
 
-# Push to main -> CI (api, frontend, backend) -> D1 migrations -> deploy -> smoke test. One environment: production.
+# Push to main -> CI (api, frontend) -> D1 migrations -> deploy -> smoke test. One environment: production.
 # Manual re-run: Actions -> Deploy API -> Run workflow.
 #
 # Repository secrets (Settings -> Secrets and variables -> Actions):

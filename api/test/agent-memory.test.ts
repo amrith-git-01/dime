@@ -11,7 +11,7 @@ const NOW = Date.parse('2026-10-05T10:00:00Z');
 const content: MemoryContent = {
   time_range: { from: '2026-06-01', to: '2026-06-30', label: 'June 2026' },
   entities: [{ type: 'payee', id: 'swiggy', name: 'Swiggy' }],
-  last_tools: ['spending_summary'],
+  last_tools: ['run_sql'],
   summary: 'Asked: spend at swiggy | Said: ₹1,200',
 };
 
@@ -50,7 +50,8 @@ describe('agent memory token', () => {
   it('rejects a tampered or wrong signature and a different secret', async () => {
     const token = await signMemory(SECRET, USER_A, content, NOW);
     const [payload, mac] = token.split('.') as [string, string];
-    const flipped = `${mac.slice(0, -1)}${mac.endsWith('A') ? 'B' : 'A'}`;
+    // The first character carries all 6 bits (the last one of a 32-byte MAC has 2 unused bits).
+    const flipped = `${mac.startsWith('A') ? 'B' : 'A'}${mac.slice(1)}`;
     expect(await verifyMemory(SECRET, `${payload}.${flipped}`, USER_A, NOW)).toBeNull();
     expect(await verifyMemory('another-secret-another-secret', token, USER_A, NOW)).toBeNull();
   });
@@ -68,7 +69,7 @@ describe('agent memory token', () => {
   });
 
   it('keeps the token small: summary is cut to 300 characters and lists are capped', async () => {
-    const token = await signMemory(SECRET, USER_A, { ...content, summary: 'x'.repeat(900), entities: Array.from({ length: 12 }, (_, i) => ({ type: 'payee' as const, id: `p${i}`, name: `P${i}` })), last_tools: Array.from({ length: 12 }, () => 'spending_summary') }, NOW);
+    const token = await signMemory(SECRET, USER_A, { ...content, summary: 'x'.repeat(900), entities: Array.from({ length: 12 }, (_, i) => ({ type: 'payee' as const, id: `p${i}`, name: `P${i}` })), last_tools: Array.from({ length: 12 }, () => 'run_sql') }, NOW);
     const memory = await verifyMemory(SECRET, token, USER_A, NOW);
     expect(memory?.summary).toHaveLength(300);
     expect(memory?.entities).toHaveLength(6);

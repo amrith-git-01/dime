@@ -5,33 +5,6 @@ on:
   pull_request:
 
 jobs:
-  backend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    env:
-      # Reference only: the Python backend targets Supabase and is not deployed. Settings require these at
-      # import time; values are dummies (tests mock Supabase).
-      SUPABASE_URL: https://example.supabase.co
-      SUPABASE_KEY: dummy-publishable-key
-      SUPABASE_SECRET_KEY: dummy-secret-key
-      SUPABASE_JWT_SECRET: dummy-jwt-secret
-      EMAIL_UNSUBSCRIBE_SECRET: dummy-unsubscribe-secret
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-      - run: uv sync --frozen
-      - run: uv run ruff check .
-      - name: mypy (non-blocking for now)
-        run: uv run mypy .
-        continue-on-error: true
-      - run: uv run pytest -q
-
   frontend:
     runs-on: ubuntu-latest
     defaults:

@@ -1,33 +1,30 @@
 import * as z from 'zod';
 
-import type { LocalDate } from '../../core/timezone';
-import { daysBetween, daysInMonth, isoDate, parseIsoDate, today, toInstantRange } from './dates';
-import type { InstantRange } from './dates';
+import type { Db } from '../../core/db';
+import { chartFrom, ChartError } from './blocks';
+import { parseIsoDate } from './dates';
+import { buildTransactionsLink } from './deep-link';
+import { shapeEntities } from './entities';
 import type { ToolSpec } from './llm';
-import { withMoneyDisplay } from './money';
-import type { QueryCall } from './queries';
+import type { AgentQueries } from './queries';
+import type { SqlCell } from './sql-guard';
+import type { TurnState } from './state';
 
 /**
- * The agent's tools. Each one is a zod schema (the single source of truth: the JSON Schema sent to the
- * model is generated from it and the model's arguments are validated with it), a planner that turns
- * validated arguments into ONE query call (`queries.ts`, D1 prepared statements that always bind the
- * user id), and a shaper that makes the query's document compact and adds the `<money>_display` twins.
+ * The agent's four tools. Each one is a zod schema (the single source of truth: the JSON Schema sent to
+ * the model is generated from it and the model's arguments are validated with it) and a `prepare` that
+ * validates the arguments synchronously and returns the label of the SSE `step` event plus the work to do.
  *
- * Date arguments are INCLUSIVE local dates (`YYYY-MM-DD`, the user's timezone). The queries are always
- * called with the half-open UTC instants `[from 00:00, to + 1 day 00:00)`.
+ *   run_sql            the model's SELECT, through the SQL guard (`sql-guard.ts`)
+ *   find_entities      fuzzy payee / category lookup
+ *   link_transactions  the deep link of the answer, checked against the user's data
+ *   show_chart         a chart built from an earlier run_sql result (its numbers are the database's)
+ *
+ * What a turn learns (query results, entity names, the link, the chart) is kept in `TurnState`; the app
+ * blocks, the deep link, the numeric check and the memory are all built from it, never from model text.
  */
 
-export const TOOL_NAMES = [
-  'resolve_entities',
-  'spending_summary',
-  'category_breakdown',
-  'top_payees',
-  'daily_cashflow',
-  'compare_periods',
-  'budget_status',
-  'list_transactions',
-  'aggregate_transactions',
-] as const;
+export const TOOL_NAMES = ['run_sql', 'find_entities', 'link_transactions', 'show_chart'] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** A tool call that could not be run as asked; the message goes back to the model as the tool result. */
@@ -36,31 +33,33 @@ export class ToolArgError extends Error {
 }
 
 export interface ToolContext {
+  db: Db;
+  userId: string;
   tz: string;
-  nowMs: number;
+  tzOffsetMinutes: number;
+  signal: AbortSignal;
+  queries: AgentQueries;
+  state: TurnState;
 }
 
-export interface ToolOutput {
-  /** What the model sees (compact, money with display twins). */
-  data: Record<string, unknown>;
-  /** Result size for logs (rows, categories, matches...). */
+export interface ToolOutcome {
+  /** What the model sees. Null on failure. */
+  data: Record<string, unknown> | null;
+  error: string | null;
+  /** Result size for the trace. */
   rows: number;
-  /** Extra raw data for app blocks (e.g. compare_months). Not sent to the model. */
-  blockData?: Record<string, unknown>;
+  /** run_sql only: characters of SQL (the trace never holds the query text or rows). */
+  sqlChars?: number;
 }
 
 export interface Prepared {
-  call: QueryCall;
-  /** Additional calls run in the same step; their results reach `shape` (and never the model). */
-  extra?: QueryCall[];
-  args: Record<string, unknown>;
-  shape: (raw: unknown, extra: readonly unknown[]) => ToolOutput;
+  /** Progress label of the SSE `step` event. */
+  label: string;
+  run: () => Promise<ToolOutcome>;
 }
 
 export interface AgentTool {
   name: ToolName;
-  /** Progress label of the SSE `step` event. */
-  label: string;
   spec: ToolSpec;
   /** Validates the model's raw JSON arguments. Throws `ToolArgError` with a message the model can act on. */
   prepare: (rawArguments: string, ctx: ToolContext) => Prepared;
@@ -70,122 +69,44 @@ export interface AgentTool {
  * Argument schemas
  * -------------------------------------------------------------------------------------------- */
 
-const MAX_RANGE_DAYS = 1100;
-export const MAX_DAILY_DAYS = 40;
+/** run_sql calls per turn (ids, and a cap on database work). */
+export const MAX_SQL_PER_TURN = 12;
+/** Rows (and characters of JSON) of one result shown to the model. */
+const MAX_SHOWN_ROWS = 50;
+const MAX_SHOWN_CHARS = 6000;
+const DEFAULT_PURPOSE = 'Looking at your transactions';
 
 const isoDay = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'use the format YYYY-MM-DD')
   .refine((d) => parseIsoDate(d) !== null, 'not a real calendar date');
-const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'must be a category id (uuid) from resolve_entities or a previous result');
-const range = {
-  from: isoDay.describe('First day, inclusive, local date YYYY-MM-DD'),
-  to: isoDay.describe('Last day, INCLUSIVE, local date YYYY-MM-DD (the whole last day is counted)'),
-};
-const categoryId = uuid.optional().describe('Only this category (uuid from resolve_entities or category_breakdown)');
-const payeeKey = z.string().min(1).max(120).optional().describe('Only this payee (payee key from resolve_entities or top_payees)');
-const period = z.object({ from: range.from, to: range.to });
 
 const schemas = {
-  resolve_entities: z.object({
-    text: z.string().min(2).max(80).describe('A payee or category name as the user wrote it (typos are fine)'),
+  run_sql: z.object({
+    sql: z.string().min(1).describe('One SQLite SELECT (optionally WITH ... AS) over the tables in the schema context'),
+    purpose: z.string().trim().max(100).optional().describe('Short label shown to the user while it runs, e.g. "Totalling June spending"'),
   }),
-  spending_summary: z.object({ ...range, category_id: categoryId, payee_key: payeeKey }),
-  category_breakdown: z.object({ ...range, type: z.enum(['debit', 'credit']).default('debit').describe('debit = spending (default), credit = income') }),
-  top_payees: z.object({
-    ...range,
-    category_id: categoryId,
-    limit: z.number().int().min(1).max(10).default(5).describe('How many payees, at most 10'),
+  find_entities: z.object({
+    phrases: z.array(z.string().min(2).max(80)).min(1).max(6).describe('Payee or category names as the user wrote them (typos are fine)'),
   }),
-  daily_cashflow: z.object({ ...range }),
-  compare_periods: z.object({
-    a: period.describe('The newer / primary period'),
-    b: period.describe('The baseline period it is compared with'),
-    by: z.enum(['total', 'category', 'payee']).default('total').describe('total (default), or per category / per payee for spending'),
+  link_transactions: z.object({
+    filter: z.enum(['payee', 'category', 'day']).describe('What the link opens: one payee, one category, or one day'),
+    payee_key: z.string().min(1).max(120).optional().describe('filter payee: the payee_key'),
+    category_id: z.string().min(1).max(64).optional().describe('filter category: the category id (uuid)'),
+    day: isoDay.optional().describe('filter day: the local date YYYY-MM-DD'),
+    from: isoDay.optional().describe('payee / category: first day of the period the answer covers (inclusive)'),
+    to: isoDay.optional().describe('payee / category: last day of the period the answer covers (inclusive)'),
+    label: z.string().trim().max(60).optional().describe('Button text (default: "View <name>")'),
   }),
-  budget_status: z.object({
-    period: z.literal('month').default('month'),
-    at: isoDay.optional().describe('Any local date inside the wanted month (default: today)'),
-  }),
-  list_transactions: z.object({
-    ...range,
-    category_id: categoryId,
-    payee_key: payeeKey,
-    min_amount: z.number().positive().optional().describe('Only amounts at or above this many rupees'),
-    type: z.enum(['debit', 'credit']).optional().describe('debit = spending, credit = income (default: both)'),
-    limit: z.number().int().min(1).max(20).default(10).describe('How many rows, at most 20'),
-    order: z.enum(['date_desc', 'date_asc', 'amount_desc', 'amount_asc']).default('date_desc'),
-  }),
-  aggregate_transactions: z.object({
-    ...range,
-    metric: z.enum(['sum', 'avg', 'count', 'count_distinct_payees']).describe('sum = total amount, avg = average amount per transaction, count = number of transactions, count_distinct_payees = number of different payees'),
-    group_by: z.enum(['none', 'weekday', 'month', 'category', 'payee']).default('none').describe('none = one number for the whole period (default); weekday = Monday..Sunday; month = calendar months; category; payee'),
-    type: z.enum(['debit', 'credit', 'both']).default('debit').describe('debit = spending (default), credit = income, both'),
-    category: z.string().min(1).max(80).optional().describe('Only this category: its id (uuid) or its exact name'),
-    payee: z.string().min(1).max(120).optional().describe('Only this payee: its payee_key from resolve_entities or top_payees'),
-    min_amount: z.number().min(0).optional().describe('Only amounts at or above this many rupees'),
-    max_amount: z.number().min(0).optional().describe('Only amounts at or below this many rupees. For "under ₹200" use 199.99'),
+  show_chart: z.object({
+    kind: z.enum(['donut', 'cashflow', 'compare_bar']).describe('donut = shares of a total (label + one value), cashflow = amount per day (date label + one value), compare_bar = two values per label'),
+    title: z.string().trim().min(1).max(80),
+    result_id: z.string().min(1).max(12).describe('The result_id of an earlier run_sql result, e.g. r1'),
+    label_column: z.string().min(1).max(64).describe('Column that names each slice / bar (cashflow: the date as YYYY-MM-DD)'),
+    value_columns: z.array(z.string().min(1).max(64)).min(1).max(2).describe('Numeric column(s): one for donut and cashflow, two for compare_bar (period A, period B)'),
+    series_labels: z.array(z.string().trim().min(1).max(40)).max(2).optional().describe('compare_bar: the names of the two periods, e.g. ["June", "May"]'),
   }),
 } satisfies Record<ToolName, z.ZodType>;
-
-/* ----------------------------------------------------------------------------------------------
- * Helpers
- * -------------------------------------------------------------------------------------------- */
-
-const MONEY_KEYS: ReadonlySet<string> = new Set([
-  'debit',
-  'credit',
-  'net',
-  'total',
-  'a',
-  'b',
-  'delta',
-  'amount',
-  'budget',
-  'spent',
-  'remaining',
-  'total_spent',
-  'debit_total',
-  'credit_total',
-  'daily_budget',
-]);
-const SKIP_DISPLAY: ReadonlySet<string> = new Set(['days']);
-const VALUE_KEY: ReadonlySet<string> = new Set(['value']);
-
-const money = (raw: unknown): Record<string, unknown> => withMoneyDisplay(raw, MONEY_KEYS, SKIP_DISPLAY) as Record<string, unknown>;
-const obj = (raw: unknown): Record<string, unknown> => (typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {});
-const len = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
-
-function day(value: string): LocalDate {
-  const d = parseIsoDate(value);
-  if (!d) throw new ToolArgError(`${value} is not a real calendar date (use YYYY-MM-DD).`);
-  return d;
-}
-
-/** Validates an inclusive `[from, to]` and converts it to the half-open instants the SQL functions take. */
-function instants(tz: string, from: string, to: string, maxDays = MAX_RANGE_DAYS): InstantRange {
-  const a = day(from);
-  const b = day(to);
-  const days = daysBetween(a, b) + 1;
-  if (days < 1) throw new ToolArgError(`"to" (${to}) is before "from" (${from}). Both dates are inclusive and "from" must not be after "to".`);
-  if (days > maxDays) {
-    throw new ToolArgError(
-      maxDays === MAX_DAILY_DAYS
-        ? `daily_cashflow supports at most ${MAX_DAILY_DAYS} days; ${from} to ${to} is ${days}. Use a shorter range, or category_breakdown / spending_summary for a long period.`
-        : `The range ${from} to ${to} is ${days} days; the maximum is ${maxDays}.`,
-    );
-  }
-  return toInstantRange(tz, a, b);
-}
-
-function monthOf(tz: string, at: string | undefined, nowMs: number): { from: LocalDate; to: LocalDate } {
-  const ref = at ? day(at) : today(tz, nowMs);
-  return { from: { ...ref, day: 1 }, to: { ...ref, day: daysInMonth(ref.year, ref.month) } };
-}
-
-/** Rupees (a JSON number) to whole cents, rounded the way the user means a bound: up for a minimum, down for a maximum. */
-const toCentsCeil = (rupees: number): number => Math.ceil(Math.round(rupees * 1e6) / 1e4);
-const toCentsFloor = (rupees: number): number => Math.floor(Math.round(rupees * 1e6) / 1e4);
 
 /** Parse and validate the model's JSON arguments with a tool's schema. */
 function parseArgs<S extends z.ZodType>(schema: S, raw: string): z.output<S> {
@@ -208,195 +129,59 @@ function toSpec(name: ToolName, description: string): ToolSpec {
   return { type: 'function', function: { name, description, parameters } };
 }
 
-const period_ = (from: string, to: string) => ({ from, to });
-
-/** `month` when both periods are whole calendar months, `year` when both start on 1 January of one year (full or year to date). */
-function comparePairKind(a: { from: string; to: string }, b: { from: string; to: string }): 'month' | 'year' | null {
-  const whole = (p: { from: string; to: string }, kind: 'month' | 'year'): boolean => {
-    const f = parseIsoDate(p.from);
-    const t = parseIsoDate(p.to);
-    if (!f || !t || f.year !== t.year) return false;
-    if (kind === 'year') return f.month === 1 && f.day === 1;
-    return f.month === t.month && f.day === 1 && t.day === daysInMonth(t.year, t.month);
-  };
-  if (whole(a, 'month') && whole(b, 'month')) return 'month';
-  if (whole(a, 'year') && whole(b, 'year')) return 'year';
-  return null;
-}
-
-/* ----------------------------------------------------------------------------------------------
- * resolve_entities (also used by the pre-pass)
- * -------------------------------------------------------------------------------------------- */
-
-export interface EntityMatch {
-  phrase: string;
-  type: 'payee' | 'category';
-  /** payee key, or category uuid. */
-  id: string;
-  name: string;
-  /** word_similarity: how well the phrase appears inside the name. */
-  score: number;
-  /** similarity: closeness of the whole strings (1 = the same name). */
-  similarity: number;
-  txnCount: number;
-}
-
-export function resolveEntitiesCall(phrases: readonly string[]): QueryCall {
-  return { name: 'resolve_entities', params: { phrases } };
-}
-
-export function parseEntityMatches(raw: unknown): EntityMatch[] {
-  const matches = obj(raw)['matches'];
-  if (!Array.isArray(matches)) return [];
-  const out: EntityMatch[] = [];
-  for (const item of matches) {
-    const m = obj(item);
-    if ((m['type'] !== 'payee' && m['type'] !== 'category') || typeof m['id'] !== 'string' || typeof m['name'] !== 'string') continue;
-    out.push({
-      phrase: typeof m['phrase'] === 'string' ? m['phrase'] : '',
-      type: m['type'],
-      id: m['id'],
-      name: m['name'],
-      score: Number(m['score']) || 0,
-      similarity: Number(m['similarity']) || 0,
-      txnCount: Number(m['txn_count']) || 0,
-    });
-  }
-  return out;
-}
-
-/** Exact name matches rank first, then by score; one row per entity, at most 5. */
-function shapeEntities(raw: unknown): ToolOutput {
-  const best = new Map<string, EntityMatch>();
-  for (const m of parseEntityMatches(raw)) {
-    const key = `${m.type}:${m.id}`;
-    const cur = best.get(key);
-    if (!cur || m.score > cur.score) best.set(key, m);
-  }
-  const matches = [...best.values()]
-    .sort((x, y) => y.score - x.score || y.similarity - x.similarity)
-    .slice(0, 5)
-    .map((m) => ({ type: m.type, id: m.id, name: m.name, score: m.score, exact: m.similarity >= 0.95, ...(m.type === 'payee' ? { txn_count: m.txnCount } : {}) }));
-  return { data: { matches }, rows: matches.length };
-}
-
-/** One tool definition: spec text + schema-driven preparation. */
-function define<N extends ToolName>(
-  name: N,
-  label: string,
-  description: string,
-  prepare: (args: z.output<(typeof schemas)[N]>, ctx: ToolContext) => Prepared,
-): AgentTool {
+function define<N extends ToolName>(name: N, description: string, prepare: (args: z.output<(typeof schemas)[N]>, ctx: ToolContext) => Prepared): AgentTool {
   const schema = schemas[name] as unknown as z.ZodType<z.output<(typeof schemas)[N]>>;
-  return {
-    name,
-    label,
-    spec: toSpec(name, description),
-    prepare: (raw, ctx) => prepare(parseArgs(schema, raw), ctx),
-  };
+  return { name, spec: toSpec(name, description), prepare: (raw, ctx) => prepare(parseArgs(schema, raw), ctx) };
 }
+
+const failure = (error: string): ToolOutcome => ({ data: null, error, rows: 0 });
 
 /* ----------------------------------------------------------------------------------------------
  * The tools
  * -------------------------------------------------------------------------------------------- */
 
+/** The rows the model is shown: at most 50 and about 6 000 characters of JSON. */
+function shownRows(rows: readonly SqlCell[][]): SqlCell[][] {
+  const out: SqlCell[][] = [];
+  let chars = 0;
+  for (const row of rows.slice(0, MAX_SHOWN_ROWS)) {
+    chars += JSON.stringify(row).length + 1;
+    if (out.length > 0 && chars > MAX_SHOWN_CHARS) break;
+    out.push(row);
+  }
+  return out;
+}
+
 export const TOOLS: readonly AgentTool[] = [
   define(
-    'resolve_entities',
-    'Looking up payees and categories',
-    'Fuzzy-match a payee (merchant or person) or a category name to its id. Returns up to 5 matches with a score (1 = perfect) and exact=true when the name is identical. Use it when you need a payee_key or category_id that was not already resolved for you.',
-    (args) => ({
-      call: resolveEntitiesCall([args.text]),
-      args,
-      shape: shapeEntities,
-    }),
-  ),
-
-  define(
-    'spending_summary',
-    'Totalling your spending',
-    'Totals for a period: debit (spending), credit (income), net (credit minus debit) and transaction counts. Optionally only one category and/or one payee. The default tool for "how much did I spend / earn".',
+    'run_sql',
+    'Run ONE read-only SQLite SELECT (optionally WITH ... AS) against the user\'s data, using the tables and columns of the schema context. Returns {result_id, columns, rows (the first 50), row_count, truncated}, or {error} with the SQLite message: fix the query and run it again. Amounts are rupees. Only one statement; no PRAGMA, no writes.',
     (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to);
+      const { state } = ctx;
+      if (state.sqlCalls >= MAX_SQL_PER_TURN) throw new ToolArgError(`At most ${MAX_SQL_PER_TURN} queries per question. Answer with what you have.`);
+      state.sqlCalls += 1;
+      const id = `r${state.sqlCalls}`;
       return {
-        call: { name: 'spending_summary', params: { ...r, categoryId: args.category_id ?? null, payeeKey: args.payee_key ?? null } },
-        args,
-        shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: Number(obj(raw)['count']) || 0 }),
-      };
-    },
-  ),
-
-  define(
-    'category_breakdown',
-    'Breaking down your spending by category',
-    'Per-category totals for a period: top 8 categories with total, count and share (percent), plus an "other" bucket. type debit = spending (default) or credit = income. Use it for "where did my money go", "top category", or a category share.',
-    (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to);
-      return {
-        call: { name: 'category_breakdown', params: { ...r, type: args.type } },
-        args,
-        shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['categories']) }),
-      };
-    },
-  ),
-
-  define(
-    'top_payees',
-    'Finding your top payees',
-    'Top payees by spending for a period (at most 10), each with payee_key, total, count and share. Optionally inside one category. Use it for "who did I pay the most".',
-    (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to);
-      return {
-        call: { name: 'top_payees', params: { ...r, categoryId: args.category_id ?? null, limit: args.limit } },
-        args,
-        shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['payees']) }),
-      };
-    },
-  ),
-
-  define(
-    'daily_cashflow',
-    'Charting your day-by-day cashflow',
-    `Per-day debit and credit totals for a period of at most ${MAX_DAILY_DAYS} days (days without transactions are omitted), the range totals and the biggest spending day. Use it for daily patterns, "which day did I spend the most", or a daily chart.`,
-    (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to, MAX_DAILY_DAYS);
-      return {
-        call: { name: 'daily_cashflow', params: { ...r, tz: ctx.tz } },
-        args,
-        shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['days']) }),
-      };
-    },
-  ),
-
-  define(
-    'compare_periods',
-    'Comparing the two periods',
-    'Compare two periods A (newer) and B (baseline): totals with delta and percent change; by=category or by=payee adds per-item spending for both (top 8 plus other). Use it for "this month vs last month", "did I spend more in July than June" and similar.',
-    (args, ctx) => {
-      const a = instants(ctx.tz, args.a.from, args.a.to);
-      const b = instants(ctx.tz, args.b.from, args.b.to);
-      const kind = comparePairKind(args.a, args.b);
-      // Whole months / years: the app draws a compare_months card, which needs per-period cashflow and payees.
-      const extra: QueryCall[] | undefined = kind
-        ? [
-            ...[a, b].map((r): QueryCall => ({ name: 'daily_cashflow', params: { ...r, tz: ctx.tz } })),
-            ...[a, b].map((r): QueryCall => ({ name: 'top_payees', params: { ...r, categoryId: null, limit: 5 } })),
-          ]
-        : undefined;
-      return {
-        call: { name: 'compare_periods', params: { a, b, by: args.by } },
-        extra,
-        args,
-        shape: (raw, more) => {
-          const rows = len(obj(raw)['rows']);
-          const blockData =
-            kind && more.length === 4
-              ? { kind, a: obj(raw)['a'], b: obj(raw)['b'], periods: { a: args.a, b: args.b }, a_days: obj(more[0])['days'], b_days: obj(more[1])['days'], a_payees: obj(more[2])['payees'], b_payees: obj(more[3])['payees'] }
-              : undefined;
+        label: args.purpose || DEFAULT_PURPOSE,
+        run: async () => {
+          const outcome = await ctx.queries.run_sql(ctx.db, ctx.userId, { sql: args.sql, tzOffsetMinutes: ctx.tzOffsetMinutes, signal: ctx.signal });
+          if (!outcome.ok) return { ...failure(outcome.error), sqlChars: args.sql.length };
+          const shown = shownRows(outcome.rows);
+          state.runs.push({ id, columns: outcome.columns, rows: outcome.rows, shown: shown.length, truncated: outcome.truncated });
+          const rowCount = outcome.rows.length;
           return {
-            data: { period_a: period_(args.a.from, args.a.to), period_b: period_(args.b.from, args.b.to), ...money(raw) },
-            rows: rows || 1,
-            ...(blockData ? { blockData } : {}),
+            data: {
+              result_id: id,
+              columns: outcome.columns,
+              rows: shown,
+              row_count: rowCount,
+              truncated: outcome.truncated,
+              ...(shown.length < rowCount ? { rows_shown: shown.length, note: 'Only the first rows are shown. Aggregate, filter or LIMIT in SQL to see what you need.' } : {}),
+              ...(outcome.truncated ? { note: 'The result was cut at 200 rows. Aggregate in SQL instead of listing everything.' } : {}),
+            },
+            error: null,
+            rows: rowCount,
+            sqlChars: args.sql.length,
           };
         },
       };
@@ -404,79 +189,90 @@ export const TOOLS: readonly AgentTool[] = [
   ),
 
   define(
-    'budget_status',
-    'Checking your budgets',
-    'The monthly budget and the category budgets against spending in a calendar month: budget, spent, remaining (negative when over), pct_used and an over flag. The month is the one containing `at` (default: today).',
-    (args, ctx) => {
-      const month = monthOf(ctx.tz, args.at, ctx.nowMs);
-      const r = toInstantRange(ctx.tz, month.from, month.to);
-      return {
-        call: { name: 'budget_status', params: r },
-        args: { ...args, from: isoDate(month.from), to: isoDate(month.to) },
-        shape: (raw) => ({
-          data: { period: period_(isoDate(month.from), isoDate(month.to)), ...money(raw) },
-          rows: len(obj(raw)['categories']) + (obj(raw)['monthly'] ? 1 : 0),
-        }),
-      };
-    },
+    'find_entities',
+    'Fuzzy-match payee (merchant or person) and category names to their keys. Returns up to 5 matches with name, payee_key or category_id, a score (1 = perfect) and exact=true when the name is identical. Use it when a name in the question was not already resolved for you; then filter by payee_key / category_id in SQL.',
+    (args, ctx) => ({
+      label: 'Looking up payees and categories',
+      run: async () => {
+        const { matches } = shapeEntities(await ctx.queries.resolve_entities(ctx.db, ctx.userId, { phrases: args.phrases }));
+        for (const m of matches) {
+          const type = m['type'] === 'category' ? 'category' : 'payee';
+          const id = String(m[type === 'payee' ? 'payee_key' : 'category_id']);
+          const name = String(m['name']);
+          ctx.state.entities.push({ type, id, name });
+        }
+        return { data: { matches }, error: null, rows: matches.length };
+      },
+    }),
   ),
 
   define(
-    'list_transactions',
-    'Pulling up matching transactions',
-    'Specific transactions (at most 20) with only: local date, amount, type, payee name and category. Filter by period, category, payee, minimum amount and type; sort by date or amount. Notes are never returned. Use it for "my biggest purchases", "show my Swiggy orders", "expenses over X".',
+    'link_transactions',
+    'Attach a "View transactions" link to the answer that opens the matching transactions in the app: one payee, one category (both with the period from/to the answer covers) or one day. The payee_key / category_id must be real ones for this user. Call it once, after your queries, when the answer is about one payee, category or day.',
     (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to);
-      return {
-        call: {
-          name: 'list_transactions',
-          params: {
-            ...r,
-            tz: ctx.tz,
-            categoryId: args.category_id ?? null,
-            payeeKey: args.payee_key ?? null,
-            minCents: args.min_amount === undefined ? null : toCentsCeil(args.min_amount),
-            type: args.type ?? null,
-            order: args.order,
-            limit: args.limit,
-          },
-        },
-        args,
-        shape: (raw) => ({ data: { period: period_(args.from, args.to), ...money(raw) }, rows: len(obj(raw)['rows']) }),
+      const need = (cond: boolean, message: string): void => {
+        if (!cond) throw new ToolArgError(message);
       };
-    },
-  ),
-
-  define(
-    'aggregate_transactions',
-    'Crunching your transactions',
-    'A flexible aggregate for what the other tools cannot answer: the average expense, totals or counts per weekday or month, the number of different payees, the number of expenses under or over an amount. metric = sum | avg | count | count_distinct_payees, optionally grouped by weekday, month, category or payee, with filters (type, category, payee, min_amount, max_amount). Returns rows of {group, value, count}. Prefer the specific tools when one fits.',
-    (args, ctx) => {
-      const r = instants(ctx.tz, args.from, args.to);
-      if (args.min_amount !== undefined && args.max_amount !== undefined && args.min_amount > args.max_amount) {
-        throw new ToolArgError(`min_amount (${args.min_amount}) is above max_amount (${args.max_amount}).`);
+      if (args.filter === 'day') need(args.day !== undefined, 'filter day needs `day` (YYYY-MM-DD).');
+      else {
+        need(args.filter === 'payee' ? args.payee_key !== undefined : args.category_id !== undefined, args.filter === 'payee' ? 'filter payee needs `payee_key`.' : 'filter category needs `category_id`.');
+        need(args.from !== undefined && args.to !== undefined, 'payee and category links need `from` and `to` (inclusive YYYY-MM-DD dates).');
+        need((args.from ?? '') <= (args.to ?? ''), '`from` is after `to`.');
       }
-      const isMoney = args.metric === 'sum' || args.metric === 'avg';
       return {
-        call: {
-          name: 'aggregate_transactions',
-          params: {
-            ...r,
+        label: 'Linking the transactions',
+        run: async () => {
+          let id: string | undefined;
+          let name: string | undefined;
+          if (args.filter !== 'day') {
+            id = (args.filter === 'payee' ? args.payee_key : args.category_id) ?? '';
+            const target = await ctx.queries.link_target(ctx.db, ctx.userId, { filter: args.filter, id });
+            if (!target) return failure(args.filter === 'payee' ? `No payee with payee_key "${id.slice(0, 60)}" in the user's data. Use find_entities or a payee_key from a query.` : `No category with id "${id.slice(0, 60)}" visible to the user. Use find_entities or an id from a query.`);
+            name = target.name;
+          }
+          const link = buildTransactionsLink({
             tz: ctx.tz,
-            metric: args.metric,
-            groupBy: args.group_by,
-            type: args.type,
-            category: args.category ?? null,
-            payee: args.payee ?? null,
-            minCents: args.min_amount === undefined ? null : toCentsCeil(args.min_amount),
-            maxCents: args.max_amount === undefined ? null : toCentsFloor(args.max_amount),
-          },
+            filter: args.filter,
+            ...(id ? { id } : {}),
+            ...(name ? { name } : {}),
+            ...(args.from ? { from: args.from } : {}),
+            ...(args.to ? { to: args.to } : {}),
+            ...(args.day ? { day: args.day } : {}),
+            ...(args.label ? { label: args.label } : {}),
+          });
+          if (!link) return failure('That link could not be built. Check the ids and dates.');
+          ctx.state.link = link; // the last valid link wins
+          ctx.state.linkRange = args.from && args.to ? { from: args.from, to: args.to } : null;
+          if (id && name) {
+            ctx.state.entities.push({ type: args.filter as 'payee' | 'category', id, name });
+          }
+          return { data: { ok: true, label: link['label'] ?? null }, error: null, rows: 1 };
         },
-        args,
-        shape: (raw) => {
-          // `value` is money for sum / avg and a plain count otherwise.
-          const doc = isMoney ? (withMoneyDisplay(raw, VALUE_KEY) as Record<string, unknown>) : obj(raw);
-          return { data: { period: period_(args.from, args.to), type: args.type, ...doc }, rows: len(obj(raw)['rows']) };
+      };
+    },
+  ),
+
+  define(
+    'show_chart',
+    'Attach ONE small chart to the answer, drawn from the rows of an earlier run_sql result (so its numbers are the database\'s). donut: shares of a total (a label column and one value column); cashflow: spending per day (a date column YYYY-MM-DD and an amount column); compare_bar: two values per label (e.g. this month vs last month by category). Only worth it when the answer has several items to compare. At most one chart per answer.',
+    (args, ctx) => {
+      const { state } = ctx;
+      return {
+        label: 'Drawing a chart',
+        run: () => {
+          if (state.chart) return Promise.resolve(failure('Only one chart per answer; one is already attached.'));
+          const run = state.runs.find((r) => r.id === args.result_id);
+          if (!run) {
+            const known = state.runs.map((r) => r.id).join(', ');
+            return Promise.resolve(failure(`Unknown result_id "${args.result_id}". ${known ? `Available: ${known}.` : 'Run a query first.'} A result from this same step can only be charted in the next step.`));
+          }
+          try {
+            state.chart = chartFrom(args, run);
+          } catch (err) {
+            if (err instanceof ChartError) return Promise.resolve(failure(err.message));
+            throw err;
+          }
+          return Promise.resolve({ data: { ok: true, chart: args.kind }, error: null, rows: 1 });
         },
       };
     },

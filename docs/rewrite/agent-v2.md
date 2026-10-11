@@ -2,6 +2,8 @@
 
 > **Superseded in part (2026-10-10, move off Supabase, phase 5; see also `api/README.md` "AI agent (v2)"):** the data tools no longer run Postgres functions through Hyperdrive. They are TypeScript + D1 queries with the same output documents (`api/src/features/agent/queries.ts`); `resolve_entities` uses a TypeScript port of pg_trgm (`trigram.ts`); `run_sql`, its validator and the Postgres client are removed and replaced by the fixed `aggregate_transactions` tool. Everything below about Hyperdrive, one read-only transaction per step, RLS and `run_sql` describes the previous design and is kept as the behavioural spec.
 
+> **Superseded again (SQL agent):** the eight fixed query tools below (and `aggregate_transactions`) are replaced by `run_sql` (model-written SELECTs through `sql-guard.ts`), `find_entities`, `link_transactions` and `show_chart`. The HTTP contract C9, the guards, memory, pre-pass, streaming and numeric verification are unchanged. See `api/README.md` "AI agent (v3: SQL agent)".
+
 This replaces the fixed pipeline (classify → generate_sql → reflect → respond) in `api/src/features/agent/`.
 
 **Goals:**

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { NO_DATA_ANSWER, templateAnswer } from '../src/features/agent/template';
-import type { ToolResult } from '../src/features/agent/template';
+import { EMPTY_RESULT_ANSWER, fallbackAnswer, NO_DATA_ANSWER } from '../src/features/agent/fallback';
+import { formatInr } from '../src/features/agent/money';
+import type { SqlRun } from '../src/features/agent/state';
 import { extractMentions, mentionMatches, numbersIn, verifyAnswer } from '../src/features/agent/verify';
-import { withMoneyDisplay, formatInr } from '../src/features/agent/money';
 
 const allowed = numbersIn({ debit: '18388.50', debit_display: '₹18,388.50', credit: 85000, share: 30.5, count: 43, period: { from: '2026-06-01' } });
 
@@ -67,66 +67,48 @@ describe('verification against tool results', () => {
 });
 
 describe('money display', () => {
-  it('formats Indian grouping and adds display twins only for money keys', () => {
+  it('formats Indian grouping', () => {
     expect(formatInr(1234567.5)).toBe('₹12,34,567.50');
     expect(formatInr(999)).toBe('₹999');
     expect(formatInr(100000)).toBe('₹1,00,000');
     expect(formatInr(-1500)).toBe('-₹1,500');
     expect(formatInr(0.4)).toBe('₹0.40');
-    const out = withMoneyDisplay({ debit: 100000, count: 3, share: 12.5, nested: [{ total: '2500.5' }], days: [{ debit: 5 }] }, new Set(['debit', 'total']), new Set(['days']));
-    expect(out).toEqual({
-      debit: '100000.00',
-      debit_display: '₹1,00,000',
-      count: 3,
-      share: 12.5,
-      nested: [{ total: '2500.50', total_display: '₹2,500.50' }],
-      days: [{ debit: 5 }],
-    });
   });
 });
 
-const result = (name: ToolResult['name'], data: Record<string, unknown>, args: Record<string, unknown> = {}): ToolResult => ({ name, args, ok: true, data, error: null, ms: 1, rows: 1 });
+const runOf = (columns: string[], rows: SqlRun['rows'], over: Partial<SqlRun> = {}): SqlRun => ({ id: 'r1', columns, rows, shown: rows.length, truncated: false, ...over });
 
-describe('template answer', () => {
-  it('summarizes the last useful tool result from its own display values', () => {
-    expect(templateAnswer([result('spending_summary', { period: { from: '2026-06-01', to: '2026-06-30' }, count: 0, debit_display: '₹0' })])).toBe('I found no transactions for 2026-06-01 to 2026-06-30.');
-    expect(
-      templateAnswer([
-        result('category_breakdown', {
-          period: { from: '2026-06-01', to: '2026-06-30' },
-          total_display: '₹10,000',
-          categories: [{ name: 'Food', total_display: '₹6,000', share: 60 }, { name: 'Rent', total_display: '₹4,000', share: 40 }],
-        }),
-      ]),
-    ).toBe('For 2026-06-01 to 2026-06-30 the total was **₹10,000**. Biggest categories: Food ₹6,000 (60%), Rent ₹4,000 (40%).');
-    expect(
-      templateAnswer([
-        result('compare_periods', {
-          period_a: { from: '2026-07-01', to: '2026-07-31' },
-          period_b: { from: '2026-06-01', to: '2026-06-30' },
-          a: { debit_display: '₹9,000' },
-          b: { debit_display: '₹10,000' },
-          delta: { debit_pct: -10 },
-        }),
-      ]),
-    ).toBe('Spending was **₹9,000** for 2026-07-01 to 2026-07-31 against **₹10,000** for 2026-06-01 to 2026-06-30 (down 10%).');
-    expect(
-      templateAnswer([
-        result('budget_status', { period: { from: '2026-09-01', to: '2026-09-30' }, monthly: { budget_display: '₹60,000', spent_display: '₹70,000', remaining_display: '-₹10,000', remaining: '-10000.00', budget: '60000.00', pct_used: 116.7 } }),
-      ]),
-    ).toBe('You have spent **₹70,000** of your **₹60,000** budget for 2026-09-01 to 2026-09-30 (116.7% used, over by ₹10,000).');
+describe('fallback answer', () => {
+  it('lists the first rows of the last result that has rows, money with Indian grouping and percentages with %', () => {
+    const rows = [['Rent', 90000, 60, 3], ['Food', 4000.5, 26.7, 12]];
+    expect(fallbackAnswer([runOf(['category', 'total', 'share_pct', 'n'], rows)])).toBe(
+      `Here's what I found:
+- category: Rent, total: ₹90,000, share pct: 60%, n: 3
+- category: Food, total: ₹4,000.50, share pct: 26.7%, n: 12`,
+    );
   });
 
-  it('skips failed results, prefers the latest good one and falls back to an apology', () => {
-    const failed: ToolResult = { ...result('spending_summary', {}), ok: false, data: null, error: 'x' };
-    expect(templateAnswer([failed])).toBe(NO_DATA_ANSWER);
-    expect(templateAnswer([])).toBe(NO_DATA_ANSWER);
-    expect(templateAnswer([result('resolve_entities', { matches: [{ name: 'Swiggy' }] }), failed])).toBe('The closest matches are Swiggy.');
+  it('caps at 5 rows and says so; prefers the latest result with rows over a later empty one', () => {
+    const many = runOf(['payee', 'spent'], Array.from({ length: 8 }, (_, i) => [`P${i}`, 100 * (i + 1)]));
+    const text = fallbackAnswer([many, runOf(['payee', 'spent'], [])]);
+    expect(text.match(/^- /gm)).toHaveLength(5);
+    expect(text).toContain('(First 5 of 8 rows.)');
+    expect(fallbackAnswer([runOf(['a'], [], { truncated: true })])).toBe(EMPTY_RESULT_ANSWER);
   });
 
-  it('every template figure verifies against its own source (by construction)', () => {
-    const data = { period: { from: '2026-06-01', to: '2026-06-30' }, count: 43, debit: '18388.50', debit_display: '₹18,388.50', debit_count: 40, credit: '85000.00', credit_display: '₹85,000', net: '66611.50', net_display: '₹66,611.50' };
-    const text = templateAnswer([result('spending_summary', data)]);
-    expect(verifyAnswer(text, numbersIn(data)).ok).toBe(true);
+  it('does not format counts, ids or years as money, and shows NULL as a dash', () => {
+    expect(fallbackAnswer([runOf(['transaction_count', 'year', 'category_id', 'avg_spend', 'note'], [[1200, 2026, 'abc', 250.5, null]])])).toBe(
+      `Here's what I found:
+- transaction count: 1200, year: 2026, category id: abc, avg spend: ₹250.50, note: -`,
+    );
+  });
+
+  it('apologises when there are no results at all', () => {
+    expect(fallbackAnswer([])).toBe(NO_DATA_ANSWER);
+  });
+
+  it('every figure verifies against its own source (by construction)', () => {
+    const run = runOf(['category', 'total', 'share_pct'], [['Rent', 90000.25, 60.1], ['Food', 4000, 26.7]]);
+    expect(verifyAnswer(fallbackAnswer([run]), numbersIn(run.rows)).ok).toBe(true);
   });
 });

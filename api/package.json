@@ -14,9 +14,6 @@
     "lint": "eslint .",
     "test": "vitest run",
     "cf-typegen": "wrangler types --strict-vars=false",
-    "parity": "tsx scripts/parity/parity.ts",
-    "parity:tokens": "tsx scripts/parity/tokens-check.ts",
-    "parity:routes": "tsx scripts/parity/routes-check.ts",
     "evals": "tsx evals/run.ts",
     "evals:validate": "vitest run test/agent-evals.test.ts",
     "evals:generate": "tsx evals/generate.ts"

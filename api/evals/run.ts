@@ -2,7 +2,8 @@
  * Agent eval runner. Sends every golden question to a running API (a local `wrangler dev` or a deployed
  * Worker, with a REAL DeepSeek key behind it) as the fixture user and reports:
  *
- *   tool-selection accuracy, numeric accuracy, clarification accuracy, tool steps per turn,
+ *   numeric accuracy (every expected fact appears in the answer), clarification accuracy, no-query accuracy
+ *   (small talk and injections must not run SQL), SQL queries and failed queries per turn,
  *   latency p50 / p95, tokens per turn (with prefix-cache hits) and cost per turn
  *
  * as a table on stdout plus `reports/<timestamp>.json` and `reports/<timestamp>.md`.
@@ -20,12 +21,13 @@
  *   --rate <n>       max requests per minute (default 8; the AI limiter allows 10 per user per minute and a 429 is
  *                    retried after its Retry-After anyway)
  *   --out <dir>      report directory (default evals/reports)
- *   --min-tool <p> / --min-numeric <p>   exit 1 when an accuracy (0..1) is below it (CI gate)
+ *   --min-numeric <p> / --min-no-sql <p>   exit 1 when an accuracy (0..1) is below it (CI gate)
  *
  * Prices for the cost estimate (USD per million tokens): EVAL_PRICE_INPUT_HIT, EVAL_PRICE_INPUT_MISS,
  * EVAL_PRICE_OUTPUT. The defaults are DeepSeek's published rates at the time of writing: check them.
  *
- * The API reports tools, model calls and tokens in a `debug` object when asked with `X-Agent-Debug: 1`.
+ * The API reports the tool calls (SQL length and error, never the query or rows), model calls and tokens in a
+ * `debug` object when asked with `X-Agent-Debug: 1`.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -55,7 +57,7 @@ const filter = flag('filter');
 const limit = flag('limit') ? Number(flag('limit')) : undefined;
 const ratePerMinute = Number(flag('rate') ?? process.env['EVAL_RATE'] ?? 8);
 const outDir = resolve(flag('out') ?? join(here, 'reports'));
-const minTool = flag('min-tool') ? Number(flag('min-tool')) : undefined;
+const minNoSql = flag('min-no-sql') ? Number(flag('min-no-sql')) : undefined;
 const minNumeric = flag('min-numeric') ? Number(flag('min-numeric')) : undefined;
 const timezone = 'Asia/Kolkata';
 const PRICE = {
@@ -94,12 +96,10 @@ interface Fact {
 }
 interface Turn {
   question: string;
-  tools?: string[];
-  alt_tools?: string[][];
   facts?: Fact[];
   expect_clarification?: boolean;
   clarify_options?: string[];
-  expect_no_tools?: boolean;
+  expect_no_sql?: boolean;
   relative?: boolean;
   note?: string;
 }
@@ -122,7 +122,7 @@ function loadGolden(): Conversation[] {
  * -------------------------------------------------------------------------------------------- */
 
 interface Debug {
-  steps: { tool: string; ms: number; rows: number; ok: boolean }[];
+  steps: { tool: string; ms: number; rows: number; ok: boolean; sql_chars?: number; error?: string }[];
   tool_steps: number;
   llm: { model: string; ms: number; prompt_tokens: number; cache_hit_tokens: number; completion_tokens: number }[];
   verified: string;
@@ -234,8 +234,11 @@ interface TurnResult {
   question: string;
   answer: string | null;
   tools: string[];
+  /** run_sql calls, and how many of them failed. */
+  sqlRuns: number;
+  sqlErrors: number;
   /** null = not scored for this turn. */
-  toolOk: boolean | null;
+  noSqlOk: boolean | null;
   numericOk: boolean | null;
   missingFacts: Fact[];
   clarificationOk: boolean | null;
@@ -250,14 +253,11 @@ interface TurnResult {
   note: string | null;
 }
 
-const hasAll = (called: Set<string>, needed: readonly string[]) => needed.every((t) => called.has(t));
-
 function score(conv: string, index: number, turn: Turn, reply: Reply): TurnResult {
   const called = new Set((reply.debug?.steps ?? []).map((s) => s.tool));
   const answer = reply.answer ?? '';
-  let toolOk: boolean | null = null;
-  if (turn.expect_no_tools) toolOk = called.size === 0;
-  else if (turn.tools && turn.tools.length > 0) toolOk = [turn.tools, ...(turn.alt_tools ?? [])].some((set) => hasAll(called, set));
+  const sql = (reply.debug?.steps ?? []).filter((s) => s.tool === 'run_sql');
+  const noSqlOk = turn.expect_no_sql ? sql.length === 0 : null;
 
   const missingFacts = turn.facts && !turn.relative && reply.answer ? turn.facts.filter((f) => !factFound(f, answer)) : [];
   const numericOk = turn.facts?.length && !turn.relative ? reply.answer !== null && missingFacts.length === 0 : null;
@@ -265,7 +265,7 @@ function score(conv: string, index: number, turn: Turn, reply: Reply): TurnResul
   let clarificationOk: boolean | null = null;
   if (turn.expect_clarification) {
     const options = turn.clarify_options ?? [];
-    clarificationOk = answer.includes('?') && options.every((o) => answer.toLowerCase().includes(o.toLowerCase())) && called.size === 0;
+    clarificationOk = answer.includes('?') && options.every((o) => answer.toLowerCase().includes(o.toLowerCase())) && sql.length === 0;
   }
 
   const t = reply.debug?.tokens;
@@ -276,7 +276,9 @@ function score(conv: string, index: number, turn: Turn, reply: Reply): TurnResul
     question: turn.question,
     answer: reply.answer,
     tools: [...called],
-    toolOk,
+    sqlRuns: sql.length,
+    sqlErrors: sql.filter((s) => !s.ok).length,
+    noSqlOk,
     numericOk,
     missingFacts,
     clarificationOk,
@@ -323,7 +325,7 @@ async function main(): Promise<void> {
         const reply = await ask(token, turn.question, history, memory);
         const r = score(conv.id, i + 1, turn, reply);
         results.push(r);
-        const flag = r.error ? 'ERR ' : r.toolOk === false || r.numericOk === false || r.clarificationOk === false ? 'FAIL' : 'ok  ';
+        const flag = r.error ? 'ERR ' : r.noSqlOk === false || r.numericOk === false || r.clarificationOk === false ? 'FAIL' : 'ok  ';
         console.log(`${flag} ${conv.id}.${i + 1} ${r.ms}ms [${r.tools.join(',') || '-'}] ${turn.question.slice(0, 70)}`);
         history.push({ role: 'user', content: turn.question });
         if (reply.answer) history.push({ role: 'assistant', content: reply.answer });
@@ -335,7 +337,7 @@ async function main(): Promise<void> {
   await worker();
 
   const scored = (f: (r: TurnResult) => boolean | null) => results.filter((r) => f(r) !== null);
-  const toolRows = scored((r) => r.toolOk);
+  const noSqlRows = scored((r) => r.noSqlOk);
   const numRows = scored((r) => r.numericOk);
   const clarRows = scored((r) => r.clarificationOk);
   const good = results.filter((r) => !r.error);
@@ -345,12 +347,14 @@ async function main(): Promise<void> {
     mode,
     turns: results.length,
     errors: results.filter((r) => r.error).length,
-    toolAccuracy: ratio(toolRows.filter((r) => r.toolOk).length, toolRows.length),
+    noSqlAccuracy: ratio(noSqlRows.filter((r) => r.noSqlOk).length, noSqlRows.length),
     numericAccuracy: ratio(numRows.filter((r) => r.numericOk).length, numRows.length),
     clarificationAccuracy: ratio(clarRows.filter((r) => r.clarificationOk).length, clarRows.length),
-    templateFallbacks: results.filter((r) => r.outcome === 'template').length,
+    fallbacks: results.filter((r) => r.outcome === 'template').length,
     regenerated: results.filter((r) => r.verified === 'regenerated').length,
     toolStepsPerTurn: mean(good.map((r) => r.toolSteps ?? 0)),
+    sqlPerTurn: mean(good.map((r) => r.sqlRuns)),
+    failedSqlPerTurn: mean(good.map((r) => r.sqlErrors)),
     latencyMs: { p50: percentile(good.map((r) => r.ms), 50), p95: percentile(good.map((r) => r.ms), 95) },
     firstTokenMs: { p50: percentile(good.flatMap((r) => (r.firstTokenMs === null ? [] : [r.firstTokenMs])), 50) },
     tokensPerTurn: {
@@ -362,7 +366,7 @@ async function main(): Promise<void> {
     prices: PRICE,
   };
 
-  const failing = results.filter((r) => r.error || r.toolOk === false || r.numericOk === false || r.clarificationOk === false);
+  const failing = results.filter((r) => r.error || r.noSqlOk === false || r.numericOk === false || r.clarificationOk === false);
   const markdown = [
     `# Agent eval report`,
     ``,
@@ -371,11 +375,11 @@ async function main(): Promise<void> {
     `| Metric | Value |`,
     `| --- | --- |`,
     `| Turns | ${summary.turns} (errors: ${summary.errors}) |`,
-    `| Tool selection accuracy | ${pct(toolRows.filter((r) => r.toolOk).length, toolRows.length)} |`,
     `| Numeric accuracy | ${pct(numRows.filter((r) => r.numericOk).length, numRows.length)} |`,
     `| Clarification accuracy | ${pct(clarRows.filter((r) => r.clarificationOk).length, clarRows.length)} |`,
-    `| Template fallbacks / regenerations | ${summary.templateFallbacks} / ${summary.regenerated} |`,
-    `| Tool steps per turn | ${summary.toolStepsPerTurn.toFixed(2)} |`,
+    `| No-query accuracy (small talk, injections) | ${pct(noSqlRows.filter((r) => r.noSqlOk).length, noSqlRows.length)} |`,
+    `| Fallback answers / regenerations | ${summary.fallbacks} / ${summary.regenerated} |`,
+    `| Tool steps / SQL queries / failed queries per turn | ${summary.toolStepsPerTurn.toFixed(2)} / ${summary.sqlPerTurn.toFixed(2)} / ${summary.failedSqlPerTurn.toFixed(2)} |`,
     `| Latency p50 / p95 | ${summary.latencyMs.p50} ms / ${summary.latencyMs.p95} ms |`,
     `| Time to first token p50 | ${mode === 'sse' ? `${summary.firstTokenMs.p50} ms` : 'n/a (json mode)'} |`,
     `| Tokens per turn (prompt / cached / completion) | ${summary.tokensPerTurn.prompt.toFixed(0)} / ${summary.tokensPerTurn.cacheHit.toFixed(0)} / ${summary.tokensPerTurn.completion.toFixed(0)} |`,
@@ -384,7 +388,7 @@ async function main(): Promise<void> {
     `## Failures (${failing.length})`,
     ``,
     ...failing.map((r) => {
-      const why = [r.error ? `error ${r.error}` : '', r.toolOk === false ? `tools [${r.tools.join(', ')}]` : '', r.numericOk === false ? `missing ${r.missingFacts.map((f) => `${f.k} ${f.v}`).join(', ')}` : '', r.clarificationOk === false ? 'clarification' : ''].filter(Boolean).join('; ');
+      const why = [r.error ? `error ${r.error}` : '', r.noSqlOk === false ? `ran SQL (${r.sqlRuns}x) but should not have` : '', r.numericOk === false ? `missing ${r.missingFacts.map((f) => `${f.k} ${f.v}`).join(', ')}` : '', r.clarificationOk === false ? 'clarification' : ''].filter(Boolean).join('; ');
       return `- **${r.conversation}.${r.index}** ${r.question}\n  - ${why}\n  - answer: ${(r.answer ?? '').replace(/\s+/g, ' ').slice(0, 240)}`;
     }),
     ``,
@@ -398,7 +402,7 @@ async function main(): Promise<void> {
   console.log(`Reports: ${join(outDir, `${stamp}.json`)} and .md`);
 
   const failed =
-    (minTool !== undefined && (summary.toolAccuracy ?? 0) < minTool) || (minNumeric !== undefined && (summary.numericAccuracy ?? 0) < minNumeric);
+    (minNoSql !== undefined && (summary.noSqlAccuracy ?? 0) < minNoSql) || (minNumeric !== undefined && (summary.numericAccuracy ?? 0) < minNumeric);
   if (failed) {
     console.error('Accuracy is below the required minimum.');
     process.exit(1);

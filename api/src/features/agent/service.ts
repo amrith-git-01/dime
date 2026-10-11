@@ -1,9 +1,11 @@
 import type { Db } from '../../core/db';
 import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
+import { utcOffsetMinutes } from '../../core/timezone';
 import { PermanentAiError, TransientAiError } from '../ai/errors';
-import { buildBlocks, buildDeepLink, collectEntityNames } from './blocks';
+import { buildBlocks } from './blocks';
 import { resolveTimezone } from './dates';
+import { fallbackAnswer, NO_DATA_ANSWER } from './fallback';
 import { emptyUsage, TurnAbortedError } from './llm';
 import type { ChatMessage, LlmClient, LlmRequest, LlmResult, ToolCall, Usage } from './llm';
 import { signMemory, verifyMemory } from './memory';
@@ -11,13 +13,13 @@ import type { AgentMemory, MemoryContent } from './memory';
 import { runPrepass } from './prepass';
 import type { PrePass } from './prepass';
 import { buildUserMessage, SYSTEM_PROMPT, verificationFeedback, wrapToolResult } from './prompts';
+import { defaultQueries } from './queries';
+import type { AgentQueries } from './queries';
 import type { AgentResponse, ChatRequest } from './schemas';
-import { defaultQueries, executeQueries } from './queries';
-import type { AgentQueries, QueryCall } from './queries';
-import { NO_DATA_ANSWER, templateAnswer } from './template';
-import type { ToolResult } from './template';
+import { newTurnState } from './state';
+import type { TurnState } from './state';
 import { TOOL_BY_NAME, TOOL_SPECS, ToolArgError } from './tools';
-import type { Prepared, ToolContext, ToolName, ToolOutput } from './tools';
+import type { Prepared, ToolContext, ToolName, ToolOutcome } from './tools';
 import { numbersIn, verifyAnswer } from './verify';
 
 /**
@@ -27,8 +29,9 @@ import { numbersIn, verifyAnswer } from './verify';
  *
  * Guards: at most `maxSteps` tool steps (then the model must answer), at most 3 parallel tool calls per
  * step, a turn deadline (an AbortSignal runs through every request), and a numeric check of the answer
- * against the tool results (one regeneration, then a deterministic template). Everything the user sees
- * as numbers is the database's. Streaming and JSON modes share this code; only `emit` differs.
+ * against the SQL results (one regeneration, then a deterministic list of the last result). Everything the
+ * user sees as numbers is the database's. The model's SQL only ever runs through `sql-guard.ts`.
+ * Streaming and JSON modes share this code; only `emit` differs.
  */
 
 const MAX_PARALLEL_TOOLS = 3;
@@ -42,7 +45,7 @@ export interface AgentDeps {
   llm: LlmClient;
   /** The D1 database the tools read (every query is scoped by the verified user id). */
   db: Db;
-  /** The tool queries; tests replace single ones. */
+  /** The database seams (SQL, entity lookup, link targets); tests replace single ones. */
   queries?: Partial<AgentQueries>;
   /** Epoch ms; overridable for tests. */
   now?: () => number;
@@ -78,7 +81,8 @@ export class TurnTimeoutError extends Error {
 
 /** What one turn did: the structured log line, and the `debug` object of the evals (X-Agent-Debug). */
 interface Trace {
-  steps: { tool: string; ms: number; rows: number; ok: boolean }[];
+  /** One entry per tool call. run_sql records the length of its SQL and the SQLite error, never the query or its rows. */
+  steps: { tool: string; ms: number; rows: number; ok: boolean; sql_chars?: number; error?: string }[];
   /** Model calls that ended in tool calls (at most `maxSteps`). */
   tool_steps: number;
   llm: { model: string; ms: number; prompt_tokens: number; cache_hit_tokens: number; completion_tokens: number }[];
@@ -147,10 +151,12 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
 
   const tz = resolveTimezone(body.timezone);
   const question = body.content.trim();
-  const ctx: ToolContext = { tz, nowMs: started };
   const usage = opts.usage ?? emptyUsage();
-  const results: ToolResult[] = [];
+  const state = newTurnState();
+  const used = new Set<ToolName>();
   const queries: AgentQueries = { ...defaultQueries, ...deps.queries };
+  // ponytail: one UTC offset for the whole turn (see sql-guard.ts offsetModifier).
+  const ctx: ToolContext = { db: deps.db, userId, tz, tzOffsetMinutes: utcOffsetMinutes(tz, started), signal, queries, state };
 
   const memory = config.memorySecret ? await verifyMemory(config.memorySecret, body.memory, userId, started) : null;
   if (body.memory && !memory) log.info('agent_memory_ignored', { reason: config.memorySecret ? 'invalid_or_expired' : 'no_secret' });
@@ -162,15 +168,14 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
 
   const finish = async (answer: string, outcome: Outcome): Promise<TurnResult> => {
     const text = answer.slice(0, 4000);
-    const names = collectEntityNames(results, prepass.entities);
     const memoryToken = config.memorySecret
-      ? await signMemory(config.memorySecret, userId, memoryContent({ prepass, results, names, memory, question, answer: text }), now())
+      ? await signMemory(config.memorySecret, userId, memoryContent({ prepass, state, used, memory, question, answer: text }), now())
       : '';
     return {
       response: {
         answer: text,
-        blocks: buildBlocks(results),
-        deep_link: buildDeepLink(results, names, tz),
+        blocks: buildBlocks(state),
+        deep_link: state.link,
         memory: memoryToken,
         turn_id: deps.newId?.() ?? crypto.randomUUID(),
       },
@@ -227,7 +232,7 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
     throw last instanceof Error ? last : new TransientAiError('No time left for a model call.');
   };
 
-  /** Runs one step's tool calls; every call gets a tool message (the API requires it). */
+  /** Runs one step's tool calls in parallel; every call gets a tool message (the API requires it). */
   const runStep = async (calls: readonly ToolCall[]): Promise<ChatMessage[]> => {
     interface Slot {
       call: ToolCall;
@@ -239,48 +244,48 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
       const tool = TOOL_BY_NAME.get(call.function.name);
       if (!tool) return { call, tool: null, prepared: null, error: `Unknown tool "${call.function.name}". Available: ${[...TOOL_BY_NAME.keys()].join(', ')}.` };
       if (index >= MAX_PARALLEL_TOOLS) return { call, tool: tool.name, prepared: null, error: `At most ${MAX_PARALLEL_TOOLS} tool calls per step. Call this one again in the next step.` };
-      emit?.({ type: 'step', tool: tool.name, label: tool.label });
       try {
-        return { call, tool: tool.name, prepared: tool.prepare(call.function.arguments, ctx), error: null };
+        const prepared = tool.prepare(call.function.arguments, ctx);
+        emit?.({ type: 'step', tool: tool.name, label: prepared.label });
+        return { call, tool: tool.name, prepared, error: null };
       } catch (err) {
         if (err instanceof ToolArgError) return { call, tool: tool.name, prepared: null, error: err.message };
         throw err;
       }
     });
 
-    // The step's tools (and any extra block-only queries) run in parallel on D1.
-    const runnable = slots.filter((s): s is Slot & { prepared: Prepared } => s.prepared !== null);
-    const outcomes = new Map<Slot, { output: ToolOutput | null; error: string | null; ms: number }>();
-    if (runnable.length > 0) {
-      const calls: QueryCall[] = runnable.flatMap((s) => [s.prepared.call, ...(s.prepared.extra ?? [])]);
-      const { results: raw, ms } = await raceAbort(executeQueries(queries, deps.db, userId, calls), signal);
-      let at = 0;
-      for (const slot of runnable) {
-        const r = raw[at++];
-        const extras = (slot.prepared.extra ?? []).map(() => raw[at++]);
-        const extraValues = extras.every((e) => e?.ok) ? extras.map((e) => (e?.ok ? e.value : null)) : [];
-        outcomes.set(slot, r?.ok ? { output: slot.prepared.shape(r.value, extraValues), error: null, ms } : { output: null, error: r?.ok === false ? r.error : 'No result.', ms });
-      }
-    }
+    const outcomes = await raceAbort(
+      Promise.all(
+        slots.map(async (slot): Promise<(ToolOutcome & { ms: number }) | null> => {
+          if (!slot.prepared || !slot.tool) return null;
+          const t0 = Date.now();
+          try {
+            return { ...(await slot.prepared.run()), ms: Date.now() - t0 };
+          } catch (err) {
+            if (err instanceof TurnAbortedError) throw err;
+            log.warn('agent_tool_failed', { tool: slot.tool, error: String(err).slice(0, 300) });
+            return { data: null, error: 'The lookup failed. Try again or answer with what you already have.', rows: 0, ms: Date.now() - t0 };
+          }
+        }),
+      ),
+      signal,
+    );
 
-    return slots.map((slot): ChatMessage => {
-      const outcome = outcomes.get(slot);
+    return slots.map((slot, i): ChatMessage => {
+      const outcome = outcomes[i] ?? null;
       const error = slot.error ?? outcome?.error ?? null;
-      const output = outcome?.output ?? null;
       if (slot.tool) {
-        results.push({
-          name: slot.tool,
-          args: slot.prepared?.args ?? {},
-          ok: error === null && output !== null,
-          data: output?.data ?? null,
-          error,
+        used.add(slot.tool);
+        trace.steps.push({
+          tool: slot.tool,
           ms: outcome?.ms ?? 0,
-          rows: output?.rows ?? 0,
-          blockData: output?.blockData ?? null,
+          rows: outcome?.rows ?? 0,
+          ok: error === null,
+          ...(outcome?.sqlChars !== undefined ? { sql_chars: outcome.sqlChars } : {}),
+          ...(error !== null && slot.tool === 'run_sql' ? { error: error.slice(0, 160) } : {}),
         });
-        trace.steps.push({ tool: slot.tool, ms: outcome?.ms ?? 0, rows: output?.rows ?? 0, ok: error === null && output !== null });
       }
-      return { role: 'tool', tool_call_id: slot.call.id, content: wrapToolResult(slot.tool ?? slot.call.function.name, error !== null ? { error } : (output?.data ?? {})) };
+      return { role: 'tool', tool_call_id: slot.call.id, content: wrapToolResult(slot.tool ?? slot.call.function.name, error !== null ? { error } : (outcome?.data ?? {})) };
     });
   };
 
@@ -308,19 +313,20 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
     const expected = err instanceof TurnAbortedError || err instanceof TransientAiError || err instanceof PermanentAiError;
     if (!expected) throw err;
     // Out of time or the model is down: with data in hand answer from it, else report the failure.
-    if (!results.some((r) => r.ok)) {
+    if (state.runs.length === 0) {
       if (err instanceof TurnAbortedError) throw new TurnTimeoutError('The turn ran out of time.');
       throw err;
     }
     trace.verified = 'template';
-    return finish(templateAnswer(results), err instanceof TurnAbortedError ? 'deadline' : 'template');
+    return finish(fallbackAnswer(state.runs), err instanceof TurnAbortedError ? 'deadline' : 'template');
   }
 
   /* ---- verification ---- */
-  const allowed = [...results.flatMap((r) => (r.ok ? numbersIn(r.data) : [])), ...numbersIn(question)];
+  // The figures the model was shown (the rows it could read) plus the ones in the question.
+  const allowed = [...state.runs.flatMap((r) => numbersIn(r.rows.slice(0, r.shown))), ...numbersIn(question)];
   const fallback = (): Promise<TurnResult> => {
     trace.verified = 'template';
-    return finish(results.some((r) => r.ok) ? templateAnswer(results) : NO_DATA_ANSWER, 'template');
+    return finish(state.runs.length > 0 ? fallbackAnswer(state.runs) : NO_DATA_ANSWER, 'template');
   };
 
   let draft = answer.trim();
@@ -350,36 +356,29 @@ async function runTurn(deps: AgentDeps, opts: TurnOptions, trace: Trace): Promis
 /** What the next turn needs to remember (the signed memory token carries this). */
 function memoryContent(input: {
   prepass: PrePass;
-  results: readonly ToolResult[];
-  names: ReadonlyMap<string, string>;
+  state: TurnState;
+  used: ReadonlySet<ToolName>;
   memory: AgentMemory | null;
   question: string;
   answer: string;
 }): MemoryContent {
-  const { prepass, results, names, memory } = input;
-  const scoped = [...results].reverse().find((r) => r.ok && typeof r.args['from'] === 'string' && typeof r.args['to'] === 'string');
-  const from = scoped ? String(scoped.args['from']) : null;
-  const to = scoped ? String(scoped.args['to']) : null;
+  const { prepass, state, memory } = input;
   const known = prepass.range ?? memory?.time_range ?? null;
-  const time_range =
-    from && to ? { from, to, label: known && known.from === from && known.to === to ? known.label : from === to ? from : `${from} to ${to}` } : known ? { from: known.from, to: known.to, label: known.label } : null;
+  const linked = state.linkRange;
+  const time_range = linked
+    ? { ...linked, label: known && known.from === linked.from && known.to === linked.to ? known.label : linked.from === linked.to ? linked.from : `${linked.from} to ${linked.to}` }
+    : known
+      ? { from: known.from, to: known.to, label: known.label }
+      : null;
 
   const entities = new Map<string, { type: 'payee' | 'category'; id: string; name: string }>();
-  const add = (type: 'payee' | 'category', id: unknown) => {
-    const name = typeof id === 'string' ? names.get(`${type}:${id}`) : undefined;
-    if (typeof id === 'string' && name) entities.set(`${type}:${id}`, { type, id, name });
-  };
-  for (const e of [...prepass.entities, ...prepass.clarificationOptions]) entities.set(`${e.type}:${e.id}`, { type: e.type, id: e.id, name: e.name });
-  for (const r of results) {
-    add('payee', r.args['payee_key']);
-    add('category', r.args['category_id']);
-  }
+  for (const e of [...prepass.entities, ...prepass.clarificationOptions, ...state.entities]) entities.set(`${e.type}:${e.id}`, { type: e.type, id: e.id, name: e.name });
   const carried = entities.size === 0 && memory ? memory.entities : [...entities.values()];
 
   return {
     time_range,
     entities: carried.slice(0, 5),
-    last_tools: [...new Set(results.map((r) => r.name))],
+    last_tools: [...input.used],
     summary: `Asked: ${stripMarkup(input.question).slice(0, 110)} | Said: ${stripMarkup(input.answer).slice(0, 170)}`.slice(0, 300),
   };
 }

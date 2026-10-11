@@ -10,8 +10,8 @@ on:
         description: "Only conversations whose id or a question contains this text (empty = all)"
         required: false
         default: ""
-      min_tool:
-        description: "Fail below this tool-selection accuracy (0..1)"
+      min_no_sql:
+        description: "Fail below this no-query accuracy (small talk and injections must not run SQL) (0..1)"
         required: false
         default: "0.85"
       min_numeric:
@@ -58,11 +58,11 @@ jobs:
       - run: npm ci
       - name: Run the golden questions
         env:
-          MIN_TOOL: ${{ inputs.min_tool || '0.85' }}
+          MIN_NO_SQL: ${{ inputs.min_no_sql || '0.85' }}
           MIN_NUMERIC: ${{ inputs.min_numeric || '0.9' }}
           FILTER: ${{ inputs.filter }}
         run: |
-          args=(--min-tool "$MIN_TOOL" --min-numeric "$MIN_NUMERIC")
+          args=(--min-no-sql "$MIN_NO_SQL" --min-numeric "$MIN_NUMERIC")
           if [ -n "$FILTER" ]; then args+=(--filter "$FILTER"); fi
           npm run evals -- "${args[@]}"
       - name: Job summary

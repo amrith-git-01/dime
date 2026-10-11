@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { clarificationText, extractPhrases, runPrepass, selectEntities } from '../src/features/agent/prepass';
 import { parseTimeHint } from '../src/features/agent/range';
-import { nowBlock, toInstantRange, wallIso } from '../src/features/agent/dates';
-import type { EntityMatch } from '../src/features/agent/tools';
+import { nowBlock, wallIso } from '../src/features/agent/dates';
+import type { EntityMatch } from '../src/features/agent/entities';
 import { NOW, USER, fakeQueries } from './agent-fixtures';
 import { testDb } from './db';
 
@@ -60,12 +60,7 @@ describe('time hints (no LLM)', () => {
     expect(hint('hello')).toBeNull();
   });
 
-  it('builds half-open UTC instants for inclusive local dates and the NOW block', () => {
-    expect(toInstantRange(TZ, { year: 2026, month: 6, day: 1 }, { year: 2026, month: 6, day: 30 })).toEqual({
-      from: '2026-05-31T18:30:00.000Z',
-      to: '2026-06-30T18:30:00.000Z',
-    });
-    expect(toInstantRange('UTC', { year: 2026, month: 2, day: 28 }, { year: 2026, month: 2, day: 28 })).toEqual({ from: '2026-02-28T00:00:00.000Z', to: '2026-03-01T00:00:00.000Z' });
+  it('builds wall-clock instants of a local date and the NOW block', () => {
     expect(wallIso(TZ, { year: 2026, month: 6, day: 30 }, 23, 59, 59, 999_999)).toBe('2026-06-30T23:59:59.999999+05:30');
     expect(nowBlock(TZ, NOW)).toContain('Today: 2026-10-05 (Monday). Timezone: Asia/Kolkata. Currency: INR.');
     expect(nowBlock(TZ, NOW)).toContain('Last month: 2026-09-01 to 2026-09-30.');

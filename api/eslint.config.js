@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['node_modules', '.wrangler', 'dist', 'worker-configuration.d.ts', 'coverage', 'scripts/parity/.build'] },
+  { ignores: ['node_modules', '.wrangler', 'dist', 'worker-configuration.d.ts', 'coverage'] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

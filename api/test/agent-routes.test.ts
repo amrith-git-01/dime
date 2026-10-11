@@ -7,7 +7,7 @@ import { agentErrorBody, createAgentRoutes } from '../src/features/agent/routes'
 import { TurnTimeoutError } from '../src/features/agent/service';
 import { verifyMemory } from '../src/features/agent/memory';
 import { PermanentAiError, TransientAiError } from '../src/features/ai/errors';
-import { NOW, SECRET, SUMMARY_JUNE, fakeQueries } from './agent-fixtures';
+import { JUNE_RESULT, JUNE_SQL, NOW, SECRET, fakeQueries } from './agent-fixtures';
 import { USER_ID, makeCtx, makeEnv, signToken } from './helpers';
 import { failingOn, oneRow, rowsOf, seedUser, testDb } from './db';
 import { json, useSupabaseStub } from './supabase-stub';
@@ -32,7 +32,7 @@ interface Call {
 async function call(path: string, opts: Call = {}): Promise<Response> {
   const app = new Hono<AppBindings>();
   app.onError(onError);
-  const db = opts.db === undefined ? fakeQueries({ spending_summary: SUMMARY_JUNE }) : opts.db;
+  const db = opts.db === undefined ? fakeQueries({ run_sql: JUNE_RESULT }) : opts.db;
   app.route('/api/v1/agent', createAgentRoutes({ ...(db ? { queries: db.queries } : {}), now: () => NOW }));
   const headers: Record<string, string> = { ...opts.headers };
   if (opts.token !== false) headers['Authorization'] = `Bearer ${opts.token ?? (await signToken({ sub: USER_ID }))}`;
@@ -69,8 +69,7 @@ function deepseek(steps: DeepSeekStep[]) {
   });
 }
 
-const JUNE_ARGS = { from: '2026-06-01', to: '2026-06-30' };
-const SPENT_JUNE: DeepSeekStep[] = [{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }, { content: 'You spent **₹18,388.50** in June 2026.' }];
+const SPENT_JUNE: DeepSeekStep[] = [{ calls: [{ name: 'run_sql', args: JUNE_SQL }] }, { content: 'You spent **₹18,388.50** in June 2026.' }];
 
 async function sseEvents(res: Response): Promise<{ event: string; data: Record<string, unknown> }[]> {
   const text = await res.text();
@@ -122,7 +121,7 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
   it('returns the ChatResponse shape plus memory and turn_id, and records the usage afterwards', async () => {
     deepseek(SPENT_JUNE);
     const { ctx, flush } = makeCtx();
-    const db = fakeQueries({ spending_summary: SUMMARY_JUNE });
+    const db = fakeQueries({ run_sql: JUNE_RESULT });
     const res = await chat('How much did I spend in June 2026?', { ctx, db });
     await flush();
 
@@ -131,10 +130,10 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
     const body = await res.json<{ answer: string; blocks: unknown[]; deep_link: unknown; memory: string; turn_id: string }>();
     expect(Object.keys(body).sort()).toEqual(['answer', 'blocks', 'deep_link', 'memory', 'turn_id']);
     expect(body.answer).toBe('You spent **₹18,388.50** in June 2026.');
-    expect(body.blocks).toHaveLength(3); // metric blocks from the spending summary
+    expect(body.blocks).toEqual([]); // no chart was asked for
     expect(body.deep_link).toBeNull();
     expect(body.turn_id).toMatch(/^[0-9a-f-]{36}$/);
-    expect((await verifyMemory(SECRET, body.memory, USER_ID, NOW))?.last_tools).toEqual(['spending_summary']);
+    expect((await verifyMemory(SECRET, body.memory, USER_ID, NOW))?.last_tools).toEqual(['run_sql']);
 
     // JSON mode never streams.
     const llm = stub.find('POST', '/chat/completions');
@@ -145,7 +144,7 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
     expect(await rowsOf('agent_usage')).toEqual([
       expect.objectContaining({ user_id: USER_ID, day: '2026-10-05', prompt_tokens: 200, completion_tokens: 40, turns: 1 }),
     ]);
-    expect(db.calls().map((c) => c.name)).toEqual(['spending_summary']);
+    expect(db.calls().map((c) => c.name)).toEqual(['run_sql']);
   });
 
   it('adds a debug object (tools, model calls, tokens) only when X-Agent-Debug: 1 is sent (evals)', async () => {
@@ -156,7 +155,7 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
     const body = await (await chat('How much did I spend in June 2026?', { headers: { 'x-agent-debug': '1' } })).json<{ debug: Record<string, unknown> }>();
     expect(body.debug).toMatchObject({
       tool_steps: 1,
-      steps: [{ tool: 'spending_summary', ok: true }],
+      steps: [{ tool: 'run_sql', ok: true, sql_chars: JUNE_SQL.sql.length }],
       verified: 'pass',
       outcome: 'ok',
       tokens: { promptTokens: 200, completionTokens: 40, cacheHitTokens: 120 },
@@ -187,8 +186,8 @@ describe('POST /agent/chat: JSON mode (compatible with C5, plus memory)', () => 
   });
 
   it("a failing database query is the tool's error, not the turn's: the model still answers", async () => {
-    deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }, { content: 'I could not load that right now.' }]);
-    const db = fakeQueries({}, { fail: { spending_summary: new Error('D1_ERROR: unavailable') } });
+    deepseek([{ calls: [{ name: 'run_sql', args: JUNE_SQL }] }, { content: 'I could not load that right now.' }]);
+    const db = fakeQueries({}, { fail: { run_sql: new Error('D1_ERROR: unavailable') } });
     const res = await chat('How much did I spend in June 2026?', { db });
     expect(res.status).toBe(200);
     expect((await res.json<{ answer: string }>()).answer).toBe('I could not load that right now.');
@@ -210,7 +209,7 @@ describe('POST /agent/chat: SSE mode', () => {
     expect(names.at(-1)).toBe('final');
     expect(names.slice(1, -1).every((n) => n === 'delta')).toBe(true);
     expect(names.filter((n) => n === 'delta').length).toBeGreaterThan(1);
-    expect(events[0]?.data).toEqual({ tool: 'spending_summary', label: 'Totalling your spending' });
+    expect(events[0]?.data).toEqual({ tool: 'run_sql', label: 'Totalling June' });
 
     const deltas = events.filter((e) => e.event === 'delta').map((e) => String(e.data['text'])).join('');
     const final = events.at(-1)?.data as { answer: string; memory: string; turn_id: string; blocks: unknown[]; deep_link: unknown };
@@ -218,14 +217,14 @@ describe('POST /agent/chat: SSE mode', () => {
     expect(deltas).toBe(final.answer);
     expect(final.turn_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(final.memory).toMatch(/\./);
-    expect(final.blocks).toHaveLength(3);
+    expect(final.blocks).toEqual([]);
     // Stream mode asks the provider for a stream with usage.
     expect(stub.find('POST', '/chat/completions')[0]?.body).toMatchObject({ stream: true, stream_options: { include_usage: true } });
     expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 200, completion_tokens: 40, turns: 1 })]);
   });
 
   it('final.answer replaces streamed text that failed numeric verification', async () => {
-    deepseek([{ calls: [{ name: 'spending_summary', args: JUNE_ARGS }] }, { content: 'You spent ₹99,999 in June.' }, { content: 'You spent ₹18,388.50 in June.' }]);
+    deepseek([{ calls: [{ name: 'run_sql', args: JUNE_SQL }] }, { content: 'You spent ₹99,999 in June.' }, { content: 'You spent ₹18,388.50 in June.' }]);
     const events = await sseEvents(await chat('How much did I spend in June 2026?', { accept: 'text/event-stream' }));
     const streamed = events.filter((e) => e.event === 'delta').map((e) => String(e.data['text'])).join('');
     expect(streamed).toBe('You spent ₹99,999 in June.');
@@ -309,7 +308,7 @@ describe('kill switch and daily budget', () => {
     stub.on('POST', '/chat/completions', () => {
       n += 1;
       if (n === 1) {
-        const tool_calls = [{ index: 0, id: 'call_0', type: 'function', function: { name: 'spending_summary', arguments: JSON.stringify(JUNE_ARGS) } }];
+        const tool_calls = [{ index: 0, id: 'call_0', type: 'function', function: { name: 'run_sql', arguments: JSON.stringify(JUNE_SQL) } }];
         return json({ choices: [{ message: { content: null, tool_calls }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 100, completion_tokens: 20 } });
       }
       return json({ error: 'overloaded' }, { status: 503 });
@@ -317,7 +316,7 @@ describe('kill switch and daily budget', () => {
     const { ctx, flush } = makeCtx();
     const res = await chat('How much did I spend in June 2026?', { ctx, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) });
     await flush();
-    expect((await res.json<{ answer?: string }>()).answer).toBeTruthy(); // answered from the tool data (template)
+    expect((await res.json<{ answer?: string }>()).answer).toBeTruthy(); // answered from the tool data (fallback)
     expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 100, completion_tokens: 20, turns: 1 })]);
     expect((await chat('again', { env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) })).status).toBe(429);
 

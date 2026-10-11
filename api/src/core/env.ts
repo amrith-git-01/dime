@@ -77,7 +77,7 @@ const configSchema = z.object({
   AGENT_BASE_URL: z.string().default('https://api.deepseek.com'),
   AGENT_MODEL: z.string().default('deepseek-v4-flash'),
   AGENT_MODEL_FALLBACK: z.string().optional(),
-  AGENT_MAX_STEPS: int(4),
+  AGENT_MAX_STEPS: int(6),
   AGENT_TURN_TIMEOUT_SECONDS: num(25),
   AGENT_LLM_TIMEOUT_SECONDS: num(12),
   AGENT_DAILY_TOKEN_BUDGET: int(200_000),

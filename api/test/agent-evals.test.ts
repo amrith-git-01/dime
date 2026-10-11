@@ -1,21 +1,20 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { chunks } from '../src/core/db';
-import { defaultQueries, executeQueries } from '../src/features/agent/queries';
 import { runPrepass } from '../src/features/agent/prepass';
-import { TOOL_BY_NAME } from '../src/features/agent/tools';
-import { numbersIn } from '../src/features/agent/verify';
+import { defaultQueries } from '../src/features/agent/queries';
+import { runGuardedSql } from '../src/features/agent/sql-guard';
 import { FIXTURE_USER_ID } from '../evals/fixture';
 import goldenText from '../evals/golden.jsonl?raw';
 import seedText from '../evals/seed.sql?raw';
 import { testDb } from './db';
 
 /**
- * The eval fixtures against the REAL tools on a local D1 (this replaces evals/validate.ts, which needed a
- * throwaway Postgres): `evals/seed.sql` is loaded, then every reference `plan` of `evals/golden.jsonl` runs
- * through the production path (argument validation -> query -> shaping) and each expected fact must appear in
- * the results. Clarification turns run through the pre-pass to prove the names are ambiguous in the data.
- * No LLM, no network. `npm run evals:validate` runs just this file.
+ * The eval fixtures against the REAL SQL guard on a local D1: `evals/seed.sql` is loaded, then every
+ * reference `sql` of `evals/golden.jsonl` runs through the production path (view scoping, local dates,
+ * rupee amounts) and each expected fact must appear among the numbers of the results. Clarification turns
+ * run through the pre-pass to prove the names are ambiguous in the data. No LLM, no network.
+ * `npm run evals:validate` runs just this file.
  */
 
 interface Fact {
@@ -24,13 +23,12 @@ interface Fact {
 }
 interface Turn {
   question: string;
-  tools?: string[];
-  alt_tools?: string[][];
   facts?: Fact[];
   expect_clarification?: boolean;
   clarify_options?: string[];
+  expect_no_sql?: boolean;
   relative?: boolean;
-  plan?: { tool: string; args: Record<string, unknown> }[];
+  sql?: string[];
 }
 interface Golden {
   id: string;
@@ -43,8 +41,8 @@ const golden = goldenText
   .map((l) => JSON.parse(l) as Golden);
 
 const TZ = 'Asia/Kolkata';
+const IST_MINUTES = 330;
 const NOW = Date.parse('2026-10-05T10:00:00+05:30');
-const ctx = { tz: TZ, nowMs: NOW };
 
 /** Money and counts are exact to the paisa; percentages to one decimal. */
 const close = (fact: Fact, value: number): boolean => {
@@ -77,61 +75,45 @@ describe('eval fixtures on D1', () => {
     expect(odd?.n).toBe(0);
   });
 
-  it('every numeric fact is reachable through the real tools (all reference plans)', async () => {
+  it('every numeric fact is reachable through the real SQL guard (all reference queries)', async () => {
     const failures: string[] = [];
-    let planned = 0;
+    let queried = 0;
     let facts = 0;
     for (const g of golden) {
       for (const [i, turn] of g.turns.entries()) {
         const label = `${g.id}.${i + 1} "${turn.question}"`;
         if (!turn.facts?.length || turn.relative) continue;
-        if (!turn.plan?.length) {
-          failures.push(`${label}: has facts but no reference plan`);
+        if (!turn.sql?.length) {
+          failures.push(`${label}: has facts but no reference sql`);
           continue;
         }
-        planned += 1;
+        queried += 1;
 
         const numbers: number[] = [];
-        for (const step of turn.plan) {
-          const tool = TOOL_BY_NAME.get(step.tool);
-          if (!tool) {
-            failures.push(`${label}: unknown tool ${step.tool}`);
+        for (const sql of turn.sql) {
+          const out = await runGuardedSql(testDb(), FIXTURE_USER_ID, sql, { tzOffsetMinutes: IST_MINUTES });
+          if (!out.ok) {
+            failures.push(`${label}: query failed: ${out.error}`);
             continue;
           }
-          const prepared = tool.prepare(JSON.stringify(step.args), ctx);
-          const { results } = await executeQueries(defaultQueries, testDb(), FIXTURE_USER_ID, [prepared.call]);
-          const r = results[0];
-          if (!r?.ok) {
-            failures.push(`${label}: ${step.tool} failed: ${r?.error ?? 'no result'}`);
-            continue;
-          }
-          numbers.push(...numbersIn(prepared.shape(r.value, []).data));
+          for (const row of out.rows) for (const cell of row) if (typeof cell === 'number') numbers.push(Math.abs(cell));
         }
         for (const fact of turn.facts) {
           facts += 1;
-          if (!numbers.some((n) => close(fact, n))) failures.push(`${label}: fact ${fact.k} ${fact.v} not found in the tool results`);
+          if (!numbers.some((n) => close(fact, n))) failures.push(`${label}: fact ${fact.k} ${fact.v} not found in the query results`);
         }
-
-        // The reference plan must itself satisfy the expected tool selection.
-        const sets = [turn.tools ?? [], ...(turn.alt_tools ?? [])];
-        const used = new Set(turn.plan.map((p) => p.tool));
-        if (!sets.some((set) => set.every((t) => used.has(t)))) failures.push(`${label}: plan tools ${[...used].join(',')} satisfy none of the expected tool sets`);
       }
     }
     expect(failures).toEqual([]);
     // Guard against a vacuous pass.
-    expect(planned).toBeGreaterThan(80);
+    expect(queried).toBeGreaterThan(80);
     expect(facts).toBeGreaterThan(120);
   });
 
-  it('answers the four former run_sql cases with aggregate_transactions', () => {
-    const byId = new Map(golden.map((g) => [g.id, g]));
-    for (const id of ['g100', 'g101', 'g102', 'g103']) {
-      const turn = byId.get(id)?.turns[0];
-      expect(turn?.tools).toEqual(['aggregate_transactions']);
-      expect(turn?.plan).toHaveLength(1);
-      expect(turn?.plan?.[0]?.tool).toBe('aggregate_transactions');
-    }
+  it('the cases with no facts to find (small talk, injections, out of scope) carry no reference sql', () => {
+    const noSql = golden.flatMap((g) => g.turns).filter((t) => t.expect_no_sql);
+    expect(noSql.length).toBeGreaterThanOrEqual(4);
+    for (const t of noSql) expect(t.sql).toBeUndefined();
   });
 
   it('every clarification question is ambiguous in the seeded data and offers the expected names', async () => {

@@ -3,7 +3,8 @@ import { emptyUsage } from '../src/features/agent/llm';
 import type { ChatMessage, LlmClient, LlmRequest, LlmResult, ToolCall, Usage } from '../src/features/agent/llm';
 import type { AgentDeps, AgentEvent, TurnOptions, TurnResult } from '../src/features/agent/service';
 import { runAgentTurn } from '../src/features/agent/service';
-import type { AgentQueries, QueryName } from '../src/features/agent/queries';
+import type { AgentQueries } from '../src/features/agent/queries';
+import type { SqlCell, SqlOutcome } from '../src/features/agent/sql-guard';
 import { testDb } from './db';
 import { makeEnv } from './helpers';
 
@@ -58,31 +59,28 @@ export function scriptedLlm(steps: Step[]) {
   return { llm, calls };
 }
 
-export const QUERY_NAMES: readonly QueryName[] = [
-  'resolve_entities',
-  'spending_summary',
-  'category_breakdown',
-  'top_payees',
-  'daily_cashflow',
-  'compare_periods',
-  'budget_status',
-  'list_transactions',
-  'aggregate_transactions',
-];
+export type QueryName = keyof AgentQueries;
+
+export const QUERY_NAMES: readonly QueryName[] = ['resolve_entities', 'run_sql', 'link_target'];
 
 export interface FakeQueries {
-  /** Pass to `makeDeps`: every tool query answers with its handler (a document, or a function of the params). */
+  /** Pass to `makeDeps`: every database seam answers with its handler (a value, or a function of the params). */
   queries: AgentQueries;
-  /** Every query run, in order, with the params the tool planned. */
+  /** Every query run, in order, with the params the tools passed. */
   calls: () => { name: QueryName; params: unknown }[];
 }
 
+/** A successful run_sql outcome. */
+export const sqlOk = (columns: string[], rows: SqlCell[][], truncated = false): SqlOutcome => ({ ok: true, columns, rows, truncated });
+export const sqlError = (error: string): SqlOutcome => ({ ok: false, error });
+
 /**
- * A stand-in for the D1 tool queries: answers with canned documents (the jsonb the Postgres functions used
- * to return) and records what the tools asked. `fail` makes one query throw.
+ * A stand-in for the database seams: answers with canned values and records what the tools asked.
+ * `fail` makes one seam throw. Unset run_sql answers an empty result, unset link_target answers "not found".
  */
 export function fakeQueries(handlers: Partial<Record<QueryName, unknown>> = {}, opts: { fail?: Partial<Record<QueryName, Error>> } = {}): FakeQueries {
   const calls: { name: QueryName; params: unknown }[] = [];
+  const defaults: Record<QueryName, unknown> = { resolve_entities: {}, run_sql: sqlOk([], []), link_target: null };
   const queries = Object.fromEntries(
     QUERY_NAMES.map((name) => [
       name,
@@ -90,15 +88,15 @@ export function fakeQueries(handlers: Partial<Record<QueryName, unknown>> = {}, 
         calls.push({ name, params });
         const failure = opts.fail?.[name];
         if (failure) return Promise.reject(failure);
-        const handler = handlers[name];
-        return Promise.resolve((typeof handler === 'function' ? (handler as (p: unknown) => unknown)(params) : handler) ?? {});
+        const handler = handlers[name] ?? defaults[name];
+        return Promise.resolve(typeof handler === 'function' ? (handler as (p: unknown) => unknown)(params) : handler);
       },
     ]),
   ) as unknown as AgentQueries;
   return { queries, calls: () => calls };
 }
 
-/** Queries that must not run in the test (a turn that needs no data never queries). */
+/** Seams that must not run in the test (a turn that needs no data never queries). */
 const unexpectedQueries = Object.fromEntries(
   QUERY_NAMES.map((name) => [name, () => Promise.reject(new Error(`the database was not expected in this test (${name})`))]),
 ) as unknown as AgentQueries;
@@ -139,5 +137,6 @@ export async function run(
   return { result, events };
 }
 
-export const SUMMARY_JUNE = { debit: 18388.5, credit: 85000, net: 66611.5, debit_count: 40, credit_count: 3, count: 43 };
-export const JUNE = { from: '2026-06-01', to: '2026-06-30' };
+/** The model's SQL for June 2026 spending, and what the canned database answers to it. */
+export const JUNE_SQL = { sql: "SELECT ROUND(SUM(CASE WHEN type = 'debit' THEN amount END), 2) AS spent, ROUND(SUM(CASE WHEN type = 'credit' THEN amount END), 2) AS income FROM transactions WHERE substr(local_date, 1, 7) = '2026-06'", purpose: 'Totalling June' };
+export const JUNE_RESULT = sqlOk(['spent', 'income'], [[18388.5, 85000]]);
