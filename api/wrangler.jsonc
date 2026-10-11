@@ -45,7 +45,7 @@
     "AGENT_DAILY_QUESTIONS": "5",
     "EMAIL_FROM": "Dime <hello@localhost>",
     "EMAIL_APP_LINK": "https://play.google.com/store",
-    "EMAIL_PUBLIC_BASE_URL": "https://dime-api.REPLACE-ME.workers.dev"
+    "EMAIL_PUBLIC_BASE_URL": "https://dime-api.selvarajamrith958.workers.dev"
   },
 
   "queues": {
