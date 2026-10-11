@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { BUTTON_LOADER_SIZE, InfinityButtonLoader } from "@/components/ui";
+import { ButtonBusyContent } from "@/components/ui";
 import {
   accent,
   danger,
@@ -69,13 +69,23 @@ export default function AuthScreen() {
             ]}
           >
             {model.googleLoading ? (
-              <InfinityButtonLoader color={surface} size={BUTTON_LOADER_SIZE} />
+              <ButtonBusyContent
+                loading
+                label="Continue with Google"
+                busyLabel="Signing in"
+                color={surface}
+                textStyle={styles.googleLabel}
+              />
             ) : (
-              <MaterialCommunityIcons name="google" size={22} color={surface} />
+              <>
+                <MaterialCommunityIcons
+                  name="google"
+                  size={22}
+                  color={surface}
+                />
+                <Text style={styles.googleLabel}>Continue with Google</Text>
+              </>
             )}
-            <Text style={styles.googleLabel}>
-              {model.googleLoading ? "Signing in…" : "Continue with Google"}
-            </Text>
           </Pressable>
         </View>
       </View>
@@ -135,7 +145,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,
-    color: surface,
   },
   errorText: {
     fontFamily: fontFamilies.regular,

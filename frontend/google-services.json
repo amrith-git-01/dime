@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "278247122070",
+    "project_id": "dime-01",
+    "storage_bucket": "dime-01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:278247122070:android:cd9680d7f21b407f130eb7",
+        "android_client_info": {
+          "package_name": "com.amrith_01.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbrgm20hgS-nqZIg90YVGyq22IGGBbCGM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

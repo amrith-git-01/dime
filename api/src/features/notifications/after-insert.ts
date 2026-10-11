@@ -6,6 +6,7 @@ import type { UserSettings } from '../user-settings/snapshot';
 import { evaluateAfterDebit } from './budget-evaluator';
 import { AUTO_DETECTED, bodyForAutoTx, createEmitter, titleForAutoTx } from './emitter';
 import type { PushSender } from './emitter';
+import type { Publish } from '../realtime/events';
 
 export interface AfterInsertInput {
   userId: string;
@@ -22,6 +23,8 @@ export interface AfterInsertInput {
   /** Skip the user_settings read when the caller already has the snapshot. */
   settings?: UserSettings;
   pushSend?: PushSender;
+  /** Live-update broadcast to the user's open sockets (new notification rows). */
+  publish?: Publish | undefined;
 }
 
 /**
@@ -35,7 +38,7 @@ export async function notifyAfterInsert(db: Db, input: AfterInsertInput): Promis
   if (input.type !== 'debit' && !autoDetected) return; // nothing to notify: skip the settings read
 
   const settings = input.settings ?? settingsFromRow(await fetchByUserId(db, input.userId));
-  const emitter = createEmitter(db, input.userId, settings, input.pushSend);
+  const emitter = createEmitter(db, input.userId, settings, input.pushSend, input.publish);
 
   if (input.type === 'debit') {
     await evaluateAfterDebit(db, emitter, settings, {

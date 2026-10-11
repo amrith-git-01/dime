@@ -641,7 +641,7 @@ describe('POST /transactions: budget evaluation, notifications and push (backgro
     await vi.waitFor(async () => expect(await rowsOf('notifications')).toHaveLength(1));
   });
 
-  it('emits "over" too once the cap is exceeded, and no push when every insert conflicts (deduped)', async () => {
+  it('emits only "over" when one debit crosses both thresholds, and no push when the insert conflicts (deduped)', async () => {
     await wire();
     await seedNotification({ dedupe_key: 'budget:monthly:80:2026-10' });
     await seedNotification({ dedupe_key: 'budget:monthly:100:2026-10' });
@@ -651,13 +651,13 @@ describe('POST /transactions: budget evaluation, notifications and push (backgro
     expect(await dedupeKeys()).toEqual(['budget:monthly:80:2026-10', 'budget:monthly:100:2026-10']);
     expect(stub.find('POST', '/--/api/v2/push/send')).toHaveLength(0);
 
-    // Fresh keys: both thresholds fire (and push twice).
+    // Fresh keys: only the highest threshold fires (one push).
     await testDb().prepare('DELETE FROM notifications').run();
     const next = makeCtx();
     await postTx(debitBody({ amount: '1200', counterparty_name: 'Another' }), {}, next.ctx);
     await next.flush();
-    expect((await dedupeKeys()).sort()).toEqual(['budget:monthly:100:2026-10', 'budget:monthly:80:2026-10']);
-    expect(stub.find('POST', '/--/api/v2/push/send')).toHaveLength(2);
+    expect(await dedupeKeys()).toEqual(['budget:monthly:100:2026-10']);
+    expect(stub.find('POST', '/--/api/v2/push/send')).toHaveLength(1);
   });
 
   it('checks the category budget first when the transaction has a category', async () => {

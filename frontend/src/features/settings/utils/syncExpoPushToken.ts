@@ -17,6 +17,27 @@ function getExpoProjectId(): string | null {
   return easProjectId ?? legacyProjectId ?? null;
 }
 
+let warnedPushUnavailable = false;
+
+/**
+ * FCM is not configured (no google-services.json in the build): the native layer throws
+ * "Default FirebaseApp is not initialized". This is an expected, non-fatal setup state.
+ */
+export function isPushNotConfiguredError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /FirebaseApp|fcm-credentials|FCM|firebase/i.test(message);
+}
+
+function warnPushUnavailableOnce(): void {
+  if (warnedPushUnavailable) {
+    return;
+  }
+  warnedPushUnavailable = true;
+  console.warn(
+    "[syncExpoPushToken] Push is not configured (Firebase/FCM missing); skipping remote push registration. Local reminders still work.",
+  );
+}
+
 async function getExpoPushToken(projectId: string): Promise<string> {
   const result = await Notifications.getExpoPushTokenAsync({ projectId });
   const token = result.data;
@@ -44,10 +65,14 @@ export async function syncExpoPushTokenForUser(
       try {
         token = await getExpoPushToken(projectId);
       } catch (error) {
-        reportError(
-          error,
-          "syncExpoPushToken could not read token before delete",
-        );
+        if (isPushNotConfiguredError(error)) {
+          warnPushUnavailableOnce();
+        } else {
+          reportError(
+            error,
+            "syncExpoPushToken could not read token before delete",
+          );
+        }
       }
     }
 
@@ -65,7 +90,16 @@ export async function syncExpoPushTokenForUser(
     throw new Error("[syncExpoPushToken] Notifications permission not granted");
   }
 
-  const token = await getExpoPushToken(projectId);
+  let token: string;
+  try {
+    token = await getExpoPushToken(projectId);
+  } catch (error) {
+    if (isPushNotConfiguredError(error)) {
+      warnPushUnavailableOnce();
+      return;
+    }
+    throw error;
+  }
   await putPushToken(token);
 }
 

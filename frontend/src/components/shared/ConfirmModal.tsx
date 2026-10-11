@@ -1,6 +1,7 @@
 import { X } from "lucide-react-native";
 import { memo, type ReactNode } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -9,7 +10,7 @@ import {
   View,
 } from "react-native";
 
-import { BUTTON_LOADER_SIZE, InfinityButtonLoader } from "@/components/ui";
+import { ButtonBusyContent } from "@/components/ui";
 import {
   accent,
   danger,
@@ -32,6 +33,8 @@ export type ConfirmModalProps = {
   message?: string | null;
   cancelLabel?: string;
   confirmLabel: string;
+  /** Continuous-tense confirm label while busy ("Deleting"); derived from `confirmLabel` when omitted. */
+  confirmBusyLabel?: string;
   confirmTone?: "primary" | "danger";
   onCancel: () => void;
   onConfirm: () => void;
@@ -45,6 +48,7 @@ export type ConfirmModalProps = {
 
 type ModalActionButtonProps = {
   label: string;
+  busyLabel?: string;
   variant: "secondary" | "primary" | "danger";
   flex?: number;
   loading?: boolean;
@@ -54,6 +58,7 @@ type ModalActionButtonProps = {
 
 function ModalActionButton({
   label,
+  busyLabel,
   variant,
   flex = 1,
   loading = false,
@@ -84,11 +89,13 @@ function ModalActionButton({
         pressed && !isDisabled && styles.actionButtonPressed,
       ]}
     >
-      {loading ? (
-        <InfinityButtonLoader color={labelColor} size={BUTTON_LOADER_SIZE} />
-      ) : (
-        <Text style={[styles.actionLabel, { color: labelColor }]}>{label}</Text>
-      )}
+      <ButtonBusyContent
+        loading={loading}
+        label={label}
+        busyLabel={busyLabel}
+        color={labelColor}
+        textStyle={styles.actionLabel}
+      />
     </Pressable>
   );
 }
@@ -99,6 +106,7 @@ export const ConfirmModal = memo(function ConfirmModal({
   message,
   cancelLabel = "Cancel",
   confirmLabel,
+  confirmBusyLabel,
   confirmTone = "primary",
   onCancel,
   onConfirm,
@@ -162,10 +170,7 @@ export const ConfirmModal = memo(function ConfirmModal({
               >
                 {loading ? (
                   <View style={styles.loadingRow}>
-                    <InfinityButtonLoader
-                      color={accent}
-                      size={BUTTON_LOADER_SIZE}
-                    />
+                    <ActivityIndicator size="small" color={accent} />
                   </View>
                 ) : errorMessage ? (
                   <Text style={styles.errorText}>{errorMessage}</Text>
@@ -189,6 +194,7 @@ export const ConfirmModal = memo(function ConfirmModal({
               />
               <ModalActionButton
                 label={confirmLabel}
+                busyLabel={confirmBusyLabel}
                 variant={confirmVariant}
                 flex={2}
                 loading={confirmLoading}

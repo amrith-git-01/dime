@@ -37,7 +37,7 @@ export const EmptyState = memo(function EmptyState({
     <View
       style={[
         styles.content,
-        layout === "inset" && styles.contentInset,
+        (layout === "inset" || layout === "card") && styles.contentInset,
         compact && styles.contentCompact,
       ]}
     >
@@ -85,8 +85,8 @@ const styles = StyleSheet.create({
   },
   cardShell: {
     backgroundColor: surface,
-    borderRadius: radius.md,
-    overflow: "hidden",
+    borderRadius: radius.lg,
+    overflow: "visible",
   },
   content: {
     alignSelf: "stretch",

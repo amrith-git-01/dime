@@ -16,6 +16,6 @@ export function invalidateTransactionDerivedQueries(
   void queryClient.invalidateQueries({ queryKey: transactionsQueryKeys.all });
   void queryClient.invalidateQueries({ queryKey: insightsQueryKeys.all });
   void queryClient.invalidateQueries({
-    queryKey: notificationQueryKeys.unreadCountAll(),
+    queryKey: notificationQueryKeys.all,
   });
 }

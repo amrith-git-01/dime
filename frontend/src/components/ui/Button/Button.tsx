@@ -1,9 +1,6 @@
-import { Pressable, StyleSheet, Text, type PressableProps } from "react-native";
+import { Pressable, StyleSheet, type PressableProps } from "react-native";
 
-import {
-  BUTTON_LOADER_SIZE,
-  InfinityButtonLoader,
-} from "../InfinityButtonLoader";
+import { ButtonBusyContent } from "./ButtonBusyContent";
 import { colors, danger, spacing, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -18,13 +15,17 @@ type ButtonVariant =
 export type ButtonProps = Omit<PressableProps, "style" | "children"> & {
   title: string;
   variant?: ButtonVariant;
+  /** Busy state: disables the button and shows a spinner left of `busyLabel`. */
   loading?: boolean;
+  /** Continuous-tense label while busy ("Saving"). Derived from `title` when omitted. */
+  busyLabel?: string;
 };
 
 export function Button({
   title,
   variant = "primary",
   loading = false,
+  busyLabel,
   disabled,
   onPress,
   ...rest
@@ -57,8 +58,6 @@ export function Button({
           ? colors.textPrimary
           : colors.primary;
 
-  const loaderColor = labelColor;
-
   return (
     <Pressable
       accessibilityRole="button"
@@ -80,20 +79,21 @@ export function Button({
       })}
       {...rest}
     >
-      {loading ? (
-        <InfinityButtonLoader color={loaderColor} size={BUTTON_LOADER_SIZE} />
-      ) : (
-        <Text
-          style={{
-            fontFamily: fontFamilies.medium,
-            fontSize: 16,
-            lineHeight: 22,
-            color: labelColor,
-          }}
-        >
-          {title}
-        </Text>
-      )}
+      <ButtonBusyContent
+        loading={loading}
+        label={title}
+        busyLabel={busyLabel}
+        color={labelColor}
+        textStyle={styles.label}
+      />
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  label: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+});

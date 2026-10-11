@@ -221,7 +221,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   const onUpcomingPress = useCallback(
     (item: RecurringItem) => {
-      navigation.navigate("RecurringList", { kind: item.kind });
+      navigation.navigate("Budgets", { recurringKind: item.kind });
     },
     [navigation],
   );

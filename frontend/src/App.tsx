@@ -1,3 +1,4 @@
+import { useBlurFocusedInputOnKeyboardHide } from "@/hooks/useBlurFocusedInputOnKeyboardHide";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -91,6 +92,7 @@ function AppSplashCoordinator({
 }
 
 function AppRoot() {
+  useBlurFocusedInputOnKeyboardHide();
   const { handleNavigationReady } = useNotificationOpenHandler();
 
   return (

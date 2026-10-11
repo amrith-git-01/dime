@@ -32,7 +32,11 @@ export function useSettingsScreenModel() {
   );
 
   const openRecurring = useCallback(
-    (kind: RecurringKind) => navigation.navigate("RecurringList", { kind }),
+    (kind: RecurringKind) =>
+      navigation.navigate("MainTabs", {
+        screen: "Budgets",
+        params: { recurringKind: kind },
+      }),
     [navigation],
   );
 

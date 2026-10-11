@@ -11,6 +11,18 @@
  * - no `APP_VARIANT`, not on EAS (`expo start`, local `expo prebuild`) -> allowed, so `wrangler dev` / a
  *   LAN backend keep working while developing.
  */
+const fs = require("fs");
+const path = require("path");
+
+/** FCM v1: only wire google-services.json once the file exists (EAS file env var or local drop-in). */
+function resolveGoogleServicesFile() {
+  const fromEnv = process.env.GOOGLE_SERVICES_JSON;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  return fs.existsSync(path.join(__dirname, "google-services.json"))
+    ? "./google-services.json"
+    : undefined;
+}
+
 function allowsCleartextTraffic() {
   const variant = process.env.APP_VARIANT;
   if (variant) return variant === "development";
@@ -28,6 +40,7 @@ module.exports = ({ config }) => {
   permissions.add("POST_NOTIFICATIONS");
 
   const cleartext = allowsCleartextTraffic();
+  const googleServicesFile = resolveGoogleServicesFile();
 
   const ios = { ...config.ios };
   if (cleartext) {
@@ -44,6 +57,7 @@ module.exports = ({ config }) => {
       ...config.android,
       // Backups would restore the encrypted stores without their Keystore keys.
       allowBackup: false,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
       permissions: Array.from(permissions),
     },
     plugins: [

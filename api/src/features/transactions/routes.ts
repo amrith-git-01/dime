@@ -87,6 +87,7 @@ transactionRoutes.post(
             categoryId: result.categoryId,
             amount: body.amount,
             counterpartyName: body.counterparty_name,
+            publish: ctx.publish,
           }),
           'manual_create_notifications',
         );

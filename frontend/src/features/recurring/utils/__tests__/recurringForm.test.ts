@@ -2,6 +2,7 @@ import type { RecurringFormState, RecurringItem } from "../../types";
 import {
   buildCreateBody,
   buildUpdateBody,
+  collectFieldErrors,
   defaultPostCurrentPeriod,
   effectiveDayInMonth,
   emptyRecurringForm,
@@ -10,6 +11,7 @@ import {
   isCurrentPeriodDuePassed,
   parseDayOfMonth,
   validateRecurringForm,
+  visibleFieldErrors,
 } from "../recurringForm";
 
 const TZ = "Asia/Kolkata";
@@ -301,6 +303,92 @@ describe("buildUpdateBody", () => {
   it("returns null for an invalid form", () => {
     expect(
       buildUpdateBody(item(), { ...formFromItem(item()), amountText: "" }, TZ),
+    ).toBeNull();
+  });
+});
+
+describe("collectFieldErrors", () => {
+  it("is empty for a valid form", () => {
+    expect(collectFieldErrors(form())).toEqual({});
+  });
+
+  it("reports every broken field at once", () => {
+    const errors = collectFieldErrors(
+      form({ name: "", amountText: "0", dayOfMonthText: "40" }),
+    );
+    expect(Object.keys(errors).sort()).toEqual(["amount", "day", "name"]);
+  });
+
+  it("only checks the month for yearly items", () => {
+    expect(collectFieldErrors(form({ monthOfYear: 0 }))).toEqual({});
+    expect(
+      collectFieldErrors(form({ cadence: "yearly", monthOfYear: 0 })).month,
+    ).toBeDefined();
+  });
+});
+
+describe("visibleFieldErrors", () => {
+  const blank = form({ name: "", amountText: "", dayOfMonthText: "" });
+
+  it("keeps untouched empty fields quiet before the first save attempt", () => {
+    expect(visibleFieldErrors(blank, false)).toEqual({});
+  });
+
+  it("shows empty-field errors once the user tried to save", () => {
+    expect(Object.keys(visibleFieldErrors(blank, true)).sort()).toEqual([
+      "amount",
+      "day",
+      "name",
+    ]);
+  });
+
+  it("speaks up about a field that has something wrong in it", () => {
+    const errors = visibleFieldErrors(form({ dayOfMonthText: "32" }), false);
+    expect(errors.day).toBe("Day of month must be between 1 and 31.");
+    expect(errors.name).toBeUndefined();
+  });
+});
+
+describe("create payload per kind (sheet type toggle)", () => {
+  it("builds an income body with the income category and the post flag", () => {
+    const body = buildCreateBody(
+      "income",
+      form({ dayOfMonthText: "1", postCurrentPeriod: true }),
+      TZ,
+      TODAY,
+    );
+    expect(body).toMatchObject({
+      kind: "income",
+      category_id: "cat-income",
+      post_current_period: true,
+    });
+  });
+
+  it("builds a subscription body without the post flag when it is off", () => {
+    const body = buildCreateBody(
+      "subscription",
+      form({
+        ...emptyRecurringForm("subscription", TODAY),
+        name: "Netflix",
+        amountText: "649",
+        dayOfMonthText: "1",
+        categoryId: "cat-ent",
+      }),
+      TZ,
+      TODAY,
+    );
+    expect(body).toMatchObject({
+      kind: "subscription",
+      name: "Netflix",
+      amount: "649.00",
+      category_id: "cat-ent",
+    });
+    expect(body).not.toHaveProperty("post_current_period");
+  });
+
+  it("returns null while the form is invalid", () => {
+    expect(
+      buildCreateBody("income", form({ name: " " }), TZ, TODAY),
     ).toBeNull();
   });
 });

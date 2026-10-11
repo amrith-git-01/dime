@@ -87,57 +87,91 @@ export const MONTH_NAMES = [
   "December",
 ] as const;
 
-export function validateRecurringForm(
+/** Every problem in the form, at most one message per field. */
+export function collectFieldErrors(
   form: RecurringFormState,
-): RecurringFormValidation {
+): Partial<Record<RecurringFormField, string>> {
+  const errors: Partial<Record<RecurringFormField, string>> = {};
   const name = form.name.trim();
   if (name.length === 0) {
-    return { ok: false, field: "name", error: "Enter a name." };
-  }
-  if (name.length > MAX_NAME_LENGTH) {
-    return {
-      ok: false,
-      field: "name",
-      error: `Name can be at most ${MAX_NAME_LENGTH} characters.`,
-    };
+    errors.name = "Enter a name.";
+  } else if (name.length > MAX_NAME_LENGTH) {
+    errors.name = `Name can be at most ${MAX_NAME_LENGTH} characters.`;
   }
   const paise = parseAmountInputToPaise(form.amountText);
   if (paise === null) {
-    return {
-      ok: false,
-      field: "amount",
-      error: "Enter an amount greater than zero.",
-    };
+    errors.amount = "Enter an amount greater than zero.";
+  } else if (
+    String(Math.trunc(paise / 100)).length > MAX_AMOUNT_WHOLE_DIGITS
+  ) {
+    errors.amount = `Amount can have at most ${MAX_AMOUNT_WHOLE_DIGITS} digits before the decimal point.`;
   }
-  if (String(Math.trunc(paise / 100)).length > MAX_AMOUNT_WHOLE_DIGITS) {
-    return {
-      ok: false,
-      field: "amount",
-      error: `Amount can have at most ${MAX_AMOUNT_WHOLE_DIGITS} digits before the decimal point.`,
-    };
-  }
-  const dayOfMonth = parseDayOfMonth(form.dayOfMonthText);
-  if (dayOfMonth === null) {
-    return {
-      ok: false,
-      field: "day",
-      error: "Day of month must be between 1 and 31.",
-    };
+  if (parseDayOfMonth(form.dayOfMonthText) === null) {
+    errors.day = "Day of month must be between 1 and 31.";
   }
   if (
     form.cadence === "yearly" &&
     !(form.monthOfYear >= 1 && form.monthOfYear <= 12)
   ) {
-    return { ok: false, field: "month", error: "Choose a month." };
+    errors.month = "Choose a month.";
   }
   if (form.note.trim().length > MAX_NOTE_LENGTH) {
-    return {
-      ok: false,
-      field: "note",
-      error: `Note can be at most ${MAX_NOTE_LENGTH} characters.`,
-    };
+    errors.note = `Note can be at most ${MAX_NOTE_LENGTH} characters.`;
   }
-  return { ok: true, paise, dayOfMonth };
+  return errors;
+}
+
+const FIELD_ORDER: RecurringFormField[] = [
+  "name",
+  "amount",
+  "day",
+  "month",
+  "note",
+];
+
+export function validateRecurringForm(
+  form: RecurringFormState,
+): RecurringFormValidation {
+  const errors = collectFieldErrors(form);
+  for (const field of FIELD_ORDER) {
+    const error = errors[field];
+    if (error) {
+      return { ok: false, field, error };
+    }
+  }
+  return {
+    ok: true,
+    paise: parseAmountInputToPaise(form.amountText) as number,
+    dayOfMonth: parseDayOfMonth(form.dayOfMonthText) as number,
+  };
+}
+
+/**
+ * Messages to show under the fields. Until the user has tried to save, a field that is still
+ * empty stays quiet (Save would simply complain); a field with something wrong in it speaks up.
+ */
+export function visibleFieldErrors(
+  form: RecurringFormState,
+  submitted: boolean,
+): Partial<Record<RecurringFormField, string>> {
+  const errors = collectFieldErrors(form);
+  if (submitted) {
+    return errors;
+  }
+  const typed: Record<RecurringFormField, boolean> = {
+    name: form.name.trim().length > 0,
+    amount: form.amountText.trim().length > 0,
+    day: form.dayOfMonthText.trim().length > 0,
+    month: true,
+    note: true,
+  };
+  const visible: Partial<Record<RecurringFormField, string>> = {};
+  for (const field of FIELD_ORDER) {
+    if (errors[field] && typed[field]) {
+      visible[field] = errors[field];
+    }
+  }
+  return visible;
 }
 
 /** Short months use their last day, so "31" means the 30th/28th where needed. */

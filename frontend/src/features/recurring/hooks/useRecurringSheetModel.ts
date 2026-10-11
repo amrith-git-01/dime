@@ -1,0 +1,241 @@
+import { useCallback, useMemo, useState } from "react";
+import { Keyboard } from "react-native";
+
+import { useCategories } from "@/features/categories/hooks/useCategories";
+import type { CategoryRow } from "@/features/categories/types";
+import { useToast } from "@/features/toast/useToast";
+import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
+import { parseFastApiError } from "@/lib/api/parseFastApiError";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+
+import type {
+  RecurringFormState,
+  RecurringItem,
+  RecurringKind,
+} from "../types";
+import { RECURRING_COPY } from "../utils/recurringDisplay";
+import {
+  buildCreateBody,
+  buildUpdateBody,
+  emptyRecurringForm,
+  formFromItem,
+  hasChanges,
+  isCurrentPeriodDuePassed,
+  parseDayOfMonth,
+  validateRecurringForm,
+  visibleFieldErrors,
+} from "../utils/recurringForm";
+import {
+  useCreateRecurringMutation,
+  useDeleteRecurringMutation,
+  useUpdateRecurringMutation,
+} from "./useRecurringMutations";
+
+export type UseRecurringSheetModelArgs = {
+  /** Kind preselected by the card that opened the sheet (create only; edit uses the item's). */
+  kind: RecurringKind;
+  /** The item being edited; omit to add a new one. */
+  item?: RecurringItem;
+  onClose: () => void;
+};
+
+/** State and actions of the add / edit recurring sheet. Mount it fresh for every open. */
+export function useRecurringSheetModel({
+  kind: initialKind,
+  item,
+  onClose,
+}: UseRecurringSheetModelArgs) {
+  const isEditing = item !== undefined;
+  const { showToast } = useToast();
+  const { categories, isLoading: categoriesLoading } = useCategories();
+
+  const createMutation = useCreateRecurringMutation();
+  const updateMutation = useUpdateRecurringMutation();
+  const deleteMutation = useDeleteRecurringMutation();
+
+  const [createKind, setCreateKind] = useState<RecurringKind>(initialKind);
+  const kind = item ? item.kind : createKind;
+  const copy = RECURRING_COPY[kind];
+
+  const incomeCategoryId = useMemo(
+    () => findIncomeCategory(categories)?.id ?? null,
+    [categories],
+  );
+
+  // What the form shows before the user edits it; edits are a patch on top, so late-arriving
+  // categories still fill untouched fields.
+  const base = useMemo<RecurringFormState>(
+    () =>
+      item
+        ? formFromItem(item)
+        : emptyRecurringForm(kind, new Date(), incomeCategoryId),
+    [incomeCategoryId, item, kind],
+  );
+  const [patch, setPatch] = useState<Partial<RecurringFormState>>({});
+  const form = useMemo(() => ({ ...base, ...patch }), [base, patch]);
+
+  const [submitted, setSubmitted] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+
+  const update = useCallback((next: Partial<RecurringFormState>) => {
+    setPatch((prev) => ({ ...prev, ...next }));
+  }, []);
+
+  const onKindChange = useCallback(
+    (next: RecurringKind) => {
+      if (isEditing || next === createKind) {
+        return;
+      }
+      setCreateKind(next);
+      // The base form follows the kind, so dropping these two overrides resets the category and
+      // "already paid" defaults while keeping everything else typed so far.
+      setPatch((prev) => {
+        const rest = { ...prev };
+        delete rest.categoryId;
+        delete rest.postCurrentPeriod;
+        return rest;
+      });
+    },
+    [createKind, isEditing],
+  );
+
+  // Subscriptions get a picker; income stays on the Income category.
+  const pickerCategories = useMemo(
+    () => categories.filter((category) => category.name !== "Income"),
+    [categories],
+  );
+
+  const onCategoryPress = useCallback(
+    (category: CategoryRow, selected: boolean) => {
+      void triggerHaptic();
+      update({ categoryId: selected ? null : category.id });
+    },
+    [update],
+  );
+
+  const errors = useMemo(
+    () => visibleFieldErrors(form, submitted),
+    [form, submitted],
+  );
+
+  const showPostCurrentPeriod = useMemo(() => {
+    if (isEditing) {
+      return false;
+    }
+    const dayOfMonth = parseDayOfMonth(form.dayOfMonthText);
+    return (
+      dayOfMonth !== null &&
+      isCurrentPeriodDuePassed(
+        {
+          cadence: form.cadence,
+          dayOfMonth,
+          monthOfYear: form.monthOfYear,
+        },
+        new Date(),
+      )
+    );
+  }, [form.cadence, form.dayOfMonthText, form.monthOfYear, isEditing]);
+
+  const busy =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
+
+  const hasEditChanges = useMemo(() => {
+    if (!item) {
+      return true;
+    }
+    const body = buildUpdateBody(item, form, getDeviceIanaTimezone());
+    // An invalid form has no body yet: leave Save on so it can explain what is wrong.
+    return body === null || hasChanges(body);
+  }, [form, item]);
+
+  const onSave = useCallback(async () => {
+    if (busy) {
+      return;
+    }
+    if (!validateRecurringForm(form).ok) {
+      setSubmitted(true);
+      return;
+    }
+    Keyboard.dismiss();
+    try {
+      if (item) {
+        const body = buildUpdateBody(item, form, getDeviceIanaTimezone());
+        if (!body || !hasChanges(body)) {
+          onClose();
+          return;
+        }
+        await updateMutation.mutateAsync({ id: item.id, body });
+        showToast({ variant: "success", message: copy.updatedToast });
+      } else {
+        const body = buildCreateBody(
+          kind,
+          form,
+          getDeviceIanaTimezone(),
+          new Date(),
+        );
+        if (!body) {
+          return;
+        }
+        await createMutation.mutateAsync(body);
+        showToast({ variant: "success", message: copy.createdToast });
+      }
+      onClose();
+    } catch (error) {
+      showToast({ variant: "error", message: parseFastApiError(error) });
+    }
+  }, [
+    busy,
+    copy,
+    createMutation,
+    form,
+    item,
+    kind,
+    onClose,
+    showToast,
+    updateMutation,
+  ]);
+
+  const onConfirmDelete = useCallback(async () => {
+    if (!item) {
+      return;
+    }
+    try {
+      await deleteMutation.mutateAsync(item.id);
+      setDeleteVisible(false);
+      showToast({ variant: "success", message: copy.deletedToast });
+      onClose();
+    } catch (error) {
+      setDeleteVisible(false);
+      showToast({ variant: "error", message: parseFastApiError(error) });
+    }
+  }, [copy, deleteMutation, item, onClose, showToast]);
+
+  return {
+    kind,
+    copy,
+    isEditing,
+    form,
+    errors,
+    update,
+    onKindChange,
+    categoriesLoading,
+    pickerCategories,
+    onCategoryPress,
+    showPostCurrentPeriod,
+    saving: createMutation.isPending || updateMutation.isPending,
+    deleting: deleteMutation.isPending,
+    busy,
+    saveDisabled: isEditing && !hasEditChanges,
+    onSave: () => void onSave(),
+    deleteVisible,
+    onDeletePress: () => {
+      void triggerHaptic();
+      setDeleteVisible(true);
+    },
+    onDeleteCancel: () => setDeleteVisible(false),
+    onDeleteConfirm: () => void onConfirmDelete(),
+  };
+}
