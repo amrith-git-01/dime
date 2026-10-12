@@ -30,6 +30,8 @@ Test counts: `api/` 854 tests passing, frontend 231 tests passing.
 
 **`EXPO_PUBLIC_API_BASE_URL` is origin-only.** Do not include `/api/v1`, because the app's paths already include it. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must also be listed in the Worker's `GOOGLE_WEB_CLIENT_ID`.
 
+**Releases and OTA updates** (local APK build, self-hosted Expo Updates on the Worker, no EAS): see `docs/RELEASE.md`.
+
 ## Working rules (from the user)
 
 - **Build each phase fully, then test.** Don't run tests after every small step. Run verification (typecheck, lint, tests, end to end where possible) once a big chunk or phase is complete.

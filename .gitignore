@@ -81,3 +81,6 @@ pip-delete-this-directory.txt
 
 # Python build / publish (name collision with frontend dist is intentional)
 build/
+
+# Release / OTA signing keys (private key never committed; frontend/certs/ is)
+keys/

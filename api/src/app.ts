@@ -21,6 +21,7 @@ import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
 import { recurringRoutes } from './features/recurring/routes';
 import { transactionRoutes } from './features/transactions/routes';
+import { updatesRoutes } from './features/updates/routes';
 import { userFeedbackRoutes } from './features/user-feedback/routes';
 import { userProfileRoutes } from './features/user-profile/routes';
 import { userSettingsRoutes } from './features/user-settings/routes';
@@ -62,6 +63,7 @@ export function createApp() {
   api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);
   api.route('/agent', agentRoutes);
+  api.route('/updates', updatesRoutes); // self-hosted expo-updates manifest + assets (public, signed offline)
   api.route('/realtime', realtimeRoutes); // WebSocket upgrade, forwarded to the user's UserHub
   api.route('/', emailRoutes); // /email/unsubscribe (signed link) and /internal/email/run (cron secret)
 
