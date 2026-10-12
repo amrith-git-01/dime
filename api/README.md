@@ -14,6 +14,7 @@ TypeScript + [Hono](https://hono.dev) on Cloudflare Workers. The whole backend i
 | Live updates | Durable Object `UserHub` (binding `USER_HUB`), one per user, WebSocket at `GET /api/v1/realtime` |
 | Background | Queues `dime-ingest` (+ DLQ `dime-ingest-dlq`) and `dime-email`; crons `*/5 * * * *` (ingest recovery sweep) and `30 2 * * *` (email digest fan-out) |
 | Email | Brevo; images from Workers Static Assets (`public/email`, binding `ASSETS`) |
+| OTA updates | Self-hosted Expo Updates (protocol v1) at `/api/v1/updates/{manifest,assets/:hash}`, public; manifests are signed offline by `frontend/scripts/publish-update.mjs` and stored in R2 under `updates/` (layout in `src/features/updates/storage.ts`); see `../docs/RELEASE.md` |
 | Limits | Rate limits `WRITE_LIMITER`, `AI_LIMITER`; smart placement near D1 |
 
 ## Local development

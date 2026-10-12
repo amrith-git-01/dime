@@ -50,8 +50,12 @@ module.exports = ({ config }) => {
     };
   }
 
+  // Self-hosted OTA manifest endpoint (api/src/features/updates). Override to test against `wrangler dev`.
+  const updatesUrl = process.env.EXPO_PUBLIC_UPDATES_URL || config.updates?.url;
+
   return {
     ...config,
+    updates: { ...config.updates, url: updatesUrl },
     ios,
     android: {
       ...config.android,
@@ -62,6 +66,7 @@ module.exports = ({ config }) => {
     },
     plugins: [
       ...(config.plugins ?? []),
+      "./plugins/withReleaseSigning",
       ...(cleartext
         ? [["expo-build-properties", { android: { usesCleartextTraffic: true } }]]
         : []),
