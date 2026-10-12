@@ -28,6 +28,21 @@ if (!storeFile || !fs.existsSync(storeFile)) {
 }
 
 run("npx", ["expo", "prebuild", "--platform", "android", "--no-install"], frontendDir);
+
+// Windows: CMake 3.22's ninja can't handle the >260-char object paths of the release native build
+// (react-native-keyboard-controller). Point Gradle at a newer SDK CMake (ninja >= 1.12 supports long paths).
+const sdkDir = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || path.join(process.env.LOCALAPPDATA ?? "", "Android", "Sdk");
+const cmakeDir = path.join(sdkDir, "cmake", "3.31.6");
+if (process.platform === "win32") {
+  if (!fs.existsSync(cmakeDir)) {
+    console.error(`\nCMake 3.31.6 is missing. Install it once: "${path.join(sdkDir, "cmdline-tools", "latest", "bin", "sdkmanager.bat")}" "cmake;3.31.6"`);
+    process.exit(1);
+  }
+  const localProps = path.join(androidDir, "local.properties");
+  const existing = fs.existsSync(localProps) ? fs.readFileSync(localProps, "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("cmake.dir=")) : [];
+  fs.writeFileSync(localProps, [...existing, `cmake.dir=${cmakeDir.replace(/\\/g, "/")}`].join("\n") + "\n");
+}
+
 const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
 run(gradlew, ["assembleRelease", "-PreactNativeArchitectures=arm64-v8a,armeabi-v7a"], androidDir);
 
