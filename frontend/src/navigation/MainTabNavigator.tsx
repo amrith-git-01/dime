@@ -1,10 +1,11 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { colors, spacing } from "@/constants";
@@ -35,6 +36,15 @@ export default function MainTabNavigator() {
     () => headerReady && tabBarReady,
     [headerReady, tabBarReady],
   );
+  // The splash overlay owns the first reveal: it stays up until this shell reports ready.
+  // `splashShellReady` is already true only on a later remount (e.g. after signing in), when
+  // the splash is gone and the loader below covers the layout pass instead.
+  const { shellReady: splashShellReady, markShellReady } = useSplashReveal();
+  useEffect(() => {
+    if (shellReady) {
+      markShellReady();
+    }
+  }, [shellReady, markShellReady]);
   const onNotificationsPress = useCallback(() => {
     void triggerHaptic();
     stackNavigation.navigate("Notifications");
@@ -132,7 +142,7 @@ export default function MainTabNavigator() {
             }}
           />
         </Tabs.Navigator>
-        {!shellReady ? (
+        {!shellReady && splashShellReady ? (
           <View style={styles.shellLoaderOverlay}>
             <ActivityIndicator color={colors.headerGradientStart} />
           </View>

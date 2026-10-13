@@ -33,7 +33,7 @@ export default function TransactionsScreen() {
     goPrevMonth,
     goNextMonth,
     openTransactionDetail,
-    onManualAdd,
+    onManualAddForDay,
     selectDay,
     selectedDayKey,
     selectedDayTransactionCount,
@@ -85,6 +85,7 @@ export default function TransactionsScreen() {
               dayNetTotal={dayNetTotal}
               hasActivity={hasActivity}
               isFetching={isFetching}
+              onAdd={onManualAddForDay}
             />
           </View>
         }
@@ -93,7 +94,7 @@ export default function TransactionsScreen() {
             <TransactionDayCardPlaceholder
               dayKey={selectedDayKey}
               isLoading={isDayLoading}
-              onManualAdd={onManualAdd}
+              onManualAdd={onManualAddForDay}
             />
           ) : null
         }

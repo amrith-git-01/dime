@@ -28,7 +28,7 @@ export function useManualAddTransactionScreenModel() {
   const { userId } = useSessionUserId();
   const submitMutation = useSubmitManualTransactionMutation();
   const { showToast } = useToast();
-  const form = useManualAddTransactionForm();
+  const form = useManualAddTransactionForm(undefined, route.params?.presetDate);
   const {
     amountText,
     buildPayload,

@@ -5,11 +5,11 @@ import { keepPreviousDataForUser } from "@/lib/keepPreviousDataForUser";
 import { TRANSACTIONS_QUERY_STALE_MS } from "@/lib/queryDefaults";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
+import { hasListFilters, transactionsMonthPagesQueryOptions } from "../api/monthPagesQueryOptions";
 import {
   fetchHomeOverview,
   fetchMonthSummary,
   fetchTransactionsPage,
-  monthRangeIso,
   TX_PAGE_LIMIT,
   type TransactionListFilters,
 } from "../api/transactionsApi";
@@ -77,10 +77,6 @@ export function useMonthDebitTotalsByCategoryQuery(
   });
 }
 
-function hasListFilters(filters: TransactionListFilters | undefined): boolean {
-  return Boolean(filters?.payee || filters?.categoryId);
-}
-
 export function useTransactionsMonthInfiniteQuery(
   year: number,
   monthIndex0: number,
@@ -88,35 +84,15 @@ export function useTransactionsMonthInfiniteQuery(
 ) {
   const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
-  const calendarMonth = monthIndex0 + 1;
-  const { from, to } = monthRangeIso(year, monthIndex0);
-  const filters = options?.filters;
 
   return useInfiniteQuery({
-    queryKey: hasListFilters(filters)
-      ? transactionsQueryKeys.filteredMonthPages(
-          userId,
-          year,
-          calendarMonth,
-          timezone,
-          filters ?? {},
-        )
-      : transactionsQueryKeys.monthPages(userId, year, calendarMonth, timezone),
-    queryFn: ({ pageParam }) =>
-      fetchTransactionsPage({
-        from,
-        to,
-        limit: TX_PAGE_LIMIT,
-        offset: pageParam,
-        timezone,
-        filters,
-      }),
-    initialPageParam: 0,
-    staleTime: TRANSACTIONS_QUERY_STALE_MS,
-    getNextPageParam: (lastPage, _pages, lastOffset) => {
-      if (!lastPage.has_more) return undefined;
-      return lastOffset + lastPage.items.length;
-    },
+    ...transactionsMonthPagesQueryOptions({
+      userId,
+      year,
+      monthIndex0,
+      timezone,
+      filters: options?.filters,
+    }),
     enabled: (options?.enabled ?? true) && Boolean(userId),
   });
 }

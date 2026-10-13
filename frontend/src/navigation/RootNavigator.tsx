@@ -65,7 +65,7 @@ function resolveRootAppRoute(
 }
 
 export default function RootNavigator() {
-  const { setContentReady } = useSplashReveal();
+  const { setContentReady, markShellReady } = useSplashReveal();
   const profileUserId = useAuthSessionStore((s) => s.userId);
   const signedIn = profileUserId !== undefined;
 
@@ -109,6 +109,13 @@ export default function RootNavigator() {
   useEffect(() => {
     setContentReady(route !== "bootstrapping");
   }, [route, setContentReady]);
+
+  // Auth / onboarding screens have no shell to wait for; the main tabs mark it themselves.
+  useEffect(() => {
+    if (route !== "bootstrapping" && route !== "main") {
+      markShellReady();
+    }
+  }, [route, markShellReady]);
 
   return (
     <View style={styles.root}>

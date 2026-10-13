@@ -22,15 +22,22 @@ export function useUnreadNotificationCount() {
     queryFn: async () => {
       const count = await fetchUnreadNotificationCount();
       if (userId) {
+        // Only the badge changes here. The snapshot's inbox is a real first page (from the
+        // inbox query or an earlier snapshot): never invent an empty one.
         const firstPage = queryClient.getQueryData<NotificationsInboxData>(
           notificationQueryKeys.inboxList(userId),
         )?.pages[0];
         const persisted = readPersistedNotifications(userId);
-        writePersistedNotifications(userId, {
-          inbox: firstPage?.items ?? persisted?.inbox ?? [],
-          unreadCount: count,
-          nextCursor: firstPage ? firstPage.nextCursor : persisted?.nextCursor,
-        });
+        const inbox = firstPage?.items ?? persisted?.inbox;
+        if (inbox) {
+          writePersistedNotifications(userId, {
+            inbox,
+            unreadCount: count,
+            nextCursor: firstPage
+              ? firstPage.nextCursor
+              : persisted?.nextCursor,
+          });
+        }
       }
       return count;
     },

@@ -27,7 +27,7 @@ import {
   success,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { TransactionRow } from "@/features/transactions/components";
+import { DayAddButton, TransactionRow } from "@/features/transactions/components";
 import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
 import type {
   TransactionListHeaderItem,
@@ -35,23 +35,30 @@ import type {
   TransactionListRowItem,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
+import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalendar";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
 
 type DayHeaderProps = {
   item: TransactionListHeaderItem;
+  onAdd: (dayKey: string) => void;
 };
 
-const DayHeader = memo(function DayHeader({ item }: DayHeaderProps) {
+const DayHeader = memo(function DayHeader({ item, onAdd }: DayHeaderProps) {
   const netTotal = item.netTotal;
   const netColor = netTotal < 0 ? danger : netTotal > 0 ? success : inkSoft;
 
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{item.title}</Text>
-      <Text style={[styles.sectionTotal, { color: netColor }]}>
-        {formatTransactionListAmount(netTotal)}
-      </Text>
+      <View style={styles.sectionTrailing}>
+        <Text style={[styles.sectionTotal, { color: netColor }]}>
+          {formatTransactionListAmount(netTotal)}
+        </Text>
+        {isFutureDayKey(item.dayKey) ? null : (
+          <DayAddButton dayKey={item.dayKey} onPress={onAdd} />
+        )}
+      </View>
     </View>
   );
 });
@@ -118,6 +125,7 @@ export default function TransactionsListScreen() {
     isRetrying,
     retry,
     openTransactionDetail,
+    openManualAddForDay,
     showInitialLoading,
     showLoadingMore,
     loadMore,
@@ -129,7 +137,7 @@ export default function TransactionsListScreen() {
 
   const renderItem: ListRenderItem<TransactionListItem> = ({ item }) =>
     item.kind === "header" ? (
-      <DayHeader item={item} />
+      <DayHeader item={item} onAdd={openManualAddForDay} />
     ) : (
       <TransactionListRowView
         item={item}
@@ -248,6 +256,11 @@ const styles = StyleSheet.create({
     // The first row segment reserves top room for its card shadow.
     paddingBottom: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
     backgroundColor: paper,
+  },
+  sectionTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
   sectionTitle: {
     fontFamily: fontFamilies.semiBold,

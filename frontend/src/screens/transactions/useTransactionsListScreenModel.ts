@@ -205,6 +205,13 @@ export function useTransactionsListScreenModel() {
     [navigation],
   );
 
+  const openManualAddForDay = useCallback(
+    (dayKey: string) => {
+      navigation.push("ManualAddTransaction", { presetDate: dayKey });
+    },
+    [navigation],
+  );
+
   const monthLabel = useMemo(() => {
     return format(new Date(params.year, params.monthIndex0, 1), "MMM yyyy");
   }, [params.year, params.monthIndex0]);
@@ -243,6 +250,7 @@ export function useTransactionsListScreenModel() {
     isRetrying: isFetchingNextPage || isRefetching,
     retry,
     openTransactionDetail,
+    openManualAddForDay,
     showInitialLoading,
     showLoadingMore,
     loadMore,

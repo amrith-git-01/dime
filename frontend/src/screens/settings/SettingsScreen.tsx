@@ -1,13 +1,12 @@
 import {
-  Banknote,
   Bell,
   BookOpen,
   Mail,
   MessageSquareText,
-  Repeat,
   Shield,
   Vibrate,
 } from "lucide-react-native";
+import * as Updates from "expo-updates";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ConfirmModal } from "@/components/shared";
@@ -19,14 +18,18 @@ import {
   SettingsSection,
 } from "@/features/settings/components";
 import { TodaysLimitsSection } from "@/features/limits/components";
-import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 import { SETTINGS_SECTION_GAP } from "@/features/settings/constants/settingsTokens";
 
 import { useSettingsScreenModel } from "./useSettingsScreenModel";
 
+/** "Dime 1.0.0 · update ab12cd34" (or "built-in"): shows which OTA update the app is running. */
+const VERSION_LABEL = `Dime ${Updates.runtimeVersion ?? ""} · ${
+  Updates.isEmbeddedLaunch || !Updates.updateId ? "built-in" : `update ${Updates.updateId.slice(0, 8)}`
+}`;
+
 export default function SettingsScreen() {
   const model = useSettingsScreenModel();
-  const { openDestination, openRecurring } = model;
+  const { openDestination } = model;
 
   return (
     <View style={styles.root}>
@@ -37,24 +40,6 @@ export default function SettingsScreen() {
             email={model.email}
             avatarUrl={model.avatarUrl}
             onPress={() => openDestination("SettingsAccount")}
-          />
-        </View>
-      </SettingsSection>
-
-      <SettingsSection title="Money">
-        <View style={styles.preferencesInner}>
-          <SettingsNavRow
-            icon={Banknote}
-            label={RECURRING_COPY.income.hubLabel}
-            subtitle={RECURRING_COPY.income.hubSubtitle}
-            onPress={() => openRecurring("income")}
-            showSeparator
-          />
-          <SettingsNavRow
-            icon={Repeat}
-            label={RECURRING_COPY.subscription.hubLabel}
-            subtitle={RECURRING_COPY.subscription.hubSubtitle}
-            onPress={() => openRecurring("subscription")}
           />
         </View>
       </SettingsSection>
@@ -139,6 +124,7 @@ export default function SettingsScreen() {
           disabled={model.signOutLoading || model.refreshLoading}
           onPress={model.onSignOut}
         />
+        <Text style={styles.versionLabel}>{VERSION_LABEL}</Text>
       </View>
 
       <ConfirmModal
@@ -171,6 +157,14 @@ const styles = StyleSheet.create({
   },
   signOutWrap: {
     marginTop: spacing.sm,
+    gap: spacing.md,
+  },
+  versionLabel: {
+    textAlign: "center",
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: inkSoft,
   },
   dataHint: {
     fontFamily: fontFamilies.regular,

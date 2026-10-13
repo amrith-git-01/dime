@@ -123,3 +123,28 @@ export function resolveSeedCursor(
     ? (items[items.length - 1]?.createdAt ?? null)
     : null;
 }
+
+/**
+ * Loading state of the inbox query. Persisted placeholder rows are shown but are not a real
+ * answer: while they stand in, the screen is not settled, and an empty placeholder shows the
+ * skeleton rather than the empty state.
+ */
+export function resolveInboxLoadState({
+  isPending,
+  isError,
+  isPlaceholderData,
+  hasData,
+  itemCount,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  isPlaceholderData: boolean;
+  hasData: boolean;
+  itemCount: number;
+}): { settled: boolean; isInitialLoading: boolean } {
+  return {
+    settled: !isPending && !isError && !isPlaceholderData,
+    isInitialLoading:
+      (isPending && !hasData) || (isPlaceholderData && itemCount === 0),
+  };
+}

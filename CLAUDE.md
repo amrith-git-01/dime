@@ -35,7 +35,11 @@ Test counts: `api/` 854 tests passing, frontend 231 tests passing.
 ## Working rules (from the user)
 
 - **Build each phase fully, then test.** Don't run tests after every small step. Run verification (typecheck, lint, tests, end to end where possible) once a big chunk or phase is complete.
-- **One subagent per phase** (model: Sonnet). After each full phase, the main session reviews the diff before starting the next phase.
+- **Three-tier subagents for every batch of work:**
+  1. **Explore** (Haiku 5.5, high effort): search, read, trace root causes (systematic debugging for bugs), report findings with file:line. No edits.
+  2. **Implement** (Sonnet 5.5, high effort): one subagent implements the whole batch from the findings, fixing root causes at the shared component/hook.
+  3. **Review** (Opus 5.5, low effort): one review of the whole batch diff at the end; the main session applies or relays fixes.
+  - Test and review **once at the end of the batch**, never after each item.
 - **No git commits or pushes** unless the user asks. Preserve uncommitted work-in-progress.
 - **Match surrounding code style.** Don't reformat unrelated code.
 - Windows dev machine: the Bash tool is Git Bash.

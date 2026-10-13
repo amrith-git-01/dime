@@ -27,6 +27,7 @@ import { colors } from "@/constants";
 import { loadableAppFonts } from "@/constants/fonts";
 import {
   SPLASH_MIN_DISPLAY_MS,
+  SPLASH_SHELL_TIMEOUT_MS,
   splashBackgroundColor,
 } from "@/constants/splash";
 import {
@@ -50,6 +51,9 @@ GoogleSignin.configure({
 });
 WebBrowser.maybeCompleteAuthSession();
 
+/** Survives remounts of the coordinator: once the splash is gone it must never come back. */
+let splashRevealedLatch = false;
+
 function AppSplashCoordinator({
   fontsReady,
   children,
@@ -57,12 +61,15 @@ function AppSplashCoordinator({
   fontsReady: boolean;
   children: ReactNode;
 }) {
-  const { contentReady, layoutReady } = useSplashReveal();
+  const { contentReady, layoutReady, shellReady } = useSplashReveal();
   const splashStartedAtRef = useRef(Date.now());
-  const [splashRevealed, setSplashRevealed] = useState(false);
+  const [splashRevealed, setSplashRevealed] = useState(splashRevealedLatch);
 
   const bootstrapReady = fontsReady && layoutReady && contentReady;
 
+  // The splash is the single loading cover: it goes once bootstrap AND the first screen's shell
+  // (header + tab bar, or the auth / onboarding route) are laid out. The timeout keeps a shell
+  // that never reports from holding it forever.
   useEffect(() => {
     if (!bootstrapReady || splashRevealed) {
       return;
@@ -70,14 +77,18 @@ function AppSplashCoordinator({
 
     const elapsed = Date.now() - splashStartedAtRef.current;
     const remaining = Math.max(0, SPLASH_MIN_DISPLAY_MS - elapsed);
+    const delay = shellReady
+      ? remaining
+      : Math.max(remaining, SPLASH_SHELL_TIMEOUT_MS);
 
     const timer = setTimeout(() => {
+      splashRevealedLatch = true;
       void SplashScreen.hideAsync();
       setSplashRevealed(true);
-    }, remaining);
+    }, delay);
 
     return () => clearTimeout(timer);
-  }, [bootstrapReady, splashRevealed]);
+  }, [bootstrapReady, shellReady, splashRevealed]);
 
   return (
     <View style={styles.splashCoordinator}>

@@ -32,6 +32,7 @@ import {
   findNotificationInPages,
   flattenNotificationPages,
   NOTIFICATIONS_PAGE_LIMIT,
+  resolveInboxLoadState,
   resolveSeedCursor,
   type NotificationsInboxData,
 } from "../utils/notificationPages";
@@ -71,7 +72,7 @@ export function useNotificationsFeed() {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     placeholderData: (): NotificationsInboxData | undefined => {
       const snapshot = readPersistedNotifications(userId);
-      if (!snapshot) {
+      if (!snapshot || snapshot.inbox.length === 0) {
         return undefined;
       }
       return buildInboxData(
@@ -87,14 +88,23 @@ export function useNotificationsFeed() {
 
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = listQuery;
 
-  const items = useMemo(() => {
-    const all = flattenNotificationPages(listQuery.data);
-    return filterNotificationsByInbox(all, filter);
-  }, [listQuery.data, filter]);
+  const allItems = useMemo(
+    () => flattenNotificationPages(listQuery.data),
+    [listQuery.data],
+  );
+  const items = useMemo(
+    () => filterNotificationsByInbox(allItems, filter),
+    [allItems, filter],
+  );
   const groups = useMemo(() => groupNotificationsByDate(items), [items]);
   const listItems = useMemo(() => flattenNotificationGroups(groups), [groups]);
-  const settled = !listQuery.isPending && !listQuery.isError;
-  const isInitialLoading = listQuery.isPending && listQuery.data === undefined;
+  const { settled, isInitialLoading } = resolveInboxLoadState({
+    isPending: listQuery.isPending,
+    isError: listQuery.isError,
+    isPlaceholderData: listQuery.isPlaceholderData,
+    hasData: listQuery.data !== undefined,
+    itemCount: allItems.length,
+  });
 
   const isInboxEmpty =
     settled && filter === "all" && items.length === 0 && !hasNextPage;

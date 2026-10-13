@@ -7,6 +7,7 @@ export {
   TransactionsListRowsSkeleton,
   type TransactionsMonthBentoSummary,
 } from "./bento";
+export { DayAddButton } from "./DayAddButton";
 export { BentoTransactionTile } from "./BentoTransactionTile";
 export { ReceiptImageViewer } from "./ReceiptImageViewer";
 export { ReceiptScanBusyOverlay } from "./ReceiptScanBusyOverlay";
