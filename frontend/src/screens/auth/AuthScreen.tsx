@@ -68,24 +68,16 @@ export default function AuthScreen() {
               model.busy && styles.googleButtonDisabled,
             ]}
           >
-            {model.googleLoading ? (
-              <ButtonBusyContent
-                loading
-                label="Continue with Google"
-                busyLabel="Signing in"
-                color={surface}
-                textStyle={styles.googleLabel}
-              />
-            ) : (
-              <>
-                <MaterialCommunityIcons
-                  name="google"
-                  size={22}
-                  color={surface}
-                />
-                <Text style={styles.googleLabel}>Continue with Google</Text>
-              </>
+            {model.googleLoading ? null : (
+              <MaterialCommunityIcons name="google" size={22} color={surface} />
             )}
+            <ButtonBusyContent
+              loading={model.googleLoading}
+              label="Continue with Google"
+              busyLabel="Signing in"
+              color={surface}
+              textStyle={styles.googleLabel}
+            />
           </Pressable>
         </View>
       </View>

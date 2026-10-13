@@ -30,6 +30,7 @@ describe("flattenTransactionListSections", () => {
     expect(headerIndices).toEqual([0, 3]);
     expect(items[0]).toMatchObject({
       kind: "header",
+      dayKey: "2026-08-15",
       title: "Today",
       netTotal: -30,
     });

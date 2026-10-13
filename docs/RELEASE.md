@@ -15,7 +15,7 @@ Two paths. **Native APK** (new native code, permissions, SDK upgrades) is built 
    Unset = the release APK is debug-signed with a loud warning (do not share it).
 3. **Google sign-in.** `cd frontend && npm run print:sha1`, then add that SHA-1 to the Google Cloud OAuth *Android* client for `com.amrith_01.frontend`.
 4. **OTA signing keys** (already generated): private key `C:\Dime\keys\private-key.pem` (back it up; losing it means shipping a new APK with a new certificate), certificate `frontend/certs/certificate.pem` (committed, embedded in the APK; the app rejects unsigned or wrongly signed updates).
-5. **Android toolchain** for `build:apk`: JDK 17 and the Android SDK (`ANDROID_HOME`, or `sdk.dir` in `frontend/android/local.properties`). `keytool` comes with the JDK.
+5. **Android toolchain** for `build:apk`: JDK 17 and the Android SDK (`ANDROID_HOME`, or `sdk.dir` in `frontend/android/local.properties`). `keytool` comes with the JDK. On Windows also install CMake 3.31.6 once (`sdkmanager "cmake;3.31.6"`): the default CMake 3.22 ninja fails on long native paths; `build:apk` points Gradle at 3.31.6.
 6. `npx wrangler login` once (publishing uploads to the `dime-media` R2 bucket).
 
 ## Release a native APK

@@ -6,7 +6,7 @@ import type { TransactionRow } from "@/features/transactions/types";
 export type MainTabParamList = {
   Home: undefined;
   Transactions: undefined;
-  /** `recurringKind`: scroll to the Recurring section (from Home / Settings). */
+  /** `recurringKind`: scroll to the Recurring section (from Home). */
   Budgets: { recurringKind?: RecurringKind } | undefined;
   Insights: undefined;
 };
@@ -24,6 +24,8 @@ export type MainStackParamList = {
   Notifications: undefined;
   ManualAddTransaction:
     | {
+        /** `yyyy-MM-dd` day the new transaction is dated to (a past day opens at 12:00). */
+        presetDate?: string;
         createdCategoryId?: string;
         createdCategoryName?: string;
       }

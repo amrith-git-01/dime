@@ -17,6 +17,7 @@ import {
   filterTransactionsByCalendarDay,
   transactionCalendarDayKey,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { resolveDaySummary } from "@/features/transactions/utils/daySummaries";
 import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -53,7 +54,7 @@ export function useTransactionsScreenModel() {
     selectedMonth,
     selectedMonthIndex,
   } = calendar;
-  const { onManualAdd, onReceipt, onVoice } =
+  const { onManualAddForDay, onReceipt, onVoice } =
     useTransactionQuickAddActions(navigation);
 
   const summaryQuery = useMonthSummaryQuery(
@@ -97,7 +98,20 @@ export function useTransactionsScreenModel() {
     [infiniteData],
   );
 
-  const selectedDaySummary = daySummaries[selectedDayKey];
+  const dayTransactions = useMemo(
+    () => filterTransactionsByCalendarDay(flatRows, selectedDayKey),
+    [flatRows, selectedDayKey],
+  );
+
+  const selectedDaySummary = useMemo(
+    () =>
+      resolveDaySummary(
+        selectedDayKey,
+        daySummaries[selectedDayKey],
+        dayTransactions,
+      ),
+    [dayTransactions, daySummaries, selectedDayKey],
+  );
   const dayNetTotal = parseTransactionAmount(selectedDaySummary?.net);
   const dayIncomeTotal = parseTransactionAmount(
     selectedDaySummary?.credit_total,
@@ -105,8 +119,11 @@ export function useTransactionsScreenModel() {
   const dayExpenseTotal = parseTransactionAmount(
     selectedDaySummary?.debit_total,
   );
-  const selectedDayTransactionCount =
-    selectedDaySummary?.transaction_count ?? 0;
+  // Emptiness never rests on the summary alone: listed rows count as activity too.
+  const selectedDayTransactionCount = Math.max(
+    selectedDaySummary?.transaction_count ?? 0,
+    dayTransactions.length,
+  );
 
   usePrefetchTransactionsForSelectedDay({
     selectedDayKey,
@@ -123,11 +140,6 @@ export function useTransactionsScreenModel() {
 
   const dayRowCount = useMemo(() => flashListData.length, [flashListData]);
   const lastRowIndex = dayRowCount > 0 ? dayRowCount - 1 : -1;
-
-  const dayTransactions = useMemo(
-    () => filterTransactionsByCalendarDay(flatRows, selectedDayKey),
-    [flatRows, selectedDayKey],
-  );
 
   const spendByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -258,7 +270,7 @@ export function useTransactionsScreenModel() {
     listExtraData,
     monthHasNoTransactions,
     monthOptions,
-    onManualAdd,
+    onManualAddForDay,
     onReceipt,
     onVoice,
     openTransactionDetail,

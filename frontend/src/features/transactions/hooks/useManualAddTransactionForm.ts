@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 
+import { resolvePresetTransactionAt } from "@/utils/dateTime";
 import { paiseToAmountString, parseAmountInputToPaise } from "@/utils/paise";
 
 import type { CreateTransactionBody } from "../api/transactionsApi";
@@ -10,7 +11,11 @@ import {
 import type { TransactionType } from "../types";
 import type { ManualAddFormSnapshot } from "../utils/transactionRowToFormState";
 
-export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
+export function useManualAddTransactionForm(
+  initial?: ManualAddFormSnapshot,
+  /** `yyyy-MM-dd` day to date a new transaction to; ignored when `initial` carries a date. */
+  presetDate?: string,
+) {
   const [amountText, setAmountText] = useState(initial?.amountText ?? "");
   const [txType, setTxType] = useState<TransactionType>(
     initial?.txType ?? "debit",
@@ -27,7 +32,7 @@ export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
   );
   const [note, setNote] = useState(initial?.note ?? "");
   const [transactionAt, setTransactionAt] = useState(
-    () => initial?.transactionAt ?? new Date(),
+    () => initial?.transactionAt ?? resolvePresetTransactionAt(presetDate),
   );
 
   const applySnapshot = useCallback((snap: ManualAddFormSnapshot) => {
@@ -50,9 +55,9 @@ export function useManualAddTransactionForm(initial?: ManualAddFormSnapshot) {
       category: "",
       categoryId: null,
       note: "",
-      transactionAt: new Date(),
+      transactionAt: resolvePresetTransactionAt(presetDate),
     });
-  }, [applySnapshot]);
+  }, [applySnapshot, presetDate]);
 
   const selectCategory = useCallback((id: string, name: string) => {
     setCategoryId(id);

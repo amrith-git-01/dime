@@ -3,7 +3,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback } from "react";
 
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
-import type { RecurringKind } from "@/features/recurring/types";
 import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
@@ -31,15 +30,6 @@ export function useSettingsScreenModel() {
     [navigation],
   );
 
-  const openRecurring = useCallback(
-    (kind: RecurringKind) =>
-      navigation.navigate("MainTabs", {
-        screen: "Budgets",
-        params: { recurringKind: kind },
-      }),
-    [navigation],
-  );
-
   return {
     displayName,
     email,
@@ -48,7 +38,6 @@ export function useSettingsScreenModel() {
     signOutConfirmModalProps,
     refreshLoading,
     openDestination,
-    openRecurring,
     onSignOut: confirmSignOut,
     onRefreshPress: confirmRefreshAppData,
   };

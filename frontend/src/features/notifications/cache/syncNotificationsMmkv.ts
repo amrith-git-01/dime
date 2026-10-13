@@ -23,20 +23,26 @@ export function hydrateNotificationsFromMmkv(
     return false;
   }
 
-  queryClient.setQueryData(
-    notificationQueryKeys.inboxList(userId),
-    buildInboxData(
-      snapshot.inbox,
-      resolveSeedCursor(
+  // An empty inbox is never seeded: it would read as "no notifications" until the first fetch.
+  // `updatedAt` keeps the seed's real age so a stale snapshot is refetched on mount.
+  if (snapshot.inbox.length > 0) {
+    queryClient.setQueryData(
+      notificationQueryKeys.inboxList(userId),
+      buildInboxData(
         snapshot.inbox,
-        snapshot.nextCursor,
-        NOTIFICATIONS_PAGE_LIMIT,
+        resolveSeedCursor(
+          snapshot.inbox,
+          snapshot.nextCursor,
+          NOTIFICATIONS_PAGE_LIMIT,
+        ),
       ),
-    ),
-  );
+      { updatedAt: snapshot.timestamp },
+    );
+  }
   queryClient.setQueryData(
     notificationQueryKeys.unreadCount(userId),
     snapshot.unreadCount,
+    { updatedAt: snapshot.timestamp },
   );
   return true;
 }
@@ -62,9 +68,13 @@ export function persistNotificationsMmkvFromQueryClient(
 
   const existing = readPersistedNotifications(userId);
   const firstPage = inbox?.pages[0];
+  const items = firstPage?.items ?? existing?.inbox;
+  if (!items) {
+    return;
+  }
 
   writePersistedNotifications(userId, {
-    inbox: firstPage?.items ?? existing?.inbox ?? [],
+    inbox: items,
     unreadCount: unreadCount ?? existing?.unreadCount ?? 0,
     nextCursor: firstPage ? firstPage.nextCursor : existing?.nextCursor,
   });

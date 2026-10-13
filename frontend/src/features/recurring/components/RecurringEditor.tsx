@@ -60,12 +60,12 @@ export const RecurringEditor = memo(function RecurringEditor({
           <Text style={formStyles.fieldLabel}>Type</Text>
           <View style={styles.chipRow}>
             <SegmentChip
-              label="Income"
+              label="Recurring income"
               selected={kind === "income"}
               onPress={() => model.onKindChange("income")}
             />
             <SegmentChip
-              label="Subscription"
+              label="Recurring expense"
               selected={kind === "subscription"}
               onPress={() => model.onKindChange("subscription")}
             />
@@ -207,6 +207,7 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   categoryGrid: {

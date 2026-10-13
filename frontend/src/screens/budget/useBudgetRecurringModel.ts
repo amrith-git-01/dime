@@ -31,7 +31,7 @@ const NO_ITEMS: RecurringItem[] = [];
 
 /**
  * Recurring section of the Budgets tab: the two lists, opening the add / edit page, and scrolling to
- * the section when Home or Settings sent the user here (`recurringKind` route param).
+ * the section when Home sent the user here (`recurringKind` route param).
  */
 export function useBudgetRecurringModel(
   listRef: RefObject<ScrollableList | null>,

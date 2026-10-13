@@ -127,6 +127,8 @@ export function buildTransactionFlashListItemsForSingleDay(
 export type TransactionListHeaderItem = {
   kind: "header";
   id: string;
+  /** Calendar day of the section (`yyyy-MM-dd`). */
+  dayKey: string;
   title: string;
   /** Net total of the section, in rupees. */
   netTotal: number;
@@ -164,6 +166,7 @@ export function flattenTransactionListSections(
     items.push({
       kind: "header",
       id: `header:${section.key}`,
+      dayKey: section.key,
       title: section.title,
       netTotal: netTotals[section.key] ?? 0,
     });

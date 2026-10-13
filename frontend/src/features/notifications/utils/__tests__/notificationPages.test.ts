@@ -6,6 +6,7 @@ import {
   flattenNotificationPages,
   patchNotificationInPages,
   removeNotificationFromPages,
+  resolveInboxLoadState,
   resolveSeedCursor,
   restoreNotificationInPages,
 } from "../notificationPages";
@@ -102,5 +103,47 @@ describe("flattenNotificationGroups", () => {
     ]);
     expect(items[0]).toMatchObject({ isFirst: true });
     expect(items[3]).toMatchObject({ isFirst: false });
+  });
+});
+
+describe("resolveInboxLoadState", () => {
+  const base = {
+    isPending: false,
+    isError: false,
+    isPlaceholderData: false,
+    hasData: true,
+    itemCount: 0,
+  };
+
+  it("is loading with nothing cached", () => {
+    expect(
+      resolveInboxLoadState({ ...base, isPending: true, hasData: false }),
+    ).toEqual({ settled: false, isInitialLoading: true });
+  });
+
+  it("never settles on placeholder data, and an empty placeholder shows the skeleton", () => {
+    expect(resolveInboxLoadState({ ...base, isPlaceholderData: true })).toEqual({
+      settled: false,
+      isInitialLoading: true,
+    });
+  });
+
+  it("keeps showing placeholder rows while the real fetch is in flight", () => {
+    expect(
+      resolveInboxLoadState({ ...base, isPlaceholderData: true, itemCount: 3 }),
+    ).toEqual({ settled: false, isInitialLoading: false });
+  });
+
+  it("settles (and may show the empty state) once real data arrived", () => {
+    expect(resolveInboxLoadState(base)).toEqual({
+      settled: true,
+      isInitialLoading: false,
+    });
+  });
+
+  it("does not settle on an error", () => {
+    expect(resolveInboxLoadState({ ...base, isError: true }).settled).toBe(
+      false,
+    );
   });
 });

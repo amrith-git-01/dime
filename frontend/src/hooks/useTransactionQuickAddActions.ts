@@ -10,6 +10,10 @@ type TransactionQuickAddNavigation = {
       ? [screen: RouteName] | [screen: RouteName, params: MainStackParamList[RouteName]]
       : [screen: RouteName, params: MainStackParamList[RouteName]]
   ) => void;
+  push: (
+    screen: "ManualAddTransaction",
+    params: MainStackParamList["ManualAddTransaction"],
+  ) => void;
 };
 
 export function useTransactionQuickAddActions(
@@ -22,6 +26,14 @@ export function useTransactionQuickAddActions(
     navigation.navigate("ManualAddTransaction");
   }, [navigation]);
 
+  // `push` (not `navigate`) so a fresh form instance gets the day, even when one is already open.
+  const onManualAddForDay = useCallback(
+    (dayKey: string) => {
+      navigation.push("ManualAddTransaction", { presetDate: dayKey });
+    },
+    [navigation],
+  );
+
   const onReceipt = useCallback(() => {
     void captureReceiptAndCreate();
   }, [captureReceiptAndCreate]);
@@ -32,6 +44,7 @@ export function useTransactionQuickAddActions(
 
   return {
     onManualAdd,
+    onManualAddForDay,
     onReceipt,
     onVoice,
   };

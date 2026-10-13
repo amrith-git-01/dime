@@ -26,12 +26,7 @@ import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserS
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
 import { syncDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
-import {
-  fetchTransactionsPage,
-  monthRangeIso,
-  TX_PAGE_LIMIT,
-} from "@/features/transactions/api/transactionsApi";
-import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import { transactionsMonthPagesQueryOptions } from "@/features/transactions/api/monthPagesQueryOptions";
 import {
   APP_QUERY_GC_MS,
   APP_QUERY_STALE_MS,
@@ -185,7 +180,6 @@ export function prefetchSiblingTabQueries(
   const month = now.getMonth() + 1;
   const monthIndex0 = now.getMonth();
   const timezone = getDeviceIanaTimezone();
-  const { from, to } = monthRangeIso(year, monthIndex0);
 
   prefetchIfStale(
     queryClient,
@@ -234,25 +228,20 @@ export function prefetchSiblingTabQueries(
     }
   })();
 
-  const monthPagesKey = transactionsQueryKeys.monthPages(
+  const monthPagesOptions = transactionsMonthPagesQueryOptions({
     userId,
     year,
-    month,
+    monthIndex0,
     timezone,
-  );
+  });
 
-  if (!isCacheFresh(queryClient, monthPagesKey, TRANSACTIONS_QUERY_STALE_MS)) {
-    void queryClient.prefetchInfiniteQuery({
-      queryKey: monthPagesKey,
-      queryFn: ({ pageParam }) =>
-        fetchTransactionsPage({
-          from,
-          to,
-          limit: TX_PAGE_LIMIT,
-          offset: pageParam as number,
-        }),
-      initialPageParam: 0,
-      staleTime: TRANSACTIONS_QUERY_STALE_MS,
-    });
+  if (
+    !isCacheFresh(
+      queryClient,
+      monthPagesOptions.queryKey,
+      TRANSACTIONS_QUERY_STALE_MS,
+    )
+  ) {
+    void queryClient.prefetchInfiniteQuery(monthPagesOptions);
   }
 }

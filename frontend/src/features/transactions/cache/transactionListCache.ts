@@ -8,6 +8,7 @@ import type {
   TransactionListPage,
   TransactionRow,
 } from "@/features/transactions/types";
+import { reconcileDaySummaries } from "@/features/transactions/utils/daySummaries";
 import { monthRangeIso } from "@/utils/dates";
 
 export function transactionInCalendarMonth(
@@ -226,7 +227,10 @@ export function applyTransactionInsertToListCaches(
     }
     queryClient.setQueryData(
       queryKey,
-      prependToMonthPages(prevMonth, row, { dropOptimistic: true }),
+      reconcileDaySummaries(
+        prevMonth,
+        prependToMonthPages(prevMonth, row, { dropOptimistic: true }),
+      ),
     );
   });
 }
@@ -267,13 +271,26 @@ export function applyTransactionUpdateToListCaches(
       if (hadRow) {
         queryClient.setQueryData(
           queryKey,
-          removeFromMonthPages(prevMonth, row.id),
+          reconcileDaySummaries(
+            prevMonth,
+            removeFromMonthPages(prevMonth, row.id),
+          ),
         );
       }
       return;
     }
 
-    queryClient.setQueryData(queryKey, replaceInMonthPages(prevMonth, row));
+    // Not loaded but older pages remain: the row may already be counted in the server's day
+    // totals, so treating it as new would double-count. Refetch instead (as the remove path does).
+    if (!hadRow && prevMonth.pages[prevMonth.pages.length - 1]?.has_more) {
+      void queryClient.invalidateQueries({ queryKey, exact: true });
+      return;
+    }
+
+    queryClient.setQueryData(
+      queryKey,
+      reconcileDaySummaries(prevMonth, replaceInMonthPages(prevMonth, row)),
+    );
   });
 }
 
@@ -293,9 +310,23 @@ export function applyTransactionRemoveFromListCaches(
   }
 
   forEachMonthPageQuery(queryClient, userId, (queryKey, prevMonth) => {
+    const loaded = prevMonth.pages.some((page) =>
+      page.items.some((item) => item.id === transactionId),
+    );
+    if (!loaded) {
+      // Not in the loaded pages, but it may sit in an older page that is not fetched yet and
+      // still counted in the day totals: refetch rather than leave a stale count.
+      if (prevMonth.pages[prevMonth.pages.length - 1]?.has_more) {
+        void queryClient.invalidateQueries({ queryKey, exact: true });
+      }
+      return;
+    }
     queryClient.setQueryData(
       queryKey,
-      removeFromMonthPages(prevMonth, transactionId),
+      reconcileDaySummaries(
+        prevMonth,
+        removeFromMonthPages(prevMonth, transactionId),
+      ),
     );
   });
 }

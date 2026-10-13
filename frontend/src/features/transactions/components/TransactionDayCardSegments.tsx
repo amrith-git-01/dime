@@ -23,6 +23,7 @@ import type { TransactionRow as TransactionRowData } from "@/features/transactio
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalendar";
 
+import { DayAddButton } from "./DayAddButton";
 import { TransactionRow } from "./TransactionRow";
 
 /**
@@ -45,6 +46,8 @@ export type TransactionDayCardHeaderProps = {
   hasActivity: boolean;
   /** True while prefetching older pages to satisfy the selected day. */
   isFetching: boolean;
+  /** Adds a transaction dated to `dayKey`; the button shows for today and past days only. */
+  onAdd?: (dayKey: string) => void;
 };
 
 export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
@@ -52,6 +55,7 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
   dayNetTotal,
   hasActivity,
   isFetching,
+  onAdd,
 }: TransactionDayCardHeaderProps) {
   const netToneStyle =
     dayNetTotal > 0
@@ -66,13 +70,18 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
         <Text style={styles.dayLabel} numberOfLines={1}>
           {formatDayLabel(dayKey)}
         </Text>
-        {isFetching ? (
-          <ActivityIndicator size="small" color={inkFaint} />
-        ) : hasActivity ? (
-          <Text style={[styles.dayNet, netToneStyle]} numberOfLines={1}>
-            {formatTransactionListAmount(dayNetTotal)} net
-          </Text>
-        ) : null}
+        <View style={styles.headerTrailing}>
+          {isFetching ? (
+            <ActivityIndicator size="small" color={inkFaint} />
+          ) : hasActivity ? (
+            <Text style={[styles.dayNet, netToneStyle]} numberOfLines={1}>
+              {formatTransactionListAmount(dayNetTotal)} net
+            </Text>
+          ) : null}
+          {onAdd && !isFutureDayKey(dayKey) ? (
+            <DayAddButton dayKey={dayKey} onPress={onAdd} />
+          ) : null}
+        </View>
       </View>
       <View style={styles.headerDivider} />
     </SurfaceCardSegment>
@@ -143,7 +152,8 @@ export type TransactionDayCardPlaceholderProps = {
   dayKey: string;
   /** Skeleton rows while the month loads; otherwise the empty-day message. */
   isLoading: boolean;
-  onManualAdd?: () => void;
+  /** Adds a transaction dated to `dayKey`. */
+  onManualAdd?: (dayKey: string) => void;
 };
 
 /** Card body (and bottom edge) when there are no rows to show. */
@@ -190,7 +200,7 @@ function EmptyDayState({
   onManualAdd,
 }: {
   dayKey: string;
-  onManualAdd?: () => void;
+  onManualAdd?: (dayKey: string) => void;
 }) {
   const isFutureDay = isFutureDayKey(dayKey);
   const showAddAction = Boolean(onManualAdd) && !isFutureDay;
@@ -207,7 +217,9 @@ function EmptyDayState({
       actionLabel={
         showAddAction ? emptyStateCopy.transactionsDay.actionLabel : undefined
       }
-      onAction={showAddAction ? onManualAdd : undefined}
+      onAction={
+        showAddAction && onManualAdd ? () => onManualAdd(dayKey) : undefined
+      }
     />
   );
 }
@@ -219,6 +231,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  headerTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
     gap: spacing.md,
   },
   dayLabel: {
