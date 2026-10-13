@@ -2,8 +2,9 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { LottieToggle } from "@/components/ui";
-import { ink, inkSoft, line, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles } from "@/theme";
 
 export type SettingsToggleRowProps = {
   label?: string;
@@ -27,6 +28,7 @@ export const SettingsToggleRow = memo(function SettingsToggleRow({
   disabled = false,
   onAnimationBusyChange,
 }: SettingsToggleRowProps) {
+  const styles = useStyles();
   const resolvedA11yLabel =
     accessibilityLabel ?? label ?? subtitle ?? "Toggle setting";
 
@@ -54,7 +56,7 @@ export const SettingsToggleRow = memo(function SettingsToggleRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -71,16 +73,16 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
-});
+}));

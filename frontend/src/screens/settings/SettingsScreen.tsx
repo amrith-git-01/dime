@@ -4,14 +4,15 @@ import {
   Mail,
   MessageSquareText,
   Shield,
+  SunMoon,
   Vibrate,
 } from "lucide-react-native";
 import * as Updates from "expo-updates";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
-import { fontFamilies, inkSoft, spacing } from "@/constants";
+import { fontFamilies, spacing } from "@/constants";
 import {
   SettingsHubHero,
   SettingsNavRow,
@@ -21,6 +22,7 @@ import { TodaysLimitsSection } from "@/features/limits/components";
 import { SETTINGS_SECTION_GAP } from "@/features/settings/constants/settingsTokens";
 
 import { useSettingsScreenModel } from "./useSettingsScreenModel";
+import { createThemedStyles } from "@/theme";
 
 /** "Dime 1.0.0 · update ab12cd34" (or "built-in"): shows which OTA update the app is running. */
 const VERSION_LABEL = `Dime ${Updates.runtimeVersion ?? ""} · ${
@@ -28,6 +30,7 @@ const VERSION_LABEL = `Dime ${Updates.runtimeVersion ?? ""} · ${
 }`;
 
 export default function SettingsScreen() {
+  const styles = useStyles();
   const model = useSettingsScreenModel();
   const { openDestination } = model;
 
@@ -46,6 +49,13 @@ export default function SettingsScreen() {
 
       <SettingsSection title="Preferences">
         <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={SunMoon}
+            label="Appearance"
+            subtitle={model.appearanceLabel}
+            onPress={() => openDestination("SettingsAppearance")}
+            showSeparator
+          />
           <SettingsNavRow
             icon={Vibrate}
             label="Haptic feedback"
@@ -139,7 +149,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: SETTINGS_SECTION_GAP,
   },
@@ -164,12 +174,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   dataHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

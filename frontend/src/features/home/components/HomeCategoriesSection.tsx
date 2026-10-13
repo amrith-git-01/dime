@@ -5,12 +5,11 @@ import type { CategorySpendRowData } from "@/components/categories/CategorySpend
 import { CategorySpendBentoRow } from "@/components/categories/CategorySpendBentoRow";
 import { EmptyState, emptyStateCopy } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import { line, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 
 import { HomeSectionHeader } from "./HomeSectionHeader";
+import { createThemedStyles } from "@/theme";
 
 const SKELETON_COUNT = 4;
 
@@ -31,6 +30,7 @@ export const HomeCategoriesSection = memo(function HomeCategoriesSection({
   onViewAll,
   onCategoryPress,
 }: HomeCategoriesSectionProps) {
+  const styles = useStyles();
   return (
     <View>
       <HomeSectionHeader title="Top categories" onViewAll={onViewAll} />
@@ -76,16 +76,16 @@ export const HomeCategoriesSection = memo(function HomeCategoriesSection({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "hidden",
     ...shadows.card,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   rowPad: {
@@ -124,4 +124,4 @@ const styles = StyleSheet.create({
     width: 48,
     borderRadius: 4,
   },
-});
+}));

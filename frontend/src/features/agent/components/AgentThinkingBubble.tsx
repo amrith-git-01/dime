@@ -1,14 +1,13 @@
 import { memo } from "react";
 import {
   ActivityIndicator,
-  Platform,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 
-import { accent, inkSoft, radius, shadow, spacing, surface } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const DEFAULT_LABEL = "Thinking";
 
@@ -20,17 +19,19 @@ type AgentThinkingBubbleProps = {
 export const AgentThinkingBubble = memo(function AgentThinkingBubble({
   label,
 }: AgentThinkingBubbleProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.bubbleWrap}>
       <View style={styles.bubble} accessibilityLiveRegion="polite">
-        <ActivityIndicator size="small" color={accent} />
+        <ActivityIndicator size="small" color={colors.accentText} />
         <Text style={styles.word}>{label || DEFAULT_LABEL}</Text>
       </View>
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   bubbleWrap: {
     alignSelf: "flex-start",
     marginBottom: spacing.md,
@@ -43,23 +44,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    backgroundColor: surface,
-    ...Platform.select({
-      android: { elevation: 2 },
-      default: {
-        shadowColor: shadow,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-      },
-    }),
+    backgroundColor: colors.surface,
+    ...shadows.card,
     minHeight: 44,
   },
   word: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: inkSoft,
+    color: colors.inkSoft,
     letterSpacing: 0.2,
   },
-});
+}));

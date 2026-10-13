@@ -10,9 +10,10 @@ import {
   View,
 } from "react-native";
 
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { AppTextInput } from "../AppTextInput/AppTextInput";
-import { formStyles } from "@/constants/formStyles";
+import { useFormStyles } from "@/constants/formStyles";
+import { useTheme } from "@/theme";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;
@@ -44,6 +45,8 @@ export function TextField({
   minInputHeight,
   ...rest
 }: TextFieldProps) {
+  const { colors } = useTheme();
+  const formStyles = useFormStyles();
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(true);
   const isPassword = Boolean(showPasswordToggle);
@@ -84,7 +87,6 @@ export function TextField({
               minHeight: textareaMinHeight - spacing.md,
             },
           ]}
-          placeholderTextColor={colors.inactive}
           value={value}
           onChangeText={onChangeText}
           editable={editable}
@@ -117,9 +119,9 @@ export function TextField({
             onPress={() => setHidden((h) => !h)}
           >
             {hidden ? (
-              <Eye size={20} color={colors.inactive} />
+              <Eye size={20} color={colors.inkFaint} />
             ) : (
-              <EyeOff size={20} color={colors.inactive} />
+              <EyeOff size={20} color={colors.inkFaint} />
             )}
           </Pressable>
         ) : null}
@@ -131,7 +133,7 @@ export function TextField({
             style={[formStyles.iconButton, isMultiline && styles.textareaClear]}
             onPress={() => onChangeText?.("")}
           >
-            <X size={18} color={colors.inactive} />
+            <X size={18} color={colors.inkFaint} />
           </Pressable>
         ) : null}
       </View>

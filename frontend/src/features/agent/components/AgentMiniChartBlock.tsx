@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 
 import type { AgentBlockMiniChart } from "../types";
 import { buildAgentChartRevealKey } from "../utils/buildAgentChartRevealKey";
@@ -9,6 +9,7 @@ import { buildAgentChartRevealKey } from "../utils/buildAgentChartRevealKey";
 import { AgentCashflowBarChart } from "./AgentCashflowBarChart";
 import { AgentCompareBarChart } from "./AgentCompareBarChart";
 import { AgentDonutChart } from "./AgentDonutChart";
+import { createThemedStyles } from "@/theme";
 
 type AgentMiniChartBlockProps = {
   block: AgentBlockMiniChart;
@@ -17,6 +18,7 @@ type AgentMiniChartBlockProps = {
 export const AgentMiniChartBlock = memo(function AgentMiniChartBlock({
   block,
 }: AgentMiniChartBlockProps) {
+  const styles = useStyles();
   const {
     title,
     series,
@@ -54,11 +56,11 @@ export const AgentMiniChartBlock = memo(function AgentMiniChartBlock({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
     padding: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
     overflow: "visible",
   },
-});
+}));

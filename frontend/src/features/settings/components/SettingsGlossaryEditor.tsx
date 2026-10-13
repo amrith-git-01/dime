@@ -1,12 +1,13 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { fontFamilies, inkSoft } from "@/constants";
+import { fontFamilies } from "@/constants";
 
 import type { HelpAccordionGroup } from "../constants/helpAccordion";
 import { SETTINGS_SECTION_GAP } from "../constants/settingsTokens";
 import { GlossaryTermRow } from "./GlossaryTermRow";
 import { SettingsSection } from "./SettingsSection";
+import { createThemedStyles } from "@/theme";
 
 export type SettingsGlossaryEditorProps = {
   intro: string;
@@ -21,6 +22,7 @@ export const SettingsGlossaryEditor = memo(function SettingsGlossaryEditor({
   expandedIds,
   onToggleTerm,
 }: SettingsGlossaryEditorProps) {
+  const styles = useStyles();
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>{intro}</Text>
@@ -43,7 +45,7 @@ export const SettingsGlossaryEditor = memo(function SettingsGlossaryEditor({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: SETTINGS_SECTION_GAP,
   },
@@ -51,6 +53,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

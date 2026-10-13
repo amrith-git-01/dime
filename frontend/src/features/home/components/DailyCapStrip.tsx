@@ -1,19 +1,11 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/ui";
-import {
-  accent,
-  danger,
-  ink,
-  inkSoft,
-  surface,
-  surfaceSunken,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type DailyCapStripProps = {
   spentDisplay: string;
@@ -31,6 +23,8 @@ export const DailyCapStrip = memo(function DailyCapStrip({
   progress,
   onAddBudget,
 }: DailyCapStripProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.card}>
       <View style={styles.row}>
@@ -53,8 +47,8 @@ export const DailyCapStrip = memo(function DailyCapStrip({
       {hasBudget && (
         <ProgressBar
           progress={progress}
-          fillColor={progress >= 1 ? danger : accent}
-          backgroundColor={surfaceSunken}
+          fillColor={progress >= 1 ? colors.danger : colors.accent}
+          backgroundColor={colors.surfaceSunken}
           height={4}
         />
       )}
@@ -62,9 +56,9 @@ export const DailyCapStrip = memo(function DailyCapStrip({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -80,13 +74,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   amount: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 18,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
   },
   noBudgetRow: {
@@ -98,13 +92,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     fontVariant: ["tabular-nums"],
   },
   cta: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

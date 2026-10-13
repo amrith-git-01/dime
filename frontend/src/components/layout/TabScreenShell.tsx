@@ -1,12 +1,13 @@
-import { colors } from "@/constants";
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
+import { createThemedStyles } from "@/theme";
 
 export type TabScreenShellProps = {
   children: ReactNode;
 };
 
 export function TabScreenShell({ children }: TabScreenShellProps) {
+  const styles = useStyles();
   return (
     <View style={styles.root}>
       <View style={styles.content}>{children}</View>
@@ -14,14 +15,14 @@ export function TabScreenShell({ children }: TabScreenShellProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     flex: 1,
     flexDirection: "column",
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   content: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
-});
+}));

@@ -4,7 +4,8 @@ import {
   CATEGORY_SPEND_ROW_DIVIDER_INSET,
   CategorySpendRowSkeleton,
 } from "@/components/shared";
-import { line } from "@/constants";
+
+import { createThemedStyles } from "@/theme";
 
 const DEFAULT_ROW_COUNT = 5;
 
@@ -18,6 +19,7 @@ export function BudgetCategoryRowsSkeleton({
   rowCount = DEFAULT_ROW_COUNT,
   showProgress = true,
 }: BudgetCategoryRowsSkeletonProps) {
+  const styles = useStyles();
   return (
     <View>
       {Array.from({ length: rowCount }, (_, index) => (
@@ -37,9 +39,9 @@ export function BudgetCategoryRowsSkeleton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
-});
+}));

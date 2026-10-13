@@ -1,9 +1,9 @@
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { BENTO_GAP } from "@/components/bento";
 import { BentoStatCell } from "@/components/shared";
-import { accent, colors, ink, inkSoft, radius, shadow, spacing, surface } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type {
@@ -17,6 +17,7 @@ import { AgentFeedbackButtons } from "./AgentFeedbackButtons";
 import { AgentMessageProse } from "./AgentMessageProse";
 import { AgentMiniChartBlock } from "./AgentMiniChartBlock";
 import { AgentThinkingBubble } from "./AgentThinkingBubble";
+import { createThemedStyles } from "@/theme";
 
 type AgentMessageRendererProps = {
   id: string;
@@ -39,6 +40,7 @@ function MetricBlock({
 }: {
   block: Extract<AgentBlock, { type: "metric" }>;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.metricCard}>
       <BentoStatCell label={block.label} value={block.value} />
@@ -54,6 +56,7 @@ function CategoryRowBlock({
 }: {
   block: Extract<AgentBlock, { type: "category_row" }>;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.categoryRow}>
       <Text style={styles.categoryName} numberOfLines={1}>
@@ -72,6 +75,7 @@ function TxPreviewBlock({
 }: {
   block: Extract<AgentBlock, { type: "tx_preview" }>;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.txPreview}>
       {block.rows.slice(0, 5).map((row, index) => {
@@ -136,6 +140,7 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
   onDeepLinkPress,
   onFeedback,
 }: AgentMessageRendererProps) {
+  const styles = useStyles();
   const isUser = role === "user";
   const hasContent =
     content.length > 0 || blocks.length > 0 || Boolean(deepLink?.screen);
@@ -195,7 +200,7 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   bubbleWrap: {
     marginBottom: spacing.md,
     maxWidth: "92%",
@@ -213,42 +218,26 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   bubbleUser: {
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
   },
   bubbleAssistant: {
-    backgroundColor: surface,
-    ...Platform.select({
-      android: { elevation: 2 },
-      default: {
-        shadowColor: shadow,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-      },
-    }),
+    backgroundColor: colors.surface,
+    ...shadows.card,
   },
   blocks: {
     gap: BENTO_GAP,
   },
   metricCard: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    ...Platform.select({
-      android: { elevation: 2 },
-      default: {
-        shadowColor: shadow,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-      },
-    }),
+    ...shadows.card,
   },
   metricDelta: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   categoryRow: {
     flexDirection: "row",
@@ -261,7 +250,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: ink,
+    color: colors.ink,
   },
   categoryMeta: {
     alignItems: "flex-end",
@@ -270,12 +259,12 @@ const styles = StyleSheet.create({
   categoryAmount: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 14,
-    color: ink,
+    color: colors.ink,
   },
   categoryPct: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   txPreview: {
     gap: spacing.xs,
@@ -290,7 +279,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.regular,
     fontSize: 14,
-    color: ink,
+    color: colors.ink,
   },
   txAmount: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -303,7 +292,7 @@ const styles = StyleSheet.create({
   txMore: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
-    color: inkSoft,
+    color: colors.inkSoft,
     marginTop: spacing.xs,
   },
   deepLink: {
@@ -313,6 +302,6 @@ const styles = StyleSheet.create({
   deepLinkText: {
     fontFamily: fontFamilies.medium,
     fontSize: 14,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

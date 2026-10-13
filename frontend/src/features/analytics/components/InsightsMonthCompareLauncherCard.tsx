@@ -2,19 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import {
-  accent,
-  accentTint,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  shadows,
-  spacing,
-  surface,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   areCompareMonthsEqual,
@@ -23,6 +11,7 @@ import {
   type CompareMonthParam,
 } from "@/features/analytics/utils/compareMonths";
 import type { MonthOption } from "@/utils/buildMonthOptions";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type InsightsMonthCompareLauncherCardProps = {
   monthOptions: MonthOption[];
@@ -43,6 +32,8 @@ export const InsightsMonthCompareLauncherCard = memo(
     insightsSelectedMonthIndex,
     onCompare,
   }: InsightsMonthCompareLauncherCardProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const [monthAIndex, setMonthAIndex] = useState(insightsSelectedMonthIndex);
     const [monthBIndex, setMonthBIndex] = useState(() =>
       defaultCompareMonthBIndex(monthOptions, insightsSelectedMonthIndex),
@@ -177,7 +168,7 @@ export const InsightsMonthCompareLauncherCard = memo(
             </Text>
             <ChevronRight
               size={18}
-              color={compareDisabled ? inkFaint : surface}
+              color={compareDisabled ? colors.inkFaint : colors.onAccent}
               strokeWidth={2}
             />
           </Pressable>
@@ -202,6 +193,8 @@ function MonthArrowSelector({
   onPrev,
   onNext,
 }: MonthArrowSelectorProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.selectorRow}>
       <Pressable
@@ -214,7 +207,7 @@ function MonthArrowSelector({
       >
         <ChevronLeft
           size={16}
-          color={canGoPrev ? inkSoft : inkFaint}
+          color={canGoPrev ? colors.inkSoft : colors.inkFaint}
           strokeWidth={2}
         />
       </Pressable>
@@ -229,7 +222,7 @@ function MonthArrowSelector({
       >
         <ChevronRight
           size={16}
-          color={canGoNext ? inkSoft : inkFaint}
+          color={canGoNext ? colors.inkSoft : colors.inkFaint}
           strokeWidth={2}
         />
       </Pressable>
@@ -237,9 +230,9 @@ function MonthArrowSelector({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     ...shadows.card,
     overflow: "hidden",
@@ -254,7 +247,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
@@ -262,11 +255,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   previewSection: {
@@ -288,7 +281,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -301,10 +294,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   barFillGray: {
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
   },
   barFillAccent: {
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     opacity: 0.85,
   },
   selectorsSection: {
@@ -318,7 +311,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.sm,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.xs,
@@ -332,14 +325,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: ink,
+    color: colors.ink,
     textAlign: "center",
   },
   vsLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
     flexShrink: 0,
   },
   ctaSection: {
@@ -349,7 +342,7 @@ const styles = StyleSheet.create({
   },
   ctaButton: {
     flexDirection: "row",
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     borderRadius: radius.full,
     paddingVertical: spacing.md,
     alignItems: "center",
@@ -357,15 +350,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   ctaDisabled: {
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
   },
   ctaLabel: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 20,
-    color: surface,
+    color: colors.onAccent,
   },
   ctaLabelDisabled: {
-    color: inkFaint,
+    color: colors.inkFaint,
   },
-});
+}));

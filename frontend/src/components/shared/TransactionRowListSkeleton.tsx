@@ -1,7 +1,8 @@
 import { StyleSheet, View } from "react-native";
 
 import { SkeletonBlock, SkeletonStrip } from "@/components/ui";
-import { line, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 type TransactionRowListSkeletonProps = {
   rowCount?: number;
@@ -17,6 +18,7 @@ export function TransactionRowListSkeleton({
   rowCount = 5,
   dividerInset = spacing.lg + 40 + spacing.md,
 }: TransactionRowListSkeletonProps) {
+  const styles = useStyles();
   return (
     <View>
       {Array.from({ length: rowCount }, (_, i) => (
@@ -38,7 +40,7 @@ export function TransactionRowListSkeleton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -64,6 +66,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
-});
+}));

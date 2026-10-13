@@ -1,7 +1,7 @@
 import { useIsFocused } from "@react-navigation/native";
 import { format } from "date-fns";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,10 +9,11 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { bento, hero, radius } from "@/constants";
+import { radius } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { useChartRevealOnce } from "@/features/analytics/hooks/useChartRevealOnce";
 import { buildClusteredCashflowScale } from "@/features/analytics/utils/cashflowClusterScale";
+import { createThemedStyles } from "@/theme";
 
 const CHART_LABEL_ROW_HEIGHT = 16;
 const BAR_DURATION = 600;
@@ -29,9 +30,6 @@ export type VictorySparkBarDay = {
 export type VictorySparkBarChartProps = {
   /** Oldest → newest; length 7 */
   days: VictorySparkBarDay[];
-  barColor?: string;
-  labelColor?: string;
-  activeLabelColor?: string;
   /** Bar plot area height (labels add {@link CHART_LABEL_ROW_HEIGHT}px). */
   height?: number;
   revealIdentity: string;
@@ -41,7 +39,6 @@ export type VictorySparkBarChartProps = {
 const SingleBar = memo(function SingleBar({
   targetHeight,
   isActive,
-  color,
   index,
   hasPlayed,
   revealGeneration,
@@ -49,12 +46,12 @@ const SingleBar = memo(function SingleBar({
 }: {
   targetHeight: number;
   isActive: boolean;
-  color: string;
   index: number;
   hasPlayed: boolean;
   revealGeneration: number;
   revealEnabled: boolean;
 }) {
+  const styles = useStyles();
   const h = useSharedValue(MIN_BAR_PX);
   const op = useSharedValue(0);
 
@@ -99,7 +96,6 @@ const SingleBar = memo(function SingleBar({
     <Animated.View
       style={[
         styles.bar,
-        { backgroundColor: color, borderRadius: radius.xs },
         style,
       ]}
     />
@@ -109,13 +105,11 @@ const SingleBar = memo(function SingleBar({
 /** Mini 7-day debit bar chart — active bar full opacity, inactive bars dimmed. */
 export const VictorySparkBarChart = memo(function VictorySparkBarChart({
   days,
-  barColor = hero.sparkBar,
-  labelColor = bento.onSurface.muted,
-  activeLabelColor = bento.onSurface.primary,
   height = 40,
   revealIdentity,
   revealEnabled = true,
 }: VictorySparkBarChartProps) {
+  const styles = useStyles();
   const isFocused = useIsFocused();
   const [revealGeneration, setRevealGeneration] = useState(0);
 
@@ -168,7 +162,6 @@ export const VictorySparkBarChart = memo(function VictorySparkBarChart({
               <SingleBar
                 targetHeight={barH}
                 isActive={todayIndex >= 0 && index === todayIndex}
-                color={barColor}
                 index={index}
                 hasPlayed={hasPlayed}
                 revealGeneration={revealGeneration}
@@ -187,7 +180,6 @@ export const VictorySparkBarChart = memo(function VictorySparkBarChart({
               key={`${day.date}-label`}
               style={[
                 styles.dayLabel,
-                { color: isToday ? activeLabelColor : labelColor },
                 isToday ? styles.dayLabelActive : styles.dayLabelInactive,
               ]}
             >
@@ -200,7 +192,7 @@ export const VictorySparkBarChart = memo(function VictorySparkBarChart({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     width: "100%",
     justifyContent: "flex-end",
@@ -218,6 +210,8 @@ const styles = StyleSheet.create({
   },
   bar: {
     width: "100%",
+    borderRadius: radius.xs,
+    backgroundColor: colors.inkSoft,
   },
   labelsRow: {
     flexDirection: "row",
@@ -232,10 +226,12 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   dayLabelInactive: {
+    color: colors.inkFaint,
     opacity: 0.55,
   },
   dayLabelActive: {
+    color: colors.ink,
     opacity: 1,
     fontFamily: fontFamilies.semiBold,
   },
-});
+}));

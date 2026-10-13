@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { danger, ink, inkFaint, line, success } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type MonthStatRowProps = {
   incomeDisplay: string;
@@ -26,9 +26,11 @@ export const MonthStatRow = memo(function MonthStatRow({
   netDisplay,
   netValue,
 }: MonthStatRowProps) {
-  const incomeColor = isZero(incomeValue) ? ink : success;
-  const spentColor = isZero(spentValue) ? ink : danger;
-  const netColor = isZero(netValue) ? ink : netValue > 0 ? success : danger;
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const incomeColor = isZero(incomeValue) ? colors.ink : colors.success;
+  const spentColor = isZero(spentValue) ? colors.ink : colors.danger;
+  const netColor = isZero(netValue) ? colors.ink : netValue > 0 ? colors.success : colors.danger;
 
   return (
     <View style={styles.row}>
@@ -54,7 +56,7 @@ export const MonthStatRow = memo(function MonthStatRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -68,7 +70,7 @@ const styles = StyleSheet.create({
   divider: {
     width: StyleSheet.hairlineWidth,
     height: 32,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.sm,
   },
   label: {
@@ -77,7 +79,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   amount: {
     fontFamily: fontFamilies.semiBold,
@@ -85,4 +87,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontVariant: ["tabular-nums"],
   },
-});
+}));

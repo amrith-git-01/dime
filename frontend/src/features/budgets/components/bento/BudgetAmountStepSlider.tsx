@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutChangeEvent,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -15,15 +14,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-import {
-  accent,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { BUDGET_SLIDER_SPRING } from "./budgetEditorBentoTokens";
@@ -32,6 +23,7 @@ import {
   getBudgetCheckpointLabels,
   sliderThumbStepIndex,
 } from "./budgetEditorPresets";
+import { createThemedStyles } from "@/theme";
 
 const THUMB_SIZE = 26;
 const TRACK_HEIGHT = 5;
@@ -101,6 +93,7 @@ export const BudgetAmountStepSlider = memo(function BudgetAmountStepSlider({
   stepIndex,
   onStepChange,
 }: BudgetAmountStepSliderProps) {
+  const styles = useStyles();
   const labels = useMemo(() => getBudgetCheckpointLabels(presets), [presets]);
   const [layoutReady, setLayoutReady] = useState(false);
   const skipStepEffectRef = useRef(false);
@@ -281,7 +274,7 @@ export const BudgetAmountStepSlider = memo(function BudgetAmountStepSlider({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   wrap: {
     gap: spacing.sm,
   },
@@ -289,7 +282,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -311,7 +304,7 @@ const styles = StyleSheet.create({
   trackBg: {
     height: TRACK_HEIGHT,
     borderRadius: radius.full,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     overflow: "hidden",
   },
   trackFill: {
@@ -319,7 +312,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     borderRadius: radius.full,
   },
   thumb: {
@@ -333,14 +326,10 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: accent,
-    shadowColor: inkSoft,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: colors.accent,
+    ...shadows.pill,
   },
   checkpointRow: {
     flexDirection: "row",
@@ -356,23 +345,23 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: line,
+    borderColor: colors.line,
   },
   tickActive: {
-    borderColor: accent,
-    backgroundColor: accent,
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
   },
   label: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 14,
-    color: inkFaint,
+    color: colors.inkFaint,
     textAlign: "center",
   },
   labelActive: {
-    color: accent,
+    color: colors.accentText,
     fontFamily: fontFamilies.semiBold,
   },
-});
+}));

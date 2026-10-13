@@ -10,10 +10,8 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { line, surface } from "@/constants/colors";
 import { springs } from "@/constants/motion";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { useFabIdleClose } from "@/hooks/useFabIdleClose";
 
@@ -21,6 +19,7 @@ import { DimeTabBarFab } from "./DimeTabBarFab";
 import { DimeTabBarFabActions } from "./DimeTabBarFabActions";
 import { DimeTabBarRouteItem } from "./DimeTabBarRouteItem";
 import { ACTIVE_BUBBLE_SIZE, type FabCaptureOption } from "./dimeTabBarConfig";
+import { createThemedStyles } from "@/theme";
 
 // ─── Indicator geometry ────────────────────────────────────────────────────
 // 5 equal slots: [tab0] [tab1] [FAB] [tab2] [tab3]
@@ -56,6 +55,7 @@ export function DimeTabBar({
   voiceOption?: FabCaptureOption;
   onBlockedOptionPress?: (message: string) => void;
 }) {
+  const styles = useStyles();
   const bottomPad = Math.max(insets.bottom, spacing.xs);
   const tabBarTotalHeight = spacing.tabBarHeight + bottomPad;
   const onTabBarHeightChange = useContext(BottomTabBarHeightCallbackContext);
@@ -155,12 +155,12 @@ export function DimeTabBar({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   bar: {
     width: "100%",
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: line,
+    borderTopColor: colors.line,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     overflow: "visible",
@@ -183,10 +183,10 @@ const styles = StyleSheet.create({
     width: INDICATOR_SIZE,
     height: INDICATOR_SIZE,
     borderRadius: INDICATOR_SIZE / 2,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: line,
+    borderColor: colors.line,
     ...shadows.tabIndicator,
     zIndex: 0,
   },
-});
+}));

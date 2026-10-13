@@ -1,13 +1,14 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { TextField } from "@/components/ui";
-import { fontFamilies, formStyles, inkSoft } from "@/constants";
+import { fontFamilies, useFormStyles } from "@/constants";
 
 import type { FeedbackType } from "../types";
 import { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
 import { SettingsEditorFooter } from "./SettingsEditorFooter";
 import { SettingsFormCard } from "./SettingsFormCard";
+import { createThemedStyles } from "@/theme";
 
 const MAX_MESSAGE_LENGTH = 1000;
 
@@ -32,6 +33,8 @@ export const SettingsFeedbackEditor = memo(function SettingsFeedbackEditor({
   sendDisabled,
   sendLoading = false,
 }: SettingsFeedbackEditorProps) {
+  const styles = useStyles();
+  const formStyles = useFormStyles();
   const charCount = `${message.length}/${MAX_MESSAGE_LENGTH}`;
 
   return (
@@ -69,11 +72,11 @@ export const SettingsFeedbackEditor = memo(function SettingsFeedbackEditor({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   charCount: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

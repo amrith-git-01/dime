@@ -1,8 +1,7 @@
 import { useIsFocused } from "@react-navigation/native";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
-import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { INSIGHTS_CHART_BAR_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import { COMPARE_CASHFLOW_PLOT_HEIGHT } from "@/features/analytics/constants/compare";
@@ -22,6 +21,7 @@ import {
   formatCashflowXLabel,
 } from "../../utils/buildCashflowWindow";
 import { CashflowVictoryChart } from "../CashflowVictoryChart";
+import { createThemedStyles } from "@/theme";
 
 const X_LABEL_ROW_HEIGHT = 18;
 const Y_AXIS_GUTTER = 34;
@@ -37,6 +37,7 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
   year,
   monthIndex0,
 }: CompareCashflowColumnProps) {
+  const styles = useStyles();
   const isFocused = useIsFocused();
 
   const { monthDays, lastDay, todayDay } = useMemo(
@@ -172,7 +173,7 @@ export const CompareCashflowColumn = memo(function CompareCashflowColumn({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
     width: "100%",
   },
@@ -195,7 +196,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 7,
     lineHeight: 9,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textAlign: "right",
   },
   chartScroll: {
@@ -220,11 +221,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 7,
     lineHeight: 10,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textAlign: "center",
   },
   xLabelToday: {
     fontFamily: fontFamilies.semiBold,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
-});
+}));

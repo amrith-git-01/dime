@@ -1,7 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { colors, overlays, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 
 import type { SelectDropdownOption } from "./SelectDropdown";
 import { SelectDropdownOptionRow } from "./SelectDropdownOptionRow";
@@ -11,6 +11,7 @@ import {
   type SelectDropdownSize,
   type SelectDropdownVariant,
 } from "./selectDropdownLayout";
+import { createThemedStyles } from "@/theme";
 
 type SelectDropdownMenuProps<T extends string> = {
   open: boolean;
@@ -39,6 +40,7 @@ export function SelectDropdownMenu<T extends string>({
   onSelect,
   onClose,
 }: SelectDropdownMenuProps<T>) {
+  const styles = useStyles();
   const showScrollIndicator = maxVisibleOptions
     ? options.length > maxVisibleOptions
     : options.length > 5;
@@ -139,27 +141,23 @@ export function SelectDropdownMenu<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   modalRoot: {
     flex: 1,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: overlays.backdrop,
+    backgroundColor: colors.overlays.backdrop,
     zIndex: 0,
   },
   panel: {
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     paddingVertical: spacing.xs,
     overflow: "hidden",
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 24,
+    ...shadows.modal,
   },
   panelOverlay: {
     position: "absolute",
@@ -183,4 +181,4 @@ const styles = StyleSheet.create({
   panelScrollContent: {
     flexGrow: 0,
   },
-});
+}));

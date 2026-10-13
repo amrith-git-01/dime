@@ -1,11 +1,12 @@
 import { format, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { SkeletonStrip } from "@/components/ui";
-import { bento, colors, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type TransactionsDayBarProps = {
   dayKey: string;
@@ -39,8 +40,10 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
   isLoading = false,
   isCountLoading = false,
 }: TransactionsDayBarProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
-    <View style={[styles.bar, shadowStyle]}>
+    <View style={[styles.bar, styles.barShadow]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Previous day"
@@ -56,7 +59,7 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
       >
         <ChevronLeft
           size={22}
-          color={canGoPrev ? colors.primary : bento.onPastel.muted}
+          color={canGoPrev ? colors.accentText : colors.inkFaint}
           strokeWidth={2}
         />
       </Pressable>
@@ -101,7 +104,7 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
       >
         <ChevronRight
           size={22}
-          color={canGoNext ? colors.primary : bento.onPastel.muted}
+          color={canGoNext ? colors.accentText : colors.inkFaint}
           strokeWidth={2}
         />
       </Pressable>
@@ -109,26 +112,17 @@ export const TransactionsDayBar = memo(function TransactionsDayBar({
   );
 });
 
-const shadowStyle = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: bento.surface.lavender,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-  },
-});
-
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  barShadow: shadows.tinted,
   bar: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderRadius: radius.lg,
-    backgroundColor: bento.sectionSurface,
+    backgroundColor: colors.bento.sectionSurface,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     gap: spacing.xs,
   },
   chevronHit: {
@@ -152,7 +146,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: bento.onPastel.primary,
+    color: colors.ink,
     textAlign: "center",
   },
   subtitle: {
@@ -161,7 +155,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 0.4,
-    color: colors.primary,
+    color: colors.accentText,
     textAlign: "center",
   },
   titleSkeleton: {
@@ -171,4 +165,4 @@ const styles = StyleSheet.create({
     width: "45%",
     marginTop: 4,
   },
-});
+}));

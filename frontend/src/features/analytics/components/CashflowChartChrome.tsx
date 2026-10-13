@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { accent, colors, inkSoft, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { formatInrChartAxis } from "@/utils/currency";
 
@@ -10,6 +10,7 @@ import {
   formatCashflowXLabel,
   type DailyCashflowDay,
 } from "../utils/buildCashflowWindow";
+import { createThemedStyles } from "@/theme";
 
 const X_LABEL_ROW_HEIGHT = 22;
 const Y_AXIS_GUTTER = 46;
@@ -23,6 +24,7 @@ export const CashflowYAxis = memo(function CashflowYAxis({
   tickValues,
   plotHeight,
 }: CashflowYAxisProps) {
+  const styles = useStyles();
   return (
     <View
       style={[
@@ -50,6 +52,7 @@ export const CashflowXLabels = memo(function CashflowXLabels({
   monthDays,
   todayDay,
 }: CashflowXLabelsProps) {
+  const styles = useStyles();
   return (
     <View style={[styles.xLabelsRow, { height: X_LABEL_ROW_HEIGHT }]}>
       <View style={[styles.xLabelCell, { width: CASHFLOW_DAY_SLOT_WIDTH }]} />
@@ -75,6 +78,7 @@ export const CashflowXLabels = memo(function CashflowXLabels({
 });
 
 export const CashflowLegend = memo(function CashflowLegend() {
+  const styles = useStyles();
   return (
     <View style={styles.legendRow}>
       <View style={styles.legendItem}>
@@ -89,7 +93,7 @@ export const CashflowLegend = memo(function CashflowLegend() {
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   yAxisColumn: {
     width: Y_AXIS_GUTTER,
     justifyContent: "space-between",
@@ -105,7 +109,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 8,
     lineHeight: 10,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "right",
   },
   xLabelsRow: {
@@ -121,14 +125,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 9,
     lineHeight: 12,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   xLabelToday: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 8,
     lineHeight: 11,
-    color: accent,
+    color: colors.accentText,
   },
   legendRow: {
     flexDirection: "row",
@@ -145,7 +149,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 2,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
   },
   legendDot: {
     width: 8,
@@ -157,6 +161,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 10,
     lineHeight: 13,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

@@ -9,15 +9,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, overlays, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 import { useVoiceCaptureSession } from "@/features/transactions/hooks/useVoiceCaptureSession";
 import { VoiceMiniWaveform } from "./VoiceMiniWaveform";
+import { createThemedStyles, useTheme } from "@/theme";
 
 /** Bottom “voice bar” host: Stitch-aligned tokens (Dime project), logic in `useVoiceCaptureSession`. */
 export function VoiceCaptureBar() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const visible = useVoiceCaptureUiStore((s) => s.visible);
   const { phase, statusLine, stopAndSubmit, requestDismiss, stopEnabled } =
     useVoiceCaptureSession();
@@ -52,14 +55,14 @@ export function VoiceCaptureBar() {
               onPress={requestDismiss}
               style={styles.iconButton}
             >
-              <X size={22} color={colors.textSecondary} strokeWidth={2} />
+              <X size={22} color={colors.inkSoft} strokeWidth={2} />
             </Pressable>
 
             <View style={styles.center}>
               {phase === "recording" ? (
                 <VoiceMiniWaveform />
               ) : (
-                <ActivityIndicator color={colors.headerGradientStart} />
+                <ActivityIndicator color={colors.accentText} />
               )}
               <Text style={styles.statusText}>{statusLine}</Text>
             </View>
@@ -86,14 +89,14 @@ export function VoiceCaptureBar() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   modalRoot: {
     flex: 1,
     justifyContent: "flex-end",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: overlays.scrimLight,
+    backgroundColor: colors.overlays.scrimLight,
   },
   barWrap: {
     paddingHorizontal: spacing.lg,
@@ -102,17 +105,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    shadowColor: colors.shadowBrand,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
+    ...shadows.cardElevated,
   },
   iconButton: {
     width: 44,
@@ -130,14 +129,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   stopFab: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -151,6 +150,6 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 3,
-    backgroundColor: colors.textOnPrimary,
+    backgroundColor: colors.onAccent,
   },
-});
+}));

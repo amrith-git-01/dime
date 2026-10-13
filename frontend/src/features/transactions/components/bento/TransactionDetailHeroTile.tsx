@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import {
@@ -11,6 +11,7 @@ import {
 import type { TransactionRow } from "@/features/transactions/types";
 
 import { TRANSACTION_DETAIL_HERO_MIN_HEIGHT } from "./transactionDetailBentoTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type TransactionDetailHeroTileProps = {
   transaction: TransactionRow;
@@ -20,11 +21,13 @@ export const TransactionDetailHeroTile = memo(
   function TransactionDetailHeroTile({
     transaction,
   }: TransactionDetailHeroTileProps) {
-    const ui = mapTransactionRowToUi(transaction);
+    const styles = useStyles();
+    const { scheme } = useTheme();
+    const ui = mapTransactionRowToUi(transaction, scheme);
     const isCredit = ui.amount > 0;
 
     return (
-      <View style={[styles.tile, heroShadowStyle]}>
+      <View style={[styles.tile, styles.heroShadow]}>
         <View
           style={[
             styles.iconWrap,
@@ -65,17 +68,8 @@ export const TransactionDetailHeroTile = memo(
   },
 );
 
-const heroShadowStyle = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: colors.shadowBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-  },
-});
-
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  heroShadow: shadows.card,
   tile: {
     flexDirection: "row",
     alignItems: "center",
@@ -83,9 +77,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     minHeight: TRANSACTION_DETAIL_HERO_MIN_HEIGHT,
     gap: spacing.md,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
   },
   iconWrap: {
     width: 46,
@@ -105,13 +99,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 17,
     lineHeight: 22,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   amount: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -125,4 +119,4 @@ const styles = StyleSheet.create({
   amountDebit: {
     color: colors.danger,
   },
-});
+}));

@@ -1,8 +1,9 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
-import { accent, accentTint, fontFamilies, ink, inkSoft, line, radius, spacing, surface } from "@/constants";
+import { fontFamilies, radius, spacing } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { createThemedStyles } from "@/theme";
 
 export type CategoryPillProps = {
   label: string;
@@ -23,6 +24,7 @@ export const CategoryPill = memo(function CategoryPill({
   selected,
   onPress,
 }: CategoryPillProps) {
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -45,14 +47,14 @@ export const CategoryPill = memo(function CategoryPill({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   pill: {
     maxWidth: "100%",
     minHeight: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: line,
-    backgroundColor: surface,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     flexDirection: "row",
@@ -61,9 +63,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pillSelected: {
-    borderColor: accent,
+    borderColor: colors.accent,
     borderWidth: 1.5,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
   },
   pillPressed: {
     opacity: 0.85,
@@ -73,9 +75,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   labelOn: {
-    color: ink,
+    color: colors.ink,
   },
-});
+}));

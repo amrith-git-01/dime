@@ -1,11 +1,12 @@
 import { memo, type ReactNode } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { bento, radius } from "@/constants";
+import { radius } from "@/constants";
 
 import { BENTO_GAP, BENTO_SECTION_CARD_PADDING } from "@/components/bento";
 
 import { CardSegmentShadowFrame } from "./CardSegmentShadowFrame";
+import { createThemedStyles } from "@/theme";
 
 type BentoSectionCardProps = {
   children: ReactNode;
@@ -19,16 +20,6 @@ export type BentoSectionCardSegmentProps = {
   showGapAfter?: boolean;
 };
 
-const shadowStyle = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: bento.surface.lavender,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-  },
-});
-
 /**
  * Soft pastel container wrapping a Home section body (category list, recent list).
  * Matches reference bento-box grouping on light lavender tint.
@@ -36,7 +27,8 @@ const shadowStyle = Platform.select({
 export const BentoSectionCard = memo(function BentoSectionCard({
   children,
 }: BentoSectionCardProps) {
-  return <View style={[styles.card, shadowStyle]}>{children}</View>;
+  const styles = useStyles();
+  return <View style={[styles.card, styles.shadow]}>{children}</View>;
 });
 
 /**
@@ -50,12 +42,13 @@ export const BentoSectionCardSegment = memo(function BentoSectionCardSegment({
   isLast,
   showGapAfter = false,
 }: BentoSectionCardSegmentProps) {
+  const styles = useStyles();
   return (
     <CardSegmentShadowFrame isFirst={isFirst} isLast={isLast}>
       <View
         style={[
           styles.segmentBase,
-          shadowStyle,
+          styles.shadow,
           isFirst && styles.segmentFirst,
           isLast && styles.segmentLast,
         ]}
@@ -67,15 +60,16 @@ export const BentoSectionCardSegment = memo(function BentoSectionCardSegment({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  shadow: shadows.tinted,
   card: {
-    backgroundColor: bento.sectionSurface,
+    backgroundColor: colors.bento.sectionSurface,
     borderRadius: radius.lg,
     padding: BENTO_SECTION_CARD_PADDING,
     overflow: "visible",
   },
   segmentBase: {
-    backgroundColor: bento.sectionSurface,
+    backgroundColor: colors.bento.sectionSurface,
     paddingHorizontal: BENTO_SECTION_CARD_PADDING,
   },
   segmentFirst: {
@@ -91,4 +85,4 @@ const styles = StyleSheet.create({
   segmentGap: {
     height: BENTO_GAP,
   },
-});
+}));

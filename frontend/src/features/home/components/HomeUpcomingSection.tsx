@@ -2,12 +2,11 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { ScreenSectionHeader } from "@/components/shared";
-import { line, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { RecurringListRow } from "@/features/recurring/components";
 import type { RecurringItem } from "@/features/recurring/types";
+import { createThemedStyles } from "@/theme";
 
 type HomeUpcomingSectionProps = {
   items: RecurringItem[];
@@ -22,6 +21,7 @@ export const HomeUpcomingSection = memo(function HomeUpcomingSection({
   today,
   onItemPress,
 }: HomeUpcomingSectionProps) {
+  const styles = useStyles();
   if (items.length === 0) {
     return null;
   }
@@ -41,16 +41,16 @@ export const HomeUpcomingSection = memo(function HomeUpcomingSection({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "hidden",
     ...shadows.card,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
-});
+}));

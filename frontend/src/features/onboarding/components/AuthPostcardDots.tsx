@@ -8,7 +8,8 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { accent, accentTint, radius, spacing, springs } from "@/constants";
+import { radius, spacing, springs } from "@/constants";
+import { useTheme } from "@/theme";
 
 const INACTIVE_DOT_WIDTH = 8;
 const ACTIVE_DOT_WIDTH = 20;
@@ -28,6 +29,7 @@ const AnimatedDot = memo(function AnimatedDot({
   index,
   activeIndex,
 }: AnimatedDotProps) {
+  const { colors } = useTheme();
   const isActive = index === activeIndex;
   const progress = useSharedValue(isActive ? 1 : 0);
 
@@ -44,7 +46,7 @@ const AnimatedDot = memo(function AnimatedDot({
     backgroundColor: interpolateColor(
       progress.value,
       [0, 1],
-      [accentTint, accent],
+      [colors.accentTint, colors.accentText],
     ),
   }));
 

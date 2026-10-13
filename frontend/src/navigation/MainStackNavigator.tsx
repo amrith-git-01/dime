@@ -5,7 +5,6 @@ import {
   stackScrollGrowShellConfig,
   stackVirtualizedListShellConfig,
 } from "@/components/layout/stackScrollGrowShellConfig";
-import { colors } from "@/constants";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import RecurringEditorScreenBase from "@/screens/recurring/RecurringEditorScreen";
@@ -13,6 +12,7 @@ import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCat
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
+import SettingsAppearanceScreenBase from "@/screens/settings/SettingsAppearanceScreen";
 import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
 import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
@@ -32,6 +32,7 @@ import MainTabNavigator from "./MainTabNavigator";
 import { withStackScreen } from "./stackScreenHosts";
 import { stackScreenOptions } from "./stackScreenOptions";
 import type { MainStackParamList } from "./types";
+import { useTheme } from "@/theme";
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -43,6 +44,7 @@ const SettingsAccountScreen = withStackScreen(SettingsAccountScreenBase);
 const SettingsEmailScreen = withStackScreen(SettingsEmailScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
 const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
+const SettingsAppearanceScreen = withStackScreen(SettingsAppearanceScreenBase);
 const SettingsGlossaryScreen = withStackScreen(
   SettingsGlossaryScreenBase,
   settingsStackShellConfig,
@@ -79,11 +81,12 @@ const EditMonthlyBudgetScreen = withStackScreen(EditMonthlyBudgetScreenBase);
 const RecurringEditorScreen = withStackScreen(RecurringEditorScreenBase);
 
 export default function MainStackNavigator() {
+  const { colors } = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.pageBackground },
+        contentStyle: { backgroundColor: colors.paper },
       }}
     >
       <Stack.Screen name="MainTabs" component={MainTabNavigator} />
@@ -111,6 +114,11 @@ export default function MainStackNavigator() {
         name="SettingsHaptic"
         component={SettingsHapticScreen}
         options={{ ...stackScreenOptions, title: "Haptic feedback" }}
+      />
+      <Stack.Screen
+        name="SettingsAppearance"
+        component={SettingsAppearanceScreen}
+        options={{ ...stackScreenOptions, title: "Appearance" }}
       />
       <Stack.Screen
         name="SettingsGlossary"

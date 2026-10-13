@@ -8,10 +8,8 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { ink, line, surface } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { springs } from "@/constants/motion";
-import { shadows } from "@/constants/shadows";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
@@ -21,9 +19,11 @@ import {
   OPTION_BUBBLE_SIZE,
   type FabCaptureOption,
 } from "./dimeTabBarConfig";
+import { createThemedStyles, useTheme } from "@/theme";
 
 /** Remaining-count badge on a limited option; the full caption lives in the a11y label. */
 function CaptureBadge({ option }: { option?: FabCaptureOption }) {
+  const styles = useStyles();
   if (!option?.badge) {
     return null;
   }
@@ -57,6 +57,8 @@ export function DimeTabBarFabActions({
   onBlockedOptionPress,
   onPressIn,
 }: DimeTabBarFabActionsProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
   const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
@@ -111,7 +113,7 @@ export function DimeTabBarFabActions({
           }}
           style={styles.radialActionHit}
         >
-          <Edit3 size={20} color={surface} strokeWidth={2} />
+          <Edit3 size={20} color={colors.onInk} strokeWidth={2} />
         </Pressable>
       </Animated.View>
 
@@ -141,7 +143,7 @@ export function DimeTabBarFabActions({
             receiptOption?.blocked && styles.radialActionBlocked,
           ]}
         >
-          <Camera size={20} color={surface} strokeWidth={2} />
+          <Camera size={20} color={colors.onInk} strokeWidth={2} />
         </Pressable>
         <CaptureBadge option={receiptOption} />
       </Animated.View>
@@ -172,7 +174,7 @@ export function DimeTabBarFabActions({
             voiceOption?.blocked && styles.radialActionBlocked,
           ]}
         >
-          <Mic size={20} color={surface} strokeWidth={2} />
+          <Mic size={20} color={colors.onInk} strokeWidth={2} />
         </Pressable>
         <CaptureBadge option={voiceOption} />
       </Animated.View>
@@ -180,7 +182,7 @@ export function DimeTabBarFabActions({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   actionsRow: {
     position: "absolute",
     bottom: ACTION_BUBBLE_SIZE - 14,
@@ -197,7 +199,7 @@ const styles = StyleSheet.create({
     width: OPTION_BUBBLE_SIZE,
     height: OPTION_BUBBLE_SIZE,
     borderRadius: OPTION_BUBBLE_SIZE / 2,
-    backgroundColor: ink,
+    backgroundColor: colors.ink,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.fab,
@@ -213,9 +215,9 @@ const styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: line,
+    borderColor: colors.line,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -223,7 +225,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 12,
-    color: ink,
+    color: colors.ink,
   },
   radialActionHit: {
     minWidth: 44,
@@ -231,4 +233,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-});
+}));

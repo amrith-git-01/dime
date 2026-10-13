@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { netTone } from "@/components/shared";
-import { inkFaint, line, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 
@@ -12,6 +12,7 @@ import {
   ComparePairedColumns,
   ComparePairedLayout,
 } from "./ComparePairedLayout";
+import { createThemedStyles } from "@/theme";
 
 export type CompareSummarySectionProps = {
   leftLabel: string;
@@ -34,6 +35,7 @@ function SummaryColumn({
   loading: boolean;
   failed: boolean;
 }) {
+  const styles = useStyles();
   if (failed) {
     return <CompareColumnError />;
   }
@@ -93,6 +95,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
   rightFailed,
   spentDelta,
 }: CompareSummarySectionProps) {
+  const styles = useStyles();
   return (
     <ComparePairedLayout
       kicker="MONTH SUMMARY"
@@ -123,7 +126,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   columnStats: {
     gap: spacing.sm,
   },
@@ -131,7 +134,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: line,
+    borderTopColor: colors.line,
     gap: spacing.sm,
   },
   deltaRow: {
@@ -139,7 +142,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: inkFaint,
+    color: colors.inkFaint,
     textAlign: "center",
   },
-});
+}));

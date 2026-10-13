@@ -1,9 +1,10 @@
 import { RotateCcw, Sparkles, X } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { accent, ink, inkSoft, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type AgentChatHeaderProps = {
   onReset: () => void;
@@ -15,10 +16,12 @@ export const AgentChatHeader = memo(function AgentChatHeader({
   onReset,
   onClose,
 }: AgentChatHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Sparkles size={20} color={accent} strokeWidth={2} />
+        <Sparkles size={20} color={colors.accentText} strokeWidth={2} />
         <Text style={styles.title}>Dime Agent</Text>
       </View>
       <View style={styles.actions}>
@@ -32,7 +35,7 @@ export const AgentChatHeader = memo(function AgentChatHeader({
             pressed && styles.iconButtonPressed,
           ]}
         >
-          <RotateCcw size={20} color={inkSoft} strokeWidth={2} />
+          <RotateCcw size={20} color={colors.inkSoft} strokeWidth={2} />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -44,14 +47,14 @@ export const AgentChatHeader = memo(function AgentChatHeader({
             pressed && styles.iconButtonPressed,
           ]}
         >
-          <X size={22} color={inkSoft} strokeWidth={2} />
+          <X size={22} color={colors.inkSoft} strokeWidth={2} />
         </Pressable>
       </View>
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -68,7 +71,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
-    color: ink,
+    color: colors.ink,
   },
   actions: {
     flexDirection: "row",
@@ -84,4 +87,4 @@ const styles = StyleSheet.create({
   iconButtonPressed: {
     opacity: 0.7,
   },
-});
+}));

@@ -1,13 +1,15 @@
 import LottieView from "lottie-react-native";
 import { memo } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import authHero from "@/assets/lottie/auth-hero.json";
-import { spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 const MAX_HERO_SIZE = 400;
 
 export const AuthHeroLottie = memo(function AuthHeroLottie() {
+  const styles = useStyles();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const size = Math.min(
     windowWidth - spacing.lg * 2,
@@ -27,9 +29,15 @@ export const AuthHeroLottie = memo(function AuthHeroLottie() {
   );
 });
 
-const styles = StyleSheet.create({
+/**
+ * The illustration is drawn in dark ink strokes, so in dark mode it sits on a light panel
+ * (`illustrationPanel`; transparent in light).
+ */
+const useStyles = createThemedStyles(({ colors }) => ({
   clip: {
     alignSelf: "center",
     overflow: "hidden",
+    borderRadius: radius.lg,
+    backgroundColor: colors.illustrationPanel,
   },
-});
+}));

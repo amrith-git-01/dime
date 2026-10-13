@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { TextField } from "@/components/ui";
-import { fontFamilies, inkSoft, line, spacing } from "@/constants";
+import { fontFamilies, spacing } from "@/constants";
 import {
   BUDGET_CUSTOM_STEP_INDEX,
   BudgetAmountStepSlider,
@@ -18,6 +18,7 @@ import {
   warnPctStepIndex,
 } from "../utils/warnPctPresets";
 import { SettingsToggleRow } from "./SettingsToggleRow";
+import { createThemedStyles } from "@/theme";
 
 export type BudgetAlertScopeBlockProps = {
   label: string;
@@ -46,6 +47,7 @@ export const BudgetAlertScopeBlock = memo(function BudgetAlertScopeBlock({
   onAnimationBusyChange,
   showSeparator = false,
 }: BudgetAlertScopeBlockProps) {
+  const styles = useStyles();
   const stepIndex = warnPctStepIndex(warnPct);
   const [forceCustom, setForceCustom] = useState(
     () => stepIndex === WARN_PCT_CUSTOM_STEP_INDEX,
@@ -129,7 +131,7 @@ export const BudgetAlertScopeBlock = memo(function BudgetAlertScopeBlock({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   block: {
     gap: spacing.sm,
   },
@@ -145,10 +147,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
-});
+}));

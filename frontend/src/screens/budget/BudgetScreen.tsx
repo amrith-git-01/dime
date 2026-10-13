@@ -4,7 +4,7 @@ import {
   type ListRenderItem,
 } from "@shopify/flash-list";
 import { useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
@@ -13,9 +13,7 @@ import {
   EmptyState,
   emptyStateCopy,
 } from "@/components/shared";
-import { paper, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import {
   BudgetCategoriesSectionHeader,
@@ -30,6 +28,7 @@ import {
   UNCATEGORIZED_SPEND_KEY,
   useBudgetScreenModel,
 } from "./useBudgetScreenModel";
+import { createThemedStyles } from "@/theme";
 
 function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
   return (
@@ -41,6 +40,7 @@ const SKELETON_ROW_COUNT = 10;
 const NO_ROWS: CategorySpendRowData[] = [];
 
 export default function BudgetScreen() {
+  const styles = useStyles();
   const {
     addCustomCategoryDisabled,
     budgetListKey,
@@ -151,10 +151,10 @@ export default function BudgetScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   list: {
     flex: 1,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   content: {
     paddingBottom: spacing.xl * 4,
@@ -166,17 +166,17 @@ const styles = StyleSheet.create({
     marginBottom: -CARD_SEGMENT_SHADOW_TOP_BLEED,
   },
   categoryCard: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
     paddingHorizontal: spacing.lg,
     ...shadows.card,
   },
   emptyCard: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     marginHorizontal: spacing.lg,
     overflow: "hidden",
     ...shadows.card,
   },
-});
+}));

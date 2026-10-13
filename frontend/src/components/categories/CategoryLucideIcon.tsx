@@ -33,6 +33,9 @@ import {
 import type { ComponentType } from "react";
 import { memo } from "react";
 
+import { readableCategoryColor } from "@/constants/colorUtils";
+import { useTheme } from "@/theme";
+
 const DEFAULT_ICON = Package;
 
 type IconComponent = ComponentType<LucideProps>;
@@ -86,8 +89,14 @@ export const CategoryLucideIcon = memo(function CategoryLucideIcon({
   size = 20,
   strokeWidth = 1.5,
 }: CategoryLucideIconProps) {
+  const { scheme } = useTheme();
   const Icon = ICON_BY_NAME[iconName] ?? DEFAULT_ICON;
   return (
-    <Icon width={size} height={size} color={color} strokeWidth={strokeWidth} />
+    <Icon
+      width={size}
+      height={size}
+      color={readableCategoryColor(color, scheme)}
+      strokeWidth={strokeWidth}
+    />
   );
 });

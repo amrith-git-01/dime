@@ -12,6 +12,7 @@ import { COMPARE_DONUT_SIZE } from "@/features/analytics/constants/compare";
 import { COUNTERPARTY_DONUT_INNER_RADIUS_RATIO } from "@/features/analytics/constants/counterpartyDonut";
 import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
+import { useTheme } from "@/theme";
 import { buildCounterpartyDonutData } from "@/features/analytics/utils/buildCounterpartyDonutData";
 
 import {
@@ -64,9 +65,10 @@ function PayeeColumn({
   loading: boolean;
   failed: boolean;
 }) {
+  const { colors } = useTheme();
   const donutData = useMemo(
-    () => buildCounterpartyDonutData(counterpartySpend),
-    [counterpartySpend],
+    () => buildCounterpartyDonutData(counterpartySpend, colors.donut),
+    [counterpartySpend, colors.donut],
   );
   const legendSlices = useMemo(
     () => donutData.filter((slice) => slice.value > 0),

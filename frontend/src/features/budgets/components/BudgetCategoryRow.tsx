@@ -9,7 +9,8 @@ import {
   CATEGORY_SPEND_ROW_DIVIDER_INSET,
   SurfaceCardSegment,
 } from "@/components/shared";
-import { line, spacing } from "@/constants";
+import { spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 export type BudgetCategoryRowProps = {
   item: CategorySpendRowData;
@@ -34,6 +35,7 @@ export const BudgetCategoryRow = memo(function BudgetCategoryRow({
   onOpen,
   onEdit,
 }: BudgetCategoryRowProps) {
+  const styles = useStyles();
   const handlePress = useCallback(() => onOpen(item), [onOpen, item]);
   const handleEditPress = useCallback(() => onEdit(item.id), [onEdit, item.id]);
 
@@ -56,10 +58,10 @@ export const BudgetCategoryRow = memo(function BudgetCategoryRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   rowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginLeft: CATEGORY_SPEND_ROW_DIVIDER_INSET,
   },
-});
+}));

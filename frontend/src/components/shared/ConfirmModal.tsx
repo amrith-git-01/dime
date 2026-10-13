@@ -5,27 +5,15 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { ButtonBusyContent } from "@/components/ui";
-import {
-  accent,
-  danger,
-  ink,
-  inkSoft,
-  line,
-  overlays,
-  radius,
-  shadows,
-  spacing,
-  surface,
-  typography,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type ConfirmModalProps = {
   visible: boolean;
@@ -65,13 +53,17 @@ function ModalActionButton({
   disabled = false,
   onPress,
 }: ModalActionButtonProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const isSecondary = variant === "secondary";
   const isDanger = variant === "danger";
   const isDisabled = disabled || loading;
 
-  const backgroundColor = isSecondary ? surface : isDanger ? danger : accent;
-
-  const labelColor = isSecondary ? ink : surface;
+  const labelColor = isSecondary
+    ? colors.ink
+    : isDanger
+      ? colors.onDanger
+      : colors.onAccent;
 
   return (
     <Pressable
@@ -83,7 +75,8 @@ function ModalActionButton({
       }}
       style={({ pressed }) => [
         styles.actionButton,
-        { flex, backgroundColor },
+        { flex },
+        styles[variant],
         isSecondary && styles.actionButtonSecondary,
         isDisabled && styles.actionButtonDisabled,
         pressed && !isDisabled && styles.actionButtonPressed,
@@ -116,6 +109,8 @@ export const ConfirmModal = memo(function ConfirmModal({
   errorMessage = null,
   children,
 }: ConfirmModalProps) {
+  const { colors, shadows } = useTheme();
+  const styles = useStyles();
   const confirmVariant =
     confirmTone === "danger" ? ("danger" as const) : ("primary" as const);
 
@@ -156,7 +151,7 @@ export const ConfirmModal = memo(function ConfirmModal({
                 accessibilityLabel="Close"
                 hitSlop={8}
               >
-                <X color={inkSoft} size={20} strokeWidth={1.5} />
+                <X color={colors.inkSoft} size={20} strokeWidth={1.5} />
               </Pressable>
             </View>
 
@@ -170,7 +165,7 @@ export const ConfirmModal = memo(function ConfirmModal({
               >
                 {loading ? (
                   <View style={styles.loadingRow}>
-                    <ActivityIndicator size="small" color={accent} />
+                    <ActivityIndicator size="small" color={colors.accentText} />
                   </View>
                 ) : errorMessage ? (
                   <Text style={styles.errorText}>{errorMessage}</Text>
@@ -209,10 +204,10 @@ export const ConfirmModal = memo(function ConfirmModal({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: overlays.scrim,
+    backgroundColor: colors.overlays.scrim,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing.xl,
@@ -222,7 +217,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
@@ -261,14 +256,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 22,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "left",
   },
   errorText: {
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 22,
-    color: danger,
+    color: colors.danger,
     textAlign: "left",
   },
   loadingRow: {
@@ -290,9 +285,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 48,
   },
+  secondary: {
+    backgroundColor: colors.surface,
+  },
+  danger: {
+    backgroundColor: colors.danger,
+  },
+  primary: {
+    backgroundColor: colors.accent,
+  },
   actionButtonSecondary: {
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
   },
   actionButtonDisabled: {
     opacity: 0.45,
@@ -306,4 +310,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-});
+}));

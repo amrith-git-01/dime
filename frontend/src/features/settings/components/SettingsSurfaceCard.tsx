@@ -1,9 +1,10 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { radius, shadows, surface } from "@/constants";
+import { radius } from "@/constants";
 
 import { SETTINGS_CARD_PADDING } from "../constants/settingsTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type SettingsSurfaceCardProps = {
   children: ReactNode;
@@ -18,6 +19,8 @@ export const SettingsSurfaceCard = memo(function SettingsSurfaceCard({
   elevated = false,
   padded = true,
 }: SettingsSurfaceCardProps) {
+  const { shadows } = useTheme();
+  const styles = useStyles();
   return (
     <View
       style={[
@@ -31,13 +34,13 @@ export const SettingsSurfaceCard = memo(function SettingsSurfaceCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "visible",
   },
   padded: {
     padding: SETTINGS_CARD_PADDING,
   },
-});
+}));

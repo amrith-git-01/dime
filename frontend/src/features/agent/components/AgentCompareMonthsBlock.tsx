@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { colors, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { ClockwiseAnimatedPie } from "@/features/analytics/components/ClockwiseAnimatedPie";
 import { PayeeDonutEmptyChart } from "@/features/analytics/components/PayeeDonutChart";
@@ -17,11 +17,9 @@ import type {
   CompareMonthPayee,
 } from "../types";
 import { buildAgentDonutData } from "../utils/buildAgentDonutData";
+import { createThemedStyles, useTheme } from "@/theme";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const COLOR_A = colors.headerGradientStart;
-const COLOR_B = colors.textSecondary;
 
 /** Fixed card width — wide enough for the chart, narrow enough to peek at next. */
 const CASHFLOW_CARD_WIDTH = 228;
@@ -65,6 +63,8 @@ function SummaryRow({
   bVal: number;
   isNet?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const fmt = (n: number, net?: boolean) => {
     if (!Number.isFinite(n)) return "—";
     const abs = formatInrCompact(Math.abs(n));
@@ -75,12 +75,12 @@ function SummaryRow({
     ? aVal >= 0
       ? colors.success
       : colors.danger
-    : colors.textPrimary;
+    : colors.ink;
   const colorB = isNet
     ? bVal >= 0
       ? colors.success
       : colors.danger
-    : colors.textSecondary;
+    : colors.inkSoft;
 
   return (
     <View style={styles.summaryRow}>
@@ -98,6 +98,7 @@ function SummaryRow({
 // ─── Section divider ──────────────────────────────────────────────────────────
 
 function SectionDivider({ label }: { label: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.dividerRow}>
       <View style={styles.dividerLine} />
@@ -120,6 +121,7 @@ function CardShell({
   color: string;
   children: React.ReactNode;
 }) {
+  const styles = useStyles();
   return (
     <View style={[styles.card, { width }]}>
       <View style={styles.cardHeader}>
@@ -173,12 +175,15 @@ const DonutCard = memo(function DonutCard({
   color: string;
   revealKey: string;
 }) {
+  const styles = useStyles();
+  const { colors: themeColors } = useTheme();
   const donutData = useMemo(
     () =>
       buildAgentDonutData(
         payees.map((p) => ({ name: p.name, value: p.amount })),
+        themeColors.donut,
       ),
-    [payees],
+    [payees, themeColors.donut],
   );
   const hasData = donutData.length > 0;
   const pieProgress = useAgentDonutReveal(`${revealKey}-donut-${periodLabel}`);
@@ -218,6 +223,7 @@ const DonutCard = memo(function DonutCard({
 // ─── Horizontal chart row ─────────────────────────────────────────────────────
 
 function ChartScrollRow({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return (
     <ScrollView
       horizontal
@@ -241,6 +247,10 @@ export const AgentCompareMonthsBlock = memo(function AgentCompareMonthsBlock({
   period_b,
   revealKey,
 }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const COLOR_A = colors.accentText;
+  const COLOR_B = colors.inkSoft;
   const hasPayees = period_a.payees.length > 0 || period_b.payees.length > 0;
 
   return (
@@ -331,7 +341,7 @@ export const AgentCompareMonthsBlock = memo(function AgentCompareMonthsBlock({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: spacing.sm,
   },
@@ -356,18 +366,18 @@ const styles = StyleSheet.create({
   vsText: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     marginHorizontal: spacing.xs,
   },
 
   // Summary
   summarySection: {
     gap: 6,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderRadius: radius.sm,
     padding: spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
   },
   summaryColHeaders: {
     flexDirection: "row",
@@ -394,17 +404,17 @@ const styles = StyleSheet.create({
     width: 56,
     fontFamily: fontFamilies.medium,
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   summaryVal: {
     flex: 1,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 12,
-    color: colors.textPrimary,
+    color: colors.ink,
     textAlign: "right",
   },
   summaryValB: {
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
 
   // Section divider
@@ -417,12 +427,12 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.cardBorder,
+    backgroundColor: colors.line,
   },
   dividerLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 10,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     letterSpacing: 0.3,
   },
 
@@ -433,10 +443,10 @@ const styles = StyleSheet.create({
 
   // Card shell
   card: {
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     padding: spacing.sm,
     gap: spacing.xs,
     overflow: "hidden",
@@ -481,16 +491,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 10,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   payeeAmt: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 10,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   emptyHint: {
     fontFamily: fontFamilies.medium,
     fontSize: 10,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

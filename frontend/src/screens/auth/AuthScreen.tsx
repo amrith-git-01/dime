@@ -1,27 +1,22 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
 import { ButtonBusyContent } from "@/components/ui";
-import {
-  accent,
-  danger,
-  paper,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const wordmark = require("../../../assets/images/splash-wordmark.png");
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const model = useAuthScreenModel();
   const insets = useSafeAreaInsets();
 
@@ -69,13 +64,13 @@ export default function AuthScreen() {
             ]}
           >
             {model.googleLoading ? null : (
-              <MaterialCommunityIcons name="google" size={22} color={surface} />
+              <MaterialCommunityIcons name="google" size={22} color={colors.onAccent} />
             )}
             <ButtonBusyContent
               loading={model.googleLoading}
               label="Continue with Google"
               busyLabel="Signing in"
-              color={surface}
+              color={colors.onAccent}
               textStyle={styles.googleLabel}
             />
           </Pressable>
@@ -85,10 +80,10 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   shellContent: {
     flex: 1,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   screen: {
     flex: 1,
@@ -123,7 +118,7 @@ const styles = StyleSheet.create({
     minHeight: 54,
     borderRadius: radius.full,
     paddingHorizontal: spacing.lg,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     ...shadows.cardElevated,
   },
   googleButtonPressed: {
@@ -142,7 +137,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: danger,
+    color: colors.danger,
     textAlign: "center",
   },
-});
+}));

@@ -1,10 +1,11 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { fontFamilies, inkSoft } from "@/constants";
+import { fontFamilies } from "@/constants";
 
 import { SETTINGS_SECTION_HEADER_GAP } from "../constants/settingsTokens";
 import { SettingsSurfaceCard } from "./SettingsSurfaceCard";
+import { createThemedStyles } from "@/theme";
 
 type SettingsSectionProps = {
   title: string;
@@ -18,6 +19,7 @@ export const SettingsSection = memo(function SettingsSection({
   children,
   compact = false,
 }: SettingsSectionProps) {
+  const styles = useStyles();
   return (
     <View style={styles.wrap}>
       <Text style={[styles.title, compact && styles.titleCompact]}>
@@ -30,7 +32,7 @@ export const SettingsSection = memo(function SettingsSection({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
     gap: SETTINGS_SECTION_HEADER_GAP,
   },
@@ -40,7 +42,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   titleCompact: {
     fontSize: 11,
@@ -51,4 +53,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
-});
+}));

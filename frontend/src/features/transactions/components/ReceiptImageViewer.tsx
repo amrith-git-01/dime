@@ -6,20 +6,20 @@ import {
   Alert,
   Modal,
   Pressable,
-  StyleSheet,
   View,
   useWindowDimensions,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, overlays, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import {
   ReceiptZoomableImage,
   type ReceiptImageZoomRef,
 } from "./receipt-zoom/ReceiptZoomableImage";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -47,6 +47,8 @@ export function ReceiptImageViewer({
   visible,
   onClose,
 }: ReceiptImageViewerProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const zoomRef = useRef<ReceiptImageZoomRef>(null);
@@ -130,7 +132,7 @@ export function ReceiptImageViewer({
                 pressed && styles.topBarButtonPressed,
               ]}
             >
-              <Share2 size={20} color={colors.textOnPrimary} strokeWidth={2} />
+              <Share2 size={20} color={colors.onMedia} strokeWidth={2} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -141,7 +143,7 @@ export function ReceiptImageViewer({
                 pressed && styles.topBarButtonPressed,
               ]}
             >
-              <X size={22} color={colors.textOnPrimary} strokeWidth={2} />
+              <X size={22} color={colors.onMedia} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -172,13 +174,13 @@ export function ReceiptImageViewer({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   gestureRoot: {
     flex: 1,
   },
   viewerRoot: {
     flex: 1,
-    backgroundColor: overlays.scrim,
+    backgroundColor: colors.overlays.scrim,
     justifyContent: "center",
   },
   topBar: {
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: overlays.scrimHeavy,
+    backgroundColor: colors.overlays.scrimHeavy,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -211,4 +213,4 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-});
+}));

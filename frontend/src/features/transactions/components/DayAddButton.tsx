@@ -1,12 +1,12 @@
 import { Plus } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
-import { accent, accentTint } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type DayAddButtonProps = {
   /** Day the new transaction is dated to (`yyyy-MM-dd`). */
@@ -19,6 +19,8 @@ export const DayAddButton = memo(function DayAddButton({
   dayKey,
   onPress,
 }: DayAddButtonProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -30,13 +32,13 @@ export const DayAddButton = memo(function DayAddButton({
       }}
       style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
     >
-      <Plus size={14} color={accent} strokeWidth={2.5} />
+      <Plus size={14} color={colors.accentText} strokeWidth={2.5} />
       <Text style={styles.label}>Add</Text>
     </Pressable>
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -45,7 +47,7 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.sm,
     paddingRight: spacing.md,
     borderRadius: radius.full,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
   },
   pillPressed: {
     opacity: 0.7,
@@ -54,6 +56,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

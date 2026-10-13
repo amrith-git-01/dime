@@ -1,9 +1,9 @@
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { CARD_SEGMENT_SHADOW_TOP_BLEED } from "@/components/shared";
-import { paper, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import {
   TransactionCalendarCard,
   TransactionDayCardFooter,
@@ -14,6 +14,7 @@ import {
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
+import { createThemedStyles } from "@/theme";
 
 const NO_ROWS: TransactionFlashListItem[] = [];
 
@@ -22,6 +23,7 @@ function keyExtractor(item: TransactionFlashListItem): string {
 }
 
 export default function TransactionsScreen() {
+  const styles = useStyles();
   const {
     canGoPrevMonth,
     canGoNextMonth,
@@ -112,10 +114,10 @@ export default function TransactionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   list: {
     flex: 1,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   content: {
     paddingHorizontal: spacing.lg,
@@ -126,4 +128,4 @@ const styles = StyleSheet.create({
     // The day-card header segment reserves top room for its card shadow.
     gap: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
   },
-});
+}));

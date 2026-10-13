@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { spacing } from "@/constants/spacing";
-import { sectionHeaderTitle } from "@/constants/typography";
+import { createThemedStyles } from "@/theme";
 
 export type ScreenSectionHeaderProps = {
   title: string;
@@ -14,6 +14,7 @@ export const ScreenSectionHeader = memo(function ScreenSectionHeader({
   title,
   action,
 }: ScreenSectionHeaderProps) {
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       <Text style={styles.title}>{title}</Text>
@@ -22,17 +23,17 @@ export const ScreenSectionHeader = memo(function ScreenSectionHeader({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ typography }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  title: sectionHeaderTitle,
+  title: typography.sectionHeaderTitle,
   actions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
   },
-});
+}));

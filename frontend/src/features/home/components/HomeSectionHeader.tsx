@@ -1,11 +1,11 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
 import { ScreenSectionHeader } from "@/components/shared";
-import { accent, accentTint } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { createThemedStyles } from "@/theme";
 
 type HomeSectionHeaderProps = {
   title: string;
@@ -19,6 +19,7 @@ export const HomeSectionHeader = memo(function HomeSectionHeader({
   onViewAll,
   leftAction,
 }: HomeSectionHeaderProps) {
+  const styles = useStyles();
   return (
     <ScreenSectionHeader
       title={title}
@@ -43,9 +44,9 @@ export const HomeSectionHeader = memo(function HomeSectionHeader({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   pill: {
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
@@ -57,6 +58,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

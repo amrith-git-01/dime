@@ -1,9 +1,9 @@
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, type TextStyle } from "react-native";
+import { Text, type TextStyle } from "react-native";
 
-import { accent, ink, surface } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { parseAgentProse } from "@/features/agent/utils/parseAgentProse";
+import { createThemedStyles } from "@/theme";
 
 type AgentMessageProseProps = {
   content: string;
@@ -14,13 +14,11 @@ export const AgentMessageProse = memo(function AgentMessageProse({
   content,
   variant,
 }: AgentMessageProseProps) {
+  const styles = useStyles();
   const tokens = useMemo(() => parseAgentProse(content), [content]);
   const isUser = variant === "user";
 
-  const baseStyle: TextStyle = {
-    ...styles.prose,
-    color: isUser ? surface : ink,
-  };
+  const baseStyle = isUser ? styles.proseUser : styles.proseAssistant;
 
   const numberStyle: TextStyle = isUser
     ? styles.numberUser
@@ -68,22 +66,29 @@ export const AgentMessageProse = memo(function AgentMessageProse({
   );
 });
 
-const styles = StyleSheet.create({
-  prose: {
+const useStyles = createThemedStyles(({ colors }) => ({
+  proseUser: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 19,
+    color: colors.onAccent,
+  },
+  proseAssistant: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.ink,
   },
   bold: {
     fontFamily: fontFamilies.semiBold,
   },
   numberAssistant: {
     fontFamily: fontFamilies.monoSemiBold,
-    color: accent,
+    color: colors.accentText,
   },
   numberUser: {
     fontFamily: fontFamilies.monoSemiBold,
-    color: surface,
+    color: colors.onAccent,
   },
   numberOnUser: {},
-});
+}));

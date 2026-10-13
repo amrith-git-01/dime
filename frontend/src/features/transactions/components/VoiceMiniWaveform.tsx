@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -9,16 +9,16 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { colors } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 const BAR_WIDTH = 4;
 const BAR_MAX = 22;
 const BAR_MIN = 6;
-const ACCENT = colors.headerGradientStart;
 
 type BarProps = { delayMs: number };
 
 function WaveBar({ delayMs }: BarProps) {
+  const styles = useStyles();
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -47,6 +47,7 @@ function WaveBar({ delayMs }: BarProps) {
 
 /** Lightweight “listening” indicator — three bars, no mic metering (keeps UI simple). */
 export function VoiceMiniWaveform() {
+  const styles = useStyles();
   return (
     <View style={styles.row} accessibilityLabel="Listening">
       <WaveBar delayMs={0} />
@@ -56,7 +57,7 @@ export function VoiceMiniWaveform() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -66,6 +67,6 @@ const styles = StyleSheet.create({
   bar: {
     width: BAR_WIDTH,
     borderRadius: BAR_WIDTH / 2,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.accent,
   },
-});
+}));

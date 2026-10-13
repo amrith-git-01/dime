@@ -1,9 +1,10 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import { Calendar, Clock } from "lucide-react-native";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { fontFamilies, ink, inkSoft, line, radius, spacing } from "@/constants";
+import { fontFamilies, radius, spacing } from "@/constants";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type ManualAddDateTimePickerMode = "date" | "time" | null;
 
@@ -27,6 +28,8 @@ function DateTimeRow({
   value: string;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const Icon = iconType === "date" ? Calendar : Clock;
   return (
     <Pressable
@@ -37,7 +40,7 @@ function DateTimeRow({
         pressed && styles.ghostPillPressed,
       ]}
     >
-      <Icon size={16} color={inkSoft} strokeWidth={1.5} />
+      <Icon size={16} color={colors.inkSoft} strokeWidth={1.5} />
       <Text style={styles.dateValue}>{value}</Text>
     </Pressable>
   );
@@ -50,6 +53,8 @@ export function ManualAddDateField({
   iosPickerMode,
   onIosPickerChange,
 }: ManualAddDateFieldProps) {
+  const styles = useStyles();
+  const { scheme } = useTheme();
   return (
     <>
       <View style={styles.row}>
@@ -71,7 +76,7 @@ export function ManualAddDateField({
             value={transactionAt}
             mode="date"
             display="compact"
-            themeVariant="light"
+            themeVariant={scheme}
             onChange={(_e, date) => onIosPickerChange("date", date)}
           />
         </View>
@@ -83,7 +88,7 @@ export function ManualAddDateField({
             value={transactionAt}
             mode="time"
             display="compact"
-            themeVariant="light"
+            themeVariant={scheme}
             onChange={(_e, date) => onIosPickerChange("time", date)}
           />
         </View>
@@ -92,7 +97,7 @@ export function ManualAddDateField({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     gap: spacing.md,
@@ -102,7 +107,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
@@ -115,10 +120,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
   },
   iosPickerWrap: {
     alignItems: "flex-start",
     marginTop: spacing.sm,
   },
-});
+}));

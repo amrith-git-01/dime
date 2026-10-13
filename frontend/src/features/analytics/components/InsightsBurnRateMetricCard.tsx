@@ -2,16 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
-import {
-  accent,
-  danger,
-  ink,
-  inkSoft,
-  line,
-  radius,
-  spacing,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   calendarDaysInMonth,
@@ -21,6 +12,7 @@ import {
 
 import type { InsightsBurnRateMetrics } from "../utils/computeBurnRateMetrics";
 import { InsightsCard } from "./InsightsCard";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type InsightsBurnRateMetricCardProps = {
   metrics: InsightsBurnRateMetrics | null;
@@ -36,6 +28,8 @@ export const InsightsBurnRateMetricCard = memo(
     year,
     monthIndex0,
   }: InsightsBurnRateMetricCardProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const isCurrent = isCurrentMonth(year, monthIndex0);
     const isPast = isPastMonth(year, monthIndex0);
 
@@ -67,7 +61,7 @@ export const InsightsBurnRateMetricCard = memo(
 
     const isOverPace = Boolean(!loading && metrics?.isOverPace);
     const budgetBarColor =
-      budgetUsedPct != null && budgetUsedPct > 100 ? danger : accent;
+      budgetUsedPct != null && budgetUsedPct > 100 ? colors.danger : colors.accentText;
 
     // Status line copy — past tense for closed months
     const statusLine = isOverPace
@@ -94,8 +88,8 @@ export const InsightsBurnRateMetricCard = memo(
             <ProgressBar
               progress={dayProgress}
               height={4}
-              fillColor={inkSoft}
-              backgroundColor={surfaceSunken}
+              fillColor={colors.inkSoft}
+              backgroundColor={colors.surfaceSunken}
             />
           </View>
 
@@ -117,7 +111,7 @@ export const InsightsBurnRateMetricCard = memo(
                 progress={Math.min(budgetUsedPct / 100, 1)}
                 height={8}
                 fillColor={budgetBarColor}
-                backgroundColor={surfaceSunken}
+                backgroundColor={colors.surfaceSunken}
               />
             </View>
           ) : null}
@@ -196,7 +190,7 @@ export const InsightsBurnRateMetricCard = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   barsSection: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -204,7 +198,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   barRow: {
@@ -219,17 +213,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   barPct: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
     fontVariant: ["tabular-nums"],
   },
   barPctDanger: {
-    color: danger,
+    color: colors.danger,
   },
   statusLine: {
     fontFamily: fontFamilies.regular,
@@ -237,10 +231,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   statusLineNeutral: {
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   statusLineDanger: {
-    color: danger,
+    color: colors.danger,
   },
   statsRow: {
     flexDirection: "row",
@@ -254,30 +248,30 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     alignSelf: "stretch",
   },
   statLabel: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   statValue: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
     textAlign: "center",
   },
   statValueDanger: {
-    color: danger,
+    color: colors.danger,
   },
   statSkeleton: {
     width: 56,
     height: 18,
     borderRadius: radius.sm,
   },
-});
+}));

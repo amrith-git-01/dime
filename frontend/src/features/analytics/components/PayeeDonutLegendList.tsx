@@ -1,12 +1,13 @@
 import { memo, useCallback, useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import type { ChartTooltipAnchor } from "@/components/shared";
-import { ink, inkSoft, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { formatPayeeShare } from "@/features/analytics/utils/formatPayeeShare";
 import { formatInrCompact } from "@/utils/currency";
+import { createThemedStyles } from "@/theme";
 
 export const PAYEE_DONUT_LEGEND_MAX_WIDTH = 168;
 
@@ -22,6 +23,7 @@ export const PayeeDonutLegendList = memo(function PayeeDonutLegendList({
   slices,
   onSlicePress,
 }: PayeeDonutLegendListProps) {
+  const styles = useStyles();
   return (
     <View style={styles.list}>
       {slices.map((slice) => (
@@ -37,6 +39,7 @@ type LegendRowProps = {
 };
 
 const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
+  const styles = useStyles();
   const rowRef = useRef<View>(null);
 
   const handlePress = useCallback(() => {
@@ -79,7 +82,7 @@ const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   list: {
     flexShrink: 1,
     maxWidth: PAYEE_DONUT_LEGEND_MAX_WIDTH,
@@ -112,13 +115,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: ink,
+    color: colors.ink,
   },
   meta: {
     marginTop: 1,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 10,
     lineHeight: 13,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

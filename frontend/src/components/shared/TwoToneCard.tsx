@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { bento, colors, radius, shadows } from "@/constants";
+import { radius } from "@/constants";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type TwoToneCardProps = {
   /** Content rendered in the violet tinted header zone. */
@@ -18,6 +19,8 @@ export type TwoToneCardProps = {
  * render outside the card bounds.
  */
 export function TwoToneCard({ header, body }: TwoToneCardProps) {
+  const { shadows } = useTheme();
+  const styles = useStyles();
   return (
     <View style={[styles.card, shadows.cardElevated]}>
       <View style={styles.headerSection}>{header}</View>
@@ -26,22 +29,22 @@ export function TwoToneCard({ header, body }: TwoToneCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   card: {
     borderRadius: radius.lg,
     overflow: "visible",
   },
   headerSection: {
-    backgroundColor: bento.twoToneHeaderSurface,
+    backgroundColor: colors.bento.twoToneHeaderSurface,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     overflow: "visible",
   },
   bodySection: {
-    backgroundColor: bento.twoToneBodySurface,
+    backgroundColor: colors.bento.twoToneBodySurface,
     borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
+    borderTopColor: colors.line,
     borderBottomLeftRadius: radius.lg,
     borderBottomRightRadius: radius.lg,
   },
-});
+}));

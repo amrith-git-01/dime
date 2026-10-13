@@ -1,4 +1,5 @@
-import { hero, radius } from "@/constants";
+import { radius } from "@/constants";
+import { useTheme } from "@/theme";
 import React, { useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
@@ -69,8 +70,10 @@ export const AnimatedSparkBar: React.FC<AnimatedSparkBarProps> = ({
   height = 28,
   barWidth = 8,
   gap = 6,
-  color = hero.sparkBar,
+  color,
 }) => {
+  const { colors } = useTheme();
+  const barColor = color ?? colors.inkSoft;
   return (
     <View
       style={{
@@ -86,7 +89,7 @@ export const AnimatedSparkBar: React.FC<AnimatedSparkBarProps> = ({
           delayMs={i * 100}
           height={height}
           barWidth={barWidth}
-          color={color}
+          color={barColor}
         />
       ))}
     </View>

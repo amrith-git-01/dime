@@ -1,11 +1,12 @@
 import { Plus } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
 import { ScreenSectionHeader } from "@/components/shared";
-import { accent, accentTint, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type BudgetCategoriesSectionHeaderProps = {
   onAddPress: () => void;
@@ -17,6 +18,8 @@ export const BudgetCategoriesSectionHeader = memo(
     onAddPress,
     addDisabled,
   }: BudgetCategoriesSectionHeaderProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     return (
       <ScreenSectionHeader
         title="All categories"
@@ -35,7 +38,7 @@ export const BudgetCategoriesSectionHeader = memo(
             accessibilityRole="button"
             accessibilityLabel="Add custom category"
           >
-            <Plus size={14} color={accent} strokeWidth={2.5} />
+            <Plus size={14} color={colors.accentText} strokeWidth={2.5} />
             <Text style={styles.addBtnText}>Add</Text>
           </Pressable>
         }
@@ -44,12 +47,12 @@ export const BudgetCategoriesSectionHeader = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
@@ -64,6 +67,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

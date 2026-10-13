@@ -3,21 +3,9 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
-import {
-  accent,
-  danger,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  shadows,
-  spacing,
-  success,
-  surface,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme, type ThemeColors } from "@/theme";
 
 export type InsightsMonthSummary = {
   transactionCount: number;
@@ -53,13 +41,13 @@ export type InsightsMonthSummaryCardProps = {
 function heroColor(
   summary: InsightsMonthSummary | null,
   loading: boolean,
+  colors: ThemeColors,
 ): string {
-  if (loading || !summary || !summary.hasIncome) return accent;
-  if (summary.netValue > 0) return success;
-  if (summary.netValue < 0) return danger;
-  return accent;
+  if (loading || !summary || !summary.hasIncome) return colors.accentText;
+  if (summary.netValue > 0) return colors.success;
+  if (summary.netValue < 0) return colors.danger;
+  return colors.accentText;
 }
-
 function buildSubtitle(summary: InsightsMonthSummary): string {
   const parts: string[] = [];
   if (summary.hasIncome && summary.savingsRatePct !== null) {
@@ -91,7 +79,9 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   summaryFailed,
   hasMonthlyBudget,
 }: InsightsMonthSummaryCardProps) {
-  const heroCol = heroColor(summary, summaryLoading);
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const heroCol = heroColor(summary, summaryLoading, colors);
   const subtitle = summary ? buildSubtitle(summary) : "";
   const showBudgetBar = Boolean(hasMonthlyBudget ?? summary?.hasMonthlyBudget);
   const budgetProgress = summary ? budgetUsedProgress(summary) : 0;
@@ -113,7 +103,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
           >
             <ChevronLeft
               size={18}
-              color={canGoPrevMonth ? inkSoft : inkFaint}
+              color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
               strokeWidth={2}
             />
           </Pressable>
@@ -128,7 +118,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
           >
             <ChevronRight
               size={18}
-              color={canGoNextMonth ? inkSoft : inkFaint}
+              color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
               strokeWidth={2}
             />
           </Pressable>
@@ -194,8 +184,8 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             <ProgressBar
               progress={budgetProgress}
               height={8}
-              fillColor={summary.isOverBudget ? danger : accent}
-              backgroundColor={surfaceSunken}
+              fillColor={summary.isOverBudget ? colors.danger : colors.accent}
+              backgroundColor={colors.surfaceSunken}
             />
             <Text style={styles.budgetMeta}>
               {`Budget ${summary.budgetDisplay} · ${summary.remainingLabel} ${summary.remainingDisplay} · ${summary.usedPctDisplay} used`}
@@ -207,9 +197,9 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     ...shadows.card,
     overflow: "hidden",
@@ -226,7 +216,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
@@ -242,7 +232,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: ink,
+    color: colors.ink,
     minWidth: 72,
     textAlign: "center",
   },
@@ -264,7 +254,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   heroSkeleton: {
@@ -281,11 +271,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: danger,
+    color: colors.danger,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   statsRow: {
@@ -300,24 +290,24 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     alignSelf: "stretch",
   },
   statLabel: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   statValue: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
   },
   incomeValue: {
-    color: success,
+    color: colors.success,
   },
   statSkeleton: {
     width: 60,
@@ -333,6 +323,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
-});
+}));

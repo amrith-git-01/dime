@@ -1,19 +1,15 @@
 import { memo, useCallback } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import {
-  colors,
-  danger,
+  categoryDefault,
   fontFamilies,
-  ink,
-  inkFaint,
-  inkSoft,
   radius,
+  readableCategoryColor,
   spacing,
-  success,
+  withAlpha,
 } from "@/constants";
-import { hexToRgba } from "@/constants/colorUtils";
 import { formatInrAmount } from "@/utils/currency";
 
 import type { RecurringItem } from "../types";
@@ -21,6 +17,7 @@ import {
   formatMonthlyEquivalent,
   formatRecurringSubtitle,
 } from "../utils/recurringDisplay";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type RecurringListRowProps = {
   item: RecurringItem;
@@ -39,9 +36,14 @@ export const RecurringListRow = memo(function RecurringListRow({
   today,
   onPress,
 }: RecurringListRowProps) {
+  const { colors, scheme } = useTheme();
+  const styles = useStyles();
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const isIncome = item.kind === "income";
-  const color = item.category_color ?? colors.categoryDefault;
+  const color = readableCategoryColor(
+    item.category_color ?? categoryDefault,
+    scheme,
+  );
   const equivalent = formatMonthlyEquivalent(item);
 
   return (
@@ -56,7 +58,7 @@ export const RecurringListRow = memo(function RecurringListRow({
       ]}
     >
       <View
-        style={[styles.iconTile, { backgroundColor: hexToRgba(color, 0.1) }]}
+        style={[styles.iconTile, { backgroundColor: withAlpha(color, colors.categoryTileAlpha) }]}
       >
         <CategoryLucideIcon
           iconName={item.category_icon_name ?? "CreditCard"}
@@ -93,7 +95,7 @@ export const RecurringListRow = memo(function RecurringListRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -124,13 +126,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 19,
-    color: ink,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   amountCol: {
     alignItems: "flex-end",
@@ -144,15 +146,15 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   credit: {
-    color: success,
+    color: colors.success,
   },
   debit: {
-    color: danger,
+    color: colors.danger,
   },
   equivalent: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

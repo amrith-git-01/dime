@@ -2,7 +2,6 @@ import { Check, Trash2 } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef } from "react";
 import {
   Pressable,
-  StyleSheet,
   Text,
   View,
   type StyleProp,
@@ -12,26 +11,18 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 
-import {
-  danger,
-  iconSizes,
-  radius,
-  shadows,
-  spacing,
-  success,
-  surface,
-  typography,
-} from "@/constants";
+import { iconSizes, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   NOTIFICATION_ICON_WELL_SIZE,
-  NOTIFICATION_INBOX_TEXT,
-  NOTIFICATION_ROW_VISUALS,
+  getNotificationInboxText,
+  getNotificationRowVisual,
   NOTIFICATION_SWIPE_ACTION_WIDTH,
 } from "@/features/notifications/notificationBentoTokens";
 import type { AppNotification } from "@/features/notifications/types";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatNotificationTime } from "@/utils/dateTime";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type NotificationBentoRowProps = {
   notification: AppNotification;
@@ -52,13 +43,15 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
   onDelete,
   onSwipeWillStart,
 }: NotificationBentoRowProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const swipeableRef = useRef<SwipeableMethods | null>(null);
-  const visual = NOTIFICATION_ROW_VISUALS[notification.kind];
+  const visual = getNotificationRowVisual(notification.kind, colors);
   const Icon = visual.icon;
   const timeLabel = formatNotificationTime(notification.createdAt);
   const textColors = unread
-    ? NOTIFICATION_INBOX_TEXT.unread
-    : NOTIFICATION_INBOX_TEXT.read;
+    ? getNotificationInboxText(colors).unread
+    : getNotificationInboxText(colors).read;
 
   let kindIconWellStyle: StyleProp<ViewStyle> = {
     backgroundColor: visual.backgroundColor,
@@ -128,7 +121,7 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
             onPress={handleMarkRead}
             style={styles.readAction}
           >
-            <Check size={iconSizes.nav} color={surface} strokeWidth={2} />
+            <Check size={iconSizes.nav} color={colors.onSuccess} strokeWidth={2} />
           </Pressable>
         ) : null}
         {onDelete != null ? (
@@ -138,12 +131,21 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
             onPress={handleDelete}
             style={styles.deleteAction}
           >
-            <Trash2 size={iconSizes.nav} color={surface} strokeWidth={2} />
+            <Trash2 size={iconSizes.nav} color={colors.onDanger} strokeWidth={2} />
           </Pressable>
         ) : null}
       </View>
     ),
-    [handleDelete, handleMarkRead, onDelete, onMarkRead, unread],
+    [
+      colors.onDanger,
+      colors.onSuccess,
+      handleDelete,
+      handleMarkRead,
+      onDelete,
+      onMarkRead,
+      styles,
+      unread,
+    ],
   );
 
   const accessibilityActions = [
@@ -228,19 +230,19 @@ export const NotificationBentoRow = memo(function NotificationBentoRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows, typography }) => ({
   shadowWrap: {
     borderRadius: radius.md,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     ...shadows.card,
   },
   swipeClip: {
     borderRadius: radius.md,
     overflow: "hidden",
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   slideLayer: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   card: {
     flexDirection: "row",
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   cardPressed: {
     opacity: 0.88,
@@ -291,15 +293,15 @@ const styles = StyleSheet.create({
   deleteAction: {
     width: NOTIFICATION_SWIPE_ACTION_WIDTH,
     height: "100%",
-    backgroundColor: danger,
+    backgroundColor: colors.danger,
     alignItems: "center",
     justifyContent: "center",
   },
   readAction: {
     width: NOTIFICATION_SWIPE_ACTION_WIDTH,
     height: "100%",
-    backgroundColor: success,
+    backgroundColor: colors.success,
     alignItems: "center",
     justifyContent: "center",
   },
-});
+}));

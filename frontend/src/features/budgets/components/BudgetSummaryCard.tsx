@@ -1,28 +1,16 @@
 import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { ProgressBar } from "@/components/ui";
-import {
-  accent,
-  danger,
-  dangerTint,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  surface,
-  warning,
-  warningTint,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { formatInrCompact } from "@/utils/currency";
 
 import { BudgetSummaryBodySkeleton } from "./BudgetSummaryBodySkeleton";
 import type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoCard";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoCard";
 
@@ -55,21 +43,23 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   onSetBudget,
   spentValue = 0,
 }: BudgetSummaryCardProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const isOverBudget = summary?.isOverBudget ?? false;
-  const heroColor = isOverBudget ? danger : accent;
+  const heroColor = isOverBudget ? colors.danger : colors.accentText;
   const usagePct = summary?.usagePct ?? 0;
   const usagePercentUsed = summary?.usagePercentUsed ?? 0;
 
   const pillBg = isOverBudget
-    ? dangerTint
+    ? colors.dangerTint
     : usagePercentUsed > 80 && usagePercentUsed < 100
-      ? warningTint
-      : line;
+      ? colors.warningTint
+      : colors.line;
   const pillTextColor = isOverBudget
-    ? danger
+    ? colors.danger
     : usagePercentUsed > 80 && usagePercentUsed < 100
-      ? warning
-      : inkSoft;
+      ? colors.warning
+      : colors.inkSoft;
   const pillText = isOverBudget
     ? `${usagePercentUsed}% — over budget`
     : usagePercentUsed > 80 && usagePercentUsed < 100
@@ -89,7 +79,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
         >
           <ChevronLeft
             size={20}
-            color={canGoPrevMonth ? inkSoft : inkFaint}
+            color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
             strokeWidth={2}
           />
         </Pressable>
@@ -103,7 +93,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
         >
           <ChevronRight
             size={20}
-            color={canGoNextMonth ? inkSoft : inkFaint}
+            color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
             strokeWidth={2}
           />
         </Pressable>
@@ -127,7 +117,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
               accessibilityRole="button"
               accessibilityLabel="Edit budget"
             >
-              <Edit3 size={16} color={accent} strokeWidth={2} />
+              <Edit3 size={16} color={colors.accentText} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -140,8 +130,8 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           <View style={styles.progressWrap}>
             <ProgressBar
               progress={usagePct}
-              fillColor={isOverBudget ? danger : accent}
-              backgroundColor={line}
+              fillColor={isOverBudget ? colors.danger : colors.accent}
+              backgroundColor={colors.line}
               height={8}
             />
           </View>
@@ -197,9 +187,9 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -224,7 +214,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
   },
   kickerRow: {
     flexDirection: "row",
@@ -242,7 +232,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: spacing.xs,
@@ -271,7 +261,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginBottom: spacing.md,
   },
   statsRow: {
@@ -286,27 +276,27 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.md,
   },
   statLabel: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   statValue: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
   },
   errorText: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
     paddingVertical: spacing.lg,
   },
@@ -314,7 +304,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     textAlign: "center",
@@ -324,7 +314,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 32,
     lineHeight: 40,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
     textAlign: "center",
     marginBottom: spacing.xs,
@@ -333,12 +323,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
     marginBottom: spacing.lg,
   },
   setBtn: {
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     borderRadius: radius.full,
     paddingVertical: 14,
     alignItems: "center",
@@ -351,6 +341,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: surface,
+    color: colors.onAccent,
   },
-});
+}));

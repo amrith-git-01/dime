@@ -6,7 +6,7 @@ import { useCallback, useMemo } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
-import { colors } from "@/constants";
+import { categoryDefault } from "@/constants";
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
@@ -105,7 +105,7 @@ export function useBudgetScreenModel() {
         id: UNCATEGORIZED_SPEND_KEY,
         name: "Uncategorized",
         icon_name: "Package",
-        color: colors.categoryDefault,
+        color: categoryDefault,
         spentMonth: uncategorizedSpent,
         is_system: true,
         monthlyCap: null,
@@ -119,7 +119,7 @@ export function useBudgetScreenModel() {
           id: categoryId,
           name: "Unknown category",
           icon_name: "Package",
-          color: colors.categoryDefault,
+          color: categoryDefault,
           spentMonth: amount,
           is_system: true,
           monthlyCap: categoryCapById.get(categoryId) ?? null,

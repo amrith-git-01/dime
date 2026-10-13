@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import {
   BENTO_FORM_BODY_GAP,
@@ -8,7 +8,7 @@ import {
 import { ProfileAvatarEditor } from "@/components/profile/ProfileAvatarEditor";
 import { TwoToneCard } from "@/components/shared";
 import { Button, TextField } from "@/components/ui";
-import { bento, colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { UsernameValidation } from "@/hooks/useProfileSetup";
 
@@ -17,6 +17,7 @@ import {
   PROFILE_SETUP_REFRESH_FAB_SIZE,
   PROFILE_SETUP_REFRESH_ICON_SIZE,
 } from "./profileBentoTokens";
+import { createThemedStyles } from "@/theme";
 
 export type ProfileSetupEditorProps = {
   avatarUrl: string;
@@ -49,9 +50,10 @@ export const ProfileSetupEditor = memo(function ProfileSetupEditor({
   onContinue,
   onSignOut,
 }: ProfileSetupEditorProps) {
+  const styles = useStyles();
   const usernameCountLabel = useMemo(
     () => <Text style={styles.charCount}>{username.trim().length}/20</Text>,
-    [username],
+    [styles, username],
   );
 
   return (
@@ -118,6 +120,7 @@ const ValidationHint = memo(function ValidationHint({
 }: {
   validation: UsernameValidation;
 }) {
+  const styles = useStyles();
   return (
     <Text
       style={[
@@ -130,7 +133,7 @@ const ValidationHint = memo(function ValidationHint({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   headerInner: {
     padding: BENTO_FORM_SECTION_PADDING,
     gap: BENTO_FORM_BODY_GAP,
@@ -141,14 +144,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    color: bento.onPastel.primary,
+    color: colors.ink,
     alignSelf: "flex-start",
   },
   headerSubtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     alignSelf: "flex-start",
   },
   bodyInner: {
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   hint: {
     fontFamily: fontFamilies.regular,
@@ -178,9 +181,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   hintMuted: {
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   hintOk: {
-    color: colors.primary,
+    color: colors.accentText,
   },
-});
+}));

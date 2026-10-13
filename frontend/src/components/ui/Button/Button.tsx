@@ -1,9 +1,10 @@
 import { Pressable, StyleSheet, type PressableProps } from "react-native";
 
 import { ButtonBusyContent } from "./ButtonBusyContent";
-import { colors, danger, spacing, surface } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type ButtonVariant =
   | "primary"
@@ -30,33 +31,27 @@ export function Button({
   onPress,
   ...rest
 }: ButtonProps) {
-  const isPrimary = variant === "primary";
-  const isDanger = variant === "danger";
-  const isGhost = variant === "ghost";
-  const isGhostDanger = variant === "ghostDanger";
+  const styles = useStyles();
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
 
-  const backgroundColor = isPrimary
-    ? isDisabled
-      ? `${colors.primary}99`
-      : colors.primary
-    : isDanger
-      ? isDisabled
-        ? `${danger}99`
-        : danger
-      : "transparent";
-
-  const borderWidth = isPrimary || isDanger ? 0 : StyleSheet.hairlineWidth;
-  const borderColor = isGhostDanger ? colors.danger : colors.border;
+  const containerStyle =
+    variant === "primary" && isDisabled
+      ? styles.primaryDisabled
+      : variant === "danger" && isDisabled
+        ? styles.dangerDisabled
+        : styles[variant];
 
   const labelColor =
-    isPrimary || isDanger
-      ? surface
-      : isGhostDanger
-        ? colors.danger
-        : isGhost
-          ? colors.textPrimary
-          : colors.primary;
+    variant === "primary"
+      ? colors.onAccent
+      : variant === "danger"
+        ? colors.onDanger
+        : variant === "ghostDanger"
+          ? colors.danger
+          : variant === "ghost"
+            ? colors.ink
+            : colors.accentText;
 
   return (
     <Pressable
@@ -66,17 +61,11 @@ export function Button({
         void triggerHaptic();
         onPress?.(e);
       }}
-      style={({ pressed }) => ({
-        minHeight: 48,
-        borderRadius: 12,
-        paddingHorizontal: spacing.lg,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor,
-        borderWidth,
-        borderColor,
-        opacity: pressed && !isDisabled ? 0.92 : 1,
-      })}
+      style={({ pressed }) => [
+        styles.base,
+        containerStyle,
+        pressed && !isDisabled && styles.pressed,
+      ]}
       {...rest}
     >
       <ButtonBusyContent
@@ -90,10 +79,47 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
+  base: {
+    minHeight: 48,
+    borderRadius: 12,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primary: {
+    backgroundColor: colors.accent,
+  },
+  primaryDisabled: {
+    backgroundColor: colors.accentDisabled,
+  },
+  danger: {
+    backgroundColor: colors.danger,
+  },
+  dangerDisabled: {
+    backgroundColor: colors.dangerDisabled,
+  },
+  secondary: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  ghost: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  ghostDanger: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.danger,
+  },
+  pressed: {
+    opacity: 0.92,
+  },
   label: {
     fontFamily: fontFamilies.medium,
     fontSize: 16,
     lineHeight: 22,
   },
-});
+}));

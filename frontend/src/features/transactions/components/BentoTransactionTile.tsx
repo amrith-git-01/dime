@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
-import { colors, radius, spacing, surfaces } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { TransactionRow } from "@/features/transactions/types";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/features/transactions/utils/transactionDisplay";
 
 import { BENTO_TRANSACTION_TILE_MIN_HEIGHT } from "@/components/bento";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type BentoTransactionTileProps = {
   transaction: TransactionRow;
@@ -26,7 +27,12 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
   transaction,
   onPress,
 }: BentoTransactionTileProps) {
-  const ui = useMemo(() => mapTransactionRowToUi(transaction), [transaction]);
+  const styles = useStyles();
+  const { scheme } = useTheme();
+  const ui = useMemo(
+    () => mapTransactionRowToUi(transaction, scheme),
+    [transaction, scheme],
+  );
   const isCredit = ui.amount > 0;
   const handlePress = useCallback(
     () => onPress(transaction),
@@ -39,7 +45,7 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
       onPress={handlePress}
       style={({ pressed }) => [
         styles.tile,
-        txShadowStyle,
+        styles.txShadow,
         pressed && styles.pressed,
       ]}
     >
@@ -74,17 +80,8 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
   );
 });
 
-const txShadowStyle = Platform.select({
-  android: { elevation: 1 },
-  default: {
-    shadowColor: colors.shadowBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-  },
-});
-
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  txShadow: shadows.card,
   tile: {
     flexDirection: "row",
     alignItems: "center",
@@ -92,7 +89,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     minHeight: BENTO_TRANSACTION_TILE_MIN_HEIGHT,
     gap: spacing.sm,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
   },
   pressed: {
     opacity: 0.85,
@@ -105,7 +102,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: surfaces.whiteOverlay55,
+    backgroundColor: colors.surfaces.whiteOverlay55,
     flexShrink: 0,
   },
   textCol: {
@@ -117,13 +114,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textListPrimary,
+    color: colors.ink,
   },
   time: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: colors.textListSecondary,
+    color: colors.inkSoft,
   },
   amount: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -137,4 +134,4 @@ const styles = StyleSheet.create({
   amountDebit: {
     color: colors.danger,
   },
-});
+}));

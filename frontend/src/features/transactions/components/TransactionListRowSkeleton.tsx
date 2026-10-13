@@ -1,7 +1,8 @@
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui";
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 type TransactionListRowSkeletonProps = {
   variant?: "screen" | "card";
@@ -12,6 +13,7 @@ export function TransactionListRowSkeleton({
   variant = "screen",
   showBottomBorder = true,
 }: TransactionListRowSkeletonProps) {
+  const styles = useStyles();
   if (variant === "card") {
     return (
       <View style={[styles.cardRow, !showBottomBorder && styles.cardRowLast]}>
@@ -47,7 +49,7 @@ export function TransactionListRowSkeleton({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   screenRow: {
     minHeight: 72,
     flexDirection: "row",
@@ -57,7 +59,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     overflow: "hidden",
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
   },
   cardRow: {
     minHeight: 72,
@@ -65,7 +67,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderList,
+    borderBottomColor: colors.surfaceSunken,
   },
   cardRowLast: {
     borderBottomWidth: 0,
@@ -114,4 +116,4 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 4,
   },
-});
+}));

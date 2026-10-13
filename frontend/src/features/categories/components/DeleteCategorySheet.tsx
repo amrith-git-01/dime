@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { CategoryPill } from "@/components/categories/CategoryPill";
 import { ConfirmModal } from "@/components/shared";
-import { accent, spacing, typography } from "@/constants";
+import { spacing } from "@/constants";
 import { useCategoryDeleteImpactQuery } from "@/features/categories/hooks/useCategoryDeleteImpactQuery";
 import type { CategoryRow } from "@/features/categories/types";
+import { createThemedStyles } from "@/theme";
 
 type DeleteCategorySheetProps = {
   visible: boolean;
@@ -24,6 +25,7 @@ export function DeleteCategorySheet({
   onConfirmDelete,
   deleteLoading = false,
 }: DeleteCategorySheetProps) {
+  const styles = useStyles();
   const [moveToCategoryId, setMoveToCategoryId] = useState("");
 
   const {
@@ -143,13 +145,13 @@ export function DeleteCategorySheet({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   reassignSection: {
     gap: spacing.sm,
   },
   reassignLabel: {
     ...typography.eyebrow,
-    color: accent,
+    color: colors.accentText,
     textAlign: "left",
   },
   categoryGrid: {
@@ -157,4 +159,4 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.sm,
   },
-});
+}));

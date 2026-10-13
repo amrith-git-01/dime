@@ -1,9 +1,12 @@
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Text, View } from "react-native";
 
-import { colors, overlays, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export function ReceiptScanBusyOverlay() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const visible = useReceiptScanUiStore((s) => s.visible);
   const message = useReceiptScanUiStore((s) => s.message);
 
@@ -11,7 +14,7 @@ export function ReceiptScanBusyOverlay() {
     <Modal animationType="fade" transparent visible={visible}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.accentText} />
           {message.length > 0 ? (
             <Text style={styles.text}>{message}</Text>
           ) : null}
@@ -21,16 +24,16 @@ export function ReceiptScanBusyOverlay() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: overlays.scrim,
+    backgroundColor: colors.overlays.scrim,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.lg,
   },
   card: {
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.xl,
     alignItems: "center",
@@ -39,7 +42,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 15,
-    color: colors.textPrimary,
+    color: colors.ink,
     textAlign: "center",
   },
-});
+}));

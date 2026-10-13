@@ -8,14 +8,6 @@ import {
   SurfaceCardSegment,
 } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import {
-  danger,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  success,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
@@ -25,6 +17,7 @@ import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalend
 
 import { DayAddButton } from "./DayAddButton";
 import { TransactionRow } from "./TransactionRow";
+import { createThemedStyles, useTheme } from "@/theme";
 
 /**
  * The selected-day card on the Transactions tab, split into list segments so the rows can be
@@ -57,6 +50,8 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
   isFetching,
   onAdd,
 }: TransactionDayCardHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const netToneStyle =
     dayNetTotal > 0
       ? styles.netPositive
@@ -72,7 +67,7 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
         </Text>
         <View style={styles.headerTrailing}>
           {isFetching ? (
-            <ActivityIndicator size="small" color={inkFaint} />
+            <ActivityIndicator size="small" color={colors.inkFaint} />
           ) : hasActivity ? (
             <Text style={[styles.dayNet, netToneStyle]} numberOfLines={1}>
               {formatTransactionListAmount(dayNetTotal)} net
@@ -100,6 +95,7 @@ export const TransactionDayCardRow = memo(function TransactionDayCardRow({
   showDivider,
   onPress,
 }: TransactionDayCardRowProps) {
+  const styles = useStyles();
   return (
     <SurfaceCardSegment isFirst={false} isLast={false}>
       {showDivider ? <View style={styles.rowDivider} /> : null}
@@ -119,6 +115,7 @@ export const TransactionDayCardFooter = memo(function TransactionDayCardFooter({
   dayIncomeTotal,
   dayExpenseTotal,
 }: TransactionDayCardFooterProps) {
+  const styles = useStyles();
   return (
     <SurfaceCardSegment isFirst={false} isLast>
       <View style={styles.footerDivider} />
@@ -176,6 +173,7 @@ export const TransactionDayCardPlaceholder = memo(
 );
 
 function SkeletonRows() {
+  const styles = useStyles();
   return (
     <>
       {Array.from({ length: SKELETON_COUNT }, (_, i) => (
@@ -224,7 +222,7 @@ function EmptyDayState({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -243,7 +241,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
   },
   dayNet: {
     fontFamily: fontFamilies.semiBold,
@@ -253,27 +251,27 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   netPositive: {
-    color: success,
+    color: colors.success,
   },
   netNegative: {
-    color: danger,
+    color: colors.danger,
   },
   netZero: {
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   headerDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
   rowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   // Footer
   footerDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
   footer: {
     flexDirection: "row",
@@ -286,7 +284,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkFaint,
+    color: colors.inkFaint,
     flexShrink: 1,
   },
   footerTotals: {
@@ -299,19 +297,19 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 19,
-    color: success,
+    color: colors.success,
     fontVariant: ["tabular-nums"],
   },
   footerTotalsDivider: {
     width: StyleSheet.hairlineWidth,
     height: 12,
-    backgroundColor: line,
+    backgroundColor: colors.line,
   },
   footerExpense: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 19,
-    color: danger,
+    color: colors.danger,
     fontVariant: ["tabular-nums"],
   },
   // Skeleton
@@ -346,4 +344,4 @@ const styles = StyleSheet.create({
     width: 44,
     borderRadius: 4,
   },
-});
+}));

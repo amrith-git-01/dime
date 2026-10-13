@@ -1,8 +1,8 @@
 import { forwardRef, memo } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Text, TextInput, View } from "react-native";
 
-import { ink, inkFaint } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useThemedTextInputProps } from "@/theme";
 
 export type BudgetLimitAmountVariant = "onDark" | "onPastel";
 
@@ -25,6 +25,8 @@ export const BudgetLimitAmountInput = memo(
       { value, onChangeText, showSoftInputOnFocus = true, onSubmitEditing },
       ref,
     ) {
+      const styles = useStyles();
+      const inputProps = useThemedTextInputProps();
       const isEmpty = value.trim().length === 0;
 
       return (
@@ -43,6 +45,7 @@ export const BudgetLimitAmountInput = memo(
               </Text>
             ) : null}
             <TextInput
+              {...inputProps}
               ref={ref}
               style={styles.input}
               placeholder=""
@@ -65,7 +68,7 @@ export const BudgetLimitAmountInput = memo(
   ),
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   shell: {
     flexDirection: "row",
     alignItems: "center",
@@ -85,13 +88,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: AMOUNT_FONT_SIZE,
     lineHeight: AMOUNT_LINE_HEIGHT,
-    color: ink,
+    color: colors.ink,
     ...Platform.select({
       android: { includeFontPadding: false },
     }),
   },
   placeholderGuide: {
-    color: inkFaint,
+    color: colors.inkFaint,
     position: "absolute",
     left: 0,
     height: AMOUNT_LINE_HEIGHT,
@@ -100,7 +103,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: AMOUNT_FONT_SIZE,
-    color: ink,
+    color: colors.ink,
     padding: 0,
     margin: 0,
     height: AMOUNT_LINE_HEIGHT,
@@ -117,4 +120,4 @@ const styles = StyleSheet.create({
       },
     }),
   },
-});
+}));

@@ -1,8 +1,6 @@
-import {
-  COUNTERPARTY_DONUT_OTHER_COLOR,
-  COUNTERPARTY_DONUT_OTHER_KEY,
-  COUNTERPARTY_DONUT_SLICE_COLORS,
-} from "../constants/counterpartyDonutColors";
+import type { ThemeColors } from "@/theme";
+
+import { COUNTERPARTY_DONUT_OTHER_KEY } from "../constants/counterpartyDonutColors";
 import type { CounterpartySpendRow } from "../types";
 
 export type CounterpartyDonutDatum = {
@@ -16,20 +14,22 @@ export type CounterpartyDonutDatum = {
   transaction_count: number;
 };
 
+export type DonutColors = ThemeColors["donut"];
+
 function sliceColorForRow(
   row: CounterpartySpendRow,
   topPayeeColorIndex: number,
+  donutColors: DonutColors,
 ): string {
   if (row.payee_key === COUNTERPARTY_DONUT_OTHER_KEY) {
-    return COUNTERPARTY_DONUT_OTHER_COLOR;
+    return donutColors.other;
   }
-  return COUNTERPARTY_DONUT_SLICE_COLORS[
-    topPayeeColorIndex % COUNTERPARTY_DONUT_SLICE_COLORS.length
-  ];
+  return donutColors.slices[topPayeeColorIndex % donutColors.slices.length];
 }
 
 export function buildCounterpartyDonutData(
   rows: CounterpartySpendRow[],
+  donutColors: DonutColors,
 ): CounterpartyDonutDatum[] {
   let topPayeeColorIndex = 0;
   const result: CounterpartyDonutDatum[] = [];
@@ -43,7 +43,7 @@ export function buildCounterpartyDonutData(
     result.push({
       label: row.display_name,
       value,
-      color: sliceColorForRow(row, topPayeeColorIndex),
+      color: sliceColorForRow(row, topPayeeColorIndex, donutColors),
       payee_key: row.payee_key,
       display_name: row.display_name,
       share: row.share,

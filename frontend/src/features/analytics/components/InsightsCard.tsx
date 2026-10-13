@@ -1,16 +1,9 @@
 import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import {
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles } from "@/theme";
 
 type InsightsCardProps = {
   kicker: string;
@@ -27,6 +20,7 @@ export const InsightsCard = memo(function InsightsCard({
   subtitle,
   children,
 }: InsightsCardProps) {
+  const styles = useStyles();
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -39,9 +33,9 @@ export const InsightsCard = memo(function InsightsCard({
   );
 });
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     ...shadows.card,
     overflow: "hidden",
@@ -56,7 +50,7 @@ export const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 10,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
@@ -64,11 +58,11 @@ export const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
-});
+}));

@@ -1,33 +1,25 @@
 import type { LucideIcon } from "lucide-react-native";
 import { AlertTriangle, ScanLine } from "lucide-react-native";
 
-import {
-  danger,
-  dangerTint,
-  iconAccentSky,
-  ink,
-  inkFaint,
-  inkSoft,
-  surfaces,
-  warning,
-  warningTint,
-} from "@/constants";
+import type { ThemeColors } from "@/theme";
 
 import type { NotificationKind } from "./types";
 
 /** Inbox row copy — unread vs read. */
-export const NOTIFICATION_INBOX_TEXT = {
-  unread: {
-    title: ink,
-    body: inkSoft,
-    time: inkFaint,
-  },
-  read: {
-    title: inkSoft,
-    body: inkFaint,
-    time: inkFaint,
-  },
-} as const;
+export function getNotificationInboxText(colors: ThemeColors) {
+  return {
+    unread: {
+      title: colors.ink,
+      body: colors.inkSoft,
+      time: colors.inkFaint,
+    },
+    read: {
+      title: colors.inkSoft,
+      body: colors.inkFaint,
+      time: colors.inkFaint,
+    },
+  } as const;
+}
 
 export type NotificationRowVisual = {
   icon: LucideIcon;
@@ -38,23 +30,28 @@ export type NotificationRowVisual = {
 export const NOTIFICATION_ICON_WELL_SIZE = 36;
 export const NOTIFICATION_SWIPE_ACTION_WIDTH = 64;
 
-export const NOTIFICATION_ROW_VISUALS: Record<
-  NotificationKind,
-  NotificationRowVisual
-> = {
-  transaction_auto: {
-    icon: ScanLine,
-    backgroundColor: surfaces.iconWellSky,
-    iconColor: iconAccentSky,
-  },
-  budget_threshold: {
-    icon: AlertTriangle,
-    backgroundColor: warningTint,
-    iconColor: warning,
-  },
-  capture_failed: {
-    icon: AlertTriangle,
-    backgroundColor: dangerTint,
-    iconColor: danger,
-  },
-};
+export function getNotificationRowVisual(
+  kind: NotificationKind,
+  colors: ThemeColors,
+): NotificationRowVisual {
+  switch (kind) {
+    case "transaction_auto":
+      return {
+        icon: ScanLine,
+        backgroundColor: colors.surfaces.iconWellSky,
+        iconColor: colors.iconAccentSky,
+      };
+    case "budget_threshold":
+      return {
+        icon: AlertTriangle,
+        backgroundColor: colors.warningTint,
+        iconColor: colors.warning,
+      };
+    case "capture_failed":
+      return {
+        icon: AlertTriangle,
+        backgroundColor: colors.dangerTint,
+        iconColor: colors.danger,
+      };
+  }
+}

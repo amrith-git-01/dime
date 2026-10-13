@@ -1,20 +1,10 @@
 import { ArrowLeft } from "lucide-react-native";
 import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import {
-  accent,
-  ink,
-  inkFaint,
-  inkSoft,
-  paper,
-  radius,
-  spacing,
-  surface,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { iconSizes } from "@/constants/iconSizes";
 import {
@@ -24,8 +14,11 @@ import {
 import { AUTH_FEATURE_SLIDES } from "@/features/onboarding/constants/authFeatureSlides";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export default function WelcomeTourScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const completeWelcomeTour = useWelcomeTourStore((s) => s.completeWelcomeTour);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -103,7 +96,7 @@ export default function WelcomeTourScreen() {
           >
             <ArrowLeft
               size={iconSizes.nav}
-              color={isFirstSlide ? inkFaint : ink}
+              color={isFirstSlide ? colors.inkFaint : colors.ink}
               strokeWidth={2.25}
             />
           </Pressable>
@@ -127,10 +120,10 @@ export default function WelcomeTourScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   shellContent: {
     flex: 1,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   screen: {
     flex: 1,
@@ -155,7 +148,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   carouselRegion: {
     flex: 1,
@@ -178,7 +171,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: radius.md,
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -195,7 +188,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     paddingHorizontal: spacing.lg,
   },
   primaryButtonPressed: {
@@ -206,6 +199,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,
-    color: surface,
+    color: colors.onAccent,
   },
-});
+}));

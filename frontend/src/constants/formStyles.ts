@@ -1,33 +1,34 @@
-import { Platform, StyleSheet } from "react-native";
+import { Platform } from "react-native";
 
-import { fontFamilies } from "@/constants/fonts";
-import { colors } from "./colors";
+import { createThemedStyles } from "@/theme/useThemedStyles";
+
+import { fontFamilies } from "./fonts";
 import { spacing } from "./spacing";
 
-export const formStyles = StyleSheet.create({
+export const useFormStyles = createThemedStyles(({ colors }) => ({
   fieldLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.primary,
+    color: colors.accentText,
     marginBottom: spacing.sm,
   },
   /** Keep border width constant so focus/error states do not change layout height. */
   fieldShell: {
     minHeight: 48,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.line,
     borderRadius: 8,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
   },
   fieldShellFocused: {
-    borderColor: colors.primary,
+    borderColor: colors.accentText,
   },
   fieldShellError: {
-    borderColor: colors.error,
+    borderColor: colors.danger,
   },
   /**
    * Android: default font padding + vertical padding makes placeholders sit high vs
@@ -39,7 +40,7 @@ export const formStyles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 16,
     lineHeight: 22,
-    color: colors.textPrimary,
+    color: colors.ink,
     ...Platform.select({
       android: {
         height: "100%",
@@ -58,11 +59,11 @@ export const formStyles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.error,
+    color: colors.danger,
     marginTop: spacing.xs,
   },
   iconButton: {
     padding: spacing.sm,
     marginLeft: spacing.xs,
   },
-});
+}));

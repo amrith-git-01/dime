@@ -1,16 +1,7 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
-import {
-  colors,
-  danger,
-  inkSoft,
-  layout,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { layout, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
   CompareCashflowSection,
@@ -25,8 +16,10 @@ import {
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
 
 import { useInsightsMonthCompareScreenModel } from "./useInsightsMonthCompareScreenModel";
+import { createThemedStyles } from "@/theme";
 
 function InsightsMonthCompareContent() {
+  const styles = useStyles();
   const {
     monthA,
     monthB,
@@ -134,10 +127,10 @@ export default function InsightsMonthCompareScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   scroll: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   scrollContent: {
     ...layout.screenContent,
@@ -150,10 +143,10 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   errorCard: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     ...shadows.card,
     padding: spacing.lg,
@@ -165,7 +158,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: danger,
+    color: colors.danger,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
@@ -173,7 +166,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
-});
+}));

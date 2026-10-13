@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
 
-import { colors, hexToRgba } from "@/constants";
+import { categoryDefault, hexToRgba, readableCategoryColor } from "@/constants";
+import type { ColorScheme } from "@/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
 import { toPaise } from "@/utils/paise";
@@ -38,11 +39,17 @@ export function signedAmountPaise(tx: TransactionRow): number {
   return tx.type === "credit" ? paise : -paise;
 }
 
-export function mapTransactionRowToUi(tx: TransactionRow): UiTransaction {
+export function mapTransactionRowToUi(
+  tx: TransactionRow,
+  scheme: ColorScheme,
+): UiTransaction {
   const parsed = parseISO(tx.transaction_at);
   const dateKey = format(parsed, "yyyy-MM-dd");
   const iconName = tx.category_icon_name ?? "CreditCard";
-  const color = tx.category_color ?? colors.categoryDefault;
+  const color = readableCategoryColor(
+    tx.category_color ?? categoryDefault,
+    scheme,
+  );
   const name = tx.category ?? "Uncategorized";
   const timeLabel = format(parsed, "h:mm a");
 

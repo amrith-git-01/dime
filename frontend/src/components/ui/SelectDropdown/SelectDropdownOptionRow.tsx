@@ -1,8 +1,8 @@
 import { Check } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
-import { colors, spacing, surfaces } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import {
@@ -10,6 +10,7 @@ import {
   type SelectDropdownSize,
   type SelectDropdownVariant,
 } from "./selectDropdownLayout";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type SelectDropdownOptionRowProps = {
   value: string;
@@ -30,6 +31,8 @@ export const SelectDropdownOptionRow = memo(function SelectDropdownOptionRow({
   variant,
   onSelect,
 }: SelectDropdownOptionRowProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -60,7 +63,7 @@ export const SelectDropdownOptionRow = memo(function SelectDropdownOptionRow({
       {selected ? (
         <Check
           size={size === "compact" ? 14 : 18}
-          color={colors.headerGradientStart}
+          color={colors.accentText}
           strokeWidth={2}
         />
       ) : null}
@@ -68,7 +71,7 @@ export const SelectDropdownOptionRow = memo(function SelectDropdownOptionRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   optionRow: {
     minHeight: 46,
     flexDirection: "row",
@@ -91,10 +94,10 @@ const styles = StyleSheet.create({
   },
   optionRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.line,
   },
   optionRowSelected: {
-    backgroundColor: surfaces.selectHighlight,
+    backgroundColor: colors.surfaces.selectHighlight,
   },
   optionRowPressed: {
     opacity: 0.9,
@@ -104,7 +107,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
     marginRight: spacing.sm,
   },
   optionLabelPrimary: {
@@ -124,4 +127,4 @@ const styles = StyleSheet.create({
   optionLabelSelected: {
     fontFamily: fontFamilies.medium,
   },
-});
+}));

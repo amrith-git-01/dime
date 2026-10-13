@@ -1,9 +1,10 @@
 import { Plus } from "lucide-react-native";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Pressable, Text } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type AddCategoryTriggerProps = {
   onPress: () => void;
@@ -14,6 +15,8 @@ export function AddCategoryTrigger({
   onPress,
   disabled = false,
 }: AddCategoryTriggerProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -30,23 +33,23 @@ export function AddCategoryTrigger({
       ]}
     >
       {disabled ? (
-        <ActivityIndicator size="small" color={colors.textSecondary} />
+        <ActivityIndicator size="small" color={colors.inkSoft} />
       ) : (
-        <Plus size={16} color={colors.primary} strokeWidth={2} />
+        <Plus size={16} color={colors.accentText} strokeWidth={2} />
       )}
       <Text style={styles.addPillLabel}>Custom</Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   addPill: {
     minHeight: 44,
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: colors.primary,
-    backgroundColor: colors.pageBackground,
+    borderColor: colors.accent,
+    backgroundColor: colors.paper,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     flexDirection: "row",
@@ -56,7 +59,7 @@ const styles = StyleSheet.create({
   },
   addPillDisabled: {
     opacity: 0.5,
-    borderColor: colors.border,
+    borderColor: colors.line,
   },
   addPillPressed: {
     opacity: 0.9,
@@ -64,6 +67,6 @@ const styles = StyleSheet.create({
   addPillLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
-    color: colors.primary,
+    color: colors.accentText,
   },
-});
+}));

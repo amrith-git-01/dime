@@ -1,10 +1,10 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import type { BentoStatCellTone } from "@/components/shared";
 import { SkeletonStrip } from "@/components/ui";
-import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type CompareMiniStatProps = {
   label: string;
@@ -19,12 +19,14 @@ export const CompareMiniStat = memo(function CompareMiniStat({
   tone = "neutral",
   loading = false,
 }: CompareMiniStatProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const valueColor =
     tone === "debit"
       ? colors.danger
       : tone === "credit"
         ? colors.success
-        : colors.textPrimary;
+        : colors.ink;
 
   return (
     <View style={styles.wrap}>
@@ -40,7 +42,7 @@ export const CompareMiniStat = memo(function CompareMiniStat({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
     gap: 2,
   },
@@ -48,7 +50,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 10,
     lineHeight: 13,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
   },
   value: {
     fontFamily: fontFamilies.monoSemiBold,
@@ -59,4 +61,4 @@ const styles = StyleSheet.create({
     width: "70%",
     marginTop: 2,
   },
-});
+}));

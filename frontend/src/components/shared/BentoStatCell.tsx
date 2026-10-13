@@ -1,9 +1,9 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { SkeletonStrip } from "@/components/ui";
-import { bento, colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles } from "@/theme";
 
 export type BentoStatCellTone =
   | "neutral"
@@ -38,6 +38,7 @@ export const BentoStatCell = memo(function BentoStatCell({
   tone = "neutral",
   isValueLoading = false,
 }: BentoStatCellProps) {
+  const styles = useStyles();
   return (
     <View style={styles.cell}>
       <Text style={styles.label}>{label}</Text>
@@ -61,7 +62,7 @@ export const BentoStatCell = memo(function BentoStatCell({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   cell: {
     flex: 1,
     alignItems: "center",
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 10,
     lineHeight: 14,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -80,7 +81,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 14,
     lineHeight: 20,
-    color: bento.onPastel.primary,
+    color: colors.ink,
   },
   valueCredit: {
     color: colors.success,
@@ -91,4 +92,4 @@ const styles = StyleSheet.create({
   valueSkeleton: {
     alignSelf: "center",
   },
-});
+}));

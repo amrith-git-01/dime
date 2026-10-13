@@ -1,9 +1,10 @@
 import type { LucideIcon } from "lucide-react-native";
 import { memo, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
-import { bento, iconSizes, radius, spacing } from "@/constants";
+import { iconSizes, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type BentoActionPillProps = {
   label: string;
@@ -23,13 +24,15 @@ export type BentoActionPillProps = {
 export const BentoActionPill = memo(function BentoActionPill({
   label,
   onPress,
-  backgroundColor = bento.actionIcon.manual,
+  backgroundColor,
   accessibilityLabel,
   icon: Icon,
   trailing,
   disabled = false,
   fullWidth = false,
 }: BentoActionPillProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,7 +43,7 @@ export const BentoActionPill = memo(function BentoActionPill({
       style={({ pressed }) => [
         styles.pill,
         fullWidth && styles.pillFullWidth,
-        { backgroundColor },
+        backgroundColor != null && { backgroundColor },
         disabled && styles.pillDisabled,
         pressed && !disabled && styles.pillPressed,
       ]}
@@ -48,7 +51,7 @@ export const BentoActionPill = memo(function BentoActionPill({
       {Icon ? (
         <Icon
           size={iconSizes.quickAdd}
-          color={bento.onSurface.primary}
+          color={colors.onInk}
           strokeWidth={2}
         />
       ) : null}
@@ -58,7 +61,7 @@ export const BentoActionPill = memo(function BentoActionPill({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -66,6 +69,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: radius.full,
+    backgroundColor: colors.bento.actionIcon,
   },
   pillFullWidth: {
     alignSelf: "stretch",
@@ -81,6 +85,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 14,
-    color: bento.onSurface.primary,
+    color: colors.onInk,
   },
-});
+}));

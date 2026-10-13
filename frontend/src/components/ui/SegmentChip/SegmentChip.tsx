@@ -1,9 +1,10 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
-import { bento, colors, hero, radius, spacing, surfaces } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles } from "@/theme";
 
 export type SegmentChipVariant = "default" | "onDark";
 
@@ -25,6 +26,7 @@ export const SegmentChip = memo(function SegmentChip({
   onPress,
   variant = "default",
 }: SegmentChipProps) {
+  const styles = useStyles();
   const onDark = variant === "onDark";
 
   return (
@@ -58,21 +60,21 @@ export const SegmentChip = memo(function SegmentChip({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   chip: {
     flex: 1,
     minHeight: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.pageBackground,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
   },
   chipSelected: {
-    backgroundColor: surfaces.primaryTint10,
-    borderColor: colors.primary,
+    backgroundColor: colors.surfaces.primaryTint10,
+    borderColor: colors.accent,
   },
   chipPressed: {
     opacity: 0.92,
@@ -81,23 +83,23 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   chipTextOn: {
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   chipOnDark: {
-    borderColor: hero.chipBorder,
-    backgroundColor: surfaces.onPrimaryChipBg,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaces.onPrimaryChipBg,
   },
   chipOnDarkSelected: {
-    backgroundColor: colors.barBackground,
-    borderColor: colors.barBackground,
+    backgroundColor: colors.surface,
+    borderColor: colors.surface,
   },
   chipTextOnDark: {
-    color: bento.onSurface.secondary,
+    color: colors.inkSoft,
   },
   chipTextOnDarkSelected: {
-    color: colors.textPrimary,
+    color: colors.ink,
   },
-});
+}));

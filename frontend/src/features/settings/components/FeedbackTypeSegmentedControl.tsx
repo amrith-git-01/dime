@@ -1,24 +1,17 @@
 import { memo, useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
 
-import {
-  ink,
-  inkSoft,
-  radius,
-  shadow,
-  spacing,
-  surface,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import type { FeedbackType } from "../types";
+import { createThemedStyles } from "@/theme";
 
 const OPTIONS: { id: FeedbackType; label: string }[] = [
   { id: "bug", label: "Bug" },
@@ -35,16 +28,6 @@ export type FeedbackTypeSegmentedControlProps = {
   disabled?: boolean;
 };
 
-const pillShadow = Platform.select({
-  android: { elevation: 2 } as const,
-  default: {
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  } as const,
-});
-
 /**
  * Sliding-pill type picker for feedback (Bug / Idea / Enhance).
  * Matches NotificationsFilterTabs — white pill on sunken track, no accent fill.
@@ -55,6 +38,7 @@ export const FeedbackTypeSegmentedControl = memo(
     onChange,
     disabled = false,
   }: FeedbackTypeSegmentedControlProps) {
+    const styles = useStyles();
     const translateX = useSharedValue(0);
     const [trackWidth, setTrackWidth] = useState(0);
     const tabWidth = trackWidth / OPTIONS.length;
@@ -126,11 +110,11 @@ export const FeedbackTypeSegmentedControl = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   track: {
     height: TRACK_HEIGHT,
     borderRadius: radius.full,
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     flexDirection: "row",
     position: "relative",
     overflow: "hidden",
@@ -141,8 +125,8 @@ const styles = StyleSheet.create({
     left: PILL_INSET,
     bottom: PILL_INSET,
     borderRadius: radius.full,
-    backgroundColor: surface,
-    ...pillShadow,
+    backgroundColor: colors.surface,
+    ...shadows.pill,
   },
   tab: {
     flex: 1,
@@ -156,10 +140,10 @@ const styles = StyleSheet.create({
   },
   labelSelected: {
     fontFamily: fontFamilies.semiBold,
-    color: ink,
+    color: colors.ink,
   },
   labelUnselected: {
     fontFamily: fontFamilies.regular,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

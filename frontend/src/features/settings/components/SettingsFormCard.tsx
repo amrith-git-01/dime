@@ -1,19 +1,13 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import {
-  fontFamilies,
-  ink,
-  inkSoft,
-  radius,
-  shadows,
-  surface,
-} from "@/constants";
+import { fontFamilies, radius } from "@/constants";
 
 import {
   SETTINGS_CARD_PADDING,
   SETTINGS_FORM_GAP,
 } from "../constants/settingsTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type SettingsFormCardProps = {
   title?: string;
@@ -29,6 +23,8 @@ export const SettingsFormCard = memo(function SettingsFormCard({
   header,
   children,
 }: SettingsFormCardProps) {
+  const { shadows } = useTheme();
+  const styles = useStyles();
   const showTextHeader = !header && (title ?? subtitle);
   const hasHeader = Boolean(header || showTextHeader);
 
@@ -49,9 +45,9 @@ export const SettingsFormCard = memo(function SettingsFormCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "visible",
   },
@@ -64,13 +60,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    color: ink,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   body: {
     padding: SETTINGS_CARD_PADDING,
@@ -80,4 +76,4 @@ const styles = StyleSheet.create({
   bodyStandalone: {
     paddingTop: SETTINGS_CARD_PADDING,
   },
-});
+}));
