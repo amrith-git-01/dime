@@ -1,16 +1,12 @@
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
 import { BentoEditorFooter } from "@/components/bento";
-import {
-  inkSoft,
-  spacing,
-} from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { BudgetAmountStepSlider } from "./BudgetAmountStepSlider";
@@ -21,6 +17,7 @@ import {
 } from "./budgetEditorPresets";
 import { BudgetLimitsBentoRow } from "./BudgetLimitsBentoRow";
 import { focusBudgetAmountInput } from "./focusBudgetAmountInput";
+import { createThemedStyles } from "@/theme";
 
 type BudgetLimitsEditorProps = {
   isEditMode: boolean;
@@ -61,6 +58,7 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   saveDisabled,
   saveLoading,
 }: BudgetLimitsEditorProps) {
+  const styles = useStyles();
   const dailyInputRef = useRef<TextInput>(null);
   const monthlyInputRef = useRef<TextInput>(null);
   const pendingDailyFocusRef = useRef(false);
@@ -188,7 +186,7 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   content: {
     gap: spacing.xl,
   },
@@ -196,9 +194,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   slidersBlock: {
     gap: spacing.xl,
   },
-});
+}));

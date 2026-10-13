@@ -1,5 +1,7 @@
-import { COUNTERPARTY_DONUT_SLICE_COLORS } from "@/features/analytics/constants/counterpartyDonutColors";
-import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import type {
+  CounterpartyDonutDatum,
+  DonutColors,
+} from "@/features/analytics/utils/buildCounterpartyDonutData";
 
 export type AgentDonutSeriesItem = {
   name: string;
@@ -8,6 +10,7 @@ export type AgentDonutSeriesItem = {
 
 export function buildAgentDonutData(
   series: AgentDonutSeriesItem[],
+  donutColors: DonutColors,
 ): CounterpartyDonutDatum[] {
   const cleaned = series.filter(
     (item) =>
@@ -23,10 +26,7 @@ export function buildAgentDonutData(
   return cleaned.map((item, index) => ({
     label: item.name.trim(),
     value: item.value,
-    color:
-      COUNTERPARTY_DONUT_SLICE_COLORS[
-        index % COUNTERPARTY_DONUT_SLICE_COLORS.length
-      ],
+    color: donutColors.slices[index % donutColors.slices.length],
     payee_key: `agent-slice-${index}`,
     display_name: item.name.trim(),
     share: item.value / total,

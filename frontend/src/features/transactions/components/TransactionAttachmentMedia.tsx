@@ -2,13 +2,14 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Image } from "expo-image";
 import { ChevronRight, Images, Pause, Play } from "lucide-react-native";
 import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { colors, radius, spacing, surfaces } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { ReceiptImageViewer } from "./ReceiptImageViewer";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const CARD_RADIUS = 14;
 const THUMB_SIZE = 56;
@@ -18,6 +19,8 @@ type TransactionReceiptImageProps = {
 };
 
 export function TransactionReceiptImage({ url }: TransactionReceiptImageProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const openViewer = useCallback(() => {
@@ -52,7 +55,7 @@ export function TransactionReceiptImage({ url }: TransactionReceiptImageProps) {
           <View style={styles.thumbIconBadge}>
             <Images
               size={16}
-              color={colors.headerGradientStart}
+              color={colors.inkSoft}
               strokeWidth={1.75}
             />
           </View>
@@ -61,7 +64,7 @@ export function TransactionReceiptImage({ url }: TransactionReceiptImageProps) {
           <Text style={styles.receiptTitle}>Receipt photo</Text>
           <Text style={styles.receiptHint}>Tap to view</Text>
         </View>
-        <ChevronRight size={20} color={colors.inactive} strokeWidth={2} />
+        <ChevronRight size={20} color={colors.inkFaint} strokeWidth={2} />
       </Pressable>
 
       <ReceiptImageViewer
@@ -88,6 +91,8 @@ type TransactionVoicePlayerProps = {
 };
 
 export function TransactionVoicePlayer({ url }: TransactionVoicePlayerProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const player = useAudioPlayer(url, { downloadFirst: true });
   const status = useAudioPlayerStatus(player);
 
@@ -125,16 +130,16 @@ export function TransactionVoicePlayer({ url }: TransactionVoicePlayerProps) {
           {status.playing ? (
             <Pause
               size={22}
-              color={colors.textOnPrimary}
+              color={colors.onAccent}
               strokeWidth={2}
-              fill={colors.textOnPrimary}
+              fill={colors.onAccent}
             />
           ) : (
             <Play
               size={22}
-              color={colors.textOnPrimary}
+              color={colors.onAccent}
               strokeWidth={2}
-              fill={colors.textOnPrimary}
+              fill={colors.onAccent}
             />
           )}
         </View>
@@ -150,12 +155,12 @@ export function TransactionVoicePlayer({ url }: TransactionVoicePlayerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   mediaCard: {
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.barBackground,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
     overflow: "hidden",
   },
   receiptRow: {
@@ -172,7 +177,7 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     borderRadius: radius.md,
     overflow: "hidden",
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
     flexShrink: 0,
   },
   thumbImage: {
@@ -186,9 +191,9 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: radius.sm,
-    backgroundColor: surfaces.whiteOverlay92,
+    backgroundColor: colors.surfaces.whiteOverlay92,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -201,13 +206,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   receiptHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   voiceRow: {
     flexDirection: "row",
@@ -222,7 +227,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -234,18 +239,18 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   voiceTime: {
     fontFamily: fontFamilies.mono,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   voiceHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

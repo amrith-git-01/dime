@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef } from "react";
-import { LayoutChangeEvent, StyleSheet, View } from "react-native";
+import { LayoutChangeEvent, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,7 +7,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { springs } from "@/constants/motion";
-import { progressBar, radius } from "@/constants";
+import { radius } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 interface AnimatedProgressBarProps {
   progress: number; // 0-1
@@ -48,12 +49,13 @@ function initialAnimatedProgress(
  */
 export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
   progress,
-  backgroundColor = progressBar.track,
-  fillColor = progressBar.fillDefault,
+  backgroundColor,
+  fillColor,
   height = 8,
   animated = true,
   animateOnceKey,
 }) => {
+  const styles = useStyles();
   const animatedProgress = useSharedValue(
     initialAnimatedProgress(progress, animateOnceKey),
   );
@@ -123,15 +125,19 @@ export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
 
   return (
     <View
-      style={[styles.track, { backgroundColor, height }]}
+      style={[
+        styles.track,
+        backgroundColor != null && { backgroundColor },
+        { height },
+      ]}
       onLayout={onTrackLayout}
     >
       <Animated.View
         style={[
           styles.fill,
+          fillColor != null && { backgroundColor: fillColor },
           {
             height,
-            backgroundColor: fillColor,
             borderRadius: height / 2,
           },
           fillStyle,
@@ -141,13 +147,15 @@ export const AnimatedProgressBar: React.FC<AnimatedProgressBarProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   track: {
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.full,
     overflow: "hidden",
     width: "100%",
   },
   fill: {
     width: "100%",
+    backgroundColor: colors.accent,
   },
-});
+}));

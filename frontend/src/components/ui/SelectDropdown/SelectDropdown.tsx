@@ -10,7 +10,6 @@ import {
   InteractionManager,
   Keyboard,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -21,9 +20,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { colors, radius, spacing, surfaces } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { formStyles } from "@/constants/formStyles";
+import { useFormStyles } from "@/constants/formStyles";
 
 import { SelectDropdownMenu } from "./SelectDropdownMenu";
 import {
@@ -35,6 +34,7 @@ import {
   type SelectDropdownSize,
   type SelectDropdownVariant,
 } from "./selectDropdownLayout";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const ARROW_ROTATION_MS = 220;
 
@@ -90,6 +90,9 @@ export function SelectDropdown<T extends string>({
   maxVisibleOptions,
   panelAnchorRef,
 }: SelectDropdownProps<T>) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const formStyles = useFormStyles();
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [menuRect, setMenuRect] = useState<MenuRect | null>(null);
@@ -266,10 +269,10 @@ export function SelectDropdown<T extends string>({
               size={size === "compact" ? 14 : 18}
               color={
                 variant === "secondary"
-                  ? colors.textOnPrimary
+                  ? colors.onAccent
                   : variant === "primary"
-                    ? colors.textOnPrimary
-                    : colors.inactive
+                    ? colors.onAccent
+                    : colors.inkFaint
               }
               strokeWidth={2}
             />
@@ -296,7 +299,7 @@ export function SelectDropdown<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     position: "relative",
     alignSelf: "stretch",
@@ -306,13 +309,13 @@ const styles = StyleSheet.create({
     elevation: 24,
   },
   labelPrimary: {
-    color: colors.textOnPrimaryMuted,
+    color: colors.onAccentMuted,
   },
   triggerShell: {
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.line,
     borderRadius: 8,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     overflow: "hidden",
   },
   triggerShellCompact: {
@@ -322,19 +325,19 @@ const styles = StyleSheet.create({
   },
   triggerShellPrimary: {
     minWidth: 104,
-    borderColor: surfaces.selectOnPrimaryBorder,
-    backgroundColor: surfaces.selectOnPrimaryBg,
+    borderColor: colors.surfaces.selectOnPrimaryBorder,
+    backgroundColor: colors.surfaces.selectOnPrimaryBg,
   },
   triggerShellSecondary: {
     minWidth: 120,
-    borderColor: surfaces.selectOnPrimaryBorder,
-    backgroundColor: surfaces.selectOnPrimaryBg,
+    borderColor: colors.surfaces.selectOnPrimaryBorder,
+    backgroundColor: colors.surfaces.selectOnPrimaryBg,
   },
   triggerShellOpen: {
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   triggerShellError: {
-    borderColor: colors.error,
+    borderColor: colors.danger,
   },
   triggerRow: {
     minHeight: 48,
@@ -366,15 +369,15 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   triggerTextPrimary: {
-    color: colors.textOnPrimary,
+    color: colors.onAccent,
     fontSize: 14,
     lineHeight: 18,
   },
   triggerTextSecondary: {
-    color: colors.textOnPrimary,
+    color: colors.onAccent,
     fontSize: 11,
     lineHeight: 14,
   },
@@ -382,20 +385,20 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   triggerPlaceholder: {
-    color: colors.inactive,
+    color: colors.inkFaint,
   },
   triggerPlaceholderPrimary: {
-    color: colors.textOnPrimaryMuted,
+    color: colors.onAccentMuted,
   },
   triggerPlaceholderSecondary: {
-    color: colors.textOnPrimaryMuted,
+    color: colors.onAccentMuted,
   },
   chevronWrap: {
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 2,
   },
-});
+}));

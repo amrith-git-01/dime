@@ -2,13 +2,14 @@ import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import { line, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { TransactionRow } from "@/features/transactions/components/TransactionRow";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 
 import { TOP_EXPENSES_MAX } from "../constants/topExpenses";
 import { InsightsTopExpensesSkeleton } from "./InsightsAnalyticsSkeletons";
 import { InsightsCard } from "./InsightsCard";
+import { createThemedStyles } from "@/theme";
 
 export type InsightsTopExpensesCardProps = {
   topExpenses: TransactionRowData[];
@@ -23,6 +24,7 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
   onTransactionPress,
   onManualAdd,
 }: InsightsTopExpensesCardProps) {
+  const styles = useStyles();
   const visible = useMemo(
     () => topExpenses.slice(0, TOP_EXPENSES_MAX),
     [topExpenses],
@@ -64,14 +66,14 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   body: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
   rowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginLeft: spacing.lg + 40 + spacing.md,
   },
-});
+}));

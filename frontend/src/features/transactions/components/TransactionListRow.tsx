@@ -17,7 +17,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { listEntrance, springs, timings } from "@/constants/motion";
-import { colors, radius, spacing, typography } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import type { TransactionRow } from "@/features/transactions/types";
 
@@ -27,6 +27,7 @@ import {
   type TransactionCategory,
   type UiTransaction,
 } from "@/features/transactions/utils/transactionDisplay";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type CategoryIconProps = {
   category: TransactionCategory;
@@ -35,6 +36,7 @@ type CategoryIconProps = {
 const CategoryIcon = memo(function CategoryIcon({
   category,
 }: CategoryIconProps) {
+  const styles = useStyles();
   return (
     <View
       style={[
@@ -63,6 +65,7 @@ const CategoryTag = memo(function CategoryTag({
   borderColor,
   bgColor,
 }: CategoryTagProps) {
+  const styles = useStyles();
   return (
     <View
       style={[
@@ -95,6 +98,7 @@ export type TransactionListRowProps = {
 };
 
 function RowBody({ ui }: { ui: UiTransaction }) {
+  const styles = useStyles();
   return (
     <>
       <CategoryIcon category={ui.category} />
@@ -155,7 +159,12 @@ export const TransactionListRow = memo(function TransactionListRow({
   showBottomBorder = true,
   onPress,
 }: TransactionListRowProps) {
-  const ui = useMemo(() => mapTransactionRowToUi(transaction), [transaction]);
+  const styles = useStyles();
+  const { scheme } = useTheme();
+  const ui = useMemo(
+    () => mapTransactionRowToUi(transaction, scheme),
+    [transaction, scheme],
+  );
 
   if (variant === "card") {
     const cardRowStyle: StyleProp<ViewStyle> = [
@@ -216,6 +225,7 @@ const TransactionListRowScreenStatic = memo(
     transaction,
     onPress,
   }: ScreenStaticProps) {
+    const styles = useStyles();
     return (
       <Pressable
         accessibilityRole="button"
@@ -243,6 +253,8 @@ const TransactionListRowScreenAnimated = memo(
     onPress,
     isVisible = true,
   }: ScreenAnimatedProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const opacity = useSharedValue<number>(listEntrance.opacityFrom);
     const translateY = useSharedValue<number>(listEntrance.translateYFrom);
     const scale = useSharedValue(1);
@@ -250,7 +262,7 @@ const TransactionListRowScreenAnimated = memo(
     const hasAnimatedIn = useRef(false);
 
     const overlayBackground =
-      rowIndex % 2 === 0 ? colors.primaryMuted : colors.surfaceTint;
+      rowIndex % 2 === 0 ? colors.accentTint : colors.surfaceSunken;
 
     useEffect(() => {
       if (!isVisible || hasAnimatedIn.current) {
@@ -326,7 +338,7 @@ const TransactionListRowScreenAnimated = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   screenRow: {
     minHeight: 72,
     flexDirection: "row",
@@ -336,13 +348,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: spacing.md,
     overflow: "hidden",
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
   },
   screenRowEven: {
-    backgroundColor: colors.primaryMuted,
+    backgroundColor: colors.accentTint,
   },
   screenRowOdd: {
-    backgroundColor: colors.surfaceTint,
+    backgroundColor: colors.surfaceSunken,
   },
   screenRowPressed: {
     opacity: 0.94,
@@ -356,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderList,
+    borderBottomColor: colors.surfaceSunken,
   },
   cardRowLast: {
     borderBottomWidth: 0,
@@ -414,4 +426,4 @@ const styles = StyleSheet.create({
   debitRowAmount: {
     color: colors.danger,
   },
-});
+}));

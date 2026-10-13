@@ -1,11 +1,10 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Pie, PolarChart } from "victory-native";
 
-import { bento } from "@/constants";
 import { COUNTERPARTY_DONUT_INNER_RADIUS_RATIO } from "@/features/analytics/constants/counterpartyDonut";
-import { COUNTERPARTY_DONUT_OTHER_COLOR } from "@/features/analytics/constants/counterpartyDonutColors";
 import type { CounterpartyDonutDatum } from "@/features/analytics/utils/buildCounterpartyDonutData";
+import { useTheme } from "@/theme";
 
 const DONUT_START_ANGLE = -90;
 const SLICE_GAP_PX = 2;
@@ -25,10 +24,11 @@ const PayeeVictoryDonut = memo(function PayeeVictoryDonut({
   showSliceGaps,
   sliceOpacity = 0.94,
 }: PayeeVictoryDonutProps) {
+  const { colors } = useTheme();
   const angularInset = showSliceGaps
     ? {
         angularStrokeWidth: SLICE_GAP_PX,
-        angularStrokeColor: bento.twoToneBodySurface,
+        angularStrokeColor: colors.bento.twoToneBodySurface,
       }
     : null;
 
@@ -68,28 +68,31 @@ export type PayeeDonutEmptyChartProps = {
   innerRadiusRatio?: number;
 };
 
-const EMPTY_DONUT_ROW: CounterpartyDonutDatum[] = [
-  {
-    label: "empty",
-    value: 1,
-    color: COUNTERPARTY_DONUT_OTHER_COLOR,
-    payee_key: "__empty__",
-    display_name: "",
-    share: 0,
-    debit_total: 0,
-    transaction_count: 0,
-  },
-];
-
 /** Neutral donut ring when there is no payee spend. */
 export const PayeeDonutEmptyChart = memo(function PayeeDonutEmptyChart({
   size = 168,
   innerRadiusRatio = COUNTERPARTY_DONUT_INNER_RADIUS_RATIO,
 }: PayeeDonutEmptyChartProps) {
+  const { colors } = useTheme();
+  const emptyRow = useMemo<CounterpartyDonutDatum[]>(
+    () => [
+      {
+        label: "empty",
+        value: 1,
+        color: colors.donut.other,
+        payee_key: "__empty__",
+        display_name: "",
+        share: 0,
+        debit_total: 0,
+        transaction_count: 0,
+      },
+    ],
+    [colors.donut.other],
+  );
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
       <PayeeVictoryDonut
-        data={EMPTY_DONUT_ROW}
+        data={emptyRow}
         size={size}
         innerRadius={`${innerRadiusRatio * 100}%`}
         showSliceGaps={false}

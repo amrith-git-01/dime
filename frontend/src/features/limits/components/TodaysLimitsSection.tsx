@@ -2,14 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
-import {
-  fontFamilies,
-  ink,
-  inkSoft,
-  line,
-  spacing,
-  warning,
-} from "@/constants";
+import { fontFamilies, spacing } from "@/constants";
 import { SettingsSection } from "@/features/settings/components";
 
 import type { LimitCounter } from "../types";
@@ -19,6 +12,7 @@ import {
   formatResetsAt,
   MANUAL_ENTRY_FREE_NOTE,
 } from "../utils/limitsFormat";
+import { createThemedStyles } from "@/theme";
 
 type LimitRowProps = {
   label: string;
@@ -31,6 +25,7 @@ const LimitRow = memo(function LimitRow({
   counter,
   showSeparator = false,
 }: LimitRowProps) {
+  const styles = useStyles();
   const used = counter.limit > 0 ? counter.used / counter.limit : 1;
   return (
     <View>
@@ -48,6 +43,7 @@ const LimitRow = memo(function LimitRow({
 
 /** Settings hub block: today's agent / receipt / voice allowances and when they reset. */
 export const TodaysLimitsSection = memo(function TodaysLimitsSection() {
+  const styles = useStyles();
   const { data, isPending, isError } = useLimitsQuery();
 
   return (
@@ -93,7 +89,7 @@ export const TodaysLimitsSection = memo(function TodaysLimitsSection() {
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   inner: {
     padding: spacing.lg,
     gap: spacing.md,
@@ -113,30 +109,30 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
   value: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginTop: spacing.sm,
   },
   paused: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: warning,
+    color: colors.warning,
   },
   hint: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   skeleton: {
     gap: spacing.md,
@@ -145,4 +141,4 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 8,
   },
-});
+}));

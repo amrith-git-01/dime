@@ -17,17 +17,18 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, shadows, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { springs } from "@/constants/motion";
 import { useToastUiStore } from "@/stores/toastUiStore";
 
 import type { ToastVariant } from "@/features/toast/types";
+import { createThemedStyles, useTheme, type ThemeColors } from "@/theme";
 
 const ENTER_OPACITY_MS = 140;
 const EXIT_OPACITY_MS = 120;
 const EXIT_Y_OFFSET = 18;
-function variantConfig(variant: ToastVariant) {
+function variantConfig(variant: ToastVariant, colors: ThemeColors) {
   switch (variant) {
     case "success":
       return {
@@ -48,12 +49,14 @@ function variantConfig(variant: ToastVariant) {
     default:
       return {
         icon: Info,
-        accent: colors.primary,
+        accent: colors.accentText,
       };
   }
 }
 
 export function ToastHost() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const toast = useToastUiStore((s) => s.current);
   const hideCurrent = useToastUiStore((s) => s.hideCurrent);
   const insets = useSafeAreaInsets();
@@ -119,7 +122,7 @@ export function ToastHost() {
     return null;
   }
 
-  const conf = variantConfig(renderedToast.variant);
+  const conf = variantConfig(renderedToast.variant, colors);
   const Icon = conf.icon;
   const top = insets.top + spacing.xl + spacing.md;
   const bottom =
@@ -171,7 +174,7 @@ export function ToastHost() {
               pressed && styles.actionPressed,
             ]}
           >
-            <X size={16} color={colors.textSecondary} strokeWidth={2.2} />
+            <X size={16} color={colors.inkSoft} strokeWidth={2.2} />
           </Pressable>
         </Animated.View>
       </View>
@@ -179,7 +182,7 @@ export function ToastHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   anchor: {
     position: "absolute",
     left: spacing.lg,
@@ -198,8 +201,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   cardNeutral: {
-    backgroundColor: colors.barBackground,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
   },
   leading: {
     width: 20,
@@ -211,7 +214,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   action: {
     minHeight: 30,
@@ -235,4 +238,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-});
+}));

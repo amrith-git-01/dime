@@ -1,19 +1,11 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
-import {
-  accent,
-  ink,
-  inkFaint,
-  inkSoft,
-  surface,
-  surfaceSunken,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type HeroMonthCardProps = {
   monthLabel: string;
@@ -36,6 +28,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   isLoading = false,
   onAddBudget,
 }: HeroMonthCardProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -78,8 +72,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
         <View style={styles.progressWrap}>
           <ProgressBar
             progress={isLoading ? 0 : progress}
-            fillColor={accent}
-            backgroundColor={surfaceSunken}
+            fillColor={colors.accent}
+            backgroundColor={colors.surfaceSunken}
             height={5}
           />
         </View>
@@ -88,9 +82,9 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.xl,
     gap: spacing.sm,
@@ -107,20 +101,20 @@ const styles = StyleSheet.create({
     lineHeight: 13,
     letterSpacing: 0.7,
     textTransform: "uppercase",
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   monthLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   heroAmount: {
     fontFamily: fontFamilies.bold,
     fontSize: 40,
     lineHeight: 48,
     letterSpacing: -0.8,
-    color: accent,
+    color: colors.accentText,
     fontVariant: ["tabular-nums"],
     marginTop: 4,
   },
@@ -134,16 +128,16 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   statusLineMuted: {
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   ctaLine: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: ink,
+    color: colors.ink,
   },
   subtextSkeleton: {
     height: 14,
@@ -153,4 +147,4 @@ const styles = StyleSheet.create({
   progressWrap: {
     marginTop: spacing.xs,
   },
-});
+}));

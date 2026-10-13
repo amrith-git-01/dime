@@ -14,9 +14,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { ink, inkFaint, inkSoft, line, spacing, timings } from "@/constants";
+import { spacing, timings } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type GlossaryTermRowProps = {
   id: string;
@@ -35,6 +36,8 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
   onToggle,
   showSeparator = false,
 }: GlossaryTermRowProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const progress = useSharedValue(expanded ? 1 : 0);
   const measuredHeight = useSharedValue(0);
 
@@ -78,7 +81,7 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
         <View style={styles.titleRow}>
           <Text style={styles.term}>{term}</Text>
           <Animated.View style={chevronStyle}>
-            <ChevronDown size={20} color={inkFaint} strokeWidth={2} />
+            <ChevronDown size={20} color={colors.inkFaint} strokeWidth={2} />
           </Animated.View>
         </View>
         <Animated.View style={[styles.bodyClip, bodyStyle]}>
@@ -92,7 +95,7 @@ export const GlossaryTermRow = memo(function GlossaryTermRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   pressable: {
     paddingHorizontal: spacing.sm,
   },
@@ -107,7 +110,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
   bodyClip: {
     overflow: "hidden",
@@ -123,12 +126,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
     paddingRight: 28,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.sm,
   },
-});
+}));

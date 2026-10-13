@@ -3,14 +3,13 @@ import { StyleSheet, View } from "react-native";
 
 import { EmptyState, emptyStateCopy } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import { line, surface } from "@/constants/colors";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { TransactionRow } from "@/features/transactions/components/TransactionRow";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 
 import { HomeSectionHeader } from "./HomeSectionHeader";
+import { createThemedStyles } from "@/theme";
 
 const HOME_MAX_RECENT = 5;
 const SKELETON_COUNT = 3;
@@ -32,6 +31,7 @@ export const HomeRecentSection = memo(function HomeRecentSection({
   onTransactionPress,
   onManualAdd,
 }: HomeRecentSectionProps) {
+  const styles = useStyles();
   const visible = transactions.slice(0, HOME_MAX_RECENT);
 
   return (
@@ -74,16 +74,16 @@ export const HomeRecentSection = memo(function HomeRecentSection({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "hidden",
     ...shadows.card,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   skeletonRow: {
@@ -117,4 +117,4 @@ const styles = StyleSheet.create({
     width: 44,
     borderRadius: 4,
   },
-});
+}));

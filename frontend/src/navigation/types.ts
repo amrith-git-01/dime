@@ -18,6 +18,7 @@ export type MainStackParamList = {
   SettingsEmail: undefined;
   SettingsFeedback: undefined;
   SettingsHaptic: undefined;
+  SettingsAppearance: undefined;
   SettingsGlossary: undefined;
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;

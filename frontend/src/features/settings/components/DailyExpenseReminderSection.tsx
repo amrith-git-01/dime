@@ -2,9 +2,9 @@ import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import { Clock } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 
-import { ink, inkSoft, line, radius, spacing, surfaceSunken } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { parseReminderTime } from "@/lib/notifications/parseReminderTime";
@@ -12,6 +12,7 @@ import { parseReminderTime } from "@/lib/notifications/parseReminderTime";
 import { useSettingsToggleBusyGate } from "../hooks/useSettingsToggleBusyGate";
 import { SettingsFormCard } from "./SettingsFormCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
+import { createThemedStyles, useTheme } from "@/theme";
 
 function toHHmm(d: Date): string {
   const h = d.getHours().toString().padStart(2, "0");
@@ -44,6 +45,8 @@ export const DailyExpenseReminderSection = memo(
     onEnabledChange,
     onTimeChange,
   }: DailyExpenseReminderSectionProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const { onAnimationBusyChange } = useSettingsToggleBusyGate();
 
     const timeDate = useMemo(() => hhmmToDate(time), [time]);
@@ -93,7 +96,7 @@ export const DailyExpenseReminderSection = memo(
               disabled && styles.timeRowDisabled,
             ]}
           >
-            <Clock size={16} color={inkSoft} strokeWidth={1.5} />
+            <Clock size={16} color={colors.inkSoft} strokeWidth={1.5} />
             <View style={styles.timeTextCol}>
               <Text style={styles.timeLabel}>Reminder time</Text>
               <Text style={styles.timeValue}>{timeLabel}</Text>
@@ -105,7 +108,7 @@ export const DailyExpenseReminderSection = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   timeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -113,12 +116,12 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   timeRowPressed: {
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
   },
   timeRowDisabled: {
     opacity: 0.5,
@@ -132,12 +135,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   timeValue: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
-});
+}));

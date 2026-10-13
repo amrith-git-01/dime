@@ -2,20 +2,12 @@ import { ChevronRight, type LucideIcon } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import {
-  accent,
-  accentTint,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  spacing,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { SETTINGS_NAV_ICON_WELL_SIZE } from "../constants/settingsTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type SettingsNavRowProps = {
   label: string;
@@ -32,6 +24,8 @@ export const SettingsNavRow = memo(function SettingsNavRow({
   onPress,
   showSeparator = false,
 }: SettingsNavRowProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View>
       <Pressable
@@ -44,7 +38,7 @@ export const SettingsNavRow = memo(function SettingsNavRow({
         style={styles.row}
       >
         <View style={styles.iconWell}>
-          <Icon size={20} color={accent} strokeWidth={2} />
+          <Icon size={20} color={colors.accentText} strokeWidth={2} />
         </View>
         <View style={styles.textCol}>
           <Text style={styles.label}>{label}</Text>
@@ -54,19 +48,19 @@ export const SettingsNavRow = memo(function SettingsNavRow({
             </Text>
           ) : null}
         </View>
-        <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
+        <ChevronRight size={20} color={colors.inkFaint} strokeWidth={2} />
       </Pressable>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   iconWell: {
     width: SETTINGS_NAV_ICON_WELL_SIZE,
     height: SETTINGS_NAV_ICON_WELL_SIZE,
     borderRadius: radius.sm,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -88,18 +82,18 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginLeft: SETTINGS_NAV_ICON_WELL_SIZE + spacing.md + spacing.sm,
     marginRight: spacing.sm,
   },
-});
+}));

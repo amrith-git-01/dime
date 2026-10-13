@@ -6,7 +6,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { buildClusteredCashflowScale } from "@/features/analytics/utils/cashflowClusterScale";
 import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
@@ -20,6 +20,7 @@ import {
   parseAgentCashflowPoints,
   type AgentCashflowPoint,
 } from "../utils/parseAgentCashflowPoints";
+import { createThemedStyles } from "@/theme";
 
 const BAR_SLOT_WIDTH = 36;
 const CHART_HEIGHT = 120;
@@ -29,7 +30,6 @@ const PLOT_LEFT_INSET = spacing.sm;
 const CHART_ROW_GAP = spacing.sm;
 /** Horizontal space for date text before −90° rotation (prevents wrapping). */
 const X_LABEL_TEXT_WIDTH = 52;
-const AXIS_COLOR = colors.cardBorder;
 
 type AgentCashflowBarChartProps = {
   title?: string;
@@ -48,6 +48,7 @@ const AnimatedCashflowBar = memo(function AnimatedCashflowBar({
   barCount: number;
   revealKey: string;
 }) {
+  const styles = useStyles();
   const animatedHeight = useSharedValue(2);
 
   useEffect(() => {
@@ -72,6 +73,7 @@ const PerpendicularXLabel = memo(function PerpendicularXLabel({
 }: {
   label: string;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.xLabelCol}>
       <Text
@@ -90,6 +92,7 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
   points,
   revealKey,
 }: AgentCashflowBarChartProps) {
+  const styles = useStyles();
   const days = useMemo(() => parseAgentCashflowPoints(points), [points]);
   const yScale = useMemo(
     () => buildClusteredCashflowScale(days.map((day) => day.amount)),
@@ -198,14 +201,14 @@ export const AgentCashflowBarChart = memo(function AgentCashflowBarChart({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: spacing.sm,
   },
   title: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   chartRow: {
     flexDirection: "row",
@@ -227,7 +230,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 8,
     lineHeight: 10,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     textAlign: "right",
   },
   plotArea: {
@@ -246,7 +249,7 @@ const styles = StyleSheet.create({
     left: PLOT_LEFT_INSET,
     top: 0,
     width: StyleSheet.hairlineWidth,
-    backgroundColor: AXIS_COLOR,
+    backgroundColor: colors.line,
     zIndex: 2,
   },
   barsRow: {
@@ -259,7 +262,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: AXIS_COLOR,
+    backgroundColor: colors.line,
     opacity: 0.45,
   },
   barCol: {
@@ -272,12 +275,12 @@ const styles = StyleSheet.create({
   bar: {
     width: "100%",
     borderRadius: 4,
-    backgroundColor: colors.headerGradientStart,
+    backgroundColor: colors.accent,
     opacity: 0.88,
   },
   xAxisLine: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: AXIS_COLOR,
+    backgroundColor: colors.line,
     width: "100%",
     marginTop: spacing.xs,
   },
@@ -299,7 +302,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 9,
     lineHeight: 12,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     width: X_LABEL_TEXT_WIDTH,
     textAlign: "left",
     transform: [{ rotate: "-90deg" }, { translateX: 4 }],
@@ -307,6 +310,6 @@ const styles = StyleSheet.create({
   meta: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

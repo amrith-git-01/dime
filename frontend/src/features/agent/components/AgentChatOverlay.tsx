@@ -22,15 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
-import {
-  accent,
-  overlays,
-  radius,
-  shadow,
-  spacing,
-  surface,
-  timings,
-} from "@/constants";
+import { radius, spacing, timings } from "@/constants";
 import {
   useAgentChat,
   useAgentDailyLimitReached,
@@ -49,6 +41,7 @@ import { AgentChatComposer } from "./AgentChatComposer";
 import { AgentChatHeader } from "./AgentChatHeader";
 import { AgentMessageRenderer } from "./AgentMessageRenderer";
 import { AgentSuggestionsHeader } from "./AgentSuggestionsHeader";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
 const MODAL_WIDTH_RATIO = 0.92;
@@ -65,6 +58,8 @@ type AgentChatOverlayProps = {
 export function AgentChatOverlay({
   showEntryFab = true,
 }: AgentChatOverlayProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const visible = useAgentChatUiStore((s) => s.visible);
   const open = useAgentChatUiStore((s) => s.open);
   const close = useAgentChatUiStore((s) => s.close);
@@ -330,7 +325,7 @@ export function AgentChatOverlay({
             pressed && !showCollapseHandoffFab && styles.fabPressed,
           ]}
         >
-          <Sparkles size={20} color={surface} strokeWidth={2} />
+          <Sparkles size={20} color={colors.onAccent} strokeWidth={2} />
         </Pressable>
       ) : null}
 
@@ -360,7 +355,7 @@ export function AgentChatOverlay({
                 style={[styles.collapsedIcon, collapsedIconStyle]}
                 pointerEvents="none"
               >
-                <Sparkles size={20} color={surface} strokeWidth={2} />
+                <Sparkles size={20} color={colors.onAccent} strokeWidth={2} />
               </Animated.View>
 
               <Animated.View style={[styles.panelInner, contentStyle]}>
@@ -408,21 +403,17 @@ export function AgentChatOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   fab: {
     position: "absolute",
     zIndex: 40,
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 10,
+    ...shadows.fab,
   },
   fabPressed: {
     opacity: 0.9,
@@ -437,7 +428,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: overlays.scrim,
+    backgroundColor: colors.overlays.scrim,
   },
   panelAnchor: {
     position: "absolute",
@@ -445,13 +436,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   panel: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     overflow: "hidden",
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 16,
+    ...shadows.modal,
   },
   collapsedIcon: {
     ...StyleSheet.absoluteFillObject,
@@ -460,7 +447,7 @@ const styles = StyleSheet.create({
   },
   panelInner: {
     flex: 1,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   messages: {
     flex: 1,
@@ -470,4 +457,4 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     flexGrow: 1,
   },
-});
+}));

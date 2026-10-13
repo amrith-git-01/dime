@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { inkSoft, paper, spacing, typography } from "@/constants";
+import { spacing } from "@/constants";
 
 import type { AuthFeatureSlideData } from "../constants/authFeatureSlides";
 import type { WelcomeTourSlideLayout } from "../constants/onboardingTokens";
@@ -9,6 +9,7 @@ import {
   ONBOARDING_DESCRIPTION_MAX_WIDTH,
   ONBOARDING_IMAGE_COPY_GAP,
 } from "../constants/onboardingTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export interface AuthFeatureSlideProps {
   slide: AuthFeatureSlideData;
@@ -16,6 +17,8 @@ export interface AuthFeatureSlideProps {
 }
 
 export function AuthFeatureSlide({ slide, layout }: AuthFeatureSlideProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { illustrationWidth, illustrationHeight } = layout;
 
   return (
@@ -30,7 +33,7 @@ export function AuthFeatureSlide({ slide, layout }: AuthFeatureSlideProps) {
           style={{
             width: illustrationWidth,
             height: illustrationHeight,
-            backgroundColor: paper,
+            backgroundColor: colors.paper,
           }}
           contentFit="contain"
           contentPosition="center"
@@ -53,7 +56,7 @@ export function AuthFeatureSlide({ slide, layout }: AuthFeatureSlideProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   content: {
     alignItems: "center",
     justifyContent: "center",
@@ -66,9 +69,9 @@ const styles = StyleSheet.create({
   },
   description: {
     ...typography.bodyMd,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
     alignSelf: "center",
     paddingHorizontal: spacing.lg,
   },
-});
+}));

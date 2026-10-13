@@ -1,21 +1,11 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import {
-  accent,
-  danger,
-  dangerTint,
-  inkFaint,
-  inkSoft,
-  radius,
-  skeleton,
-  spacing,
-  success,
-  successTint,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { InsightsCard } from "../InsightsCard";
+import { createThemedStyles } from "@/theme";
 
 type CompareSnapshotCardProps = {
   leftLabel: string;
@@ -43,6 +33,7 @@ export const CompareSnapshotCard = memo(function CompareSnapshotCard({
   spentDelta,
   isDeltaPositive,
 }: CompareSnapshotCardProps) {
+  const styles = useStyles();
   const maxAmount = Math.max(leftAmount, rightAmount);
   const hasData = maxAmount > 0;
 
@@ -133,7 +124,7 @@ export const CompareSnapshotCard = memo(function CompareSnapshotCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   body: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -154,7 +145,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 10,
     lineHeight: 14,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.3,
     textAlign: "center",
@@ -166,18 +157,18 @@ const styles = StyleSheet.create({
   barLeft: {
     width: 36,
     borderRadius: radius.sm,
-    backgroundColor: skeleton.onSurface,
+    backgroundColor: colors.skeleton.onSurface,
   },
   barRight: {
     width: 36,
     borderRadius: radius.sm,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
   },
   barAmount: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   deltaChip: {
@@ -188,10 +179,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   deltaChipSuccess: {
-    backgroundColor: successTint,
+    backgroundColor: colors.successTint,
   },
   deltaChipDanger: {
-    backgroundColor: dangerTint,
+    backgroundColor: colors.dangerTint,
   },
   deltaText: {
     fontFamily: fontFamilies.semiBold,
@@ -199,16 +190,16 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   deltaTextSuccess: {
-    color: success,
+    color: colors.success,
   },
   deltaTextDanger: {
-    color: danger,
+    color: colors.danger,
   },
   summaryText: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 17,
-    color: inkFaint,
+    color: colors.inkFaint,
     textAlign: "center",
   },
-});
+}));

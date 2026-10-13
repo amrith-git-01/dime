@@ -2,11 +2,40 @@
 const { defineConfig } = require("eslint/config");
 const expoConfig = require("eslint-config-expo/flat");
 
+/**
+ * Raw (light) color tokens are the palette's source values only. Components read colors from
+ * the active theme (`useTheme()` / `createThemedStyles` from `@/theme`), so they must not import
+ * these. `categoryDefault` and `oauthGoogle` are theme-invariant and stay importable.
+ */
+const rawColorTokenImports = {
+  group: [
+    "@/constants",
+    "@/constants/colors",
+    "@/constants/bento",
+    "@/constants/shadows",
+    "**/constants",
+    "**/constants/colors",
+    "**/constants/bento",
+    "**/constants/shadows",
+  ],
+  importNames: [
+    "paper", "surface", "surfaceSunken", "line", "ink", "inkSoft", "inkFaint",
+    "accent", "accentTint", "accentHeat1", "accentHeat2", "accentHeat3",
+    "success", "danger", "warning", "dangerTint", "successTint", "warningTint",
+    "shadow", "shadows", "overlays", "skeleton", "charts", "bento", "hero",
+    "surfaces", "progressBar", "color", "colors", "categoryTile",
+    "iconAccentSky", "iconAccentOrange",
+  ],
+  message:
+    "Read colors from the theme: useTheme() or createThemedStyles() from @/theme.",
+};
+
 /** @type {import('eslint').Linter.Config[]} */
 const dimeTokenRules = {
   files: ["src/**/*.{ts,tsx}"],
   ignores: [
     "src/constants/**",
+    "src/theme/**",
     "**/*.test.ts",
     "**/*.test.tsx",
   ],
@@ -29,6 +58,7 @@ const dimeTokenRules = {
       "error",
       {
         patterns: [
+          rawColorTokenImports,
           {
             group: ["@/constants/theme"],
             message: "Import from @/constants instead of @/constants/theme.",
@@ -57,6 +87,7 @@ const dimeFeatureBoundaryRules = {
       "error",
       {
         patterns: [
+          rawColorTokenImports,
           {
             group: ["@/constants/theme"],
             message: "Import from @/constants instead of @/constants/theme.",

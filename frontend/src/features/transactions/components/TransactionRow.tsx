@@ -1,8 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
-import { danger, ink, inkFaint, success } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
@@ -11,6 +10,7 @@ import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type TransactionRowProps = {
   transaction: TransactionRowData;
@@ -26,7 +26,12 @@ export const TransactionRow = memo(function TransactionRow({
   transaction,
   onPress,
 }: TransactionRowProps) {
-  const ui = useMemo(() => mapTransactionRowToUi(transaction), [transaction]);
+  const styles = useStyles();
+  const { scheme } = useTheme();
+  const ui = useMemo(
+    () => mapTransactionRowToUi(transaction, scheme),
+    [transaction, scheme],
+  );
   const isCredit = ui.amount > 0;
   const handlePress = useCallback(
     () => onPress(transaction),
@@ -68,7 +73,7 @@ export const TransactionRow = memo(function TransactionRow({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -96,13 +101,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 19,
-    color: ink,
+    color: colors.ink,
   },
   subtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   amount: {
     fontFamily: fontFamilies.semiBold,
@@ -112,9 +117,9 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   amountCredit: {
-    color: success,
+    color: colors.success,
   },
   amountDebit: {
-    color: danger,
+    color: colors.danger,
   },
-});
+}));

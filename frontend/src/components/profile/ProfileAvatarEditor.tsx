@@ -1,13 +1,14 @@
 import { Image } from "expo-image";
 import { RefreshCw } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
-import { bento, colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { useAvatarRefreshAnimation } from "@/hooks/useAvatarRefreshAnimation";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const DEFAULT_AVATAR_SIZE = 96;
 
@@ -46,6 +47,8 @@ export const ProfileAvatarEditor = memo(function ProfileAvatarEditor({
   refreshIconSize = 18,
   hint = "Tap refresh for a new random avatar.",
 }: ProfileAvatarEditorProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { avatarAnimatedStyle, runRefreshFeedback } =
     useAvatarRefreshAnimation();
 
@@ -117,7 +120,7 @@ export const ProfileAvatarEditor = memo(function ProfileAvatarEditor({
           >
             <RefreshCw
               size={refreshIconSize}
-              color={colors.primary}
+              color={colors.accentText}
               strokeWidth={2}
             />
           </Pressable>
@@ -138,17 +141,7 @@ export const ProfileAvatarEditor = memo(function ProfileAvatarEditor({
   );
 });
 
-const fabShadowStyle = Platform.select({
-  android: { elevation: 3 },
-  default: {
-    shadowColor: colors.shadowBrand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-  },
-});
-
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   wrap: {
     width: "100%",
     alignItems: "center",
@@ -167,8 +160,8 @@ const styles = StyleSheet.create({
   avatarRing: {
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.barBackground,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
   avatarImage: {
     width: "100%",
@@ -179,10 +172,10 @@ const styles = StyleSheet.create({
     zIndex: 2,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    ...fabShadowStyle,
+    borderColor: colors.line,
+    ...shadows.pill,
   },
   refreshFabPressed: {
     opacity: 0.92,
@@ -195,7 +188,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textAlign: "center",
   },
-});
+}));

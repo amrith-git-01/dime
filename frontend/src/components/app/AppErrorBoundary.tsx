@@ -1,13 +1,28 @@
 import * as SplashScreen from "expo-splash-screen";
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import { EmptyState } from "@/components/shared";
-import { colors } from "@/constants";
 import { reportError } from "@/lib/reportError";
+import { createThemedStyles } from "@/theme";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean };
+
+function ErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.root}>
+      <EmptyState
+        layout="centered"
+        headline="Something went wrong"
+        subtext="Dime hit an unexpected problem. Your data is safe. Try again."
+        actionLabel="Try again"
+        onAction={onRetry}
+      />
+    </View>
+  );
+}
 
 /**
  * Root error boundary: catches render-time errors anywhere below it and shows a
@@ -36,23 +51,13 @@ export class AppErrorBoundary extends Component<Props, State> {
       return this.props.children;
     }
 
-    return (
-      <View style={styles.root}>
-        <EmptyState
-          layout="centered"
-          headline="Something went wrong"
-          subtext="Dime hit an unexpected problem. Your data is safe. Try again."
-          actionLabel="Try again"
-          onAction={this.handleRetry}
-        />
-      </View>
-    );
+    return <ErrorFallback onRetry={this.handleRetry} />;
   }
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
-});
+}));

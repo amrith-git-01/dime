@@ -3,13 +3,14 @@ import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { colors, radius, spacing, typography } from "@/constants";
+import { radius, spacing } from "@/constants";
 import {
   TransactionReceiptImage,
   TransactionVoicePlayer,
 } from "../TransactionAttachmentMedia";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
+import { createThemedStyles } from "@/theme";
 
 type TransactionDetailMetaCardProps = {
   transaction: TransactionRow;
@@ -39,6 +40,7 @@ function MetaRow({
   children: ReactNode;
   isLast?: boolean;
 }) {
+  const styles = useStyles();
   return (
     <View style={[styles.row, isLast && styles.rowLast]}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -51,6 +53,7 @@ export const TransactionDetailMetaCard = memo(
   function TransactionDetailMetaCard({
     transaction: tx,
   }: TransactionDetailMetaCardProps) {
+    const styles = useStyles();
     const receiptUrl = hasMediaUrl(tx.receipt_url)
       ? tx.receipt_url.trim()
       : null;
@@ -109,19 +112,19 @@ export const TransactionDetailMetaCard = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   card: {
     padding: spacing.lg,
     borderRadius: radius.lg,
-    backgroundColor: colors.barBackground,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.line,
     gap: 0,
   },
   row: {
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
+    borderBottomColor: colors.line,
   },
   rowLast: {
     borderBottomWidth: 0,
@@ -133,32 +136,32 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     letterSpacing: 0.3,
     textTransform: "uppercase",
-    color: colors.textSecondary,
+    color: colors.inkSoft,
     marginBottom: spacing.xs,
   },
   bodyText: {
     fontFamily: fontFamilies.regular,
     fontSize: 15,
     lineHeight: 22,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   bodyTextMono: {
     fontFamily: typography.monoEmphasis.fontFamily,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   caption: {
     marginTop: spacing.xs,
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   muted: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

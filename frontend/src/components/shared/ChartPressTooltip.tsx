@@ -9,22 +9,11 @@ import {
   View,
 } from "react-native";
 
-import {
-  accent,
-  accentTint,
-  danger,
-  ink,
-  line,
-  overlays,
-  radius,
-  shadows,
-  spacing,
-  success,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import type { BentoStatCellTone } from "./BentoStatCell";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type ChartPressTooltipRow = {
   label: string;
@@ -74,7 +63,10 @@ const TITLE_BLOCK_HEIGHT = 18;
 const TITLE_DIVIDER_HEIGHT = 1 + spacing.sm * 2;
 const VIEW_ACTION_BLOCK_HEIGHT = 36;
 
-function toneStyle(tone: BentoStatCellTone | undefined) {
+function toneStyle(
+  tone: BentoStatCellTone | undefined,
+  styles: ReturnType<typeof useStyles>,
+) {
   if (tone === "credit" || tone === "net-positive") {
     return styles.valueCredit;
   }
@@ -133,6 +125,8 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
   gap = ANCHOR_GAP,
   viewAction,
 }: ChartPressTooltipProps) {
+  const { colors, shadows } = useTheme();
+  const styles = useStyles();
   const hasViewAction = viewAction != null;
 
   const { left, top } = useMemo(
@@ -185,7 +179,7 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
             <View key={row.label} style={styles.row}>
               <Text style={styles.rowLabel}>{row.label}</Text>
               <Text
-                style={[styles.rowValue, toneStyle(row.tone)]}
+                style={[styles.rowValue, toneStyle(row.tone, styles)]}
                 numberOfLines={1}
               >
                 {row.value}
@@ -205,7 +199,7 @@ export const ChartPressTooltip = memo(function ChartPressTooltip({
             ]}
           >
             <Text style={styles.viewActionLabel}>{viewLabel}</Text>
-            <ChevronRight size={14} color={accent} strokeWidth={2} />
+            <ChevronRight size={14} color={colors.accentText} strokeWidth={2} />
           </Pressable>
         ) : null}
       </View>
@@ -223,6 +217,7 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
   width = DEFAULT_WIDTH,
   viewAction,
 }: ChartTooltipOverlayProps) {
+  const styles = useStyles();
   if (!visible || anchor == null || rows.length === 0) {
     return null;
   }
@@ -254,19 +249,19 @@ export const ChartTooltipOverlay = memo(function ChartTooltipOverlay({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   overlayRoot: {
     flex: 1,
   },
   scrim: {
-    backgroundColor: overlays.backdrop,
+    backgroundColor: colors.overlays.backdrop,
   },
   tooltipRoot: {
     position: "absolute",
     zIndex: 2,
   },
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
@@ -276,11 +271,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: ink,
+    color: colors.ink,
   },
   titleDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginVertical: spacing.sm,
   },
   body: {
@@ -298,7 +293,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     letterSpacing: 0.06 * 11,
     textTransform: "uppercase",
-    color: ink,
+    color: colors.ink,
     opacity: 0.45,
   },
   rowValue: {
@@ -307,14 +302,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontVariant: ["tabular-nums"],
-    color: ink,
+    color: colors.ink,
     textAlign: "right",
   },
   valueCredit: {
-    color: success,
+    color: colors.success,
   },
   valueDebit: {
-    color: danger,
+    color: colors.danger,
   },
   viewAction: {
     flexDirection: "row",
@@ -326,7 +321,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
   },
   viewActionPressed: {
     opacity: 0.72,
@@ -335,6 +330,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

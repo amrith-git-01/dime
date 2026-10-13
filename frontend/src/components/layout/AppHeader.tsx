@@ -11,20 +11,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  danger,
-  ink,
-  inkFaint,
-  inkSoft,
-  overlays,
-  skeleton,
-  surface,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
@@ -50,6 +41,8 @@ export function AppHeader({
   onHeaderReady,
   showUnreadNotificationDot = false,
 }: AppHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { displayName, avatarUrl, loading, fetchError } = useUserProfile();
   const [imgLoading, setImgLoading] = useState(true);
@@ -95,7 +88,7 @@ export function AppHeader({
             />
             {imgLoading && (
               <View style={styles.avatarOverlay}>
-                <ActivityIndicator size="small" color={inkFaint} />
+                <ActivityIndicator size="small" color={colors.inkFaint} />
               </View>
             )}
             {imgError && (
@@ -134,7 +127,7 @@ export function AppHeader({
               pressed && styles.iconBtnPressed,
             ]}
           >
-            <Settings size={ICON_SIZE} color={inkSoft} strokeWidth={1.5} />
+            <Settings size={ICON_SIZE} color={colors.inkSoft} strokeWidth={1.5} />
           </Pressable>
         )}
         <Pressable
@@ -147,7 +140,7 @@ export function AppHeader({
             pressed && styles.iconBtnPressed,
           ]}
         >
-          <Bell size={ICON_SIZE} color={inkSoft} strokeWidth={1.5} />
+          <Bell size={ICON_SIZE} color={colors.inkSoft} strokeWidth={1.5} />
           {showUnreadNotificationDot && <View style={styles.unreadDot} />}
         </Pressable>
       </View>
@@ -161,9 +154,9 @@ export function AppHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   header: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderBottomLeftRadius: radius.lg,
     borderBottomRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
@@ -181,7 +174,7 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     overflow: "hidden",
-    backgroundColor: skeleton.surface,
+    backgroundColor: colors.skeleton.surface,
     ...shadows.card,
   },
   avatarImg: {
@@ -192,16 +185,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: overlays.avatarFallback,
+    backgroundColor: colors.overlays.avatarFallback,
   },
   avatarError: {
-    backgroundColor: overlays.avatarError,
+    backgroundColor: colors.overlays.avatarError,
   },
   avatarSkeleton: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: skeleton.surface,
+    backgroundColor: colors.skeleton.surface,
   },
   titles: {
     flex: 1,
@@ -211,14 +204,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   nameText: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: -0.18,
-    color: ink,
+    color: colors.ink,
     marginTop: 1,
   },
   nameSkeleton: {
@@ -228,7 +221,7 @@ const styles = StyleSheet.create({
   nameSkeletonBar: {
     height: 10,
     borderRadius: 4,
-    backgroundColor: skeleton.surface,
+    backgroundColor: colors.skeleton.surface,
   },
   iconBtn: {
     width: 36,
@@ -250,14 +243,14 @@ const styles = StyleSheet.create({
     width: UNREAD_DOT_SIZE,
     height: UNREAD_DOT_SIZE,
     borderRadius: UNREAD_DOT_SIZE / 2,
-    backgroundColor: danger,
+    backgroundColor: colors.danger,
   },
   errorHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
     paddingTop: spacing.sm,
     paddingBottom: 4,
   },
-});
+}));

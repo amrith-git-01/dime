@@ -1,19 +1,12 @@
 import { forwardRef, memo } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 
-import {
-  ink,
-  inkFaint,
-  inkSoft,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { BudgetLimitAmountInput } from "./BudgetLimitAmountInput";
 import { BUDGET_EDITOR_FLEX } from "./budgetEditorBentoTokens";
+import { createThemedStyles } from "@/theme";
 
 export type BudgetLimitTileKind = "daily" | "monthly";
 
@@ -57,6 +50,7 @@ export const BudgetLimitBentoTile = memo(
       },
       ref,
     ) {
+      const styles = useStyles();
       const config = TILE_CONFIG[kind];
 
       return (
@@ -105,9 +99,9 @@ export const BudgetLimitBentoTile = memo(
   ),
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   tile: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     justifyContent: "space-between",
@@ -120,7 +114,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     textTransform: "uppercase",
     letterSpacing: 0.6,
-    color: inkSoft,
+    color: colors.inkSoft,
     marginBottom: spacing.sm,
   },
   amountSlot: {
@@ -131,7 +125,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 24,
     lineHeight: 30,
-    color: ink,
+    color: colors.ink,
   },
   inputHidden: {
     opacity: 0,
@@ -145,6 +139,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     marginTop: spacing.sm,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
-});
+}));

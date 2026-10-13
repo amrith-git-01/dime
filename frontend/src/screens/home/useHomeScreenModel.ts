@@ -7,7 +7,7 @@ import { format, subDays } from "date-fns";
 import { useCallback, useEffect, useMemo } from "react";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
-import { colors } from "@/constants";
+import { categoryDefault } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useUpcomingRecurring } from "@/features/recurring/hooks/useUpcomingRecurring";
 import type { RecurringItem } from "@/features/recurring/types";
@@ -178,7 +178,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
         id: row.category_id ?? UNCATEGORIZED_CATEGORY_KEY,
         name: row.name,
         icon_name: row.icon_name ?? "Package",
-        color: row.color ?? colors.categoryDefault,
+        color: row.color ?? categoryDefault,
         spentMonth: Number.isFinite(spent) ? Math.abs(spent) : 0,
         is_system: true,
       };

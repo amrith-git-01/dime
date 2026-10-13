@@ -21,6 +21,7 @@ import {
   COUNTERPARTY_DONUT_INNER_RADIUS_RATIO,
   INSIGHTS_COUNTERPARTY_DONUT_SIZE,
 } from "@/features/analytics/constants/counterpartyDonut";
+import { useTheme } from "@/theme";
 import { COUNTERPARTY_DONUT_OTHER_KEY } from "@/features/analytics/constants/counterpartyDonutColors";
 import type { CounterpartySpendRow } from "@/features/analytics/types";
 import {
@@ -96,9 +97,10 @@ export const InsightsCounterpartyDonutCard = memo(
     tooltipDismissRef,
     onViewPayeePress,
   }: InsightsCounterpartyDonutCardProps) {
+    const { colors } = useTheme();
     const chartData = useMemo(
-      () => buildCounterpartyDonutData(counterpartySpend),
-      [counterpartySpend],
+      () => buildCounterpartyDonutData(counterpartySpend, colors.donut),
+      [counterpartySpend, colors.donut],
     );
     const hasSpend = chartData.length > 0;
     const { containerRef, onChartLayout, isFullyVisible } =

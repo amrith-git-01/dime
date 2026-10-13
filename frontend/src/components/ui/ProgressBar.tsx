@@ -1,6 +1,7 @@
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { progressBar, radius } from "@/constants";
+import { radius } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 type ProgressBarProps = {
   progress: number;
@@ -19,21 +20,26 @@ function clampProgress(value: number): number {
  */
 export function ProgressBar({
   progress,
-  backgroundColor = progressBar.track,
-  fillColor = progressBar.fillDefault,
+  backgroundColor,
+  fillColor,
   height = 8,
 }: ProgressBarProps) {
+  const styles = useStyles();
   const clamped = clampProgress(progress);
 
   return (
-    <View style={[styles.track, { backgroundColor, height }]}>
+    <View style={[
+        styles.track,
+        backgroundColor != null && { backgroundColor },
+        { height },
+      ]}>
       {clamped > 0 ? (
         <View
           style={[
             styles.fill,
+            fillColor != null && { backgroundColor: fillColor },
             {
               height,
-              backgroundColor: fillColor,
               borderRadius: height / 2,
               width: `${clamped * 100}%`,
             },
@@ -44,13 +50,15 @@ export function ProgressBar({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   track: {
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.full,
     overflow: "hidden",
     width: "100%",
   },
   fill: {
     alignSelf: "flex-start",
+    backgroundColor: colors.accent,
   },
-});
+}));

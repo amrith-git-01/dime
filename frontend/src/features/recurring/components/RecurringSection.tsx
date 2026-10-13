@@ -4,25 +4,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { EmptyState, ScreenSectionHeader } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import {
-  accent,
-  accentTint,
-  danger,
-  fontFamilies,
-  ink,
-  inkSoft,
-  line,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { fontFamilies, radius, spacing } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrAmount } from "@/utils/currency";
 
 import type { RecurringItem, RecurringKind } from "../types";
 import { RECURRING_COPY } from "../utils/recurringDisplay";
 import { RecurringListRow } from "./RecurringListRow";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type RecurringKindData = {
   items: RecurringItem[];
@@ -52,6 +41,7 @@ export const RecurringSection = memo(function RecurringSection({
   onAdd,
   onItemPress,
 }: RecurringSectionProps) {
+  const styles = useStyles();
   return (
     <View style={styles.root}>
       <ScreenSectionHeader title="Recurring" />
@@ -90,6 +80,8 @@ function RecurringKindCard({
   onAdd,
   onItemPress,
 }: RecurringKindCardProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const copy = RECURRING_COPY[kind];
   const { items, monthlyTotal, isLoading, isError } = data;
   const isEmpty = !isLoading && !isError && items.length === 0;
@@ -133,7 +125,7 @@ function RecurringKindCard({
             pressed && !addDisabled && styles.addBtnPressed,
           ]}
         >
-          <Plus size={14} color={accent} strokeWidth={2.5} />
+          <Plus size={14} color={colors.accentText} strokeWidth={2.5} />
           <Text style={styles.addBtnText}>Add</Text>
         </Pressable>
       </View>
@@ -177,7 +169,7 @@ function RecurringKindCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   root: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
@@ -186,7 +178,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "hidden",
     ...shadows.card,
@@ -207,13 +199,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   total: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 20,
     lineHeight: 26,
-    color: ink,
+    color: colors.ink,
     fontVariant: ["tabular-nums"],
   },
   totalSkeleton: {
@@ -225,7 +217,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
@@ -240,11 +232,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: accent,
+    color: colors.accentText,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
   errorBlock: {
@@ -256,13 +248,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: danger,
+    color: colors.danger,
   },
   retry: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: accent,
+    color: colors.accentText,
   },
   skeletonRow: {
     flexDirection: "row",
@@ -295,4 +287,4 @@ const styles = StyleSheet.create({
     width: 56,
     borderRadius: 4,
   },
-});
+}));

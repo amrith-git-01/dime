@@ -4,12 +4,12 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useDerivedValue, type SharedValue } from "react-native-reanimated";
 
-import { bento } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { INSIGHTS_CHART_DONUT_ANIMATION } from "@/features/analytics/constants/chartAnimation";
 import { usePieClockwiseEntry } from "@/features/analytics/hooks/usePieClockwiseEntry";
 
 import { buildStrokeArcPath } from "./utils/buildStrokeArcPath";
+import { useTheme } from "@/theme";
 
 const RING_START_ANGLE = -90;
 
@@ -67,6 +67,7 @@ export const SkiaProgressRing = memo(function SkiaProgressRing({
   revealIdentity,
   revealEnabled = true,
 }: SkiaProgressRingProps) {
+  const { colors } = useTheme();
   const isFocused = useIsFocused();
   const clamped = Math.min(1, Math.max(0, progress));
   const center = size / 2;
@@ -75,9 +76,9 @@ export const SkiaProgressRing = memo(function SkiaProgressRing({
   const labelSize = size * 0.22;
 
   const isLight = variant === "light";
-  const trackColor = isLight ? bento.chartOnPastel.track : bento.chart.track;
-  const fillColor = isLight ? bento.chartOnPastel.fill : bento.chart.fill;
-  const labelColor = isLight ? bento.onPastel.accent : bento.onSurface.primary;
+  const trackColor = isLight ? colors.bento.chartOnPastel.track : colors.bento.chart.track;
+  const fillColor = isLight ? colors.bento.chartOnPastel.fill : colors.bento.chart.fill;
+  const labelColor = isLight ? colors.accentText : colors.ink;
 
   const revealProgress = usePieClockwiseEntry({
     identity: revealIdentity,

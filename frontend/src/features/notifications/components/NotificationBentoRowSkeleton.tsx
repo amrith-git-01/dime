@@ -1,12 +1,14 @@
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui";
-import { radius, shadows, spacing, surface } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { NOTIFICATION_ICON_WELL_SIZE } from "@/features/notifications/notificationBentoTokens";
+import { createThemedStyles } from "@/theme";
 
 export const NotificationBentoRowSkeleton = memo(
   function NotificationBentoRowSkeleton() {
+    const styles = useStyles();
     return (
       <View style={styles.shadowWrap}>
         <View style={styles.card}>
@@ -22,10 +24,10 @@ export const NotificationBentoRowSkeleton = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   shadowWrap: {
     borderRadius: radius.md,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     ...shadows.card,
   },
   card: {
@@ -60,4 +62,4 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: radius.sm,
   },
-});
+}));

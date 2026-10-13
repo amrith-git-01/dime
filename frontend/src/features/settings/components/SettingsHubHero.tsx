@@ -1,13 +1,14 @@
 import { Image } from "expo-image";
 import { ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { ink, inkFaint, inkSoft, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { SETTINGS_HERO_AVATAR_SIZE } from "../constants/settingsTokens";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type SettingsHubHeroProps = {
   displayName: string;
@@ -22,6 +23,8 @@ export const SettingsHubHero = memo(function SettingsHubHero({
   avatarUrl,
   onPress,
 }: SettingsHubHeroProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -50,12 +53,12 @@ export const SettingsHubHero = memo(function SettingsHubHero({
         ) : null}
       </View>
 
-      <ChevronRight size={20} color={inkFaint} strokeWidth={2} />
+      <ChevronRight size={20} color={colors.inkFaint} strokeWidth={2} />
     </Pressable>
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -79,12 +82,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    color: ink,
+    color: colors.ink,
   },
   email: {
     fontFamily: fontFamilies.regular,
     fontSize: 14,
     lineHeight: 20,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

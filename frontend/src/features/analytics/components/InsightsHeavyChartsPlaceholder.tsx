@@ -1,8 +1,7 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { TwoToneCard } from "@/components/shared";
-import { colors } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import {
@@ -11,10 +10,12 @@ import {
   InsightsTopExpensesSkeleton,
 } from "./InsightsAnalyticsSkeletons";
 import { InsightsBurnRateMetricCard } from "./InsightsBurnRateMetricCard";
+import { createThemedStyles } from "@/theme";
 
 /** Lightweight placeholders — no Victory/Skia mount. */
 export const InsightsHeavyChartsPlaceholder = memo(
   function InsightsHeavyChartsPlaceholder() {
+    const styles = useStyles();
     return (
       <>
         <InsightsBurnRateMetricCard
@@ -61,7 +62,7 @@ export const InsightsHeavyChartsPlaceholder = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   header: {
     gap: 2,
   },
@@ -69,12 +70,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.textListPrimary,
+    color: colors.ink,
   },
   headerSubtitle: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.textListSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

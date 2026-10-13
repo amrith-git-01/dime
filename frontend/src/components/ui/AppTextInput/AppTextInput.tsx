@@ -7,6 +7,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { useThemedTextInputProps } from "@/theme";
+
 export type AppTextInputProps = TextInputProps & {
   /** Layout of the touch wrapper (it must occupy the slot the bare input used to). */
   containerStyle?: StyleProp<ViewStyle>;
@@ -25,6 +27,7 @@ export const AppTextInput = forwardRef<TextInput, AppTextInputProps>(
     { containerStyle, onFocus, onBlur, editable = true, ...rest },
     forwardedRef,
   ) {
+    const themedProps = useThemedTextInputProps();
     const innerRef = useRef<TextInput | null>(null);
     const [focused, setFocused] = useState(false);
 
@@ -48,6 +51,7 @@ export const AppTextInput = forwardRef<TextInput, AppTextInputProps>(
         style={containerStyle}
       >
         <TextInput
+          {...themedProps}
           {...rest}
           ref={setRefs}
           editable={editable}

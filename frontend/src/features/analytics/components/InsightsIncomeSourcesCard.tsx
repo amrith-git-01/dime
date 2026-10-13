@@ -3,20 +3,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui";
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import {
-  ink,
-  inkSoft,
-  line,
-  radius,
-  spacing,
-  success,
-  successTint,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { CounterpartyIncomeRow } from "@/features/analytics/types";
 
 import { InsightsCard } from "./InsightsCard";
+import { createThemedStyles } from "@/theme";
 
 const SHOW_DEFAULT = 5;
 
@@ -34,6 +26,7 @@ export const InsightsIncomeSourcesCard = memo(
     counterpartyIncome,
     loading = false,
   }: Props) {
+    const styles = useStyles();
     const [showAll, setShowAll] = useState(false);
 
     const sorted = [...counterpartyIncome].sort(
@@ -142,10 +135,10 @@ function formatAmount(rawCredit: string): string {
   return `₹${Math.round(n)}`;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   rowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginLeft: spacing.lg + 32 + spacing.md,
   },
   payeeRow: {
@@ -159,7 +152,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: radius.sm,
-    backgroundColor: successTint,
+    backgroundColor: colors.successTint,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -168,7 +161,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 18,
-    color: success,
+    color: colors.success,
   },
   payeeContent: {
     flex: 1,
@@ -186,7 +179,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: ink,
+    color: colors.ink,
   },
   payeeRight: {
     flexDirection: "row",
@@ -198,25 +191,25 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: success,
+    color: colors.success,
     fontVariant: ["tabular-nums"],
   },
   payeeShare: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
     fontVariant: ["tabular-nums"],
   },
   payeeBarTrack: {
     height: 3,
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.full,
     overflow: "hidden",
   },
   payeeBarFill: {
     height: 3,
-    backgroundColor: success,
+    backgroundColor: colors.success,
     borderRadius: radius.full,
   },
   showMoreBtn: {
@@ -224,13 +217,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: line,
+    borderTopColor: colors.line,
   },
   showMoreLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
     lineHeight: 18,
-    color: success,
+    color: colors.success,
   },
   skeletonRow: {
     flexDirection: "row",
@@ -272,4 +265,4 @@ const styles = StyleSheet.create({
     width: "70%",
     borderRadius: radius.full,
   },
-});
+}));

@@ -7,7 +7,6 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import { ink, inkFaint } from "@/constants/colors";
 import { springs } from "@/constants/motion";
 
 import {
@@ -16,6 +15,7 @@ import {
   TAB_ICON_SIZE,
   isRouteName,
 } from "./dimeTabBarConfig";
+import { useTheme } from "@/theme";
 
 type DimeTabBarItemProps = {
   routeName: string;
@@ -32,6 +32,7 @@ export function DimeTabBarItem({
   onPress,
   onLongPress,
 }: DimeTabBarItemProps) {
+  const { colors } = useTheme();
   const Icon = isRouteName(routeName) ? ROUTE_ICONS[routeName] : House;
   const a11yLabel =
     typeof label === "string" && label.trim() ? label : routeName || "Tab";
@@ -59,7 +60,7 @@ export function DimeTabBarItem({
       <Animated.View style={[styles.orb, iconStyle]}>
         <Icon
           size={TAB_ICON_SIZE}
-          color={isFocused ? ink : inkFaint}
+          color={isFocused ? colors.ink : colors.inkFaint}
           strokeWidth={isFocused ? 2 : 1.5}
         />
       </Animated.View>

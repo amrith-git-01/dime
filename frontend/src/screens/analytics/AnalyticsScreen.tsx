@@ -1,9 +1,9 @@
 import { useRef } from "react";
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { colors, layout } from "@/constants";
+import { layout } from "@/constants";
 import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
@@ -19,8 +19,10 @@ import {
   useInsightsScrollVisibility,
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
+import { createThemedStyles } from "@/theme";
 
 function AnalyticsInsightsScroll() {
+  const styles = useStyles();
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
@@ -138,13 +140,13 @@ export default function AnalyticsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   scroll: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   scrollContent: {
     ...layout.screenContent,
     gap: BENTO_SECTION_GAP,
   },
-});
+}));

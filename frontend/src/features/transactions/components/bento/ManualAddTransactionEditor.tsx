@@ -2,28 +2,14 @@ import type { LucideIcon } from "lucide-react-native";
 import { ArrowLeftRight, HelpCircle, Store, User } from "lucide-react-native";
 import { memo, useState } from "react";
 import {
-  Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { BentoEditorFooter } from "@/components/bento";
 import { AppTextInput } from "@/components/ui";
-import {
-  accent,
-  accentTint,
-  fontFamilies,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  shadow,
-  spacing,
-  surface,
-} from "@/constants";
+import { fontFamilies, radius, spacing } from "@/constants";
 import type { CategoryRow } from "@/features/categories/types";
 import { type CounterpartyType } from "@/features/transactions/counterpartyTypes";
 import type { TransactionType } from "@/features/transactions/types";
@@ -31,6 +17,7 @@ import type { TransactionType } from "@/features/transactions/types";
 import { ManualAddAmountSection } from "./ManualAddAmountSection";
 import { ManualAddCategorySection } from "./ManualAddCategorySection";
 import { ManualAddDateField } from "./ManualAddDateField";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type ManualAddTransactionEditorProps = {
   amountText: string;
@@ -83,16 +70,6 @@ const NAME_PLACEHOLDER: Record<CounterpartyType, string> = {
   unknown: "What was this for?",
 };
 
-const cardShadow = Platform.select({
-  android: { elevation: 2 },
-  default: {
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-  },
-});
-
 export const ManualAddTransactionEditor = memo(
   function ManualAddTransactionEditor({
     amountText,
@@ -124,6 +101,8 @@ export const ManualAddTransactionEditor = memo(
     onSave,
     onClear,
   }: ManualAddTransactionEditorProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const [nameFocused, setNameFocused] = useState(false);
     const [noteFocused, setNoteFocused] = useState(false);
 
@@ -136,7 +115,7 @@ export const ManualAddTransactionEditor = memo(
     return (
       <View style={styles.content}>
         {/* Amount card */}
-        <View style={[styles.amountCard, cardShadow]}>
+        <View style={[styles.amountCard, styles.cardShadow]}>
           <ManualAddAmountSection
             amountText={amountText}
             amountFocused={amountFocused}
@@ -151,7 +130,7 @@ export const ManualAddTransactionEditor = memo(
 
         {/* Category card — expense only; income auto-assigns Income category */}
         {txType === "debit" ? (
-          <View style={[styles.card, cardShadow]}>
+          <View style={[styles.card, styles.cardShadow]}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionLabel}>CATEGORY</Text>
               {requiredTag}
@@ -168,7 +147,7 @@ export const ManualAddTransactionEditor = memo(
         ) : null}
 
         {/* Counterparty card */}
-        <View style={[styles.card, cardShadow]}>
+        <View style={[styles.card, styles.cardShadow]}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionLabel}>COUNTERPARTY NAME</Text>
             {requiredTag}
@@ -180,7 +159,7 @@ export const ManualAddTransactionEditor = memo(
               nameFocused && styles.nameInputFocused,
             ]}
             placeholder={NAME_PLACEHOLDER[counterpartyType]}
-            placeholderTextColor={inkFaint}
+            placeholderTextColor={colors.inkFaint}
             value={counterpartyName}
             onChangeText={onCounterpartyNameChange}
             onFocus={() => setNameFocused(true)}
@@ -208,7 +187,7 @@ export const ManualAddTransactionEditor = memo(
                 >
                   <Icon
                     size={16}
-                    color={selected ? ink : inkSoft}
+                    color={selected ? colors.ink : colors.inkSoft}
                     strokeWidth={1.5}
                   />
                   <Text
@@ -226,7 +205,7 @@ export const ManualAddTransactionEditor = memo(
         </View>
 
         {/* Note card */}
-        <View style={[styles.card, cardShadow]}>
+        <View style={[styles.card, styles.cardShadow]}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionLabel}>NOTE</Text>
             {optionalTag}
@@ -234,7 +213,7 @@ export const ManualAddTransactionEditor = memo(
           <AppTextInput
             style={[styles.nameInput, noteFocused && styles.nameInputFocused]}
             placeholder="Add a short note"
-            placeholderTextColor={inkFaint}
+            placeholderTextColor={colors.inkFaint}
             value={note}
             onChangeText={onNoteChange}
             onFocus={() => setNoteFocused(true)}
@@ -265,16 +244,17 @@ export const ManualAddTransactionEditor = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  cardShadow: shadows.card,
   content: {
     gap: spacing.lg,
   },
   amountCard: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
   },
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
   },
@@ -292,18 +272,18 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     letterSpacing: 0.6,
-    color: accent,
+    color: colors.accentText,
     textTransform: "uppercase",
   },
   optionalHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   requiredHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   chipsRow: {
     flexDirection: "row",
@@ -319,11 +299,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
   },
   chipSelected: {
-    backgroundColor: accentTint,
-    borderColor: accent,
+    backgroundColor: colors.accentTint,
+    borderColor: colors.accent,
     borderWidth: 1.5,
   },
   chipPressed: {
@@ -333,28 +313,28 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   chipLabelSelected: {
     fontFamily: fontFamilies.medium,
-    color: ink,
+    color: colors.ink,
   },
   nameInput: {
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     borderRadius: radius.sm,
     fontFamily: fontFamilies.regular,
     fontSize: 15,
-    color: ink,
+    color: colors.ink,
     paddingHorizontal: 12,
     minHeight: 44,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   nameInputFirst: {
     marginTop: spacing.sm,
   },
   nameInputFocused: {
-    borderColor: accent,
+    borderColor: colors.accent,
     borderWidth: 1.5,
   },
   dateRow: {
@@ -363,11 +343,11 @@ const styles = StyleSheet.create({
   clearText: {
     fontFamily: fontFamilies.medium,
     fontSize: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   saveText: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 15,
-    color: surface,
+    color: colors.onAccent,
   },
-});
+}));

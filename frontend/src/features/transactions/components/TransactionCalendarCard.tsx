@@ -4,24 +4,14 @@ import { memo, useCallback, useMemo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SkeletonBlock } from "@/components/ui";
-import {
-  accent,
-  accentHeat1,
-  accentHeat2,
-  accentHeat3,
-  ink,
-  inkFaint,
-  line,
-  surface,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
 import {
   computeMonthSpendIntensities,
   type SpendIntensity,
 } from "@/features/transactions/utils/computeMonthSpendIntensities";
+import { createThemedStyles, useTheme } from "@/theme";
 
 // Week starts on Monday for Indian locale
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -57,6 +47,8 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
   canGoNextMonth,
   isLoading = false,
 }: TransactionCalendarCardProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const monthLabel = format(new Date(year, monthIndex0, 1), "MMMM yyyy");
   const daysInMonth = getDaysInMonth(new Date(year, monthIndex0, 1));
   const firstDayCol = toMondayFirst(getDay(new Date(year, monthIndex0, 1)));
@@ -104,7 +96,7 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
           >
             <ChevronLeft
               size={20}
-              color={canGoPrevMonth ? ink : inkFaint}
+              color={canGoPrevMonth ? colors.ink : colors.inkFaint}
               strokeWidth={1.5}
             />
           </Pressable>
@@ -124,7 +116,7 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
           >
             <ChevronRight
               size={20}
-              color={canGoNextMonth ? ink : inkFaint}
+              color={canGoNextMonth ? colors.ink : colors.inkFaint}
               strokeWidth={1.5}
             />
           </Pressable>
@@ -200,13 +192,15 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
 });
 
 function HeatmapLegend() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.legendRow}>
       <View style={styles.legendScale}>
         <Text style={styles.legendHint}>Less</Text>
-        <View style={[styles.legendDot, { backgroundColor: accentHeat1 }]} />
-        <View style={[styles.legendDot, { backgroundColor: accentHeat2 }]} />
-        <View style={[styles.legendDot, { backgroundColor: accentHeat3 }]} />
+        <View style={[styles.legendDot, { backgroundColor: colors.accentHeat1 }]} />
+        <View style={[styles.legendDot, { backgroundColor: colors.accentHeat2 }]} />
+        <View style={[styles.legendDot, { backgroundColor: colors.accentHeat3 }]} />
         <Text style={styles.legendHint}>More</Text>
       </View>
     </View>
@@ -228,29 +222,31 @@ function DayCell({
   intensity,
   onPress,
 }: DayCellProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const handlePress = useCallback(() => onPress(dayNum), [dayNum, onPress]);
 
   const showTodayRing = isToday && !isSelected;
 
   const circleBg = isSelected
-    ? accent
+    ? colors.accent
     : intensity === "high"
-      ? accentHeat3
+      ? colors.accentHeat3
       : intensity === "medium"
-        ? accentHeat2
+        ? colors.accentHeat2
         : intensity === "low"
-          ? accentHeat1
+          ? colors.accentHeat1
           : "transparent";
 
   const textColor = isSelected
-    ? surface
+    ? colors.onAccent
     : intensity === "high"
-      ? surface
+      ? colors.onAccent
       : showTodayRing
-        ? accent
+        ? colors.accentText
         : intensity === "none"
-          ? inkFaint
-          : ink;
+          ? colors.inkFaint
+          : colors.ink;
 
   const fontWeight = isSelected ? ("700" as const) : ("400" as const);
 
@@ -262,7 +258,7 @@ function DayCell({
       android_ripple={
         Platform.OS === "android"
           ? {
-              color: accentHeat1,
+              color: colors.accentHeat1,
               borderless: true,
               radius: DAY_CHIP_RADIUS,
             }
@@ -277,7 +273,7 @@ function DayCell({
           {
             backgroundColor: circleBg,
             borderWidth: showTodayRing ? 1.5 : 0,
-            borderColor: showTodayRing ? accent : "transparent",
+            borderColor: showTodayRing ? colors.accent : "transparent",
           },
         ]}
       >
@@ -297,9 +293,9 @@ const DAY_CHIP_SIZE = CELL_SIZE - 4;
 /** Half-size radius — reliable circles on Android (9999 breaks under card elevation). */
 const DAY_CHIP_RADIUS = DAY_CHIP_SIZE / 2;
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   cardShadow: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
     ...shadows.card,
   },
@@ -321,7 +317,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
     textAlign: "center",
     flex: 1,
   },
@@ -357,7 +353,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     letterSpacing: 0.3,
-    color: inkFaint,
+    color: colors.inkFaint,
     textTransform: "uppercase",
     textAlign: "center",
   },
@@ -379,7 +375,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: -spacing.lg,
     marginTop: spacing.md,
   },
@@ -411,11 +407,11 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 10,
     lineHeight: 13,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   legendDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
-});
+}));

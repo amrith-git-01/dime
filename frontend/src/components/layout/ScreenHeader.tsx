@@ -1,13 +1,12 @@
 import { HeaderBackButton, getHeaderTitle } from "@react-navigation/elements";
 import type { NativeStackHeaderProps } from "@react-navigation/native-stack";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ink, surface } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
-import { shadows } from "@/constants/shadows";
 import { spacing } from "@/constants/spacing";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export function ScreenHeader({
   options,
@@ -15,6 +14,8 @@ export function ScreenHeader({
   back,
   navigation,
 }: NativeStackHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const title = getHeaderTitle(options, route.name);
 
@@ -23,7 +24,7 @@ export function ScreenHeader({
       <View style={styles.row}>
         {back && (
           <HeaderBackButton
-            tintColor={ink}
+            tintColor={colors.ink}
             displayMode="minimal"
             onPress={navigation.goBack}
             pressColor="transparent"
@@ -39,9 +40,9 @@ export function ScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   header: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderBottomLeftRadius: radius.lg,
     borderBottomRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
@@ -63,6 +64,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: -0.2,
-    color: ink,
+    color: colors.ink,
   },
-});
+}));

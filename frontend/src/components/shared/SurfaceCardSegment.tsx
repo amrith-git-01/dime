@@ -1,9 +1,10 @@
 import { memo, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
-import { radius, shadows, surface } from "@/constants";
+import { radius } from "@/constants";
 
 import { CardSegmentShadowFrame } from "./CardSegmentShadowFrame";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type SurfaceCardSegmentProps = {
   children: ReactNode;
@@ -28,6 +29,8 @@ export const SurfaceCardSegment = memo(function SurfaceCardSegment({
   marginHorizontal,
   paddingHorizontal,
 }: SurfaceCardSegmentProps) {
+  const { shadows } = useTheme();
+  const styles = useStyles();
   return (
     <CardSegmentShadowFrame
       isFirst={isFirst}
@@ -49,9 +52,9 @@ export const SurfaceCardSegment = memo(function SurfaceCardSegment({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   base: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     overflow: "hidden",
   },
   first: {
@@ -62,4 +65,4 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: radius.lg,
     borderBottomRightRadius: radius.lg,
   },
-});
+}));

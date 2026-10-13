@@ -1,19 +1,11 @@
 import { ArrowUpRight } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import {
-  accent,
-  accentTint,
-  ink,
-  inkFaint,
-  inkSoft,
-  radius,
-  spacing,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { AGENT_SUGGESTED_PROMPT_META } from "@/features/agent/constants/suggestedPrompts";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type AgentSuggestionsHeaderProps = { onSelectPrompt: (p: string) => void };
 
@@ -21,6 +13,8 @@ type AgentSuggestionsHeaderProps = { onSelectPrompt: (p: string) => void };
 export const AgentSuggestionsHeader = memo(function AgentSuggestionsHeader({
   onSelectPrompt,
 }: AgentSuggestionsHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.container}>
       <Text style={styles.title}>TRY ASKING</Text>
@@ -34,10 +28,10 @@ export const AgentSuggestionsHeader = memo(function AgentSuggestionsHeader({
             style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
           >
             <View style={styles.iconWell}>
-              <Icon size={16} color={accent} strokeWidth={1.5} />
+              <Icon size={16} color={colors.accentText} strokeWidth={1.5} />
             </View>
             <Text style={styles.rowText}>{prompt}</Text>
-            <ArrowUpRight size={14} color={inkFaint} strokeWidth={2} />
+            <ArrowUpRight size={14} color={colors.inkFaint} strokeWidth={2} />
           </Pressable>
         ))}
       </View>
@@ -45,7 +39,7 @@ export const AgentSuggestionsHeader = memo(function AgentSuggestionsHeader({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   container: {
     gap: spacing.sm,
     marginBottom: spacing.lg,
@@ -55,7 +49,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   list: {
     gap: 2,
@@ -70,13 +64,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   rowPressed: {
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
   },
   iconWell: {
     width: 32,
     height: 32,
     borderRadius: radius.sm,
-    backgroundColor: accentTint,
+    backgroundColor: colors.accentTint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -84,7 +78,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 15,
-    color: ink,
+    color: colors.ink,
     lineHeight: 22,
   },
-});
+}));

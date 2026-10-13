@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { CategoryPill } from "@/components/categories/CategoryPill";
 import { ConfirmModal } from "@/components/shared";
@@ -9,14 +9,15 @@ import {
   SelectDropdown,
   TextField,
 } from "@/components/ui";
-import { fontFamilies, inkSoft, spacing } from "@/constants";
-import { formStyles } from "@/constants/formStyles";
+import { fontFamilies, spacing } from "@/constants";
+import { useFormStyles } from "@/constants/formStyles";
 import { SettingsToggleRow } from "@/features/settings/components";
 
 import { useRecurringSheetModel } from "../hooks/useRecurringSheetModel";
 import type { RecurringItem, RecurringKind } from "../types";
 import { postCurrentPeriodLabel } from "../utils/recurringDisplay";
 import { MONTH_NAMES } from "../utils/recurringForm";
+import { createThemedStyles } from "@/theme";
 
 export type RecurringEditorProps = {
   /** Kind preselected by the card that opened the page. */
@@ -38,6 +39,8 @@ export const RecurringEditor = memo(function RecurringEditor({
   item,
   onDone,
 }: RecurringEditorProps) {
+  const styles = useStyles();
+  const formStyles = useFormStyles();
   const model = useRecurringSheetModel({ kind: initialKind, item, onClose: onDone });
   const { form, errors, update, copy, isEditing, kind } = model;
   const isYearly = form.cadence === "yearly";
@@ -201,7 +204,7 @@ export const RecurringEditor = memo(function RecurringEditor({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   content: {
     gap: spacing.lg,
   },
@@ -220,6 +223,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

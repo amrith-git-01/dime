@@ -1,21 +1,19 @@
 import { Pencil } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { ProgressBar } from "@/components/ui";
 import {
-  ink,
-  inkSoft,
-  line,
   radius,
-  shadows,
+  readableCategoryColor,
   spacing,
-  surface,
+  withAlpha,
 } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrCompact } from "@/utils/currency";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type CategorySpendRowData = {
   id: string;
@@ -69,6 +67,10 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
   onPress,
   onEditPress,
 }: CategorySpendBentoRowProps) {
+  const { colors, scheme } = useTheme();
+  const styles = useStyles();
+  const categoryColor = readableCategoryColor(item.color, scheme);
+  const categoryTint = withAlpha(categoryColor, colors.categoryTileAlpha);
   const cap = item.monthlyCap ?? null;
   const hasCategoryCap = cap != null && cap > 0;
 
@@ -91,7 +93,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
       <View style={styles.catLeft}>
         <View style={styles.catTileWrap}>
           <View
-            style={[styles.catTile, { backgroundColor: `${item.color}14` }]}
+            style={[styles.catTile, { backgroundColor: categoryTint }]}
           >
             <CategoryLucideIcon
               iconName={item.icon_name}
@@ -114,7 +116,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
                 pressed && styles.editBadgePressed,
               ]}
             >
-              <Pencil size={13} color={inkSoft} strokeWidth={2} />
+              <Pencil size={13} color={colors.inkSoft} strokeWidth={2} />
             </Pressable>
           ) : null}
         </View>
@@ -143,8 +145,8 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
           <View style={styles.catProgressWrap}>
             <ProgressBar
               progress={progress}
-              fillColor={item.color}
-              backgroundColor={`${item.color}14`}
+              fillColor={categoryColor}
+              backgroundColor={categoryTint}
               height={8}
             />
           </View>
@@ -178,7 +180,7 @@ export const CategorySpendBentoRow = memo(function CategorySpendBentoRow({
 /** Keeps the budget subtitle on one line beside category meta on home/budget rows. */
 const CATEGORY_SPEND_PROGRESS_WIDTH = 68;
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   categoryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -215,9 +217,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     ...shadows.card,
   },
   editBadgePressed: {
@@ -237,12 +239,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
     flexShrink: 1,
   },
   customPill: {
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -251,13 +253,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 10,
     lineHeight: 12,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   catBudgetText: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
     marginTop: 3,
   },
   catRight: {
@@ -268,10 +270,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 15,
     lineHeight: 21,
-    color: ink,
+    color: colors.ink,
   },
   catProgressWrap: {
     marginTop: spacing.xs,
     width: CATEGORY_SPEND_PROGRESS_WIDTH,
   },
-});
+}));

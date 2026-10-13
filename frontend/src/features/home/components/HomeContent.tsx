@@ -1,7 +1,6 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { danger } from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
 
@@ -12,6 +11,7 @@ import { HomeRecentSection } from "./HomeRecentSection";
 import { HomeUpcomingSection } from "./HomeUpcomingSection";
 import { MonthStatRow } from "./MonthStatRow";
 import type { HomeBentoContentProps } from "./bento/types";
+import { createThemedStyles } from "@/theme";
 
 const SECTION_GAP = spacing.xl;
 
@@ -22,6 +22,7 @@ const SECTION_GAP = spacing.xl;
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
 ) {
+  const styles = useStyles();
   const isLoading = props.isPending;
 
   return (
@@ -84,7 +85,7 @@ export const HomeContent = memo(function HomeContent(
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: SECTION_GAP,
   },
@@ -92,6 +93,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: danger,
+    color: colors.danger,
   },
-});
+}));

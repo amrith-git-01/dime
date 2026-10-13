@@ -1,10 +1,10 @@
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import { accent, colors, spacing, typography } from "@/constants";
+import { spacing } from "@/constants";
 import {
   NotificationBentoRow,
   NotificationsFilterTabs,
@@ -17,8 +17,11 @@ import {
   NOTIFICATION_INBOX_EMPTY,
 } from "./notificationEmptyCopy";
 import { useNotificationsScreenModel } from "./useNotificationsScreenModel";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export default function NotificationsScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const {
     filter,
     setFilter,
@@ -101,7 +104,7 @@ export default function NotificationsScreen() {
       getItemType={getItemType}
       renderScrollComponent={ScrollView}
       contentContainerStyle={{
-        backgroundColor: colors.pageBackground,
+        backgroundColor: colors.paper,
         paddingHorizontal: spacing.lg,
         paddingTop: spacing.lg,
         paddingBottom: spacing.xl + insets.bottom,
@@ -131,7 +134,7 @@ export default function NotificationsScreen() {
       ListFooterComponent={
         isFetchingNextPage ? (
           <View style={styles.loadingMore}>
-            <ActivityIndicator color={accent} />
+            <ActivityIndicator color={colors.accentText} />
           </View>
         ) : null
       }
@@ -149,16 +152,16 @@ function getItemType(item: NotificationListItem): NotificationListItem["kind"] {
   return item.kind;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   scroll: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   paddedFill: {
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   tabsWrap: {
     paddingBottom: spacing.md,
@@ -181,4 +184,4 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     alignItems: "center",
   },
-});
+}));

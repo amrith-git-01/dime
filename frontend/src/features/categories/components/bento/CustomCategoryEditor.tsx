@@ -1,18 +1,9 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { BentoEditorFooter } from "@/components/bento";
 import { ButtonBusyContent, TextField } from "@/components/ui";
-import {
-  accent,
-  danger,
-  inkFaint,
-  inkSoft,
-  radius,
-  shadows,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import type { CustomCategoryIconName } from "@/features/categories/constants/customCategoryPresets";
@@ -20,6 +11,7 @@ import type { CustomCategoryIconName } from "@/features/categories/constants/cus
 import { CategoryBudgetSection } from "../CategoryBudgetSection";
 import { CustomCategoryChipPickers } from "./CustomCategoryChipPickers";
 import { CustomCategoryPreviewTile } from "./CustomCategoryPreviewTile";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type CustomCategoryEditorProps = {
   name: string;
@@ -62,6 +54,8 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
   onDelete,
   deleteLoading = false,
 }: CustomCategoryEditorProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
   const requiredTag = <Text style={styles.requiredHint}>(required)</Text>;
 
@@ -166,7 +160,7 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
               loading={deleteLoading}
               label="Delete category"
               busyLabel="Deleting"
-              color={surface}
+              color={colors.onDanger}
               textStyle={styles.deleteBtnText}
             />
           </Pressable>
@@ -184,12 +178,12 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   content: {
     gap: spacing.lg,
   },
   card: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
     ...shadows.card,
@@ -208,24 +202,24 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     letterSpacing: 0.6,
-    color: accent,
+    color: colors.accentText,
     textTransform: "uppercase",
   },
   optionalHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   requiredHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 11,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   limitHint: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textAlign: "center",
   },
   actions: {
@@ -236,7 +230,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingVertical: 14,
     alignItems: "center",
-    backgroundColor: danger,
+    backgroundColor: colors.danger,
   },
   deleteBtnDisabled: {
     opacity: 0.45,
@@ -250,4 +244,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-});
+}));

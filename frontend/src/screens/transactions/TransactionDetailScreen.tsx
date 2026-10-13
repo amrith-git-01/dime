@@ -7,7 +7,7 @@ import {
   X,
 } from "lucide-react-native";
 import { useEffect, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -17,17 +17,6 @@ import Animated, {
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
-import {
-  accent,
-  ink,
-  inkFaint,
-  inkSoft,
-  line,
-  overlays,
-  shadow,
-  success,
-  surface,
-} from "@/constants/colors";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
@@ -36,6 +25,7 @@ import {
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
 import { useTransactionDetailScreenModel } from "@/screens/transactions/useTransactionDetailScreenModel";
+import { createThemedStyles, useTheme } from "@/theme";
 
 function formatIsoDate(iso: string): string {
   try {
@@ -63,6 +53,7 @@ type MetaRowProps = {
 };
 
 function MetaRow({ icon, label, value, isLast = false }: MetaRowProps) {
+  const styles = useStyles();
   return (
     <>
       <View style={styles.metaRow}>
@@ -82,10 +73,13 @@ function MetaRow({ icon, label, value, isLast = false }: MetaRowProps) {
 const SPRING_CONFIG = { damping: 24, stiffness: 300, mass: 0.8 };
 
 export default function TransactionDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const model = useTransactionDetailScreenModel();
   const { transaction } = model;
 
-  const ui = mapTransactionRowToUi(transaction);
+  const { scheme } = useTheme();
+  const ui = mapTransactionRowToUi(transaction, scheme);
   const isCredit = ui.amount > 0;
 
   const scale = useSharedValue(0.88);
@@ -113,7 +107,7 @@ export default function TransactionDetailScreen() {
           onPress={model.handleDismiss}
         />
 
-        <Animated.View style={[styles.card, cardShadowStyle, cardStyle]}>
+        <Animated.View style={[styles.card, styles.cardShadow, cardStyle]}>
           {/* Header: category icon + merchant + header actions */}
           <View style={styles.cardHeader}>
             <View
@@ -140,7 +134,7 @@ export default function TransactionDetailScreen() {
                   pressed && styles.closeBtnPressed,
                 ]}
               >
-                <X size={20} color={ink} strokeWidth={1.5} />
+                <X size={20} color={colors.ink} strokeWidth={1.5} />
               </Pressable>
             </View>
           </View>
@@ -183,24 +177,24 @@ export default function TransactionDetailScreen() {
           {/* Meta rows — fixed 4 rows, no scroll needed */}
           <View>
             <MetaRow
-              icon={<Calendar size={16} color={inkFaint} strokeWidth={1.5} />}
+              icon={<Calendar size={16} color={colors.inkFaint} strokeWidth={1.5} />}
               label="Date"
               value={formatIsoDate(transaction.transaction_at)}
             />
             <MetaRow
-              icon={<Clock size={16} color={inkFaint} strokeWidth={1.5} />}
+              icon={<Clock size={16} color={colors.inkFaint} strokeWidth={1.5} />}
               label="Time"
               value={formatIsoTime(transaction.transaction_at)}
             />
             <MetaRow
               icon={
-                <CreditCard size={16} color={inkFaint} strokeWidth={1.5} />
+                <CreditCard size={16} color={colors.inkFaint} strokeWidth={1.5} />
               }
               label="Source"
               value={ui.viaLabel}
             />
             <MetaRow
-              icon={<FileText size={16} color={inkFaint} strokeWidth={1.5} />}
+              icon={<FileText size={16} color={colors.inkFaint} strokeWidth={1.5} />}
               label="Notes"
               value={hasNote ? transaction.note!.trim() : "—"}
               isLast
@@ -241,27 +235,18 @@ export default function TransactionDetailScreen() {
   );
 }
 
-const cardShadowStyle = Platform.select({
-  android: { elevation: 24 },
-  default: {
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-  },
-});
-
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  cardShadow: shadows.modal,
   overlay: {
     flex: 1,
-    backgroundColor: overlays.scrimHeavy,
+    backgroundColor: colors.overlays.scrimHeavy,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing.lg + spacing.md,
   },
   card: {
     width: "100%",
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: 28,
     paddingTop: spacing.lg,
   },
@@ -303,7 +288,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 16,
     lineHeight: 22,
-    color: ink,
+    color: colors.ink,
   },
   closeBtn: {
     padding: spacing.xs,
@@ -326,10 +311,10 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   heroDebit: {
-    color: accent,
+    color: colors.accentText,
   },
   heroCredit: {
-    color: success,
+    color: colors.success,
   },
   categoryChip: {
     flexDirection: "row",
@@ -350,7 +335,7 @@ const styles = StyleSheet.create({
     height: 1,
     marginHorizontal: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: line,
+    borderTopColor: colors.line,
     borderStyle: "dashed",
     marginBottom: spacing.xs,
   },
@@ -379,17 +364,17 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   metaValue: {
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 19,
-    color: ink,
+    color: colors.ink,
   },
   metaDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.lg,
   },
-});
+}));

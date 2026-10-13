@@ -1,6 +1,6 @@
 import { Edit3 } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import {
   BentoStatCell,
@@ -19,8 +19,9 @@ import {
   SkeletonBlock,
   SkeletonStrip,
 } from "@/components/ui";
-import { colors, progressBar, radius, spacing, surfaces } from "@/constants";
+import { radius, spacing } from "@/constants";
 import type { MonthOption } from "@/utils/buildMonthOptions";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type BudgetMonthBentoSummary = {
   budgetDisplay: string;
@@ -62,6 +63,8 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   onSetBudget,
   onMonthMenuOpenChange,
 }: BudgetMonthBentoCardProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const remainingLabel =
     summaryLoading || !summary?.isOverBudget ? "Remaining" : "Over";
   const remainingValue = summary?.isOverBudget
@@ -112,7 +115,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
               pressed && styles.editButtonPressed,
             ]}
           >
-            <Edit3 size={16} color={colors.primary} strokeWidth={2} />
+            <Edit3 size={16} color={colors.accentText} strokeWidth={2} />
           </Pressable>
         ) : null
       }
@@ -152,9 +155,9 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
               <ProgressBar
                 progress={summary.usagePct}
                 fillColor={
-                  summary.isOverBudget ? colors.danger : colors.primary
+                  summary.isOverBudget ? colors.danger : colors.accent
                 }
-                backgroundColor={progressBar.track}
+                backgroundColor={colors.surfaceSunken}
                 height={8}
               />
             </View>
@@ -171,7 +174,7 @@ export const BudgetMonthBentoCard = memo(function BudgetMonthBentoCard({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   editButton: {
     width: 32,
     height: 32,
@@ -179,8 +182,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: surfaces.whiteOverlay55,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaces.whiteOverlay55,
   },
   editButtonPressed: {
     opacity: 0.85,
@@ -201,4 +204,4 @@ const styles = StyleSheet.create({
   setBudgetWrap: {
     marginTop: spacing.md,
   },
-});
+}));

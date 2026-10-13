@@ -1,9 +1,9 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
-import { accent, radius, shadows, spacing, surface } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { typography } from "@/constants/typography";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type EmptyStateLayout = "inset" | "card" | "centered";
 
@@ -30,6 +30,8 @@ export const EmptyState = memo(function EmptyState({
   layout = "inset",
   compact = false,
 }: EmptyStateProps) {
+  const { shadows } = useTheme();
+  const styles = useStyles();
   const showAction =
     actionLabel != null && onAction != null && actionLabel.length > 0;
 
@@ -75,7 +77,7 @@ export const EmptyState = memo(function EmptyState({
   return content;
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, typography }) => ({
   centeredWrap: {
     flex: 1,
     alignItems: "center",
@@ -84,7 +86,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   cardShell: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     overflow: "visible",
   },
@@ -118,7 +120,7 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     marginTop: spacing.md,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     borderRadius: radius.full,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -133,6 +135,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: surface,
+    color: colors.onAccent,
   },
-});
+}));

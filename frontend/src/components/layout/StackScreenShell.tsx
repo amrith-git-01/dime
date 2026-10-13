@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { View, type StyleProp, type ViewStyle } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 const DEFAULT_BOTTOM_OFFSET = 24;
 
@@ -26,6 +27,7 @@ export function StackScreenShell({
   showsVerticalScrollIndicator = false,
   scrollEnabled = true,
 }: StackScreenShellProps) {
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const bodyStyle: StyleProp<ViewStyle> = [
     styles.scrollContent,
@@ -50,14 +52,14 @@ export function StackScreenShell({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   screen: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
-});
+}));

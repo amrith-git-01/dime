@@ -1,13 +1,15 @@
 import { StyleSheet, View } from "react-native";
 
 import { SkeletonBlock, SkeletonStrip } from "@/components/ui";
-import { line, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 /**
  * Body placeholder for BudgetSummaryCard while month + budget queries load.
  * Keeps the real month nav visible above this block.
  */
 export function BudgetSummaryBodySkeleton() {
+  const styles = useStyles();
   return (
     <View style={styles.root}>
       <SkeletonBlock tone="surface" style={styles.kicker} />
@@ -35,7 +37,7 @@ export function BudgetSummaryBodySkeleton() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: 0,
   },
@@ -64,7 +66,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginBottom: spacing.md,
   },
   statsRow: {
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
   statDivider: {
     width: StyleSheet.hairlineWidth,
     height: 32,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.md,
   },
-});
+}));

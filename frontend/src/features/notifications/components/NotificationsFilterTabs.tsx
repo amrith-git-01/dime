@@ -1,8 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import {
-  Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -13,9 +11,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
-import { ink, inkSoft, radius, shadow, spacing, surface, surfaceSunken } from "@/constants";
+import { radius, spacing } from "@/constants";
 import type { NotificationInboxFilter } from "@/features/notifications/types";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles } from "@/theme";
 
 const TABS: { id: NotificationInboxFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -31,20 +30,11 @@ export type NotificationsFilterTabsProps = {
   onChange: (filter: NotificationInboxFilter) => void;
 };
 
-const pillShadow = Platform.select({
-  android: { elevation: 2 } as const,
-  default: {
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  } as const,
-});
-
 export const NotificationsFilterTabs = memo(function NotificationsFilterTabs({
   value,
   onChange,
 }: NotificationsFilterTabsProps) {
+  const styles = useStyles();
   const translateX = useSharedValue(0);
   const [trackWidth, setTrackWidth] = useState(0);
   const tabWidth = trackWidth / 3;
@@ -108,11 +98,11 @@ export const NotificationsFilterTabs = memo(function NotificationsFilterTabs({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   track: {
     height: TRACK_HEIGHT,
     borderRadius: radius.full,
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     flexDirection: "row",
     position: "relative",
     overflow: "hidden",
@@ -123,8 +113,8 @@ const styles = StyleSheet.create({
     left: PILL_INSET,
     bottom: PILL_INSET,
     borderRadius: radius.full,
-    backgroundColor: surface,
-    ...pillShadow,
+    backgroundColor: colors.surface,
+    ...shadows.pill,
   },
   tab: {
     flex: 1,
@@ -138,10 +128,10 @@ const styles = StyleSheet.create({
   },
   labelSelected: {
     fontFamily: fontFamilies.semiBold,
-    color: ink,
+    color: colors.ink,
   },
   labelUnselected: {
     fontFamily: fontFamilies.regular,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));

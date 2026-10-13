@@ -6,10 +6,12 @@ import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
+import { THEME_PREFERENCE_LABELS, useThemePreference } from "@/theme";
 
 type SettingsHubDestination =
   | "SettingsAccount"
   | "SettingsHaptic"
+  | "SettingsAppearance"
   | "SettingsNotifications"
   | "SettingsEmail"
   | "SettingsGlossary"
@@ -20,6 +22,7 @@ export function useSettingsScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { displayName, email, avatarUrl } = useUserProfile();
+  const { preference } = useThemePreference();
   const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
     useConfirmSignOut();
   const { confirmRefreshAppData, loading: refreshLoading } =
@@ -34,6 +37,7 @@ export function useSettingsScreenModel() {
     displayName,
     email,
     avatarUrl,
+    appearanceLabel: THEME_PREFERENCE_LABELS[preference],
     signOutLoading,
     signOutConfirmModalProps,
     refreshLoading,

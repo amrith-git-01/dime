@@ -3,8 +3,8 @@ import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Bar, CartesianChart } from "victory-native";
 
-import { accent, colors } from "@/constants";
 import type { ChartPathAnimationConfig } from "@/features/analytics/constants/chartAnimation";
+import { useTheme } from "@/theme";
 
 const INCOME_DOT_RADIUS = 3;
 const TODAY_DOT_RADIUS = 3.5;
@@ -59,6 +59,7 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
   chartPadding = { left: 6, right: 10, top: 16, bottom: 4 },
   domainPadding = { left: 10, right: 10, top: 16, bottom: 4 },
 }: CashflowVictoryChartProps) {
+  const { colors } = useTheme();
   const barCount = chartData.length;
 
   // Map day → index in chartData for quick lookup in render prop
@@ -82,7 +83,7 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
           lineColor: {
             grid: {
               x: "transparent",
-              y: colors.borderList,
+              y: colors.surfaceSunken,
             },
             frame: "transparent",
           },
@@ -94,7 +95,7 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
             <Bar
               points={points.expense}
               chartBounds={chartBounds}
-              color={accent}
+              color={colors.accentText}
               innerPadding={barPadding}
               barCount={barCount}
               animate={animate}
@@ -142,7 +143,7 @@ export const CashflowVictoryChart = memo(function CashflowVictoryChart({
                     cx={pt.x}
                     cy={cy}
                     r={TODAY_DOT_RADIUS}
-                    color={accent}
+                    color={colors.accentText}
                   />
                 );
               })()}

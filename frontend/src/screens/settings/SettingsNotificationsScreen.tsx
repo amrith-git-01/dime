@@ -1,19 +1,20 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { EmptyState, emptyStateCopy } from "@/components/shared";
-import { colors } from "@/constants";
 import { SettingsNotificationsEditor } from "@/features/settings/components";
 
 import { useSettingsNotificationsScreenModel } from "./useSettingsNotificationsScreenModel";
+import { useTheme } from "@/theme";
 
 export default function SettingsNotificationsScreen() {
+  const { colors } = useTheme();
   const { isInitialLoading, isError, refetch, editorProps } =
     useSettingsNotificationsScreenModel();
 
   if (isInitialLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.accentText} />
       </View>
     );
   }

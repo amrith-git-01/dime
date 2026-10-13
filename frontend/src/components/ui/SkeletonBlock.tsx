@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,7 +9,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { skeletonPulse } from "@/constants/motion";
-import { radius, skeleton } from "@/constants";
+import { radius } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 type SkeletonTone = "surface" | "onPrimary";
 
@@ -18,16 +19,8 @@ type SkeletonBlockProps = {
   tone?: SkeletonTone;
 };
 
-const toneStyles: Record<SkeletonTone, ViewStyle> = {
-  surface: {
-    backgroundColor: skeleton.surface,
-  },
-  onPrimary: {
-    backgroundColor: skeleton.onPrimary,
-  },
-};
-
 export function SkeletonBlock({ style, tone = "surface" }: SkeletonBlockProps) {
+  const styles = useStyles();
   const pulse = useSharedValue<number>(skeletonPulse.opacityMin);
 
   useEffect(() => {
@@ -50,12 +43,18 @@ export function SkeletonBlock({ style, tone = "surface" }: SkeletonBlockProps) {
   }));
 
   return (
-    <Animated.View style={[styles.base, toneStyles[tone], animStyle, style]} />
+    <Animated.View style={[styles.base, styles[tone], animStyle, style]} />
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   base: {
     borderRadius: radius.sm,
   },
-});
+  surface: {
+    backgroundColor: colors.skeleton.surface,
+  },
+  onPrimary: {
+    backgroundColor: colors.skeleton.onSurface,
+  },
+}));

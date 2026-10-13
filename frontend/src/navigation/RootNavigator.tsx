@@ -1,9 +1,8 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useEffect, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
-import { colors } from "@/constants";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useNotificationsRealtimeSync } from "@/features/notifications/hooks/useNotificationsRealtimeSync";
@@ -18,12 +17,12 @@ import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
+import { createThemedStyles } from "@/theme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const rootStackScreenOptions = {
   headerShown: false,
-  contentStyle: { backgroundColor: colors.pageBackground },
   animation: "fade" as const,
 };
 
@@ -65,6 +64,7 @@ function resolveRootAppRoute(
 }
 
 export default function RootNavigator() {
+  const styles = useStyles();
   const { setContentReady, markShellReady } = useSplashReveal();
   const profileUserId = useAuthSessionStore((s) => s.userId);
   const signedIn = profileUserId !== undefined;
@@ -138,9 +138,9 @@ export default function RootNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
-});
+}));

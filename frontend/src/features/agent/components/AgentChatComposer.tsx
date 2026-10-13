@@ -4,22 +4,17 @@ import {
   ActivityIndicator,
   Text,
   Pressable,
-  StyleSheet,
   TextInput,
   View,
 } from "react-native";
 
-import {
-  accent,
-  ink,
-  inkFaint,
-  inkSoft,
-  radius,
-  spacing,
-  surface,
-  surfaceSunken,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import {
+  createThemedStyles,
+  useTheme,
+  useThemedTextInputProps,
+} from "@/theme";
 
 type AgentChatComposerProps = {
   /** True while a reply is pending: the field and send button are locked. */
@@ -45,6 +40,9 @@ export const AgentChatComposer = memo(function AgentChatComposer({
   onSend,
   resetToken,
 }: AgentChatComposerProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const inputProps = useThemedTextInputProps();
   const [draft, setDraft] = useState("");
   const [seenResetToken, setSeenResetToken] = useState(resetToken);
 
@@ -74,6 +72,7 @@ export const AgentChatComposer = memo(function AgentChatComposer({
       ) : null}
       <View style={styles.composer}>
         <TextInput
+          {...inputProps}
           value={draft}
           onChangeText={setDraft}
           placeholder={
@@ -81,7 +80,6 @@ export const AgentChatComposer = memo(function AgentChatComposer({
               ? "Daily limit reached. Try again tomorrow."
               : "Ask a question…"
           }
-          placeholderTextColor={inkFaint}
           style={styles.input}
           multiline
           maxLength={4000}
@@ -101,9 +99,9 @@ export const AgentChatComposer = memo(function AgentChatComposer({
           ]}
         >
           {disabled ? (
-            <ActivityIndicator size="small" color={surface} />
+            <ActivityIndicator size="small" color={colors.onAccent} />
           ) : (
-            <SendHorizontal size={20} color={surface} strokeWidth={2} />
+            <SendHorizontal size={20} color={colors.onAccent} strokeWidth={2} />
           )}
         </Pressable>
       </View>
@@ -111,15 +109,15 @@ export const AgentChatComposer = memo(function AgentChatComposer({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   caption: {
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: inkSoft,
+    color: colors.inkSoft,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
@@ -130,25 +128,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
-    backgroundColor: surface,
+    backgroundColor: colors.surface,
   },
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
     borderRadius: radius.full,
-    backgroundColor: surfaceSunken,
+    backgroundColor: colors.surfaceSunken,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontFamily: fontFamilies.regular,
     fontSize: 15,
-    color: ink,
+    color: colors.ink,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -158,4 +156,4 @@ const styles = StyleSheet.create({
   sendButtonPressed: {
     opacity: 0.85,
   },
-});
+}));

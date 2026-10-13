@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { ClockwiseAnimatedPie } from "@/features/analytics/components/ClockwiseAnimatedPie";
 import { formatInrCompact } from "@/utils/currency";
@@ -11,6 +11,7 @@ import {
   buildAgentDonutData,
   type AgentDonutSeriesItem,
 } from "../utils/buildAgentDonutData";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const CHART_SIZE = 132;
 const INNER_RADIUS_RATIO = 0.58;
@@ -26,7 +27,12 @@ export const AgentDonutChart = memo(function AgentDonutChart({
   series,
   revealKey,
 }: AgentDonutChartProps) {
-  const chartData = useMemo(() => buildAgentDonutData(series), [series]);
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const chartData = useMemo(
+    () => buildAgentDonutData(series, colors.donut),
+    [series, colors.donut],
+  );
   const total = useMemo(
     () => chartData.reduce((sum, slice) => sum + slice.value, 0),
     [chartData],
@@ -70,14 +76,14 @@ export const AgentDonutChart = memo(function AgentDonutChart({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: spacing.sm,
   },
   title: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   row: {
     flexDirection: "row",
@@ -105,16 +111,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   legendValue: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   total: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

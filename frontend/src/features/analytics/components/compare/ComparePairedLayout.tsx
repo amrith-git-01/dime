@@ -1,10 +1,11 @@
 import { memo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { danger, inkSoft, line, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { InsightsCard } from "../InsightsCard";
+import { createThemedStyles } from "@/theme";
 
 export type ComparePairedLayoutProps = {
   kicker: string;
@@ -22,6 +23,7 @@ export const CompareColumnHeaders = memo(function CompareColumnHeaders({
   leftLabel: string;
   rightLabel: string;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.columnHeaders}>
       <Text style={styles.columnHeaderLabel} numberOfLines={1}>
@@ -41,6 +43,7 @@ export const ComparePairedColumns = memo(function ComparePairedColumns({
   left: ReactNode;
   right: ReactNode;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.pairedRow}>
       <View style={styles.column}>{left}</View>
@@ -58,6 +61,7 @@ export const ComparePairedLayout = memo(function ComparePairedLayout({
   footer,
   children,
 }: ComparePairedLayoutProps) {
+  const styles = useStyles();
   return (
     <InsightsCard kicker={kicker} subtitle={subtitle}>
       <View style={styles.body}>
@@ -70,10 +74,11 @@ export const ComparePairedLayout = memo(function ComparePairedLayout({
 });
 
 export const CompareColumnError = memo(function CompareColumnError() {
+  const styles = useStyles();
   return <Text style={styles.columnError}>Could not load</Text>;
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   body: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -89,7 +94,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 11,
     lineHeight: 15,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     textAlign: "center",
@@ -106,15 +111,15 @@ const styles = StyleSheet.create({
   columnDivider: {
     width: StyleSheet.hairlineWidth,
     alignSelf: "stretch",
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginHorizontal: spacing.xs,
   },
   columnError: {
     fontFamily: fontFamilies.medium,
     fontSize: 12,
     lineHeight: 16,
-    color: danger,
+    color: colors.danger,
     textAlign: "center",
     paddingVertical: spacing.md,
   },
-});
+}));

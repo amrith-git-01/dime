@@ -1,18 +1,11 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { ButtonBusyContent } from "@/components/ui";
-import {
-  accent,
-  ink,
-  inkFaint,
-  line,
-  radius,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 export type BentoEditorFooterProps = {
   onClear: () => void;
@@ -40,6 +33,8 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
   saveDisabled = false,
   clearDisabled = false,
 }: BentoEditorFooterProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const saveBlocked = saveDisabled || saveLoading;
 
   return (
@@ -92,7 +87,7 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
           loading={saveLoading}
           label={saveTitle}
           busyLabel={saveBusyLabel}
-          color={surface}
+          color={colors.onAccent}
           textStyle={styles.saveBtnText}
         />
       </Pressable>
@@ -100,7 +95,7 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   row: {
     flexDirection: "row",
     gap: spacing.md,
@@ -111,7 +106,7 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: line,
+    borderColor: colors.line,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.md,
@@ -127,10 +122,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 15,
     lineHeight: 20,
-    color: ink,
+    color: colors.ink,
   },
   clearBtnTextDisabled: {
-    color: inkFaint,
+    color: colors.inkFaint,
   },
   saveBtn: {
     flex: 2,
@@ -139,7 +134,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.md,
-    backgroundColor: accent,
+    backgroundColor: colors.accent,
   },
   saveBtnDisabled: {
     opacity: 0.45,
@@ -153,4 +148,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-});
+}));

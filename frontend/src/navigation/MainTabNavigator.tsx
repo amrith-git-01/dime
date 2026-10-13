@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
 import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
 import { getCaptureAvailability } from "@/features/limits/utils/limitsFormat";
@@ -21,10 +21,13 @@ import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
 import type { MainStackParamList, MainTabParamList } from "./types";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const safeInsets = useSafeAreaInsets();
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
@@ -144,7 +147,7 @@ export default function MainTabNavigator() {
         </Tabs.Navigator>
         {!shellReady && splashShellReady ? (
           <View style={styles.shellLoaderOverlay}>
-            <ActivityIndicator color={colors.headerGradientStart} />
+            <ActivityIndicator color={colors.accentText} />
           </View>
         ) : null}
       </View>
@@ -153,10 +156,10 @@ export default function MainTabNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   headerSlot: {
     flexShrink: 0,
@@ -169,9 +172,9 @@ const styles = StyleSheet.create({
   },
   shellLoaderOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 5,
   },
-});
+}));

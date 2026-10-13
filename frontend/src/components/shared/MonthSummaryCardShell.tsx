@@ -1,17 +1,18 @@
 import { memo, useRef, type ReactNode } from "react";
 import type { View as ViewRef } from "react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import {
   BENTO_MONTH_DROPDOWN_VISIBLE,
   useBentoMonthDropdown,
 } from "@/components/bento";
 import { SelectDropdown } from "@/components/ui";
-import { bento, colors, spacing, surfaces } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import type { MonthOption } from "@/utils/buildMonthOptions";
 
 import { TwoToneCard } from "./TwoToneCard";
+import { createThemedStyles } from "@/theme";
 
 export type MonthSummaryCardShellProps = {
   selectedMonth: string;
@@ -38,6 +39,7 @@ export const MonthSummaryCardShell = memo(function MonthSummaryCardShell({
   bodyKicker,
   children,
 }: MonthSummaryCardShellProps) {
+  const styles = useStyles();
   const dropdownAnchorRef = useRef<ViewRef>(null);
   const { dropdownOptions, handleMonthChange } = useBentoMonthDropdown(
     monthOptions,
@@ -94,34 +96,41 @@ export function MonthSummaryHeaderKicker({
 }: {
   children: ReactNode;
 }) {
+  const styles = useStyles();
   return <Text style={styles.activityKicker}>{children}</Text>;
 }
 
 export function MonthSummaryHeaderTitle({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.headerTitle}>{children}</Text>;
 }
 
 export function MonthSummaryHeaderError({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.errorText}>{children}</Text>;
 }
 
 export function MonthSummaryUnavailableText() {
+  const styles = useStyles();
   return <Text style={styles.unavailable}>{"\u2014"}</Text>;
 }
 
 export function MonthSummaryStatsRow({ children }: { children: ReactNode }) {
+  const styles = useStyles();
   return <View style={styles.statsRow}>{children}</View>;
 }
 
 export function MonthSummaryStatDivider() {
+  const styles = useStyles();
   return <View style={styles.divider} />;
 }
 
 export function MonthSummarySectionDivider() {
+  const styles = useStyles();
   return <View style={styles.sectionDivider} />;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   headerInner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -156,7 +165,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -165,13 +174,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 18,
     lineHeight: 24,
-    color: colors.primary,
+    color: colors.accentText,
   },
   errorText: {
     fontFamily: fontFamilies.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: bento.onPastel.primary,
+    color: colors.ink,
   },
   bodyInner: {
     paddingHorizontal: spacing.lg,
@@ -181,7 +190,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 10,
     lineHeight: 14,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textTransform: "uppercase",
     letterSpacing: 0.45,
     marginBottom: spacing.sm,
@@ -190,7 +199,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 15,
     lineHeight: 21,
-    color: bento.onPastel.muted,
+    color: colors.inkFaint,
     textAlign: "center",
   },
   statsRow: {
@@ -201,11 +210,11 @@ const styles = StyleSheet.create({
     width: 1,
     alignSelf: "stretch",
     minHeight: 36,
-    backgroundColor: surfaces.primaryBorder28,
+    backgroundColor: colors.surfaces.primaryBorder28,
     marginHorizontal: spacing.xs,
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: surfaces.primaryBorder28,
+    backgroundColor: colors.surfaces.primaryBorder28,
   },
-});
+}));

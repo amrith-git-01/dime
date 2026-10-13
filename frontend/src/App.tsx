@@ -4,13 +4,10 @@ import { NavigationContainer } from "@react-navigation/native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { persistQueryClientSubscribe } from "@tanstack/react-query-persist-client";
 import { useFonts } from "expo-font";
-import * as NavigationBar from "expo-navigation-bar";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
-import * as SystemUI from "expo-system-ui";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -23,12 +20,10 @@ import {
   useSplashReveal,
 } from "@/components/app/SplashRevealContext";
 import { ToastHost } from "@/components/toast/ToastHost";
-import { colors } from "@/constants";
 import { loadableAppFonts } from "@/constants/fonts";
 import {
   SPLASH_MIN_DISPLAY_MS,
   SPLASH_SHELL_TIMEOUT_MS,
-  splashBackgroundColor,
 } from "@/constants/splash";
 import {
   ReceiptScanBusyOverlay,
@@ -43,8 +38,9 @@ import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationO
 import { appQueryPersistOptions } from "@/lib/queryPersister";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
-import { appNavigationTheme } from "@/navigation/theme";
+import { getNavigationTheme } from "@/navigation/theme";
 import { reportError } from "@/lib/reportError";
+import { createThemedStyles, ThemeProvider, useTheme } from "@/theme";
 
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
@@ -61,6 +57,7 @@ function AppSplashCoordinator({
   fontsReady: boolean;
   children: ReactNode;
 }) {
+  const styles = useStyles();
   const { contentReady, layoutReady, shellReady } = useSplashReveal();
   const splashStartedAtRef = useRef(Date.now());
   const [splashRevealed, setSplashRevealed] = useState(splashRevealedLatch);
@@ -105,12 +102,13 @@ function AppSplashCoordinator({
 function AppRoot() {
   useBlurFocusedInputOnKeyboardHide();
   const { handleNavigationReady } = useNotificationOpenHandler();
+  const { scheme } = useTheme();
 
   return (
     <>
       <NavigationContainer
         ref={navigationRef}
-        theme={appNavigationTheme}
+        theme={getNavigationTheme(scheme)}
         onReady={handleNavigationReady}
       >
         <RootNavigator />
@@ -122,7 +120,8 @@ function AppRoot() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const styles = useStyles();
   const [queryClient] = useState(() => createAppQueryClient());
   const [fontsLoaded, fontError] = useFonts(loadableAppFonts);
 
@@ -138,18 +137,6 @@ export default function App() {
       ...appQueryPersistOptions,
     });
   }, [queryClient]);
-
-  useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(splashBackgroundColor);
-
-    if (Platform.OS !== "android") {
-      return;
-    }
-
-    // Edge-to-edge: nav bar is transparent; root view bg shows through.
-    // setBackgroundColorAsync is unsupported — only set button contrast.
-    NavigationBar.setStyle("light");
-  }, []);
 
   useEffect(() => {
     if (fontError) {
@@ -185,14 +172,22 @@ export default function App() {
               </KeyboardProvider>
             </SplashRevealProvider>
           </AppErrorBoundary>
-          <StatusBar style="auto" />
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
 }
 
-const styles = StyleSheet.create({
+/** Theme sits outside everything so the app root, bars and navigation all read one scheme. */
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+const useStyles = createThemedStyles(({ colors }) => ({
   splashCoordinator: {
     flex: 1,
   },
@@ -201,7 +196,7 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   fontError: {
     flex: 1,
@@ -213,4 +208,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
-});
+}));

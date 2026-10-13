@@ -17,15 +17,7 @@ import {
   SurfaceCardSegment,
 } from "@/components/shared";
 import { ButtonBusyContent } from "@/components/ui";
-import {
-  accent,
-  danger,
-  inkSoft,
-  line,
-  paper,
-  spacing,
-  success,
-} from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { DayAddButton, TransactionRow } from "@/features/transactions/components";
 import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
@@ -38,6 +30,7 @@ import { formatTransactionListAmount } from "@/features/transactions/utils/trans
 import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalendar";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type DayHeaderProps = {
   item: TransactionListHeaderItem;
@@ -45,8 +38,10 @@ type DayHeaderProps = {
 };
 
 const DayHeader = memo(function DayHeader({ item, onAdd }: DayHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const netTotal = item.netTotal;
-  const netColor = netTotal < 0 ? danger : netTotal > 0 ? success : inkSoft;
+  const netColor = netTotal < 0 ? colors.danger : netTotal > 0 ? colors.success : colors.inkSoft;
 
   return (
     <View style={styles.sectionHeader}>
@@ -72,6 +67,7 @@ const TransactionListRowView = memo(function TransactionListRowView({
   item,
   onTransactionPress,
 }: TransactionListRowViewProps) {
+  const styles = useStyles();
   return (
     <View style={item.isLastInSection ? styles.lastRowInSection : undefined}>
       <SurfaceCardSegment
@@ -114,6 +110,8 @@ function resolveListEmptyCopy(
 }
 
 export default function TransactionsListScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const {
     listItems,
     stickyHeaderIndices,
@@ -148,7 +146,7 @@ export default function TransactionsListScreen() {
   if (showInitialLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={accent} size="large" />
+        <ActivityIndicator color={colors.accentText} size="large" />
       </View>
     );
   }
@@ -191,7 +189,7 @@ export default function TransactionsListScreen() {
       onEndReachedThreshold={0.5}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{
-        backgroundColor: paper,
+        backgroundColor: colors.paper,
         paddingHorizontal: spacing.lg + spacing.md,
         paddingTop: spacing.lg + spacing.md,
         paddingBottom: spacing.xl * 3 + insets.bottom,
@@ -219,14 +217,14 @@ export default function TransactionsListScreen() {
               <ButtonBusyContent
                 loading={isRetrying}
                 label="Retry"
-                color={accent}
+                color={colors.accentText}
                 textStyle={styles.footerRetry}
               />
             </Pressable>
           </View>
         ) : showLoadingMore ? (
           <View style={styles.loadingMore}>
-            <ActivityIndicator color={accent} />
+            <ActivityIndicator color={colors.accentText} />
           </View>
         ) : null
       }
@@ -234,10 +232,10 @@ export default function TransactionsListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   fill: {
     flex: 1,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   subtitleRow: {
     paddingBottom: spacing.xl,
@@ -246,7 +244,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -255,7 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
     // The first row segment reserves top room for its card shadow.
     paddingBottom: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   sectionTrailing: {
     flexDirection: "row",
@@ -266,7 +264,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -282,14 +280,14 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     marginLeft: spacing.lg + 40 + spacing.md,
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: paper,
+    backgroundColor: colors.paper,
   },
   loadingMore: {
     paddingVertical: spacing.lg,
@@ -299,13 +297,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
   footerRetry: {
     marginTop: spacing.sm,
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
     lineHeight: 20,
-    color: accent,
+    color: colors.accentText,
   },
-});
+}));

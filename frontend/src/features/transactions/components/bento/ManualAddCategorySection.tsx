@@ -1,9 +1,10 @@
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 
 import { AddCategoryTrigger } from "@/components/categories/AddCategoryTrigger";
 import { CategoryPill } from "@/components/categories/CategoryPill";
-import { colors, radius, spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import type { CategoryRow } from "@/features/categories/types";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type ManualAddCategorySectionProps = {
   categoriesLoading: boolean;
@@ -23,11 +24,13 @@ export function ManualAddCategorySection({
   onAddCategory,
   addCategoryDisabled = false,
 }: ManualAddCategorySectionProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View>
       {categoriesLoading ? (
         <View style={styles.categoriesLoading}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.accentText} />
         </View>
       ) : (
         <View style={styles.categoryGrid}>
@@ -56,19 +59,19 @@ export function ManualAddCategorySection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   categoriesLoading: {
     minHeight: 44,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.line,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.pageBackground,
+    backgroundColor: colors.paper,
   },
   categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
   },
-});
+}));

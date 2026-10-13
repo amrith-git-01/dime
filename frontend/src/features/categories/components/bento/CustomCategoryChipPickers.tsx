@@ -1,22 +1,15 @@
 import { memo } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
-import {
-  accent,
-  accentTint,
-  inkFaint,
-  line,
-  radius,
-  spacing,
-  surface,
-} from "@/constants";
+import { radius, spacing } from "@/constants";
 import {
   CUSTOM_CATEGORY_COLOR_OPTIONS,
   CUSTOM_CATEGORY_ICON_OPTIONS,
   type CustomCategoryIconName,
 } from "@/features/categories/constants/customCategoryPresets";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type CustomCategoryChipPickersProps = {
   selectedIcon: CustomCategoryIconName;
@@ -35,6 +28,8 @@ export const CustomCategoryChipPickers = memo(
     onSelectColor,
     section = "both",
   }: CustomCategoryChipPickersProps) {
+    const { colors } = useTheme();
+    const styles = useStyles();
     const showIcon = section === "icon" || section === "both";
     const showColor = section === "color" || section === "both";
 
@@ -66,7 +61,7 @@ export const CustomCategoryChipPickers = memo(
                   >
                     <CategoryLucideIcon
                       iconName={option}
-                      color={selected ? accent : inkFaint}
+                      color={selected ? colors.accentText : colors.inkFaint}
                       size={20}
                       strokeWidth={1.5}
                     />
@@ -115,7 +110,7 @@ export const CustomCategoryChipPickers = memo(
   },
 );
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   wrap: {
     gap: spacing.lg,
   },
@@ -132,14 +127,14 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: line,
-    backgroundColor: surface,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   iconChipSelected: {
-    backgroundColor: accentTint,
-    borderColor: accent,
+    backgroundColor: colors.accentTint,
+    borderColor: colors.accent,
   },
   colorChipOuter: {
     width: 44,
@@ -151,7 +146,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   colorChipOuterSelected: {
-    borderColor: accent,
+    borderColor: colors.accent,
     padding: 3,
   },
   colorChip: {
@@ -159,4 +154,4 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 22,
   },
-});
+}));

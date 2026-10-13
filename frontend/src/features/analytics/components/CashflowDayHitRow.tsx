@@ -1,7 +1,6 @@
 import { memo, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { accent } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import type {
@@ -9,6 +8,7 @@ import type {
   InsightsCashflowDaySelection,
 } from "../hooks/useCashflowDayTooltip";
 import { CASHFLOW_DAY_SLOT_WIDTH } from "../utils/buildCashflowWindow";
+import { createThemedStyles } from "@/theme";
 
 type CashflowDayHitCellProps = {
   width: number;
@@ -23,6 +23,7 @@ const CashflowDayHitCell = memo(function CashflowDayHitCell({
   onPress,
   accessibilityLabel,
 }: CashflowDayHitCellProps) {
+  const styles = useStyles();
   const cellRef = useRef<View>(null);
 
   return (
@@ -63,6 +64,7 @@ export function CashflowDayHitRow({
   onDismiss,
   onDayPress,
 }: CashflowDayHitRowProps) {
+  const styles = useStyles();
   return (
     <View style={styles.dayHitRow} pointerEvents="box-none">
       <Pressable
@@ -90,7 +92,7 @@ export function CashflowDayHitRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   dayHitRow: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: "row",
@@ -100,6 +102,6 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   dayHitCellSelected: {
-    backgroundColor: `${accent}14`,
+    backgroundColor: colors.accentTint,
   },
-});
+}));

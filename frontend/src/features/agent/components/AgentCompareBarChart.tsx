@@ -1,21 +1,20 @@
 import { memo, useEffect, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 
-import { colors, spacing } from "@/constants";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { formatInrCompact } from "@/utils/currency";
 
 import { AGENT_BAR_CHART_TIMING } from "../hooks/useAgentChartReveal";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const MAX_BAR_WIDTH = 120;
 const BAR_HEIGHT = 7;
-const COLOR_A = colors.headerGradientStart;
-const COLOR_B = colors.textSecondary;
 
 export type CompareSeriesItem = {
   name: string;
@@ -40,6 +39,7 @@ const AnimatedBar = memo(function AnimatedBar({
   color: string;
   revealKey: string;
 }) {
+  const styles = useStyles();
   const width = useSharedValue(0);
 
   useEffect(() => {
@@ -67,6 +67,10 @@ export const AgentCompareBarChart = memo(function AgentCompareBarChart({
   series,
   revealKey,
 }: AgentCompareBarChartProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const COLOR_A = colors.accentText;
+  const COLOR_B = colors.inkSoft;
   const maxValue = useMemo(
     () => Math.max(1, ...series.flatMap((s) => [s.period_a, s.period_b])),
     [series],
@@ -99,7 +103,7 @@ export const AgentCompareBarChart = memo(function AgentCompareBarChart({
               ? colors.success
               : diff > 0
                 ? colors.danger
-                : colors.textSecondary;
+                : colors.inkSoft;
 
           return (
             <View key={item.name} style={styles.row}>
@@ -154,14 +158,14 @@ export const AgentCompareBarChart = memo(function AgentCompareBarChart({
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: spacing.sm,
   },
   title: {
     fontFamily: fontFamilies.semiBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   rows: {
     gap: spacing.sm,
@@ -175,7 +179,7 @@ const styles = StyleSheet.create({
     width: 72,
     fontFamily: fontFamilies.medium,
     fontSize: 11,
-    color: colors.textPrimary,
+    color: colors.ink,
   },
   barsCol: {
     flex: 1,
@@ -197,11 +201,11 @@ const styles = StyleSheet.create({
   amount: {
     fontFamily: fontFamilies.monoSemiBold,
     fontSize: 10,
-    color: colors.textPrimary,
+    color: colors.ink,
     minWidth: 36,
   },
   amountB: {
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
   diffLabel: {
     fontFamily: fontFamilies.semiBold,
@@ -226,6 +230,6 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.inkSoft,
   },
-});
+}));

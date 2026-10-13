@@ -2,9 +2,10 @@ import { ThumbsDown, ThumbsUp } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { accent, inkFaint, spacing } from "@/constants";
+import { spacing } from "@/constants";
 
 import type { AgentFeedbackRating } from "../types";
+import { useTheme } from "@/theme";
 
 type AgentFeedbackButtonsProps = {
   messageId: string;
@@ -24,6 +25,7 @@ export const AgentFeedbackButtons = memo(function AgentFeedbackButtons({
   feedback,
   onFeedback,
 }: AgentFeedbackButtonsProps) {
+  const { colors } = useTheme();
   const voted = feedback !== null;
   return (
     <View style={styles.row}>
@@ -46,9 +48,9 @@ export const AgentFeedbackButtons = memo(function AgentFeedbackButtons({
           >
             <Icon
               size={16}
-              color={selected ? accent : inkFaint}
+              color={selected ? colors.accentText : colors.inkFaint}
               strokeWidth={2}
-              fill={selected ? accent : "none"}
+              fill={selected ? colors.accentText : "none"}
             />
           </Pressable>
         );

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -12,22 +11,11 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-import {
-  accent,
-  danger,
-  fontFamilies,
-  inkFaint,
-  inkSoft,
-  line,
-  radius,
-  shadow,
-  spacing,
-  success,
-  surface,
-} from "@/constants";
+import { fontFamilies, radius, spacing } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
 import { AppTextInput } from "@/components/ui";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { createThemedStyles, useTheme } from "@/theme";
 
 type ManualAddAmountSectionProps = {
   amountText: string;
@@ -48,16 +36,6 @@ type ManualAddAmountSectionProps = {
 const TRACK_HEIGHT = 44;
 const PILL_INSET = 3;
 
-const pillShadow = Platform.select({
-  android: { elevation: 2 } as const,
-  default: {
-    shadowColor: shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  } as const,
-});
-
 export function ManualAddAmountSection({
   amountText,
   onAmountChange,
@@ -68,6 +46,8 @@ export function ManualAddAmountSection({
   onSetIncome,
   showTypeToggle = true,
 }: ManualAddAmountSectionProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const translateX = useSharedValue(0);
   const [trackWidth, setTrackWidth] = useState(0);
   const tabWidth = trackWidth / 2;
@@ -102,9 +82,9 @@ export function ManualAddAmountSection({
   const hasValue = amountText !== "" && amountText !== "0";
   const amountColor = hasValue
     ? txType === "debit"
-      ? danger
-      : success
-    : inkFaint;
+      ? colors.danger
+      : colors.success
+    : colors.inkFaint;
 
   return (
     <View style={styles.container}>
@@ -118,7 +98,7 @@ export function ManualAddAmountSection({
           containerStyle={styles.amountInputSlot}
           style={[styles.amountInput, { color: amountColor }]}
           placeholder="0"
-          placeholderTextColor={inkFaint}
+          placeholderTextColor={colors.inkFaint}
           keyboardType="decimal-pad"
           value={amountText}
           onChangeText={onAmountChange}
@@ -183,7 +163,7 @@ export function ManualAddAmountSection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
   container: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -194,7 +174,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     letterSpacing: 0.6,
-    color: accent,
+    color: colors.accentText,
     textTransform: "uppercase",
   },
   amountRow: {
@@ -235,7 +215,7 @@ const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
     borderRadius: radius.full,
-    backgroundColor: line,
+    backgroundColor: colors.line,
     flexDirection: "row",
     position: "relative",
     overflow: "hidden",
@@ -246,8 +226,8 @@ const styles = StyleSheet.create({
     left: PILL_INSET,
     bottom: PILL_INSET,
     borderRadius: radius.full,
-    backgroundColor: surface,
-    ...pillShadow,
+    backgroundColor: colors.surface,
+    ...shadows.pill,
   },
   tab: {
     flex: 1,
@@ -260,14 +240,14 @@ const styles = StyleSheet.create({
   },
   expenseSelected: {
     fontFamily: fontFamilies.semiBold,
-    color: danger,
+    color: colors.danger,
   },
   incomeSelected: {
     fontFamily: fontFamilies.semiBold,
-    color: success,
+    color: colors.success,
   },
   labelUnselected: {
     fontFamily: fontFamilies.regular,
-    color: inkSoft,
+    color: colors.inkSoft,
   },
-});
+}));
