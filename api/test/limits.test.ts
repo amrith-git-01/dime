@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claimQuestion } from '../src/features/agent/usage';
+import { claimQuestion, refundQuestion } from '../src/features/agent/usage';
 import { addNeurons, claimCapture } from '../src/features/ai/neuron-cap';
 import { USER_ID, call, makeEnv, signToken } from './helpers';
 import { seedUser, testDb } from './db';
@@ -72,5 +72,22 @@ describe('GET /limits', () => {
     await addNeurons(testDb(), Date.now(), 900);
     expect((await get()).body.scanning_paused).toBe(true);
     expect((await get({ env: makeEnv({ AI_DAILY_NEURON_CAP: '100000' }) })).body.scanning_paused).toBe(false);
+  });
+});
+
+describe('refundQuestion', () => {
+  it('gives one question back for the claim day and never goes below zero', async () => {
+    const now = Date.parse('2026-10-05T23:59:59Z');
+    await claimQuestion(testDb(), USER_ID, now, 5);
+    await claimQuestion(testDb(), USER_ID, now, 5);
+    await refundQuestion(testDb(), USER_ID, now);
+    const day = (d: string) => testDb().prepare('SELECT turns FROM agent_usage WHERE user_id = ? AND day = ?').bind(USER_ID, d).first<{ turns: number }>();
+    expect((await day('2026-10-05'))?.turns).toBe(1);
+    await refundQuestion(testDb(), USER_ID, now);
+    await refundQuestion(testDb(), USER_ID, now);
+    expect((await day('2026-10-05'))?.turns).toBe(0);
+    // A refund for a day with no claim is a no-op.
+    await refundQuestion(testDb(), USER_ID, Date.parse('2026-10-06T00:00:01Z'));
+    expect(await day('2026-10-06')).toBeNull();
   });
 });
