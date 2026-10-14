@@ -480,13 +480,14 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
     expect(payload.budgetLine).toBe('No budget set');
     expect(payload.budgetPct).toBeNull();
     // Period summary only: no second summary for the budget month.
-    expect(sqls.filter((s) => s.includes('GROUP BY type, category_id'))).toHaveLength(1);
+    expect(sqls.filter((s) => s.includes('GROUP BY t.type, t.category_id'))).toHaveLength(1);
   });
 
   it('an empty period has no ranked rows and no categories lookup', async () => {
     const { db, sqls } = spyDb();
     const payload = await buildDigestPayload(db, input);
     expect(payload).toMatchObject({ spent: '0.00', income: '0.00', net: '0.00', payees: [], incomeSources: [], categories: [], topExpenses: [] });
-    expect(sqls.filter((s) => s.includes('FROM categories'))).toHaveLength(0);
+    // No category-meta lookup (the top-debits query only filters out fixed categories in a subselect).
+    expect(sqls.filter((s) => /FROM categories\s+WHERE id IN/.test(s))).toHaveLength(0);
   });
 });

@@ -65,6 +65,27 @@ export function isRecurringCategoryAllowedForTxType(
   return category.scope === RECURRING_SCOPE_BY_TYPE[txType];
 }
 
+/**
+ * The recurring categories offered for a transaction type: expense -> recurring_expense, income ->
+ * recurring_income. `own` is the row's own recurring category (edit screen), kept in the group even when
+ * the lists have not loaded.
+ */
+export function recurringOptionsForType(input: {
+  recurringCategories: readonly CategoryRow[];
+  txType: TransactionType;
+  own?: CategoryRow | null;
+}): CategoryRow[] {
+  const { recurringCategories, txType, own } = input;
+  const options = recurringCategories.filter((category) =>
+    isRecurringCategoryAllowedForTxType(category, txType),
+  );
+  return own &&
+    isRecurringCategoryAllowedForTxType(own, txType) &&
+    !options.some((category) => category.id === own.id)
+    ? [own, ...options]
+    : options;
+}
+
 export type EditCategoryReconcileAction =
   | { kind: "keep" }
   | { kind: "clear" }
@@ -75,17 +96,23 @@ export function reconcileEditCategory(input: {
   categories: CategoryRow[];
   categoryId: string | null;
   txType: TransactionType;
+  /** The row's own recurring category (edit screen), if any. */
   recurringCategory: CategoryRow | null;
+  /** Every recurring category (both scopes), so a picked one is recognised as such. */
+  recurringCategories?: readonly CategoryRow[];
 }): EditCategoryReconcileAction {
   const { categories, categoryId, txType, recurringCategory } = input;
   if (categories.length === 0) {
     return { kind: "keep" };
   }
-  const isRecurringSelected =
-    recurringCategory !== null && categoryId === recurringCategory.id;
+  const selectedRecurring = categoryId
+    ? (input.recurringCategories?.find((category) => category.id === categoryId) ??
+      (recurringCategory?.id === categoryId ? recurringCategory : undefined))
+    : undefined;
+  const isRecurringSelected = selectedRecurring !== undefined;
   if (
-    isRecurringSelected &&
-    isRecurringCategoryAllowedForTxType(recurringCategory, txType)
+    selectedRecurring &&
+    isRecurringCategoryAllowedForTxType(selectedRecurring, txType)
   ) {
     return { kind: "keep" };
   }
@@ -112,22 +139,14 @@ export function reconcileEditCategory(input: {
   return { kind: "keep" };
 }
 
-/** Pills the edit screen offers: the type's spend categories, led by the row's own recurring category when it fits. */
-export function editVisibleCategories(input: {
-  categories: CategoryRow[];
-  txType: TransactionType;
-  recurringCategory: CategoryRow | null;
-}): CategoryRow[] {
-  const { categories, txType, recurringCategory } = input;
-  let list: CategoryRow[];
+/** Main pills of the category picker: the type's spend categories (recurring ones are a separate group). */
+export function visibleSpendCategories(
+  categories: CategoryRow[],
+  txType: TransactionType,
+): CategoryRow[] {
   if (txType === "credit") {
     const income = findIncomeCategory(categories);
-    list = income ? [income] : categories;
-  } else {
-    list = categories.filter((category) => category.name !== "Income");
+    return income ? [income] : categories;
   }
-  return recurringCategory &&
-    isRecurringCategoryAllowedForTxType(recurringCategory, txType)
-    ? [recurringCategory, ...list]
-    : list;
+  return categories.filter((category) => category.name !== "Income");
 }

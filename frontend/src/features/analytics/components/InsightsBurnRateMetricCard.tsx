@@ -19,6 +19,8 @@ export type InsightsBurnRateMetricCardProps = {
   loading?: boolean;
   year: number;
   monthIndex0: number;
+  /** The server's today; defaults to the device clock. */
+  today?: Date;
 };
 
 export const InsightsBurnRateMetricCard = memo(
@@ -27,13 +29,14 @@ export const InsightsBurnRateMetricCard = memo(
     loading = false,
     year,
     monthIndex0,
+    today: todayProp,
   }: InsightsBurnRateMetricCardProps) {
     const { colors } = useTheme();
     const styles = useStyles();
-    const isCurrent = isCurrentMonth(year, monthIndex0);
-    const isPast = isPastMonth(year, monthIndex0);
+    const today = todayProp ?? new Date();
+    const isCurrent = isCurrentMonth(year, monthIndex0, today);
+    const isPast = isPastMonth(year, monthIndex0, today);
 
-    const today = new Date();
     const daysInMonth = calendarDaysInMonth(year, monthIndex0);
 
     // For current month use today's day; for past months show full month; future = 0
@@ -185,6 +188,17 @@ export const InsightsBurnRateMetricCard = memo(
             )}
           </View>
         </View>
+
+        {!loading && metrics && metrics.fixedPlan > 0 ? (
+          <>
+            <View style={styles.divider} />
+            <Text style={styles.fixedLine}>
+              {metrics.flexibleAllowance != null
+                ? `${metrics.fixedPlanDisplay} fixed costs planned · ${metrics.flexibleAllowanceDisplay} left of the budget for everything else`
+                : `${metrics.fixedPlanDisplay} fixed costs planned this month`}
+            </Text>
+          </>
+        ) : null}
       </InsightsCard>
     );
   },
@@ -268,6 +282,14 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   statValueDanger: {
     color: colors.danger,
+  },
+  fixedLine: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   statSkeleton: {
     width: 56,

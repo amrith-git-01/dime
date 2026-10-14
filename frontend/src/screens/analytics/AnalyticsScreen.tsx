@@ -8,6 +8,7 @@ import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
+  InsightsFixedCostsCard,
   InsightsHeavyChartsPlaceholder,
   InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
@@ -39,6 +40,11 @@ function AnalyticsInsightsScroll() {
     hasMonthlyBudget,
     chartLoading,
     burnRateMetrics,
+    paceLoading,
+    burnRateToday,
+    fixedCostsMonth,
+    fixedCostsLoading,
+    currentDay,
     dailyCashflow,
     chartYear,
     chartMonthIndex0,
@@ -85,9 +91,15 @@ function AnalyticsInsightsScroll() {
         <>
           <InsightsBurnRateMetricCard
             metrics={burnRateMetrics}
-            loading={chartLoading}
+            loading={paceLoading}
             year={chartYear}
             monthIndex0={chartMonthIndex0}
+            today={burnRateToday}
+          />
+          <InsightsFixedCostsCard
+            data={fixedCostsMonth}
+            loading={fixedCostsLoading}
+            today={currentDay}
           />
           <InsightsDailyCashflowChart
             dailyCashflow={dailyCashflow}

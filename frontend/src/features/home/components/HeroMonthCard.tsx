@@ -15,6 +15,8 @@ type HeroMonthCardProps = {
   /** "₹1.2k / ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
+  /** "Fixed ₹X · Flexible ₹Y"; omitted when none of the spend is fixed. */
+  splitLine?: string | null;
   isLoading?: boolean;
   onAddBudget: () => void;
 };
@@ -25,6 +27,7 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   hasBudget,
   subtext,
   progress,
+  splitLine,
   isLoading = false,
   onAddBudget,
 }: HeroMonthCardProps) {
@@ -45,6 +48,10 @@ export const HeroMonthCard = memo(function HeroMonthCard({
           {heroAmount}
         </Text>
       )}
+
+      {!isLoading && splitLine ? (
+        <Text style={styles.splitLine}>{splitLine}</Text>
+      ) : null}
 
       {/* Status line */}
       {isLoading ? (
@@ -129,6 +136,13 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.inkSoft,
+  },
+  splitLine: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    fontVariant: ["tabular-nums"],
   },
   statusLineMuted: {
     color: colors.inkFaint,

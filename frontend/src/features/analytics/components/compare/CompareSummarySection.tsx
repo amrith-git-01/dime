@@ -30,10 +30,13 @@ function SummaryColumn({
   summary,
   loading,
   failed,
+  showSplit,
 }: {
   summary: InsightsMonthSummary | null;
   loading: boolean;
   failed: boolean;
+  /** Show the fixed / flexible rows (when either month has fixed spend). */
+  showSplit: boolean;
 }) {
   const styles = useStyles();
   if (failed) {
@@ -54,6 +57,22 @@ function SummaryColumn({
         tone="debit"
         loading={loading}
       />
+      {showSplit ? (
+        <>
+          <CompareMiniStat
+            label="Fixed"
+            value={summary?.fixedDisplay ?? "—"}
+            tone="neutral"
+            loading={loading}
+          />
+          <CompareMiniStat
+            label="Flexible"
+            value={summary?.flexibleDisplay ?? "—"}
+            tone="neutral"
+            loading={loading}
+          />
+        </>
+      ) : null}
       <CompareMiniStat
         label="Income"
         value={summary?.incomeDisplay ?? "\u2014"}
@@ -96,6 +115,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
   spentDelta,
 }: CompareSummarySectionProps) {
   const styles = useStyles();
+  const showSplit = Boolean(leftSummary?.hasFixed || rightSummary?.hasFixed);
   return (
     <ComparePairedLayout
       kicker="MONTH SUMMARY"
@@ -112,6 +132,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
             summary={leftSummary}
             loading={leftLoading}
             failed={leftFailed}
+            showSplit={showSplit}
           />
         }
         right={
@@ -119,6 +140,7 @@ export const CompareSummarySection = memo(function CompareSummarySection({
             summary={rightSummary}
             loading={rightLoading}
             failed={rightFailed}
+            showSplit={showSplit}
           />
         }
       />

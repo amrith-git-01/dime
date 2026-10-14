@@ -2,7 +2,12 @@ import { differenceInCalendarDays, format, isValid, parse } from "date-fns";
 
 import { formatInrAmount } from "@/utils/currency";
 
-import type { RecurringCadence, RecurringItem, RecurringKind } from "../types";
+import type {
+  RecurringCadence,
+  RecurringItem,
+  RecurringKind,
+  RecurringOccurrence,
+} from "../types";
 
 export const UPCOMING_WINDOW_DAYS = 30;
 export const UPCOMING_MAX_ITEMS = 4;
@@ -87,6 +92,29 @@ export function selectUpcoming(
       return kindRank(a.kind) - kindRank(b.kind);
     })
     .slice(0, max);
+}
+
+/** "15 Oct" or "15 Oct 2025": the occurrence date, without the "Due" wording. */
+export function formatOccurrenceDate(isoDate: string, today: Date): string {
+  const date = parseDueDate(isoDate);
+  if (!date) {
+    return "";
+  }
+  return format(date, date.getFullYear() === today.getFullYear() ? "d MMM" : "d MMM yyyy");
+}
+
+/** "Paid 1 Oct", "Due 15 Nov" (or "Due today"), "Skipped". */
+export function formatOccurrenceSubtitle(
+  occurrence: Pick<RecurringOccurrence, "status" | "due_date">,
+  today: Date,
+): string {
+  if (occurrence.status === "paid") {
+    return `Paid ${formatOccurrenceDate(occurrence.due_date, today)}`.trim();
+  }
+  if (occurrence.status === "skipped") {
+    return "Skipped";
+  }
+  return formatDueDate(occurrence.due_date, today);
 }
 
 export const RECURRING_COPY = {

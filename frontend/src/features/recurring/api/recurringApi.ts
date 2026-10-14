@@ -5,6 +5,7 @@ import type {
   RecurringItem,
   RecurringKind,
   RecurringListResponse,
+  RecurringMonthResponse,
   UpdateRecurringBody,
 } from "../types";
 
@@ -15,6 +16,17 @@ export async function fetchRecurring(
 ): Promise<RecurringListResponse> {
   const { data } = await dimeApi.get<RecurringListResponse>(PATH, {
     params: { kind },
+  });
+  return data;
+}
+
+/** Paid / upcoming / skipped occurrences in one month; `monthIndex0` is 0-11. */
+export async function fetchRecurringMonth(
+  year: number,
+  monthIndex0: number,
+): Promise<RecurringMonthResponse> {
+  const { data } = await dimeApi.get<RecurringMonthResponse>(`${PATH}/month`, {
+    params: { year, month: monthIndex0 + 1 },
   });
   return data;
 }

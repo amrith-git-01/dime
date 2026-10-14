@@ -71,6 +71,7 @@ export interface SeedTransaction {
   updated_at?: string;
   deleted_at?: string | null;
   payment_hash?: string | null;
+  recurring_item_id?: string | null;
 }
 
 export async function seedTransaction(over: SeedTransaction = {}): Promise<string> {
@@ -81,8 +82,8 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
   await testDb()
     .prepare(
       `INSERT INTO transactions (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, deleted_at,
-         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -103,6 +104,7 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
       normalized,
       over.payment_hash ?? null,
       payeeKey(normalized, name),
+      over.recurring_item_id ?? null,
     )
     .run();
   return id;

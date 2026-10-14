@@ -6,10 +6,7 @@ import type { CategoryRow } from "@/features/categories/types";
 import type { MainStackParamList } from "@/navigation/types";
 
 import type { TransactionType } from "../types";
-import {
-  findIncomeCategory,
-  isCategoryAllowedForTxType,
-} from "../utils/manualAddCategoryUtils";
+import { reconcileEditCategory } from "../utils/manualAddCategoryUtils";
 
 type FormControls = {
   reset: () => void;
@@ -22,6 +19,8 @@ type FormControls = {
 type UseManualAddScreenLifecycleParams = {
   form: FormControls;
   categories: CategoryRow[];
+  /** Every recurring category, so a picked one is kept (or dropped) according to the type. */
+  recurringCategories: readonly CategoryRow[];
   navigation: NativeStackNavigationProp<MainStackParamList>;
   returnCategoryId?: string;
   returnCategoryName?: string;
@@ -32,6 +31,7 @@ type UseManualAddScreenLifecycleParams = {
 export function useManualAddScreenLifecycle({
   form,
   categories,
+  recurringCategories,
   navigation,
   returnCategoryId,
   returnCategoryName,
@@ -107,31 +107,26 @@ export function useManualAddScreenLifecycle({
   }, [categories, selectCategory]);
 
   useEffect(() => {
-    if (categories.length === 0) {
-      return;
-    }
-
-    const current = categoryId
-      ? categories.find((category) => category.id === categoryId)
-      : undefined;
-
-    if (txType === "credit") {
-      if (current && isCategoryAllowedForTxType(current, "credit")) {
-        return;
-      }
-      const income = findIncomeCategory(categories);
-      if (income) {
-        selectCategory(income.id, income.name);
-      } else {
-        clearCategory();
-      }
-      return;
-    }
-
-    if (current && !isCategoryAllowedForTxType(current, "debit")) {
+    const action = reconcileEditCategory({
+      categories,
+      categoryId,
+      txType,
+      recurringCategory: null,
+      recurringCategories,
+    });
+    if (action.kind === "select") {
+      selectCategory(action.category.id, action.category.name);
+    } else if (action.kind === "clear") {
       clearCategory();
     }
-  }, [categories, categoryId, clearCategory, selectCategory, txType]);
+  }, [
+    categories,
+    categoryId,
+    clearCategory,
+    recurringCategories,
+    selectCategory,
+    txType,
+  ]);
 
   return { markNavigatedToCreateCategory };
 }

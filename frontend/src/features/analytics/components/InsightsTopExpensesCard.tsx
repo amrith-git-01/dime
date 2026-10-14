@@ -32,7 +32,10 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
   const isEmpty = !loading && visible.length === 0;
 
   return (
-    <InsightsCard kicker="TOP EXPENSES" subtitle="Largest debits this month">
+    <InsightsCard
+      kicker="TOP EXPENSES"
+      subtitle="Largest debits this month · Excludes fixed costs"
+    >
       {loading ? (
         <InsightsTopExpensesSkeleton />
       ) : isEmpty ? (

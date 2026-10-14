@@ -10,7 +10,7 @@ import { validate } from '../../core/validation';
 import { mediaStore } from '../media/storage';
 import { requestPublisher } from '../realtime/publish';
 import type { TxContext } from '../transactions/service';
-import { recurringCreateSchema, recurringIdParamSchema, recurringListQuerySchema, recurringPatchSchema } from './schemas';
+import { recurringCreateSchema, recurringIdParamSchema, recurringListQuerySchema, recurringMonthQuerySchema, recurringPatchSchema } from './schemas';
 import * as service from './service';
 
 /** Mounted at `/recurring`: recurring income (salary) and subscriptions. The cron (`poster.ts`) posts the transactions. */
@@ -33,6 +33,12 @@ function txContext(c: Context<AppBindings>): TxContext {
 recurringRoutes.get('/', validate('query', recurringListQuerySchema), async (c) =>
   c.json(await service.listRecurring(txContext(c), c.req.valid('query').kind)),
 );
+
+/** Paid / upcoming / skipped occurrences of the recurring items in one calendar month (each in its own timezone). */
+recurringRoutes.get('/month', validate('query', recurringMonthQuerySchema), async (c) => {
+  const { year, month } = c.req.valid('query');
+  return c.json(await service.monthOccurrences(txContext(c), year, month));
+});
 
 recurringRoutes.post('/', rateLimit('WRITE_LIMITER'), validate('json', recurringCreateSchema), async (c) =>
   c.json(await service.createRecurring(txContext(c), c.req.valid('json'), (work) => defer(c, work, 'recurring_create_notifications')), 201),

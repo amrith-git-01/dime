@@ -224,7 +224,7 @@ export async function softDeleteRow(db: Db, userId: string, id: string): Promise
   return row ? toRow(row) : null;
 }
 
-/** Largest single debits in `[from, to)` (newest first on ties). */
+/** Largest single flexible debits in `[from, to)` (newest first on ties); fixed (recurring-category) spend is left out. */
 export async function topDebits(
   db: Db,
   userId: string,
@@ -235,6 +235,7 @@ export async function topDebits(
     db,
     `SELECT ${LIST_COLUMNS} FROM transactions
      WHERE user_id = ? AND type = 'debit' AND deleted_at IS NULL AND transaction_at >= ? AND transaction_at < ?
+       AND (category_id IS NULL OR category_id NOT IN (SELECT id FROM categories WHERE scope <> 'spend'))
      ORDER BY amount DESC, transaction_at DESC LIMIT ?`,
     [userId, range.from, range.to, limit],
   );
@@ -245,22 +246,33 @@ export async function topDebits(
  * Aggregates (single GROUP BY queries)
  * -------------------------------------------------------------------------------------------- */
 
-/** Credit/debit totals, row count and debit-by-category over the half-open `[from, to)`. */
+/**
+ * SQL for "this transaction's category is a recurring (fixed) one"; needs `LEFT JOIN categories c ON c.id = t.category_id`.
+ * Uncategorized rows and everyday spend categories are flexible.
+ */
+const IS_FIXED = "(COALESCE(c.scope, 'spend') <> 'spend')";
+
+/** Credit/debit totals (and their fixed part), row count and debit-by-category over the half-open `[from, to)`. */
 export async function periodSummary(db: Db, userId: string, range: { from: string; to: string }): Promise<PeriodSummary> {
-  const rows = await all<{ type: string; category_id: string | null; total: number; n: number }>(
+  const rows = await all<{ type: string; category_id: string | null; fixed: number; total: number; n: number }>(
     db,
-    `SELECT type, category_id, SUM(amount) AS total, COUNT(*) AS n FROM transactions
-     WHERE user_id = ? AND deleted_at IS NULL AND transaction_at >= ? AND transaction_at < ?
-     GROUP BY type, category_id`,
+    `SELECT t.type AS type, t.category_id AS category_id, ${IS_FIXED} AS fixed, SUM(t.amount) AS total, COUNT(*) AS n
+     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+     WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ?
+     GROUP BY t.type, t.category_id`,
     [userId, range.from, range.to],
   );
-  const summary: PeriodSummary = { creditCents: 0, debitCents: 0, count: 0, debitByCategory: new Map() };
+  const summary: PeriodSummary = { creditCents: 0, debitCents: 0, fixedCreditCents: 0, fixedDebitCents: 0, count: 0, debitByCategory: new Map(), fixedDebitCategories: new Set() };
   for (const row of rows) {
     summary.count += row.n;
-    if (row.type === 'credit') summary.creditCents += row.total;
-    else if (row.type === 'debit') {
+    if (row.type === 'credit') {
+      summary.creditCents += row.total;
+      if (row.fixed) summary.fixedCreditCents += row.total;
+    } else if (row.type === 'debit') {
       summary.debitCents += row.total;
+      if (row.fixed) summary.fixedDebitCents += row.total;
       const key = row.category_id ?? '';
+      if (row.fixed) summary.fixedDebitCategories.add(key);
       summary.debitByCategory.set(key, (summary.debitByCategory.get(key) ?? 0) + row.total);
     }
   }
@@ -268,21 +280,22 @@ export async function periodSummary(db: Db, userId: string, range: { from: strin
 }
 
 /**
- * Amount / type / instant of every row in `[from, to)`, for the local-day bucketing in
- * `dayTotalsFromRows` (SQLite has no IANA timezone support, so days are cut in TypeScript).
+ * Amount / type / instant (and whether the category is a fixed one) of every row in `[from, to)`, for the
+ * local-day bucketing in `dayTotalsFromRows` (SQLite has no IANA timezone support, so days are cut in TypeScript).
  */
 export async function fetchAmountTypeAtRows(
   db: Db,
   userId: string,
   range: { from: string; to: string },
 ): Promise<AmountTypeAtRow[]> {
-  const rows = await all<{ amount: number; type: string; transaction_at: string }>(
+  const rows = await all<{ amount: number; type: string; transaction_at: string; fixed: number }>(
     db,
-    `SELECT amount, type, transaction_at FROM transactions
-     WHERE user_id = ? AND deleted_at IS NULL AND transaction_at >= ? AND transaction_at < ?`,
+    `SELECT t.amount AS amount, t.type AS type, t.transaction_at AS transaction_at, ${IS_FIXED} AS fixed
+     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+     WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ?`,
     [userId, range.from, range.to],
   );
-  return rows.map((r) => ({ amount: formatCents(r.amount), type: r.type, transaction_at: r.transaction_at }));
+  return rows.map((r) => ({ amount: formatCents(r.amount), type: r.type, transaction_at: r.transaction_at, is_fixed: r.fixed === 1 }));
 }
 
 export interface PayeeRow {
@@ -298,13 +311,21 @@ export interface PayeeRow {
  * that has a non-empty name ('Unknown' when none). Ordered by type, then total descending (ties:
  * most recent transaction first).
  */
-export async function payeeTotals(db: Db, userId: string, range: { from: string; to: string }): Promise<PayeeRow[]> {
+export async function payeeTotals(
+  db: Db,
+  userId: string,
+  range: { from: string; to: string },
+  opts: { flexibleDebitsOnly?: boolean } = {},
+): Promise<PayeeRow[]> {
+  // Fixed spend (recurring-category debits) can be left out of the debit side; credits are never filtered.
+  const skipFixed = opts.flexibleDebitsOnly ? `AND NOT (t.type = 'debit' AND ${IS_FIXED})` : '';
   const rows = await all<{ type: 'debit' | 'credit'; payee_key: string; display_name: string; total: number; n: number }>(
     db,
     `WITH src AS (
-       SELECT type, payee_key, amount, transaction_at, NULLIF(TRIM(counterparty_name), '') AS pname
-       FROM transactions
-       WHERE user_id = ? AND deleted_at IS NULL AND transaction_at >= ? AND transaction_at < ?
+       SELECT t.type AS type, t.payee_key AS payee_key, t.amount AS amount, t.transaction_at AS transaction_at,
+              NULLIF(TRIM(t.counterparty_name), '') AS pname
+       FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+       WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ? ${skipFixed}
      )
      SELECT type, payee_key,
             COALESCE((SELECT s2.pname FROM src s2

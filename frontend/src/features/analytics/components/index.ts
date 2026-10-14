@@ -10,6 +10,7 @@ export {
   InsightsDailyCashflowChart,
   type InsightsCashflowDaySelection,
 } from "./InsightsDailyCashflowChart";
+export { InsightsFixedCostsCard } from "./InsightsFixedCostsCard";
 export { InsightsHeavyChartsPlaceholder } from "./InsightsHeavyChartsPlaceholder";
 export { InsightsIncomeSourcesCard } from "./InsightsIncomeSourcesCard";
 export { InsightsMonthCompareLauncherCard } from "./InsightsMonthCompareLauncherCard";

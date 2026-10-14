@@ -34,6 +34,7 @@ import {
   formatSpendMagnitude,
 } from "@/utils/currency";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+import { toPaise } from "@/utils/paise";
 
 type HomeScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Home">,
@@ -126,6 +127,11 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     ? formatSpendMagnitude(overview.spent_this_month)
     : "\u2014";
   const monthLabel = format(now, "MMM yyyy");
+  const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
+  const monthSplitLine =
+    overview && fixedSpentPaise > 0
+      ? `Fixed ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
+      : null;
 
   const monthSummaryData = monthSummaryQuery.data;
 
@@ -227,6 +233,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     isPending,
     last7DaysSpend,
     monthLabel,
+    monthSplitLine,
     monthlyBudgetAmount,
     monthlyProgress,
     monthlyRemainingDisplay,

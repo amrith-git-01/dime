@@ -60,6 +60,10 @@ export const recurringPatchSchema = z.object({
 export type RecurringPatchBody = z.output<typeof recurringPatchSchema>;
 
 export const recurringListQuerySchema = z.object({ kind: z.enum(RECURRING_KINDS).optional() });
+export const recurringMonthQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+});
 export const recurringIdParamSchema = z.object({ id: uuidString });
 
 export interface RecurringRow {
@@ -101,6 +105,35 @@ export interface RecurringResponse {
   monthly_equivalent: string;
   created_at: string;
   updated_at: string;
+}
+
+/** paid: posted this month; skipped: posted, then deleted by the user; upcoming: active and not posted yet. */
+export type OccurrenceStatus = 'paid' | 'skipped' | 'upcoming';
+
+export interface RecurringOccurrence {
+  id: string;
+  kind: RecurringKind;
+  name: string;
+  amount: string;
+  category: { id: string; name: string; icon_name: string | null; color: string | null; scope: string } | null;
+  /** Local due date in the item's timezone, `YYYY-MM-DD`. */
+  due_date: string;
+  status: OccurrenceStatus;
+  /** Paid only: the transaction that was posted and the amount it was posted with. */
+  transaction_id?: string;
+  posted_amount?: string;
+}
+
+export interface RecurringMonthResponse {
+  year: number;
+  month: number;
+  items: RecurringOccurrence[];
+  totals: {
+    fixed_expense_paid: string;
+    fixed_expense_upcoming: string;
+    fixed_income_received: string;
+    fixed_income_upcoming: string;
+  };
 }
 
 export interface RecurringListResponse {

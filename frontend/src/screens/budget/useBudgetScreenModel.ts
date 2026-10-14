@@ -6,12 +6,13 @@ import { useCallback, useMemo } from "react";
 
 import { useBentoMonthSelection } from "@/components/bento";
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
-import { categoryDefault } from "@/constants";
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { buildBudgetCategoryRows } from "./buildBudgetCategoryRows";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
+import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import { useToast } from "@/features/toast/useToast";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { formatInrCompact } from "@/utils/currency";
+import { toPaise } from "@/utils/paise";
 
 export const UNCATEGORIZED_SPEND_KEY = UNCATEGORIZED_CATEGORY_KEY;
 
@@ -58,6 +60,10 @@ export function useBudgetScreenModel() {
     selectedMonth.year,
     selectedMonth.monthIndex0,
   );
+  const recurringMonthQuery = useRecurringMonthQuery(
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+  );
   const { data: spendByCategoryQuery = {}, isPending: isMonthSpendPending } =
     useMonthDebitTotalsByCategoryQuery(
       selectedMonth.year,
@@ -82,10 +88,6 @@ export function useBudgetScreenModel() {
     Number.isFinite(existingBudget) && existingBudget > 0;
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
 
-  const knownCategoryIds = useMemo(
-    () => new Set(categories.map((c) => c.id)),
-    [categories],
-  );
   // Posted subscriptions and bills keep their recurring category, which the spend list does not carry.
   const spentCategoryMetaById = useMemo(
     () =>
@@ -95,69 +97,16 @@ export function useBudgetScreenModel() {
     [monthSummaryQuery.data?.category_meta],
   );
 
-  const budgetItems = useMemo((): CategorySpendRowData[] => {
-    const rows: CategorySpendRowData[] = categories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      icon_name: category.icon_name,
-      color: category.color,
-      spentMonth: spendByCategoryQuery[category.id] ?? 0,
-      is_system: category.is_system,
-      monthlyCap: categoryCapById.get(category.id) ?? null,
-    }));
-
-    const uncategorizedSpent =
-      spendByCategoryQuery[UNCATEGORIZED_SPEND_KEY] ?? 0;
-    if (uncategorizedSpent > 0) {
-      rows.push({
-        id: UNCATEGORIZED_SPEND_KEY,
-        name: "Uncategorized",
-        icon_name: "Package",
-        color: categoryDefault,
-        spentMonth: uncategorizedSpent,
-        is_system: true,
-        monthlyCap: null,
-      });
-    }
-
-    for (const [categoryId, amount] of Object.entries(spendByCategoryQuery)) {
-      if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) continue;
-      if (knownCategoryIds.has(categoryId)) continue;
-      const spentMeta = spentCategoryMetaById.get(categoryId.toLowerCase());
-      if (spentMeta) {
-        rows.push({
-          id: spentMeta.id,
-          name: spentMeta.name,
-          icon_name: spentMeta.icon_name ?? "Package",
-          color: spentMeta.color ?? categoryDefault,
-          spentMonth: amount,
-          is_system: true,
-          monthlyCap: null,
-          budgetEditable: false,
-        });
-      } else {
-        rows.push({
-          id: categoryId,
-          name: "Unknown category",
-          icon_name: "Package",
-          color: categoryDefault,
-          spentMonth: amount,
-          is_system: true,
-          monthlyCap: categoryCapById.get(categoryId) ?? null,
-        });
-      }
-    }
-
-    return rows.sort(
-      (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
-    );
-  }, [
-    categories,
-    spendByCategoryQuery,
-    knownCategoryIds,
-    spentCategoryMetaById,
-    categoryCapById,
-  ]);
+  const budgetItems = useMemo(
+    (): CategorySpendRowData[] =>
+      buildBudgetCategoryRows({
+        categories,
+        spendByCategory: spendByCategoryQuery,
+        categoryCapById,
+        spentCategoryMetaById,
+      }),
+    [categories, spendByCategoryQuery, categoryCapById, spentCategoryMetaById],
+  );
 
   const navigateToBudgetEditor = useCallback(
     (mode: "create" | "edit") => {
@@ -241,6 +190,21 @@ export function useBudgetScreenModel() {
     isMonthDataTransitioning ||
     (isBudgetLoading && budgetResp === undefined);
 
+  const monthSplit = monthSummaryQuery.data;
+  const fixedPaise = toPaise(monthSplit?.fixed_debit_total);
+  const flexiblePaise = toPaise(monthSplit?.flexible_debit_total);
+  const upcomingPaise = toPaise(
+    recurringMonthQuery.data?.totals.fixed_expense_upcoming,
+  );
+  const splitLine =
+    fixedPaise > 0
+      ? `Fixed ${formatInrCompact(fixedPaise / 100)} · Flexible ${formatInrCompact(flexiblePaise / 100)}`
+      : null;
+  const upcomingLine =
+    upcomingPaise > 0
+      ? `${formatInrCompact(upcomingPaise / 100)} fixed still to come`
+      : null;
+
   const monthSummary: BudgetMonthBentoSummary | null =
     summaryLoading || monthSummaryFailed
       ? null
@@ -258,6 +222,8 @@ export function useBudgetScreenModel() {
           usagePct,
           usagePercentUsed,
           usageLabel,
+          splitLine,
+          upcomingLine,
         };
 
   const categoriesStillLoading = categoriesLoading && categories.length === 0;

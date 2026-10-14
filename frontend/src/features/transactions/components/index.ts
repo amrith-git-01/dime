@@ -22,7 +22,9 @@ export {
   TransactionDayCardHeader,
   TransactionDayCardPlaceholder,
   TransactionDayCardRow,
+  TransactionDayCardUpcomingRow,
 } from "./TransactionDayCardSegments";
+export { RecurringBadge } from "./RecurringBadge";
 export { TransactionListRow } from "./TransactionListRow";
 export { TransactionListRowSkeleton } from "./TransactionListRowSkeleton";
 export { TransactionRow } from "./TransactionRow";

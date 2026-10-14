@@ -1,7 +1,7 @@
 import { formatCents } from '../../core/decimal';
-import { monthRange, parseTimezone } from '../../core/timezone';
+import { dateKey, localDate, monthRange, parseTimezone } from '../../core/timezone';
 import type { IsoRange } from '../../core/timezone';
-import { dailyCashflowSeries, sumDayTotals } from '../transactions/aggregates';
+import { dailyCashflowSeries, fixedFlexibleFields, sumDayTotals } from '../transactions/aggregates';
 import * as txRepo from '../transactions/repository';
 import type { PayeeRow } from '../transactions/repository';
 import type { TransactionRow } from '../transactions/schemas';
@@ -12,8 +12,8 @@ import type { MonthInsightsResponse } from './schemas';
 
 const TOP_EXPENSES = 5;
 
-export function loadPayeeTotals(ctx: DbScope, range: IsoRange): Promise<PayeeRow[]> {
-  return txRepo.payeeTotals(ctx.db, ctx.userId, range);
+export function loadPayeeTotals(ctx: DbScope, range: IsoRange, opts: { flexibleDebitsOnly?: boolean } = {}): Promise<PayeeRow[]> {
+  return txRepo.payeeTotals(ctx.db, ctx.userId, range, opts);
 }
 
 type MonthInsightsData = Omit<MonthInsightsResponse, 'top_expenses'> & { top_rows: TransactionRow[] };
@@ -26,7 +26,7 @@ type MonthInsightsData = Omit<MonthInsightsResponse, 'top_expenses'> & { top_row
 export async function monthInsightsData(
   ctx: DbScope,
   input: { year: number; month: number; timezone: string },
-  opts: { top?: boolean } = {},
+  opts: { top?: boolean; nowMs?: number } = {},
 ): Promise<MonthInsightsData> {
   const { year, month } = input;
   const tz = parseTimezone(input.timezone);
@@ -34,7 +34,7 @@ export async function monthInsightsData(
 
   const [dayTotals, payees, topRows] = await Promise.all([
     loadDayTotals(ctx, range, tz),
-    loadPayeeTotals(ctx, range),
+    loadPayeeTotals(ctx, range, { flexibleDebitsOnly: true }),
     opts.top === false ? Promise.resolve([]) : txRepo.topDebits(ctx.db, ctx.userId, range, TOP_EXPENSES),
   ]);
 
@@ -45,14 +45,17 @@ export async function monthInsightsData(
   return {
     year,
     month,
+    today: dateKey(localDate(tz, opts.nowMs ?? Date.now())),
     summary: {
       credit_total: formatCents(totals.creditCents),
       debit_total: formatCents(totals.debitCents),
       net: formatCents(totals.creditCents - totals.debitCents),
       transaction_count: totals.count,
+      ...fixedFlexibleFields(totals),
     },
     daily_cashflow: dailyCashflowSeries(dayTotals, days),
-    counterparty_spend: rollUpSpend(payees, totals.debitCents),
+    // "Who you paid" is flexible spend only, so its shares are of the flexible total.
+    counterparty_spend: rollUpSpend(payees, totals.debitCents - totals.fixedDebitCents),
     counterparty_income: rollUpIncome(payees, totals.creditCents),
     top_rows: topRows,
   };

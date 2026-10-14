@@ -184,6 +184,7 @@ export interface CategoryMeta {
   icon_name: string | null;
   color: string | null;
   is_system: boolean;
+  scope: CategoryScope;
 }
 
 /** Display fields for a set of category ids, limited to categories visible to the user (system + own). */
@@ -194,7 +195,7 @@ export async function fetchMetaByIds(db: Db, ids: readonly string[], userId: str
   for (const part of chunks(ids, 80)) {
     const rows = await all<Omit<CategoryMeta, 'is_system'> & { is_system: number }>(
       db,
-      `SELECT id, name, icon_name, color, is_system FROM categories
+      `SELECT id, name, icon_name, color, is_system, scope FROM categories
        WHERE id IN (${placeholders(part.length)}) AND (is_system = 1 OR user_id = ?)`,
       [...part.map((id) => id.toLowerCase()), userId],
     );

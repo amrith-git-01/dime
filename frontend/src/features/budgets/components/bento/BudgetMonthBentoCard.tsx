@@ -36,6 +36,10 @@ export type BudgetMonthBentoSummary = {
   /** Whole percent of budget spent (uncapped — can exceed 100). */
   usagePercentUsed: number;
   usageLabel: string;
+  /** "Fixed ₹X · Flexible ₹Y"; null when none of the month's spend is fixed. */
+  splitLine?: string | null;
+  /** "₹Z fixed still to come"; null when nothing recurring is left this month. */
+  upcomingLine?: string | null;
 };
 
 export type BudgetMonthBentoCardProps = {

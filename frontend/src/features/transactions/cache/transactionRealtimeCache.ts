@@ -81,6 +81,8 @@ export function mapRealtimeRecordToTransactionRow(
     category_id: asNullableString(record.category_id),
     category_icon_name: asNullableString(record.category_icon_name),
     category_color: asNullableString(record.category_color),
+    // Realtime frames carry the raw columns: the recurring item, but not the category scope (filled from cached categories).
+    recurring_item_id: asNullableString(record.recurring_item_id),
     note: asNullableString(record.note),
     detected_via: asNullableString(record.detected_via),
     transaction_at: asString(record.transaction_at) ?? new Date().toISOString(),
@@ -116,6 +118,7 @@ export function fillRealtimeRowCategory(
         category: match.name,
         category_icon_name: row.category_icon_name ?? match.icon_name,
         category_color: row.category_color ?? match.color,
+        category_scope: row.category_scope ?? match.scope ?? null,
       };
     }
   }

@@ -14,7 +14,7 @@ import { inserted, updated as changed } from '../realtime/events';
 import type { Publish } from '../realtime/events';
 import { signMediaUrls } from '../media/storage';
 import type { MediaStore, SignOptions } from '../media/storage';
-import { UNCATEGORIZED_KEY, buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse } from './aggregates';
+import { UNCATEGORIZED_KEY, buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse, fixedFlexibleFields } from './aggregates';
 import type { DayTotals, PeriodSummary } from './aggregates';
 import { buildPaymentHash, buildSparseMergePatch, normalizedOrNull } from './dedupe';
 import * as repo from './repository';
@@ -114,6 +114,8 @@ function toResponse(row: TransactionRow, enrichment: Enrichment): TransactionRes
     category_id: cid,
     category_icon_name: typeof cat?.icon_name === 'string' ? cat.icon_name : null,
     category_color: typeof cat?.color === 'string' ? cat.color : null,
+    category_scope: cat?.scope ?? null,
+    recurring_item_id: row.recurring_item_id ?? null,
     note: row.note ?? null,
     detected_via: normalizeDetectedVia(row.detected_via),
     transaction_at: isoUtc(row.transaction_at),
@@ -192,8 +194,9 @@ export async function monthSummary(
     debit_total: formatCents(summary.debitCents),
     net: formatCents(summary.creditCents - summary.debitCents),
     transaction_count: summary.count,
+    ...fixedFlexibleFields(summary),
     debit_by_category: debitByCategory,
-    category_meta: [...meta.values()].map(({ id, name, icon_name, color }) => ({ id, name: name.trim(), icon_name, color })),
+    category_meta: [...meta.values()].map(({ id, name, icon_name, color, scope }) => ({ id, name: name.trim(), icon_name, color, scope })),
   };
 }
 
@@ -217,7 +220,9 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
     repo.listPage(ctx.db, ctx.userId, { filters: {}, limit: RECENT_COUNT, offset: 0 }),
   ]);
 
+  // Everyday spending only: recurring (fixed) categories are shown as their own split, not as a "top category".
   const top = [...month.debitByCategory]
+    .filter(([key]) => !month.fixedDebitCategories.has(key))
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_CATEGORIES)
     .map(([key, cents]) => ({ id: key === '' ? null : key, cents }));
@@ -243,6 +248,8 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
   return {
     spent_today: formatCents(todayTotals?.debitCents ?? 0),
     spent_this_month: formatCents(month.debitCents),
+    fixed_spent_this_month: formatCents(month.fixedDebitCents),
+    flexible_spent_this_month: formatCents(month.debitCents - month.fixedDebitCents),
     top_categories,
     recent_transactions: recent.map((row) => toResponse(row, enrichment)),
     last_7_days_spend: dailyDebitSeries(weekTotals, days),
@@ -284,7 +291,11 @@ async function resolveCategory(
   return hit ? { id: String(hit.id), scope: hit.scope } : null;
 }
 
-const SPEND_ONLY = 'Choose a spending category.';
+const SCOPE_MISMATCH = 'Choose a category that matches the transaction type.';
+
+/** A recurring-scope category fits only its own direction: recurring_expense <-> debit, recurring_income <-> credit. */
+const fitsType = (scope: CategoryScope, type: TransactionType): boolean =>
+  scope === 'spend' || (scope === 'recurring_expense' && type === 'debit') || (scope === 'recurring_income' && type === 'credit');
 
 export interface NewTransactionInput {
   /** Decimal string with two places ("250.50"). */
@@ -331,8 +342,8 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     resolveCategory(ctx, input, Boolean(input.recurringItemId)),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
   ]);
-  // Recurring categories belong to the recurring poster alone (it sets `recurringItemId`).
-  if (resolved && resolved.scope !== 'spend' && !input.recurringItemId) throw new ValidationError(SPEND_ONLY);
+  // A recurring category may be used by hand when its direction matches the type (the poster, which sets `recurringItemId`, is trusted).
+  if (resolved && !input.recurringItemId && !fitsType(resolved.scope, input.type)) throw new ValidationError(SCOPE_MISMATCH);
   const categoryId = resolved?.id ?? null;
 
   const row: NewTransactionRow = {
@@ -412,9 +423,9 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     repo.findByPaymentHash(ctx.db, ctx.userId, newHash),
   ]);
   if (!existing) throw new NotFoundError(NOT_FOUND);
-  // A transaction posted by a recurring item keeps its recurring category when the client echoes it back unchanged.
-  if (resolved && resolved.scope !== 'spend' && resolved.id !== String(existing.category_id ?? '').toLowerCase()) {
-    throw new ValidationError(SPEND_ONLY);
+  // A recurring category fits only its own direction; a row keeps its current category when the client echoes it back unchanged.
+  if (resolved && !fitsType(resolved.scope, body.type) && resolved.id !== String(existing.category_id ?? '').toLowerCase()) {
+    throw new ValidationError(SCOPE_MISMATCH);
   }
   // A name never matches a recurring category (only recurring-posted rows carry one), so an echoed-back
   // name that doesn't resolve keeps such a row's category instead of silently clearing it.

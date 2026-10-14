@@ -22,6 +22,8 @@ export type TransactionsMonthBentoSummary = {
   debitedDisplay: string;
   netDisplay: string;
   netValue: number;
+  /** Recurring spend still to come this month; null when there is none. */
+  upcomingDisplay?: string | null;
 };
 
 export type TransactionsMonthBentoCardProps = {
@@ -106,6 +108,15 @@ export const TransactionsMonthBentoCard = memo(
             />
           </MonthSummaryStatsRow>
         )}
+        {!summaryFailed && !summaryLoading && summary?.upcomingDisplay ? (
+          <MonthSummaryStatsRow>
+            <BentoStatCell
+              label="Upcoming"
+              value={summary.upcomingDisplay}
+              tone="neutral"
+            />
+          </MonthSummaryStatsRow>
+        ) : null}
       </MonthSummaryCardShell>
     );
   },

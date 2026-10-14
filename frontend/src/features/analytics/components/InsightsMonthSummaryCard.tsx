@@ -24,6 +24,15 @@ export type InsightsMonthSummary = {
   heroDisplay: string;
   netValue: number;
   savingsRatePct: number | null;
+  /** Some of the month's spend is fixed (recurring categories). */
+  hasFixed: boolean;
+  fixedDisplay: string;
+  flexibleDisplay: string;
+  /** Fixed income still to come this month; null when none (or a closed month). */
+  expectedIncomeDisplay: string | null;
+  /** Credited + expected income - projected spend; null when it cannot be told. */
+  projectedNetDisplay: string | null;
+  projectedNetValue: number;
 };
 
 export type InsightsMonthSummaryCardProps = {
@@ -176,6 +185,30 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         ) : null}
       </View>
 
+      {/* Fixed vs flexible split + what is still expected */}
+      {summary && !summaryLoading && (summary.hasFixed || summary.expectedIncomeDisplay) ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.splitSection}>
+            {summary.hasFixed ? (
+              <View style={styles.splitRow}>
+                <Text style={styles.splitText}>
+                  {`Fixed ${summary.fixedDisplay} · Flexible ${summary.flexibleDisplay}`}
+                </Text>
+              </View>
+            ) : null}
+            {summary.expectedIncomeDisplay ? (
+              <Text style={styles.splitText}>
+                {`Expected income ${summary.expectedIncomeDisplay}`}
+                {summary.projectedNetDisplay
+                  ? ` · Projected net ${summary.projectedNetDisplay}`
+                  : ""}
+              </Text>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
       {/* Budget bar */}
       {showBudgetBar && summary ? (
         <>
@@ -313,6 +346,22 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     width: 60,
     height: 18,
     borderRadius: radius.sm,
+  },
+  splitSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  splitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  splitText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    fontVariant: ["tabular-nums"],
   },
   budgetSection: {
     paddingHorizontal: spacing.lg,

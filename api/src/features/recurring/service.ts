@@ -11,7 +11,17 @@ import type { Later } from './poster';
 import * as repo from './repository';
 import { currentPeriodPassed, dueInPeriod, firstDueFrom, periodRange } from './schedule';
 import type { Schedule } from './schedule';
-import type { RecurringCreateBody, RecurringKind, RecurringListResponse, RecurringPatchBody, RecurringResponse, RecurringRow } from './schemas';
+import type {
+  OccurrenceStatus,
+  RecurringCreateBody,
+  RecurringKind,
+  RecurringListResponse,
+  RecurringMonthResponse,
+  RecurringOccurrence,
+  RecurringPatchBody,
+  RecurringResponse,
+  RecurringRow,
+} from './schemas';
 
 const NOT_FOUND = 'Recurring item not found.';
 
@@ -179,6 +189,72 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
   const row = await repo.update(ctx.db, ctx.userId, merged);
   if (!row) throw new NotFoundError(NOT_FOUND);
   return (await present(ctx, [row]))[0] as RecurringResponse;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Every occurrence of the user's recurring items that falls in the calendar month `year`/`month`, with its status.
+ * Posted rows come from ONE query (the month widened by a day, so any timezone's local month fits) and are matched per
+ * item to that item's own local period. A deleted posting is "skipped" (the poster treats the period as done, so it is
+ * not posted again). An unposted occurrence is "upcoming" only for an active item whose schedule has not moved past it
+ * (never a backfill of dates before the item existed); a paused, unposted one is left out.
+ */
+export async function monthOccurrences(ctx: TxContext, year: number, month: number): Promise<RecurringMonthResponse> {
+  const first = Date.UTC(year, month - 1, 1);
+  const after = Date.UTC(year, month, 1);
+  const [items, posted] = await Promise.all([
+    repo.listForUser(ctx.db, ctx.userId),
+    repo.listPostedIn(ctx.db, ctx.userId, { from: new Date(first - DAY_MS).toISOString(), to: new Date(after + DAY_MS).toISOString() }),
+  ]);
+  const inMonth = items.filter((item) => item.cadence === 'monthly' || item.month_of_year === month);
+  const meta = await fetchMetaByIds(ctx.db, [...new Set(inMonth.flatMap((r) => (r.category_id ? [r.category_id] : [])))], ctx.userId);
+
+  const out: RecurringOccurrence[] = [];
+  const totals = { expensePaid: 0, expenseUpcoming: 0, incomeReceived: 0, incomeUpcoming: 0 };
+  for (const item of inMonth) {
+    const due = dueInPeriod(item, year, month);
+    const dueKey = dateKey(due);
+    const period = periodRange(item, item.timezone, due);
+    const rows = posted.filter((p) => p.recurring_item_id === item.id && p.transaction_at >= period.from && p.transaction_at < period.to);
+    const live = rows.find((p) => p.deleted_at === null);
+    let status: OccurrenceStatus;
+    if (live) status = 'paid';
+    else if (rows.length > 0) status = 'skipped';
+    else if (item.active === 1 && dueKey >= item.next_due_date) status = 'upcoming';
+    else continue;
+
+    const cat = item.category_id ? meta.get(item.category_id.toLowerCase()) : undefined;
+    const occurrence: RecurringOccurrence = {
+      id: item.id,
+      kind: item.kind,
+      name: item.name,
+      amount: formatCents(item.amount),
+      category: cat ? { id: cat.id, name: cat.name.trim(), icon_name: cat.icon_name, color: cat.color, scope: cat.scope } : null,
+      due_date: dueKey,
+      status,
+    };
+    if (live) {
+      occurrence.transaction_id = live.id;
+      occurrence.posted_amount = formatCents(live.amount);
+    }
+    out.push(occurrence);
+    const isIncome = item.kind === 'income';
+    if (status === 'paid') totals[isIncome ? 'incomeReceived' : 'expensePaid'] += live?.amount ?? 0;
+    else if (status === 'upcoming') totals[isIncome ? 'incomeUpcoming' : 'expenseUpcoming'] += item.amount;
+  }
+  out.sort((a, b) => (a.due_date === b.due_date ? a.name.localeCompare(b.name) : a.due_date < b.due_date ? -1 : 1));
+  return {
+    year,
+    month,
+    items: out,
+    totals: {
+      fixed_expense_paid: formatCents(totals.expensePaid),
+      fixed_expense_upcoming: formatCents(totals.expenseUpcoming),
+      fixed_income_received: formatCents(totals.incomeReceived),
+      fixed_income_upcoming: formatCents(totals.incomeUpcoming),
+    },
+  };
 }
 
 export async function deleteRecurring(ctx: TxContext, id: string): Promise<void> {

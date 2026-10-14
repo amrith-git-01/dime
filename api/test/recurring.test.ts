@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { postDueRecurring } from '../src/features/recurring/poster';
 import { dueInstantMs, firstDueFrom, nextAfter, parseDateKey } from '../src/features/recurring/schedule';
 import { USER_ID, call, makeEnv, signToken } from './helpers';
-import { oneRow, rowsOf, seedBudget, seedCategory, seedUser, testDb, uid } from './db';
+import { oneRow, rowsOf, seedBudget, seedCategory, seedTransaction, seedUser, testDb, uid } from './db';
 
 /** Seeded recurring system categories (migration 0007): "Salary" (income), "Other expense", "Utilities", "Rent". */
 const SALARY = 'f48bfe4a-8f08-4229-b977-e1292b11490f';
@@ -457,5 +457,88 @@ describe('the cron', () => {
     expect(await cron(at(2026, 10, 15))).toEqual({ due: 1, posted: 1 });
     expect((await txs()).map((t) => t.counterparty_name)).toEqual(['Netflix']);
     expect((await rowsOf('notifications')).length).toBeGreaterThan(0);
+  });
+});
+
+describe('GET /recurring/month', () => {
+  interface Occurrence {
+    id: string;
+    kind: string;
+    name: string;
+    amount: string;
+    category: { id: string; name: string; scope: string } | null;
+    due_date: string;
+    status: string;
+    transaction_id?: string;
+    posted_amount?: string;
+  }
+  interface Month {
+    year: number;
+    month: number;
+    items: Occurrence[];
+    totals: Record<string, string>;
+  }
+  const month = async (y: number, m: number) => (await call(`/api/v1/recurring/month?year=${y}&month=${m}`)).json<Month>();
+
+  it('reports paid, skipped and upcoming occurrences with totals; yearly items outside the month and paused unposted ones are omitted', async () => {
+    const rent = await seedItem({ name: 'Rent', amount: 1500000, category_id: RENT, day_of_month: 1, next_due_date: '2026-11-01' });
+    const rentTx = await seedTransaction({ amount: '15000', category_id: RENT, counterparty_name: 'Rent', recurring_item_id: rent, transaction_at: '2026-09-30T18:30:00.000Z' });
+    const gym = await seedItem({ name: 'Gym', amount: 100000, category_id: OTHER_EXPENSE, day_of_month: 5, next_due_date: '2026-11-05' });
+    await seedTransaction({ amount: '1000', category_id: OTHER_EXPENSE, counterparty_name: 'Gym', recurring_item_id: gym, transaction_at: '2026-10-05T00:30:00.000Z', deleted_at: '2026-10-06T00:00:00.000Z' });
+    await seedItem({ name: 'Netflix', amount: 64900, category_id: OTHER_EXPENSE, day_of_month: 15, next_due_date: '2026-10-15' });
+    await seedItem({ name: 'Insurance', amount: 1200000, category_id: UTILITIES, cadence: 'yearly', month_of_year: 10, day_of_month: 20, next_due_date: '2026-10-20' });
+    await seedItem({ name: 'Domain', amount: 90000, cadence: 'yearly', month_of_year: 3, day_of_month: 9, next_due_date: '2027-03-09' });
+    await seedItem({ name: 'Paused', amount: 5000, active: 0, day_of_month: 25, next_due_date: '2026-10-25' });
+    const pay = await seedItem({ kind: 'income', name: 'Salary', amount: 5000000, category_id: SALARY, day_of_month: 1, next_due_date: '2026-11-01' });
+    const payTx = await seedTransaction({ amount: '50000', type: 'credit', category_id: SALARY, counterparty_name: 'Salary', recurring_item_id: pay, transaction_at: '2026-09-30T18:30:00.000Z' });
+    await seedItem({ kind: 'income', name: 'Rent income', amount: 800000, category_id: SALARY, day_of_month: 28, next_due_date: '2026-10-28' });
+
+    const body = await month(2026, 10);
+    expect(body.items.map((i) => [i.name, i.due_date, i.status])).toEqual([
+      ['Rent', '2026-10-01', 'paid'],
+      ['Salary', '2026-10-01', 'paid'],
+      ['Gym', '2026-10-05', 'skipped'],
+      ['Netflix', '2026-10-15', 'upcoming'],
+      ['Insurance', '2026-10-20', 'upcoming'],
+      ['Rent income', '2026-10-28', 'upcoming'],
+    ]);
+    expect(body.items[0]).toMatchObject({ id: rent, kind: 'subscription', amount: '15000.00', transaction_id: rentTx, posted_amount: '15000.00', category: { name: 'Rent', scope: 'recurring_expense' } });
+    expect(body.items[1]).toMatchObject({ kind: 'income', transaction_id: payTx, category: { name: 'Salary', scope: 'recurring_income' } });
+    expect(body.items[2]).not.toHaveProperty('transaction_id');
+    expect(body.totals).toEqual({
+      fixed_expense_paid: '15000.00',
+      fixed_expense_upcoming: '12649.00',
+      fixed_income_received: '50000.00',
+      fixed_income_upcoming: '8000.00',
+    });
+  });
+
+  it('a paid occurrence reports the amount it was posted with, not the item\'s current amount', async () => {
+    const id = await seedItem({ name: 'Netflix', amount: 79900, day_of_month: 15, next_due_date: '2026-11-15' });
+    await seedTransaction({ amount: '649', counterparty_name: 'Netflix', recurring_item_id: id, transaction_at: '2026-10-15T00:30:00.000Z' });
+    const [row] = (await month(2026, 10)).items;
+    expect(row).toMatchObject({ status: 'paid', amount: '799.00', posted_amount: '649.00' });
+  });
+
+  it('does not backfill months before the item existed; months after it are upcoming', async () => {
+    await seedItem({ name: 'Netflix', amount: 64900, day_of_month: 15, next_due_date: '2026-10-15' });
+    expect((await month(2026, 9)).items).toEqual([]);
+    expect((await month(2026, 12)).items.map((i) => [i.due_date, i.status])).toEqual([['2026-12-15', 'upcoming']]);
+  });
+
+  it('matches postings to the item\'s own timezone month (a late-evening UTC row belongs to the next local month)', async () => {
+    const id = await seedItem({ name: 'Rent', amount: 1500000, day_of_month: 1, next_due_date: '2026-12-01' });
+    // 2026-11-01 06:00 IST is 2026-11-01T00:30Z; a September-30 18:30Z row is October 1 00:00 IST.
+    await seedTransaction({ amount: '15000', recurring_item_id: id, transaction_at: '2026-09-30T18:45:00.000Z' });
+    expect((await month(2026, 10)).items.map((i) => i.status)).toEqual(['paid']);
+    expect((await month(2026, 9)).items).toEqual([]);
+  });
+
+  it('only returns the caller\'s items and validates the query', async () => {
+    await seedUser(OTHER);
+    await seedItem({ user_id: OTHER, name: 'Theirs', day_of_month: 15, next_due_date: '2026-10-15' });
+    expect((await month(2026, 10)).items).toEqual([]);
+    expect((await call('/api/v1/recurring/month?year=2026&month=13')).status).toBe(422);
+    expect((await call('/api/v1/recurring/month?year=2026&month=10', { token: false })).status).toBe(401);
   });
 });

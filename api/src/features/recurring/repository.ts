@@ -62,6 +62,24 @@ export async function hasPostedIn(db: Db, itemId: string, range: { from: string;
   return row !== null;
 }
 
+export interface PostedRow {
+  id: string;
+  recurring_item_id: string;
+  amount: number;
+  transaction_at: string;
+  deleted_at: string | null;
+}
+
+/** Every transaction a recurring item posted in `[from, to)`, deleted ones included (a deleted one marks a skipped occurrence). */
+export function listPostedIn(db: Db, userId: string, range: { from: string; to: string }): Promise<PostedRow[]> {
+  return all<PostedRow>(
+    db,
+    `SELECT id, recurring_item_id, amount, transaction_at, deleted_at FROM transactions
+     WHERE user_id = ? AND recurring_item_id IS NOT NULL AND transaction_at >= ? AND transaction_at < ?`,
+    [userId, range.from, range.to],
+  );
+}
+
 /** Active items whose local due date is on or before `maxDate` (a UTC-date upper bound), oldest first. */
 export function listDue(db: Db, maxDate: string, limit: number): Promise<RecurringRow[]> {
   return all<RecurringRow>(

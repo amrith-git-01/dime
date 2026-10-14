@@ -11,11 +11,13 @@ import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
+import { useRecurringCategories } from "@/features/transactions/hooks/useRecurringCategories";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
 import {
-  editVisibleCategories,
   reconcileEditCategory,
   recurringCategoryOfTransaction,
+  recurringOptionsForType,
+  visibleSpendCategories,
 } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { transactionRowToFormState } from "@/features/transactions/utils/transactionRowToFormState";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -33,6 +35,7 @@ export function useEditTransactionScreenModel() {
   const { showToast } = useToast();
   const transaction = route.params.transaction;
   const { categories, isLoading: categoriesLoading } = useCategories();
+  const recurringCategories = useRecurringCategories();
 
   const baseline = useMemo(
     () => (transaction ? transactionRowToFormState(transaction) : undefined),
@@ -103,7 +106,7 @@ export function useEditTransactionScreenModel() {
     }
   }, [categories, selectCategory]);
 
-  // The category of a recurring-posted row is outside the spend list: show it as a pill of its own.
+  // The category of a recurring-posted row is outside the spend list: offered in the Recurring group even before the lists load.
   const recurringCategory = useMemo(
     () => recurringCategoryOfTransaction(transaction, categories),
     [categories, transaction],
@@ -115,6 +118,7 @@ export function useEditTransactionScreenModel() {
       categoryId,
       txType,
       recurringCategory,
+      recurringCategories,
     });
     if (action.kind === "select") {
       selectCategory(action.category.id, action.category.name);
@@ -125,6 +129,7 @@ export function useEditTransactionScreenModel() {
     categories,
     categoryId,
     clearCategory,
+    recurringCategories,
     recurringCategory,
     selectCategory,
     txType,
@@ -136,8 +141,17 @@ export function useEditTransactionScreenModel() {
   );
 
   const visibleCategories = useMemo(
-    () => editVisibleCategories({ categories, txType, recurringCategory }),
-    [categories, recurringCategory, txType],
+    () => visibleSpendCategories(categories, txType),
+    [categories, txType],
+  );
+  const recurringOptions = useMemo(
+    () =>
+      recurringOptionsForType({
+        recurringCategories,
+        txType,
+        own: recurringCategory,
+      }),
+    [recurringCategories, recurringCategory, txType],
   );
 
   const openCreateCustomCategory = useCallback(() => {
@@ -309,6 +323,7 @@ export function useEditTransactionScreenModel() {
     setCounterpartyName,
     categoriesLoading,
     visibleCategories,
+    recurringCategories: recurringOptions,
     categoryId,
     handleCategoryPress,
     openCreateCustomCategory,

@@ -36,6 +36,7 @@ export const HomeContent = memo(function HomeContent(
         hasBudget={props.hasMonthlyBudget}
         subtext={props.monthlySubtext}
         progress={props.monthlyProgress}
+        splitLine={props.monthSplitLine}
         isLoading={isLoading}
         onAddBudget={props.onAddMonthlyBudget}
       />

@@ -13,6 +13,7 @@ const STRANGER = '44444444-4444-4444-4444-444444444444';
 /** A seeded system category. */
 const FOOD = '85bf877a-f8b1-4b07-a9fb-5e8c809907ae';
 const patch = (id: string, jsonBody: unknown) => call(`/api/v1/categories/${id}`, { method: 'PATCH', json: jsonBody });
+const noLimit = () => makeEnv({ WRITE_LIMITER: undefined });
 const budgetOf = (categoryId: string) => oneRow<{ monthly_amount: number }>('category_budgets', 'user_id = ? AND category_id = ?', USER_ID, categoryId);
 
 const seedCustom = (over: Partial<Parameters<typeof seedCategory>[0]> = {}) =>
@@ -62,28 +63,42 @@ describe('category scopes', () => {
     expect((await call(`/api/v1/budget/categories/${FOOD}`, { method: 'PUT', json: { monthly_amount: '10' } })).status).toBe(200);
   });
 
-  it('transactions cannot be filed under a recurring category, by id or by name', async () => {
+  it('a manual transaction may use a recurring category of its own direction, by id only', async () => {
+    const post = (json: Record<string, unknown>) => call('/api/v1/transactions?timezone=Asia/Kolkata', { method: 'POST', json, env: noLimit() });
     const body = { amount: '10', type: 'debit', counterparty_name: 'Landlord', transaction_at: '2026-07-01T10:00:00.000Z' };
-    const byId = await call('/api/v1/transactions?timezone=Asia/Kolkata', { method: 'POST', json: { ...body, category_id: RENT } });
-    expect(byId.status, JSON.stringify(await byId.clone().json())).toBe(422);
+    // recurring_expense <-> debit, recurring_income <-> credit.
+    const rent = await post({ ...body, category_id: RENT });
+    expect(rent.status, JSON.stringify(await rent.clone().json())).toBe(201);
+    expect(await oneRow('transactions', 'counterparty_name = ?', 'Landlord')).toMatchObject({ category_id: RENT, recurring_item_id: null });
+    const pay = await post({ ...body, type: 'credit', counterparty_name: 'Employer', category_id: SALARY });
+    expect(pay.status, JSON.stringify(await pay.clone().json())).toBe(201);
+    // The other direction is rejected.
+    expect((await post({ ...body, type: 'credit', counterparty_name: 'Refund', category_id: RENT })).status).toBe(422);
+    expect((await post({ ...body, counterparty_name: 'Wrong', category_id: SALARY })).status).toBe(422);
     // A name never matches a recurring category: the transaction is saved uncategorized.
-    const byName = await call('/api/v1/transactions?timezone=Asia/Kolkata', { method: 'POST', json: { ...body, category: 'Rent' } });
+    const byName = await post({ ...body, counterparty_name: 'Nameonly', category: 'Rent' });
     expect(byName.status, JSON.stringify(await byName.clone().json())).toBe(201);
-    expect(await oneRow('transactions', 'user_id = ?', USER_ID)).toMatchObject({ category_id: null });
+    expect(await oneRow('transactions', 'counterparty_name = ?', 'Nameonly')).toMatchObject({ category_id: null });
   });
 
-  it('editing a transaction keeps the recurring category it already has, but cannot move another one onto it', async () => {
+  it('editing a transaction keeps the recurring category it already has, and only accepts one that matches its type', async () => {
     const posted = await seedTransaction({ category_id: RENT, counterparty_name: 'Landlord', amount: '10', type: 'debit' });
     const plain = await seedTransaction({ category_id: FOOD, counterparty_name: 'Cafe', amount: '5', type: 'debit' });
-    const put = (id: string, category_id: string) =>
+    const put = (id: string, category_id: string, type = 'debit') =>
       call(`/api/v1/transactions/${id}?timezone=Asia/Kolkata`, {
         method: 'PATCH',
-        json: { amount: '12', type: 'debit', counterparty_name: 'Landlord', category_id, transaction_at: '2026-10-04T10:00:00.000Z' },
+        env: noLimit(),
+        json: { amount: '12', type, counterparty_name: 'Landlord', category_id, transaction_at: '2026-10-04T10:00:00.000Z' },
       });
     const kept = await put(posted, RENT);
     expect(kept.status, JSON.stringify(await kept.clone().json())).toBe(200);
     expect(await oneRow('transactions', 'id = ?', posted)).toMatchObject({ category_id: RENT });
-    expect((await put(plain, RENT)).status).toBe(422);
+    // A recurring category fits only its own direction (checked against a row that does not already carry it).
+    expect((await put(plain, RENT, 'credit')).status).toBe(422);
+    expect((await put(plain, SALARY)).status).toBe(422);
+    expect((await put(plain, RENT)).status).toBe(200); // debit + recurring expense
+    const other = await seedTransaction({ category_id: FOOD, counterparty_name: 'Boss', amount: '5', type: 'credit' });
+    expect((await put(other, SALARY, 'credit')).status).toBe(200);
   });
 });
 

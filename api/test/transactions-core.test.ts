@@ -14,6 +14,8 @@ import {
   dailyDebitSeries,
   dayTotalsFromRows,
   debitByCategoryResponse,
+  fixedFlexibleFields,
+  sumDayTotals,
 } from '../src/features/transactions/aggregates';
 import {
   buildPaymentHash,
@@ -321,9 +323,32 @@ describe('aggregates', () => {
   it('day summaries group credit, debit, net and count (Python test_day_summaries)', () => {
     const summaries = buildDaySummaries(dayTotalsFromRows(rows, 'Asia/Kolkata'));
     expect(Object.keys(summaries)).toEqual(['2026-05-21', '2026-05-22']);
-    expect(summaries['2026-05-21']).toEqual({ date: '2026-05-21', credit_total: '100.00', debit_total: '235.00', net: '-135.00', transaction_count: 2 });
-    expect(summaries['2026-05-22']).toEqual({ date: '2026-05-22', credit_total: '0.00', debit_total: '50.00', net: '-50.00', transaction_count: 1 });
+    expect(summaries['2026-05-21']).toEqual({ date: '2026-05-21', credit_total: '100.00', debit_total: '235.00', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-135.00', transaction_count: 2 });
+    expect(summaries['2026-05-22']).toEqual({ date: '2026-05-22', credit_total: '0.00', debit_total: '50.00', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-50.00', transaction_count: 1 });
     expect(buildDaySummaries([])).toEqual({});
+  });
+
+  it('splits fixed (recurring-category) money from flexible money per day, per series and in the totals', () => {
+    const split = [
+      { amount: '15000.00', type: 'debit', transaction_at: '2026-05-21T09:00:00+05:30', is_fixed: true },
+      { amount: '200.00', type: 'debit', transaction_at: '2026-05-21T13:00:00+05:30', is_fixed: false },
+      { amount: '50000.00', type: 'credit', transaction_at: '2026-05-21T10:00:00+05:30', is_fixed: 1 },
+      { amount: '30.00', type: 'credit', transaction_at: '2026-05-22T10:00:00+05:30' },
+    ];
+    const totals = dayTotalsFromRows(split, 'Asia/Kolkata');
+    expect(totals[0]).toMatchObject({ day: '2026-05-21', debitCents: 1520000, fixedDebitCents: 1500000, creditCents: 5000000, fixedCreditCents: 5000000 });
+    expect(totals[1]).toMatchObject({ day: '2026-05-22', debitCents: 0, fixedDebitCents: 0, creditCents: 3000, fixedCreditCents: 0 });
+    expect(buildDaySummaries(totals)['2026-05-21']).toMatchObject({ debit_total: '15200.00', fixed_debit_total: '15000.00', fixed_credit_total: '50000.00' });
+    const days = [21, 22].map((day) => ({ year: 2026, month: 5, day }));
+    expect(dailyCashflowSeries(totals, days).map((d) => [d.fixed_debit_total, d.fixed_credit_total])).toEqual([['15000.00', '50000.00'], ['0', '0']]);
+    const sum = sumDayTotals(totals);
+    expect(sum).toMatchObject({ debitCents: 1520000, fixedDebitCents: 1500000, creditCents: 5003000, fixedCreditCents: 5000000, count: 4 });
+    expect(fixedFlexibleFields(sum)).toEqual({
+      fixed_debit_total: '15000.00',
+      flexible_debit_total: '200.00',
+      fixed_credit_total: '50000.00',
+      flexible_credit_total: '30.00',
+    });
   });
 
   it('buckets by the user timezone, not UTC', () => {
@@ -347,15 +372,15 @@ describe('aggregates', () => {
     const totals = dayTotalsFromRows(rows, 'Asia/Kolkata');
     const days = [20, 21, 22].map((day) => ({ year: 2026, month: 5, day }));
     expect(dailyCashflowSeries(totals, days)).toEqual([
-      { date: '2026-05-20', debit_total: '0', credit_total: '0' },
-      { date: '2026-05-21', debit_total: '235.00', credit_total: '100.00' },
-      { date: '2026-05-22', debit_total: '50.00', credit_total: '0' },
+      { date: '2026-05-20', debit_total: '0', credit_total: '0', fixed_debit_total: '0', fixed_credit_total: '0' },
+      { date: '2026-05-21', debit_total: '235.00', credit_total: '100.00', fixed_debit_total: '0', fixed_credit_total: '0' },
+      { date: '2026-05-22', debit_total: '50.00', credit_total: '0', fixed_debit_total: '0', fixed_credit_total: '0' },
     ]);
     expect(dailyDebitSeries(totals, days).map((d) => d.total)).toEqual(['0', '235.00', '50.00']);
   });
 
   it('debit-by-category response: blank category becomes __uncategorized__, cents become 2-decimal strings', () => {
-    const summary = { creditCents: 20000, debitCents: 15050, count: 3, debitByCategory: new Map([['c1', 10000], ['', 5050]]) };
+    const summary = { creditCents: 20000, debitCents: 15050, fixedCreditCents: 0, fixedDebitCents: 0, count: 3, debitByCategory: new Map([['c1', 10000], ['', 5050]]), fixedDebitCategories: new Set<string>() };
     expect(debitByCategoryResponse(summary)).toEqual({ c1: '100.00', __uncategorized__: '50.50' });
   });
 });

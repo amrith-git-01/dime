@@ -1,4 +1,5 @@
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
+import { useMemo } from "react";
 import { View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
@@ -10,6 +11,7 @@ import {
   TransactionDayCardHeader,
   TransactionDayCardPlaceholder,
   TransactionDayCardRow,
+  TransactionDayCardUpcomingRow,
 } from "@/features/transactions/components";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 
@@ -20,6 +22,10 @@ const NO_ROWS: TransactionFlashListItem[] = [];
 
 function keyExtractor(item: TransactionFlashListItem): string {
   return item.id;
+}
+
+function getItemType(item: TransactionFlashListItem): string {
+  return item.kind;
 }
 
 export default function TransactionsScreen() {
@@ -42,22 +48,45 @@ export default function TransactionsScreen() {
     selectedMonth,
     showMonthLoading,
     spendByDay,
+    today,
+    upcomingDayKeys,
+    upcomingDayTotal,
+    upcomingExpenseTotal,
+    openUpcomingOccurrence,
   } = useTransactionsScreenModel();
 
   const isDayLoading =
     emptyVariant === "month-loading" || emptyVariant === "day-loading";
   const isFetching = emptyVariant === "day-loading";
   const hasActivity = selectedDayTransactionCount > 0;
-  // Rows are only shown once the day is known to have activity (matches the summary count).
-  const visibleRows = isDayLoading || !hasActivity ? NO_ROWS : flashListData;
-
-  const renderItem: ListRenderItem<TransactionFlashListItem> = ({ item }) => (
-    <TransactionDayCardRow
-      transaction={item.transaction}
-      showDivider={item.sectionRowIndex > 0}
-      onPress={openTransactionDetail}
-    />
+  // Real rows are only shown once the day is known to have activity (matches the summary count).
+  // Upcoming ghost rows are not activity: they show on their own, and never feed the counts or totals.
+  const ghostRows = useMemo(
+    () => flashListData.filter((item) => item.kind === "upcoming"),
+    [flashListData],
   );
+  const hasGhosts = ghostRows.length > 0;
+  const visibleRows = isDayLoading
+    ? NO_ROWS
+    : hasActivity
+      ? flashListData
+      : ghostRows;
+
+  const renderItem: ListRenderItem<TransactionFlashListItem> = ({ item }) =>
+    item.kind === "upcoming" ? (
+      <TransactionDayCardUpcomingRow
+        occurrence={item.occurrence}
+        today={today}
+        showDivider={item.sectionRowIndex > 0}
+        onPress={openUpcomingOccurrence}
+      />
+    ) : (
+      <TransactionDayCardRow
+        transaction={item.transaction}
+        showDivider={item.sectionRowIndex > 0}
+        onPress={openTransactionDetail}
+      />
+    );
 
   return (
     <TabScreenShell>
@@ -66,6 +95,7 @@ export default function TransactionsScreen() {
         data={visibleRows}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        getItemType={getItemType}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -74,6 +104,8 @@ export default function TransactionsScreen() {
               year={selectedMonth.year}
               monthIndex0={selectedMonth.monthIndex0}
               spendByDay={spendByDay}
+              upcomingDayKeys={upcomingDayKeys}
+              upcomingTotal={upcomingExpenseTotal}
               selectedDayKey={selectedDayKey}
               onSelectDay={selectDay}
               onPrevMonth={goPrevMonth}
@@ -92,7 +124,7 @@ export default function TransactionsScreen() {
           </View>
         }
         ListEmptyComponent={
-          isDayLoading || !hasActivity ? (
+          isDayLoading || (!hasActivity && !hasGhosts) ? (
             <TransactionDayCardPlaceholder
               dayKey={selectedDayKey}
               isLoading={isDayLoading}
@@ -101,11 +133,12 @@ export default function TransactionsScreen() {
           ) : null
         }
         ListFooterComponent={
-          hasActivity && !isDayLoading ? (
+          (hasActivity || hasGhosts) && !isDayLoading ? (
             <TransactionDayCardFooter
               transactionCount={selectedDayTransactionCount}
               dayIncomeTotal={dayIncomeTotal}
               dayExpenseTotal={dayExpenseTotal}
+              upcomingTotal={upcomingDayTotal}
             />
           ) : null
         }

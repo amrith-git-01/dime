@@ -29,6 +29,34 @@ type BudgetSummaryCardProps = {
   spentValue?: number;
 };
 
+/** "Fixed ₹X · Flexible ₹Y" plus "₹Z fixed still to come", under the month's totals. */
+function SplitLines({
+  summary,
+  centered = false,
+}: {
+  summary: BudgetMonthBentoSummary | null;
+  centered?: boolean;
+}) {
+  const styles = useStyles();
+  if (!summary?.splitLine && !summary?.upcomingLine) {
+    return null;
+  }
+  return (
+    <View style={centered ? styles.splitCentered : styles.split}>
+      {summary.splitLine ? (
+        <Text style={[styles.splitText, centered && styles.splitTextCentered]}>
+          {summary.splitLine}
+        </Text>
+      ) : null}
+      {summary.upcomingLine ? (
+        <Text style={[styles.splitText, centered && styles.splitTextCentered]}>
+          {summary.upcomingLine}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   selectedMonth,
   canGoPrevMonth,
@@ -159,6 +187,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
               </Text>
             </View>
           </View>
+          <SplitLines summary={summary} />
         </>
       ) : (
         /* ── STATE B: No budget set ─────────────── */
@@ -169,7 +198,16 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           <Text style={styles.noBudgetAmount}>
             {formatInrCompact(spentValue)}
           </Text>
-          <Text style={styles.noBudgetSub}>spent so far · no budget set</Text>
+          <Text
+            style={[
+              styles.noBudgetSub,
+              (summary?.splitLine || summary?.upcomingLine) &&
+                styles.noBudgetSubTight,
+            ]}
+          >
+            spent so far · no budget set
+          </Text>
+          <SplitLines summary={summary} centered />
           <Pressable
             onPress={onSetBudget}
             style={({ pressed }) => [
@@ -326,6 +364,27 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     color: colors.inkSoft,
     textAlign: "center",
     marginBottom: spacing.lg,
+  },
+  noBudgetSubTight: {
+    marginBottom: spacing.xs,
+  },
+  split: {
+    marginTop: spacing.md,
+    gap: 2,
+  },
+  splitCentered: {
+    marginBottom: spacing.lg,
+    gap: 2,
+  },
+  splitText: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    fontVariant: ["tabular-nums"],
+  },
+  splitTextCentered: {
+    textAlign: "center",
   },
   setBtn: {
     backgroundColor: colors.accent,
