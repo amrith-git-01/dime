@@ -41,6 +41,10 @@ export const springs = {
   tabIndicator: { damping: 16, stiffness: 200, mass: 0.8 },
   /** Press state scale — subtle depress (0.985 target). */
   press: { damping: 18, stiffness: 260, mass: 0.7 },
+  /** App tour: spotlight hole gliding from one target to the next. */
+  tourSpotlight: { damping: 24, stiffness: 190, mass: 1 },
+  /** App tour: tooltip card gliding / popping in. */
+  tourCard: { damping: 20, stiffness: 240, mass: 0.85 },
 } as const satisfies Record<string, WithSpringConfig>;
 
 export const timings = {

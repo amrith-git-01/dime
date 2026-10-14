@@ -25,6 +25,7 @@ import {
   SPLASH_MIN_DISPLAY_MS,
   SPLASH_SHELL_TIMEOUT_MS,
 } from "@/constants/splash";
+import { AppTourOverlay } from "@/features/appTour/components";
 import {
   ReceiptScanBusyOverlay,
   VoiceCaptureBar,
@@ -58,11 +59,19 @@ function AppSplashCoordinator({
   children: ReactNode;
 }) {
   const styles = useStyles();
-  const { contentReady, layoutReady, shellReady } = useSplashReveal();
+  const { contentReady, layoutReady, shellReady, markSplashRevealed } =
+    useSplashReveal();
   const splashStartedAtRef = useRef(Date.now());
   const [splashRevealed, setSplashRevealed] = useState(splashRevealedLatch);
 
   const bootstrapReady = fontsReady && layoutReady && contentReady;
+
+  // Lets the rest of the app (the guided tour) wait until the splash is actually gone.
+  useEffect(() => {
+    if (splashRevealed) {
+      markSplashRevealed();
+    }
+  }, [splashRevealed, markSplashRevealed]);
 
   // The splash is the single loading cover: it goes once bootstrap AND the first screen's shell
   // (header + tab bar, or the auth / onboarding route) are laid out. The timeout keeps a shell
@@ -116,6 +125,7 @@ function AppRoot() {
         <VoiceCaptureBar />
       </NavigationContainer>
       <ToastHost />
+      <AppTourOverlay />
     </>
   );
 }

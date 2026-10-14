@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -48,6 +50,7 @@ export function AppHeader({
   const [imgLoading, setImgLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
   const notifiedRef = useRef(false);
+  const settingsTourTarget = useTourTarget(tourTargetIds.headerSettings);
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -117,6 +120,7 @@ export function AppHeader({
         {/* Icon buttons */}
         {onSettingsPress && (
           <Pressable
+            {...settingsTourTarget}
             accessibilityRole="button"
             accessibilityLabel="Settings"
             hitSlop={spacing.sm}

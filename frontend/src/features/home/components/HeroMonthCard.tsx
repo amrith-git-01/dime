@@ -5,6 +5,8 @@ import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { createThemedStyles, useTheme } from "@/theme";
 
 type HeroMonthCardProps = {
@@ -30,8 +32,9 @@ export const HeroMonthCard = memo(function HeroMonthCard({
 }: HeroMonthCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.homeMonthCard);
   return (
-    <View style={styles.card}>
+    <View {...tourTarget} style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.eyebrow}>THIS MONTH</Text>
         <Text style={styles.monthLabel}>{monthLabel}</Text>

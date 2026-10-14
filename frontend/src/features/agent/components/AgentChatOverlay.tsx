@@ -23,6 +23,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
 import { radius, spacing, timings } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import {
   useAgentChat,
   useAgentDailyLimitReached,
@@ -64,6 +66,7 @@ export function AgentChatOverlay({
   const open = useAgentChatUiStore((s) => s.open);
   const close = useAgentChatUiStore((s) => s.close);
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
+  const tourTarget = useTourTarget(tourTargetIds.agentFab);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -313,6 +316,7 @@ export function AgentChatOverlay({
     <>
       {showFab || showCollapseHandoffFab ? (
         <Pressable
+          {...tourTarget}
           accessibilityRole="button"
           accessibilityLabel="Open Dime Agent"
           onPress={handleOpen}

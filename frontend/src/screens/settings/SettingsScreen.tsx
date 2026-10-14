@@ -1,6 +1,7 @@
 import {
   Bell,
   BookOpen,
+  Compass,
   Mail,
   MessageSquareText,
   Shield,
@@ -95,6 +96,13 @@ export default function SettingsScreen() {
             label="Permissions"
             subtitle="What we ask for, how we use it, and why"
             onPress={() => openDestination("SettingsPermissions")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Compass}
+            label="Show app tour"
+            subtitle="A 30-second walk through the main features"
+            onPress={model.onShowAppTour}
           />
         </View>
       </SettingsSection>
