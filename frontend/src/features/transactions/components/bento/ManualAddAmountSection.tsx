@@ -1,20 +1,12 @@
-import { useEffect, useState } from "react";
-import {
-  Platform,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import { Platform, Text, View } from "react-native";
 
-import { fontFamilies, radius, spacing } from "@/constants";
+import { fontFamilies, spacing } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
-import { AppTextInput } from "@/components/ui";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import {
+  AppTextInput,
+  SlidingSegmentedControl,
+  type SlidingSegmentedOption,
+} from "@/components/ui";
 import { createThemedStyles, useTheme } from "@/theme";
 
 type ManualAddAmountSectionProps = {
@@ -31,10 +23,14 @@ type ManualAddAmountSectionProps = {
    * (recurring income / subscriptions): `txType` then only picks the amount colour.
    */
   showTypeToggle?: boolean;
+  /** Inline validation message shown under the amount. */
+  errorMessage?: string | null;
 };
 
-const TRACK_HEIGHT = 44;
-const PILL_INSET = 3;
+const TYPE_OPTIONS: readonly SlidingSegmentedOption<TransactionType>[] = [
+  { value: "debit", label: "Expense", tone: "danger" },
+  { value: "credit", label: "Income", tone: "success" },
+];
 
 export function ManualAddAmountSection({
   amountText,
@@ -45,38 +41,13 @@ export function ManualAddAmountSection({
   onSetExpense,
   onSetIncome,
   showTypeToggle = true,
+  errorMessage,
 }: ManualAddAmountSectionProps) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const translateX = useSharedValue(0);
-  const [trackWidth, setTrackWidth] = useState(0);
-  const tabWidth = trackWidth / 2;
-  const selectedIndex = txType === "debit" ? 0 : 1;
-
-  useEffect(() => {
-    if (trackWidth > 0) {
-      translateX.value = withSpring(selectedIndex * tabWidth, {
-        damping: 18,
-        stiffness: 220,
-        mass: 0.9,
-      });
-    }
-  }, [selectedIndex, tabWidth, translateX, trackWidth]);
-
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  const handleExpensePress = () => {
-    if (txType === "debit") return;
-    void triggerHaptic();
-    onSetExpense();
-  };
-
-  const handleIncomePress = () => {
-    if (txType === "credit") return;
-    void triggerHaptic();
-    onSetIncome();
+  const handleTypeChange = (next: TransactionType) => {
+    if (next === "debit") onSetExpense();
+    else onSetIncome();
   };
 
   const hasValue = amountText !== "" && amountText !== "0";
@@ -108,62 +79,25 @@ export function ManualAddAmountSection({
         />
       </View>
 
+      {errorMessage ? (
+        <Text style={styles.amountError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          {errorMessage}
+        </Text>
+      ) : null}
+
       {showTypeToggle ? (
-        <View
-          style={styles.track}
-          onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-        >
-          {trackWidth > 0 ? (
-            <Animated.View
-              style={[
-                styles.pill,
-                { width: tabWidth - PILL_INSET * 2 },
-                pillStyle,
-              ]}
-              pointerEvents="none"
-            />
-          ) : null}
-          <Pressable
-            style={styles.tab}
-            onPress={handleExpensePress}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: txType === "debit" }}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                txType === "debit"
-                  ? styles.expenseSelected
-                  : styles.labelUnselected,
-              ]}
-            >
-              Expense
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.tab}
-            onPress={handleIncomePress}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: txType === "credit" }}
-          >
-            <Text
-              style={[
-                styles.tabLabel,
-                txType === "credit"
-                  ? styles.incomeSelected
-                  : styles.labelUnselected,
-              ]}
-            >
-              Income
-            </Text>
-          </Pressable>
-        </View>
+        <SlidingSegmentedControl
+          options={TYPE_OPTIONS}
+          value={txType}
+          onChange={handleTypeChange}
+        />
       ) : null}
     </View>
   );
 }
 
-const useStyles = createThemedStyles(({ colors, shadows }) => ({
+const useStyles = createThemedStyles(({ colors }) => ({
+
   container: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -176,6 +110,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     letterSpacing: 0.6,
     color: colors.accentText,
     textTransform: "uppercase",
+  },
+  amountError: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.danger,
   },
   amountRow: {
     flexDirection: "row",
@@ -211,43 +151,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
         paddingVertical: 0,
       },
     }),
-  },
-  track: {
-    height: TRACK_HEIGHT,
-    borderRadius: radius.full,
-    backgroundColor: colors.line,
-    flexDirection: "row",
-    position: "relative",
-    overflow: "hidden",
-  },
-  pill: {
-    position: "absolute",
-    top: PILL_INSET,
-    left: PILL_INSET,
-    bottom: PILL_INSET,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    ...shadows.pill,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabLabel: {
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  expenseSelected: {
-    fontFamily: fontFamilies.semiBold,
-    color: colors.danger,
-  },
-  incomeSelected: {
-    fontFamily: fontFamilies.semiBold,
-    color: colors.success,
-  },
-  labelUnselected: {
-    fontFamily: fontFamilies.regular,
-    color: colors.inkSoft,
   },
 }));

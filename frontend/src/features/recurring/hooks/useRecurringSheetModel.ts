@@ -33,7 +33,7 @@ import {
 } from "./useRecurringMutations";
 
 export type UseRecurringSheetModelArgs = {
-  /** Kind preselected by the card that opened the sheet (create only; edit uses the item's). */
+  /** Kind chosen by the card that opened the page (create only; edit uses the item's). */
   kind: RecurringKind;
   /** The item being edited; omit to add a new one. */
   item?: RecurringItem;
@@ -54,8 +54,7 @@ export function useRecurringSheetModel({
   const updateMutation = useUpdateRecurringMutation();
   const deleteMutation = useDeleteRecurringMutation();
 
-  const [createKind, setCreateKind] = useState<RecurringKind>(initialKind);
-  const kind = item ? item.kind : createKind;
+  const kind = item ? item.kind : initialKind;
   const copy = RECURRING_COPY[kind];
 
   const incomeCategoryId = useMemo(
@@ -81,24 +80,6 @@ export function useRecurringSheetModel({
   const update = useCallback((next: Partial<RecurringFormState>) => {
     setPatch((prev) => ({ ...prev, ...next }));
   }, []);
-
-  const onKindChange = useCallback(
-    (next: RecurringKind) => {
-      if (isEditing || next === createKind) {
-        return;
-      }
-      setCreateKind(next);
-      // The base form follows the kind, so dropping these two overrides resets the category and
-      // "already paid" defaults while keeping everything else typed so far.
-      setPatch((prev) => {
-        const rest = { ...prev };
-        delete rest.categoryId;
-        delete rest.postCurrentPeriod;
-        return rest;
-      });
-    },
-    [createKind, isEditing],
-  );
 
   // Subscriptions get a picker; income stays on the Income category.
   const pickerCategories = useMemo(
@@ -220,7 +201,6 @@ export function useRecurringSheetModel({
     form,
     errors,
     update,
-    onKindChange,
     categoriesLoading,
     pickerCategories,
     onCategoryPress,

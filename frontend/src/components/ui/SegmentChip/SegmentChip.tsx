@@ -12,13 +12,13 @@ export type SegmentChipProps = {
   label: string;
   selected: boolean;
   onPress: () => void;
-  /** Use onDark on violet bento headers (e.g. manual add amount card). */
+  /** Use onDark on violet bento headers (on-dark bento headers). */
   variant?: SegmentChipVariant;
 };
 
 /**
- * Two-state segment chip — used on ManualAddTransactionScreen for Expense / Income toggle.
- * Extracted from the screen file so it can be reused across forms.
+ * Two-state segment chip for forms (bordered chip with a tinted selected state).
+ * The sliding track toggles (Expense / Income, Monthly / Yearly) use SlidingSegmentedControl.
  */
 export const SegmentChip = memo(function SegmentChip({
   label,

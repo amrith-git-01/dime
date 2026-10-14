@@ -5,22 +5,23 @@ import { CategoryPill } from "@/components/categories/CategoryPill";
 import { ConfirmModal } from "@/components/shared";
 import {
   Button,
-  SegmentChip,
   SelectDropdown,
+  SlidingSegmentedControl,
+  type SlidingSegmentedOption,
   TextField,
 } from "@/components/ui";
-import { fontFamilies, spacing } from "@/constants";
-import { useFormStyles } from "@/constants/formStyles";
+import { fontFamilies, radius, spacing } from "@/constants";
 import { SettingsToggleRow } from "@/features/settings/components";
+import { ManualAddAmountSection } from "@/features/transactions/components/bento";
 
 import { useRecurringSheetModel } from "../hooks/useRecurringSheetModel";
-import type { RecurringItem, RecurringKind } from "../types";
+import type { RecurringCadence, RecurringItem, RecurringKind } from "../types";
 import { postCurrentPeriodLabel } from "../utils/recurringDisplay";
 import { MONTH_NAMES } from "../utils/recurringForm";
 import { createThemedStyles } from "@/theme";
 
 export type RecurringEditorProps = {
-  /** Kind preselected by the card that opened the page. */
+  /** Kind chosen by the card that opened the page. */
   kind: RecurringKind;
   /** Item to edit; omit to add a new one. */
   item?: RecurringItem;
@@ -33,6 +34,14 @@ const MONTH_OPTIONS = MONTH_NAMES.map((label, index) => ({
   label,
 }));
 
+const CADENCE_OPTIONS: readonly SlidingSegmentedOption<RecurringCadence>[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+// The amount section only uses the type to colour the amount; its switch is hidden here.
+const noop = () => undefined;
+
 /** Add / edit form of a recurring income or subscription (the RecurringEditor page). */
 export const RecurringEditor = memo(function RecurringEditor({
   kind: initialKind,
@@ -40,10 +49,10 @@ export const RecurringEditor = memo(function RecurringEditor({
   onDone,
 }: RecurringEditorProps) {
   const styles = useStyles();
-  const formStyles = useFormStyles();
   const model = useRecurringSheetModel({ kind: initialKind, item, onClose: onDone });
   const { form, errors, update, copy, isEditing, kind } = model;
   const isYearly = form.cadence === "yearly";
+  const showStatusCard = isEditing || model.showPostCurrentPeriod;
 
   return (
     <View style={styles.content}>
@@ -58,90 +67,86 @@ export const RecurringEditor = memo(function RecurringEditor({
         onCancel={model.onDeleteCancel}
         onConfirm={model.onDeleteConfirm}
       />
-      {!isEditing ? (
-        <View>
-          <Text style={formStyles.fieldLabel}>Type</Text>
-          <View style={styles.chipRow}>
-            <SegmentChip
-              label="Recurring income"
-              selected={kind === "income"}
-              onPress={() => model.onKindChange("income")}
-            />
-            <SegmentChip
-              label="Recurring expense"
-              selected={kind === "subscription"}
-              onPress={() => model.onKindChange("subscription")}
-            />
-          </View>
-        </View>
-      ) : null}
 
-      <TextField
-        label="Name"
-        placeholder={copy.namePlaceholder}
-        value={form.name}
-        onChangeText={(name) => update({ name })}
-        maxLength={80}
-        autoCapitalize="words"
-        errorMessage={errors.name ?? null}
-      />
-
-      <TextField
-        label="Amount"
-        placeholder="0.00"
-        value={form.amountText}
-        onChangeText={(amountText) => update({ amountText })}
-        keyboardType="decimal-pad"
-        showClear={false}
-        errorMessage={errors.amount ?? null}
-      />
-
-      <View>
-        <Text style={formStyles.fieldLabel}>Repeats</Text>
-        <View style={styles.chipRow}>
-          <SegmentChip
-            label="Monthly"
-            selected={!isYearly}
-            onPress={() => update({ cadence: "monthly" })}
-          />
-          <SegmentChip
-            label="Yearly"
-            selected={isYearly}
-            onPress={() => update({ cadence: "yearly" })}
-          />
-        </View>
+      <View style={[styles.amountCard, styles.cardShadow]}>
+        <ManualAddAmountSection
+          amountText={form.amountText}
+          amountFocused={false}
+          onAmountChange={(amountText) => update({ amountText })}
+          onAmountFocus={noop}
+          onAmountBlur={noop}
+          txType={kind === "income" ? "credit" : "debit"}
+          onSetExpense={noop}
+          onSetIncome={noop}
+          showTypeToggle={false}
+          errorMessage={errors.amount ?? null}
+        />
       </View>
 
-      {isYearly ? (
-        <SelectDropdown
-          label="Month"
-          options={MONTH_OPTIONS}
-          value={String(form.monthOfYear)}
-          onChange={(value) => update({ monthOfYear: Number(value) })}
-          maxVisibleOptions={6}
-          errorMessage={errors.month ?? null}
-        />
-      ) : null}
-
-      <View>
+      <View style={[styles.card, styles.cardShadow]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>NAME</Text>
+          <Text style={styles.requiredHint}>(required)</Text>
+        </View>
         <TextField
-          label="Day of month"
-          placeholder="1 to 31"
-          value={form.dayOfMonthText}
-          onChangeText={(dayOfMonthText) => update({ dayOfMonthText })}
-          keyboardType="number-pad"
-          maxLength={2}
-          showClear={false}
-          errorMessage={errors.day ?? null}
+          label="Name"
+          hideLabel
+          placeholder={copy.namePlaceholder}
+          value={form.name}
+          onChangeText={(name) => update({ name })}
+          maxLength={80}
+          autoCapitalize="words"
+          errorMessage={errors.name ?? null}
         />
-        <Text style={styles.hint}>
-          In months with fewer days, it falls on the last day of the month.
-        </Text>
+      </View>
+
+      <View style={[styles.card, styles.cardShadow]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>REPEATS</Text>
+          <Text style={styles.requiredHint}>(required)</Text>
+        </View>
+        <View style={styles.cardBody}>
+          <SlidingSegmentedControl
+            options={CADENCE_OPTIONS}
+            value={form.cadence}
+            onChange={(cadence) => update({ cadence })}
+          />
+
+          {isYearly ? (
+            <SelectDropdown
+              label="Month"
+              options={MONTH_OPTIONS}
+              value={String(form.monthOfYear)}
+              onChange={(value) => update({ monthOfYear: Number(value) })}
+              maxVisibleOptions={6}
+              errorMessage={errors.month ?? null}
+            />
+          ) : null}
+
+          <View>
+            <TextField
+              label="Day of month"
+              placeholder="1 to 31"
+              value={form.dayOfMonthText}
+              onChangeText={(dayOfMonthText) => update({ dayOfMonthText })}
+              keyboardType="number-pad"
+              maxLength={2}
+              showClear={false}
+              errorMessage={errors.day ?? null}
+            />
+            <Text style={styles.hint}>
+              In months with fewer days, it falls on the last day of the month.
+            </Text>
+          </View>
+        </View>
       </View>
 
       {kind === "subscription" ? (
-        <View>
-          <Text style={formStyles.fieldLabel}>Category</Text>
+        <View style={[styles.card, styles.cardShadow]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>CATEGORY</Text>
+            <Text style={styles.optionalHint}>(optional)</Text>
+          </View>
           <View style={styles.categoryGrid}>
             {model.categoriesLoading ? (
               <Text style={styles.hint}>Loading categories</Text>
@@ -164,54 +169,106 @@ export const RecurringEditor = memo(function RecurringEditor({
         </View>
       ) : null}
 
-      {isEditing ? (
-        <SettingsToggleRow
-          label={form.active ? "Active" : "Paused"}
-          subtitle={copy.activeSubtitle}
-          value={form.active}
-          onValueChange={(active) => update({ active })}
-        />
+      {showStatusCard ? (
+        <View style={[styles.card, styles.cardShadow]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>
+              {isEditing ? "STATUS" : "THIS PERIOD"}
+            </Text>
+          </View>
+          {isEditing ? (
+            <SettingsToggleRow
+              label={form.active ? "Active" : "Paused"}
+              subtitle={copy.activeSubtitle}
+              value={form.active}
+              onValueChange={(active) => update({ active })}
+            />
+          ) : (
+            <SettingsToggleRow
+              label={postCurrentPeriodLabel(kind, form.cadence)}
+              subtitle="Adds this period's transaction right away so your totals are right."
+              value={form.postCurrentPeriod}
+              onValueChange={(postCurrentPeriod) =>
+                update({ postCurrentPeriod })
+              }
+            />
+          )}
+        </View>
       ) : null}
 
-      {model.showPostCurrentPeriod ? (
-        <SettingsToggleRow
-          label={postCurrentPeriodLabel(kind, form.cadence)}
-          subtitle="Adds this period's transaction right away so your totals are right."
-          value={form.postCurrentPeriod}
-          onValueChange={(postCurrentPeriod) => update({ postCurrentPeriod })}
-        />
-      ) : null}
-
-      <Button
-        title={isEditing ? "Save" : "Add"}
-        busyLabel={isEditing ? "Saving" : "Adding"}
-        loading={model.saving}
-        disabled={model.saveDisabled || model.deleting}
-        onPress={model.onSave}
-      />
-
       {isEditing ? (
+        <View style={styles.actionsRow}>
+          <View style={styles.actionSlot}>
+            <Button
+              title="Delete"
+              busyLabel="Deleting"
+              variant="danger"
+              loading={model.deleting}
+              disabled={model.saving}
+              onPress={model.onDeletePress}
+            />
+          </View>
+          <View style={styles.actionSlot}>
+            <Button
+              title="Save"
+              busyLabel="Saving"
+              loading={model.saving}
+              disabled={model.saveDisabled || model.deleting}
+              onPress={model.onSave}
+            />
+          </View>
+        </View>
+      ) : (
         <Button
-          title="Delete"
-          busyLabel="Deleting"
-          variant="ghostDanger"
-          loading={model.deleting}
-          disabled={model.saving}
-          onPress={model.onDeletePress}
+          title="Add"
+          busyLabel="Adding"
+          loading={model.saving}
+          onPress={model.onSave}
         />
-      ) : null}
+      )}
     </View>
   );
 });
 
-const useStyles = createThemedStyles(({ colors }) => ({
+const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  cardShadow: shadows.card,
   content: {
     gap: spacing.lg,
   },
-  chipRow: {
+  amountCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  cardHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  cardBody: {
+    gap: spacing.md,
+  },
+  sectionLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    color: colors.accentText,
+    textTransform: "uppercase",
+  },
+  optionalHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    color: colors.inkFaint,
+  },
+  requiredHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    color: colors.inkSoft,
   },
   categoryGrid: {
     flexDirection: "row",
@@ -224,5 +281,12 @@ const useStyles = createThemedStyles(({ colors }) => ({
     fontSize: 12,
     lineHeight: 16,
     color: colors.inkSoft,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  actionSlot: {
+    flex: 1,
   },
 }));
