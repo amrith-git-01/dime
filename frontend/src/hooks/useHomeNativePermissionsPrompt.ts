@@ -3,8 +3,6 @@ import { useEffect } from "react";
 import { requestAllAppPermissionsSequentially } from "@/features/onboarding/utils/appPermissions";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
-let promptingInFlight = false;
-
 /**
  * After first sign-in, shows native OS permission dialogs on Home (notifications,
  * camera, microphone) instead of a dedicated setup screen.
@@ -14,21 +12,23 @@ export function useHomeNativePermissionsPrompt(): void {
   const clearPending = usePermissionsPromptStore(
     (s) => s.clearPendingAfterGoogleSignIn,
   );
+  const setPrompting = usePermissionsPromptStore((s) => s.setPrompting);
 
   useEffect(() => {
-    if (!pending || promptingInFlight) {
+    if (!pending || usePermissionsPromptStore.getState().prompting) {
       return;
     }
 
-    promptingInFlight = true;
+    // `prompting` goes up before `pending` comes down, so the app tour never sees a gap.
+    setPrompting(true);
     clearPending();
 
     void (async () => {
       try {
         await requestAllAppPermissionsSequentially();
       } finally {
-        promptingInFlight = false;
+        setPrompting(false);
       }
     })();
-  }, [pending, clearPending]);
+  }, [pending, clearPending, setPrompting]);
 }

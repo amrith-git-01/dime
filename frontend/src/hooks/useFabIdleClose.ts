@@ -9,6 +9,7 @@ import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
  */
 export function useFabIdleClose() {
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
+  const holdOpen = useAddTransactionFabStore((s) => s.holdOpen);
   const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
   const idleCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -30,19 +31,21 @@ export function useFabIdleClose() {
   }, [clearIdleTimer, setFabOpen]);
 
   const bump = useCallback(() => {
-    if (useAddTransactionFabStore.getState().fabOpen) {
+    const { fabOpen: open, holdOpen: hold } =
+      useAddTransactionFabStore.getState();
+    if (open && !hold) {
       scheduleIdleClose();
     }
   }, [scheduleIdleClose]);
 
   useEffect(() => {
-    if (!fabOpen) {
+    if (!fabOpen || holdOpen) {
       clearIdleTimer();
       return;
     }
     scheduleIdleClose();
     return clearIdleTimer;
-  }, [fabOpen, scheduleIdleClose, clearIdleTimer]);
+  }, [fabOpen, holdOpen, scheduleIdleClose, clearIdleTimer]);
 
   return bump;
 }

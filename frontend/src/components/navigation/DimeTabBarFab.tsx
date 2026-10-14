@@ -8,6 +8,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { springs } from "@/constants/motion";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 
@@ -26,6 +28,7 @@ export function DimeTabBarFab({ onPressIn }: DimeTabBarFabProps) {
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const toggleFab = useAddTransactionFabStore((s) => s.toggleFab);
   const plusRotationDeg = useSharedValue(0);
+  const tourTarget = useTourTarget(tourTargetIds.addFab);
 
   useEffect(() => {
     plusRotationDeg.value = withSpring(fabOpen ? 45 : 0, springs.fabOpen);
@@ -43,6 +46,7 @@ export function DimeTabBarFab({ onPressIn }: DimeTabBarFabProps) {
   return (
     <View style={styles.centerPlusSlot}>
       <Pressable
+        {...tourTarget}
         accessibilityRole="button"
         accessibilityLabel={
           fabOpen ? "Close add transaction" : "Add transaction"

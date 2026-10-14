@@ -3,7 +3,9 @@ import { ScrollView } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { TourTarget } from "@/components/shared";
 import { layout } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
@@ -75,17 +77,19 @@ function AnalyticsInsightsScroll() {
       }}
       onMomentumScrollEnd={reportScroll}
     >
-      <InsightsMonthSummaryCard
-        selectedMonth={selectedMonth.label}
-        canGoPrevMonth={canGoPrevMonth}
-        canGoNextMonth={canGoNextMonth}
-        onPrevMonth={goPrevMonth}
-        onNextMonth={goNextMonth}
-        summary={summary}
-        summaryLoading={summaryLoading}
-        summaryFailed={summaryFailed}
-        hasMonthlyBudget={hasMonthlyBudget}
-      />
+      <TourTarget id={tourTargetIds.insightsSummary}>
+        <InsightsMonthSummaryCard
+          selectedMonth={selectedMonth.label}
+          canGoPrevMonth={canGoPrevMonth}
+          canGoNextMonth={canGoNextMonth}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryFailed={summaryFailed}
+          hasMonthlyBudget={hasMonthlyBudget}
+        />
+      </TourTarget>
 
       {chartsReady ? (
         <>

@@ -43,6 +43,7 @@ export {
 } from "./ScreenSectionHeader";
 export { SkeletonListRow } from "./SkeletonListRow";
 export { TransactionRowListSkeleton } from "./TransactionRowListSkeleton";
+export { TourTarget, type TourTargetProps } from "./TourTarget";
 export { TwoToneCard, type TwoToneCardProps } from "./TwoToneCard";
 export {
   CARD_SEGMENT_SHADOW_BLEED,

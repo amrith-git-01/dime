@@ -5,6 +5,8 @@ import { Pressable, Text } from "react-native";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -21,8 +23,10 @@ export const DayAddButton = memo(function DayAddButton({
 }: DayAddButtonProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.transactionsDayAdd);
   return (
     <Pressable
+      {...tourTarget}
       accessibilityRole="button"
       accessibilityLabel="Add transaction on this day"
       hitSlop={8}

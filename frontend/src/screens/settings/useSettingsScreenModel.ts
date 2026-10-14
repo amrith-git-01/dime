@@ -2,6 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback } from "react";
 
+import { replayAppTour } from "@/features/appTour/utils/replayAppTour";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -42,6 +43,7 @@ export function useSettingsScreenModel() {
     signOutConfirmModalProps,
     refreshLoading,
     openDestination,
+    onShowAppTour: replayAppTour,
     onSignOut: confirmSignOut,
     onRefreshPress: confirmRefreshAppData,
   };

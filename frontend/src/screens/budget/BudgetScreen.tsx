@@ -12,9 +12,11 @@ import {
   CARD_SEGMENT_SHADOW_TOP_BLEED,
   EmptyState,
   emptyStateCopy,
+  TourTarget,
 } from "@/components/shared";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   BudgetCategoriesSectionHeader,
   BudgetCategoryRow,
@@ -127,7 +129,10 @@ export default function BudgetScreen() {
               onItemPress={recurring.onOccurrencePress}
             />
 
-            <View onLayout={recurring.onSectionLayout}>
+            <TourTarget
+              id={tourTargetIds.budgetsRecurring}
+              onLayout={recurring.onSectionLayout}
+            >
               <RecurringSection
                 income={recurring.income}
                 subscriptions={recurring.subscriptions}
@@ -135,7 +140,7 @@ export default function BudgetScreen() {
                 onAdd={recurring.onAdd}
                 onItemPress={recurring.onItemPress}
               />
-            </View>
+            </TourTarget>
 
             <View style={styles.sectionHeader}>
               <BudgetCategoriesSectionHeader
