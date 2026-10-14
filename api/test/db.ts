@@ -117,11 +117,11 @@ export async function seedCategory(over: { id?: string; user_id?: string | null;
   return id;
 }
 
-export async function seedBudget(over: { user_id?: string; monthly?: string; daily?: string | null } = {}) {
+export async function seedBudget(over: { user_id?: string; monthly?: string } = {}) {
   const now = nowIso();
   await testDb()
-    .prepare('INSERT INTO budgets (id, user_id, monthly_budget, daily_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(uid(), over.user_id ?? USER_ID, decimalToCents(over.monthly ?? '0'), over.daily === null ? null : decimalToCents(over.daily ?? '0'), now, now)
+    .prepare('INSERT INTO budgets (id, user_id, monthly_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(uid(), over.user_id ?? USER_ID, decimalToCents(over.monthly ?? '0'), now, now)
     .run();
 }
 

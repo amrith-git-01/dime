@@ -18,19 +18,15 @@ export type SettingsNotificationsEditorProps = {
   onDailyExpenseReminderEnabledChange: (enabled: boolean) => void;
   onDailyExpenseReminderTimeChange: (time: string) => void;
   budgetMonthlyAlertsEnabled: boolean;
-  budgetDailyAlertsEnabled: boolean;
   budgetCategoryAlertsEnabled: boolean;
   budgetMonthlyWarnPct: number;
-  budgetDailyWarnPct: number;
   budgetCategoryWarnPct: number;
   autoCaptureAlertsEnabled: boolean;
   captureFailedAlertsEnabled: boolean;
   togglesDisabled?: boolean;
   onBudgetMonthlyAlertsChange: (enabled: boolean) => void;
-  onBudgetDailyAlertsChange: (enabled: boolean) => void;
   onBudgetCategoryAlertsChange: (enabled: boolean) => void;
   onBudgetMonthlyWarnPctChange: (pct: number) => void;
-  onBudgetDailyWarnPctChange: (pct: number) => void;
   onBudgetCategoryWarnPctChange: (pct: number) => void;
   onAutoCaptureAlertsChange: (enabled: boolean) => void;
   onCaptureFailedAlertsChange: (enabled: boolean) => void;
@@ -52,19 +48,15 @@ export const SettingsNotificationsEditor = memo(
     onDailyExpenseReminderEnabledChange,
     onDailyExpenseReminderTimeChange,
     budgetMonthlyAlertsEnabled,
-    budgetDailyAlertsEnabled,
     budgetCategoryAlertsEnabled,
     budgetMonthlyWarnPct,
-    budgetDailyWarnPct,
     budgetCategoryWarnPct,
     autoCaptureAlertsEnabled,
     captureFailedAlertsEnabled,
     togglesDisabled = false,
     onBudgetMonthlyAlertsChange,
-    onBudgetDailyAlertsChange,
     onBudgetCategoryAlertsChange,
     onBudgetMonthlyWarnPctChange,
-    onBudgetDailyWarnPctChange,
     onBudgetCategoryWarnPctChange,
     onAutoCaptureAlertsChange,
     onCaptureFailedAlertsChange,
@@ -104,18 +96,6 @@ export const SettingsNotificationsEditor = memo(
             disabled={togglesDisabled}
             onEnabledChange={onBudgetMonthlyAlertsChange}
             onWarnPctChange={onBudgetMonthlyWarnPctChange}
-            onAnimationBusyChange={onAnimationBusyChange}
-            showSeparator
-          />
-          <BudgetAlertScopeBlock
-            label="Daily budget"
-            subtitle="Alerts for your daily spending cap."
-            enabled={budgetDailyAlertsEnabled}
-            warnPct={budgetDailyWarnPct}
-            syncKey={draftSyncKey}
-            disabled={togglesDisabled}
-            onEnabledChange={onBudgetDailyAlertsChange}
-            onWarnPctChange={onBudgetDailyWarnPctChange}
             onAnimationBusyChange={onAnimationBusyChange}
             showSeparator
           />

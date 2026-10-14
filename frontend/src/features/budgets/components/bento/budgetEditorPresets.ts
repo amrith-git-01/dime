@@ -2,8 +2,6 @@
 
 export const MONTHLY_BUDGET_PRESETS = [15_000, 20_000, 30_000, 40_000] as const;
 
-export const DAILY_BUDGET_PRESETS = [500, 1_000, 1_500, 2_000] as const;
-
 /** No cap selected — thumb at start, no checkpoint highlighted. */
 export const BUDGET_UNSET_STEP_INDEX = -1;
 
@@ -11,9 +9,7 @@ export const BUDGET_CUSTOM_STEP_INDEX = MONTHLY_BUDGET_PRESETS.length;
 
 export const BUDGET_STEP_LAST_INDEX = BUDGET_CUSTOM_STEP_INDEX;
 
-export type BudgetPresetList =
-  | typeof MONTHLY_BUDGET_PRESETS
-  | typeof DAILY_BUDGET_PRESETS;
+export type BudgetPresetList = typeof MONTHLY_BUDGET_PRESETS;
 
 export function getBudgetCheckpointLabels(
   presets: readonly number[],

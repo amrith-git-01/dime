@@ -6,7 +6,7 @@ import {
   UpstreamError,
   ValidationError,
 } from '../../core/errors';
-import { INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, hasPgCode, isUniqueViolation } from '../../core/db-errors';
+import { INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, WRONG_SCOPE, hasPgCode, isUniqueViolation } from '../../core/db-errors';
 import { formatMoney } from '../../core/decimal';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
@@ -20,7 +20,7 @@ import {
   MAX_CUSTOM_CATEGORIES_PER_USER,
   hasBudgetChange,
 } from './schemas';
-import type { CategoryResponse, CategoryRow, CreateCategoryBody, UpdateCategoryBody } from './schemas';
+import type { CategoryResponse, CategoryRow, CategoryScope, CreateCategoryBody, UpdateCategoryBody } from './schemas';
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const DUPLICATE_NAME = 'You already have a category with this name.';
@@ -43,14 +43,15 @@ function rowToResponse(row: Partial<CategoryRow> | null | undefined): CategoryRe
     icon_name: iconName,
     color,
     is_system: isSystem,
+    scope: row.scope === 'recurring_expense' || row.scope === 'recurring_income' ? row.scope : 'spend',
     created_at: createdAt,
     user_id: isSystem ? null : text(row.user_id),
     budget_amount: null,
   };
 }
 
-export async function listCategories(db: Db, userId: string): Promise<CategoryResponse[]> {
-  const rows = await repo.listVisible(db, userId);
+export async function listCategories(db: Db, userId: string, scope: CategoryScope = 'spend'): Promise<CategoryResponse[]> {
+  const rows = await repo.listVisible(db, userId, scope);
   return rows.map(rowToResponse).filter((r): r is CategoryResponse => r !== null);
 }
 
@@ -130,6 +131,7 @@ export async function updateCategory(
     } catch (err) {
       if (hasPgCode(err, NO_DATA_FOUND)) throw new NotFoundError(NOT_FOUND);
       if (hasPgCode(err, INSUFFICIENT_PRIVILEGE)) throw new ForbiddenError('System categories cannot be edited.');
+      if (hasPgCode(err, WRONG_SCOPE)) throw new ValidationError('Only spending categories can have a budget.');
       if (isUniqueViolation(err)) throw new ConflictError(DUPLICATE_NAME);
       throw err;
     }
@@ -196,7 +198,7 @@ export async function deleteCategory(
       throw new ValidationError('Choose a category to move transactions to before deleting.');
     }
     const target = rows.find((r) => r.id === reassignToCategoryId);
-    if (!target?.name) throw new ValidationError('Target category not found.');
+    if (!target?.name || target.scope !== 'spend') throw new ValidationError('Target category not found.');
     const moved = await repo.reassignTransactions(db, { userId, fromCategoryId: categoryId, toCategoryId: reassignToCategoryId });
     events.push(...moved.map((row) => updated('transactions', row)));
   }

@@ -5,8 +5,11 @@ import { dueInstantMs, firstDueFrom, nextAfter, parseDateKey } from '../src/feat
 import { USER_ID, call, makeEnv, signToken } from './helpers';
 import { oneRow, rowsOf, seedBudget, seedCategory, seedUser, testDb, uid } from './db';
 
-/** Seeded system category "Income". */
-const INCOME = '2aedfd2c-7a2d-48e9-9b9c-8918dd4e9715';
+/** Seeded recurring system categories (migration 0007): "Salary" (income), "Other expense", "Utilities", "Rent". */
+const SALARY = 'f48bfe4a-8f08-4229-b977-e1292b11490f';
+const OTHER_EXPENSE = '6158972c-10bc-4104-8e72-b7ccfc439bf7';
+const UTILITIES = '18102b0b-d5fa-4cfc-a206-5292332054a1';
+const RENT = '94b82777-eee4-46de-8c18-7490bda02b60';
 const OTHER = '22222222-2222-2222-2222-222222222222';
 const IST = 'Asia/Kolkata';
 /** 13:30 IST on Sat 10 Oct 2026. 06:00 IST is 00:30 UTC. */
@@ -67,7 +70,7 @@ const salary = (over: Record<string, unknown> = {}) => ({
 });
 
 async function create(body: Record<string, unknown>, token?: string) {
-  const res = await call('/api/v1/recurring', { method: 'POST', json: body, ...(token ? { token } : {}) });
+  const res = await call('/api/v1/recurring', { method: 'POST', json: body, env: makeEnv({ WRITE_LIMITER: undefined }), ...(token ? { token } : {}) });
   return { res, item: await res.json<Item>() };
 }
 const txs = () => rowsOf<Tx>('transactions', '1 = 1');
@@ -155,8 +158,8 @@ describe('CRUD and isolation', () => {
       kind: 'income',
       name: 'Salary',
       amount: '50000.00',
-      category_id: INCOME,
-      category: 'Income',
+      category_id: SALARY,
+      category: 'Salary',
       cadence: 'monthly',
       day_of_month: 25,
       month_of_year: null,
@@ -176,7 +179,7 @@ describe('CRUD and isolation', () => {
     expect(all.items.map((i) => i.name)).toEqual(['Salary', 'Netflix', 'Gym', 'Domain']);
     // Monthly equivalents: 649.00 + 1000/12 = 83.33 (the paused Gym is left out).
     expect(all.summary).toEqual({ monthly_income_total: '50000.00', monthly_subscriptions_total: '732.33' });
-    expect(all.items.find((i) => i.name === 'Domain')).toMatchObject({ monthly_equivalent: '83.33', next_due_date: '2026-11-03', category_id: null });
+    expect(all.items.find((i) => i.name === 'Domain')).toMatchObject({ monthly_equivalent: '83.33', next_due_date: '2026-11-03', category_id: OTHER_EXPENSE });
 
     const subs = await (await call('/api/v1/recurring?kind=subscription')).json<Listing>();
     expect(subs.items.map((i) => i.kind)).toEqual(['subscription', 'subscription', 'subscription']);
@@ -203,14 +206,22 @@ describe('CRUD and isolation', () => {
     expect(await oneRow('recurring_items', 'id = ?', item.id)).toMatchObject({ name: 'Salary' });
   });
 
-  it('categories: income defaults to Income, subscriptions to none, an unknown or foreign category is a 400', async () => {
+  it('categories: income defaults to Salary, subscriptions to Other expense, scopes are enforced, an unknown or foreign category is a 400', async () => {
     setNow(NOW);
     await seedUser(OTHER);
     const mine = await seedCategory({ name: 'Streaming' });
     const foreign = await seedCategory({ name: 'Secret', user_id: OTHER });
     const sub = { kind: 'subscription', name: 'Netflix', amount: '9', cadence: 'monthly', day_of_month: 1, timezone: IST };
-    expect((await create(sub)).item.category_id).toBeNull();
-    expect((await create({ ...sub, category_id: mine })).item).toMatchObject({ category_id: mine, category: 'Streaming' });
+    expect((await create(sub)).item).toMatchObject({ category_id: OTHER_EXPENSE, category: 'Other expense' });
+    expect((await create({ ...sub, category_id: RENT })).item).toMatchObject({ category_id: RENT, category: 'Rent' });
+    // Old app builds send a spending category: it maps to the nearest recurring one.
+    expect((await create({ ...sub, category_id: mine })).item.category_id).toBe(OTHER_EXPENSE);
+    expect((await create({ ...sub, category_id: '85bf877a-f8b1-4b07-a9fb-5e8c809907ae' })).item.category_id).toBe(OTHER_EXPENSE);
+    expect((await create({ ...sub, category_id: 'ad296c59-42ec-49e5-b824-c011c5b1b28b' })).item.category_id).toBe(UTILITIES);
+    expect((await create(salary({ category_id: '2aedfd2c-7a2d-48e9-9b9c-8918dd4e9715' }))).item.category_id).toBe(SALARY);
+    // The wrong recurring scope is a client error.
+    expect((await create({ ...sub, category_id: SALARY })).res.status).toBe(400);
+    expect((await create(salary({ category_id: RENT }))).res.status).toBe(400);
     expect((await create(salary({ category_id: foreign }))).res.status).toBe(400);
     expect((await create(salary({ category_id: uid() }))).res.status).toBe(400);
   });
@@ -271,7 +282,7 @@ describe('creating: never backfill', () => {
       amount: 5000000,
       type: 'credit',
       counterparty_name: 'Salary',
-      category_id: INCOME,
+      category_id: SALARY,
       detected_via: 'manual',
       recurring_item_id: item.id,
       payment_hash: `recurring:${item.id}:2026-10-05`,

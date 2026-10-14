@@ -10,11 +10,14 @@ export async function getOrCreate(db: Db, userId: string): Promise<UserSettings>
   return settingsFromRow(row);
 }
 
+/** Keys accepted for old app builds but no longer stored (the daily budget was removed). */
+const IGNORED_KEYS: ReadonlySet<string> = new Set(['budget_daily_alerts_enabled', 'budget_daily_warn_pct']);
+
 /** Fields present and non-null in the patch (null = unchanged, as in Python). */
 function patchFields(body: SettingsPatch): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
-    if (value !== null && value !== undefined) out[key] = value;
+    if (value !== null && value !== undefined && !IGNORED_KEYS.has(key)) out[key] = value;
   }
   return out;
 }

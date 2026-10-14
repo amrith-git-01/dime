@@ -35,7 +35,7 @@ beforeEach(async () => {
   await seedTransaction({ amount: '5000', type: 'credit', counterparty_name: 'Acme Payroll', transaction_at: '2026-10-01T04:00:00.000Z' });
   await seedTransaction({ amount: '999.00', counterparty_name: 'Deleted Shop', deleted_at: '2026-10-04T12:00:00.000Z' });
   await seedTransaction({ user_id: OTHER, amount: '777.00', counterparty_name: 'SecretCo', category_id: otherCategory, note: 'their note', receipt_url: 'https://example.com/r.jpg' });
-  await seedBudget({ monthly: '20000', daily: '700' });
+  await seedBudget({ monthly: '20000' });
   await seedBudget({ user_id: OTHER, monthly: '99999' });
   await seedCategoryBudget(ownCategory, '1500');
   await seedCategoryBudget(otherCategory, '4242', OTHER);
@@ -90,7 +90,7 @@ describe('sql guard: the exposed views', () => {
   });
 
   it('budgets and category budgets are the user\'s own, in rupees', async () => {
-    expect(await rows('SELECT monthly_budget, daily_budget FROM budgets')).toEqual([[20000, 700]]);
+    expect(await rows('SELECT monthly_budget FROM budgets')).toEqual([[20000]]);
     expect(await rows('SELECT monthly_budget FROM budgets', OTHER)).toEqual([[99999]]);
     expect(await rows('SELECT c.name, cb.monthly_amount FROM category_budgets cb JOIN categories c ON c.id = cb.category_id')).toEqual([['My Gadgets', 1500]]);
   });

@@ -11,7 +11,7 @@ import type { Later } from './poster';
 import * as repo from './repository';
 import { currentPeriodPassed, dueInPeriod, firstDueFrom, periodRange } from './schedule';
 import type { Schedule } from './schedule';
-import type { RecurringCreateBody, RecurringListResponse, RecurringPatchBody, RecurringResponse, RecurringRow } from './schemas';
+import type { RecurringCreateBody, RecurringKind, RecurringListResponse, RecurringPatchBody, RecurringResponse, RecurringRow } from './schemas';
 
 const NOT_FOUND = 'Recurring item not found.';
 
@@ -57,12 +57,43 @@ export async function listRecurring(ctx: TxContext, kind?: 'income' | 'subscript
   };
 }
 
-/** A category the user can see (system or own); anything else is a client error. */
-async function assertVisibleCategory(ctx: TxContext, categoryId: string): Promise<string> {
-  const id = categoryId.toLowerCase();
+/** The category scope each kind of item uses. */
+const SCOPE_OF_KIND = { subscription: 'recurring_expense', income: 'recurring_income' } as const;
+/** Used when no category is given (and for an item that would otherwise have none). */
+const DEFAULT_CATEGORY_OF_KIND = { subscription: 'Other expense', income: 'Salary' } as const;
+/** An old app build may still send an everyday spending category: it maps to the nearest recurring one (same as migration 0007). */
+const LEGACY_SUBSCRIPTION_CATEGORY: Readonly<Record<string, string>> = {
+  'bills & utilities': 'Utilities',
+  education: 'Fees & tuition',
+  entertainment: 'Subscriptions',
+};
+
+/**
+ * The category id to store for an item of `kind`. It must be visible to the user and in the kind's recurring scope
+ * (subscription: recurring_expense, income: recurring_income); a missing one becomes the kind's default and an everyday
+ * spending category (old app builds) is mapped to the nearest recurring one. Anything else is a client error.
+ */
+async function resolveItemCategory(ctx: TxContext, kind: RecurringKind, categoryId: string | null | undefined): Promise<string> {
   const visible = await listVisibleIdName(ctx.db, ctx.userId);
-  if (!visible.some((c) => String(c.id).toLowerCase() === id)) throw new BadRequestError('Category not found.');
-  return id;
+  const scope = SCOPE_OF_KIND[kind];
+  const named = (name: string) => visible.find((c) => c.scope === scope && c.name === name);
+  const fallback = () => {
+    const hit = named(DEFAULT_CATEGORY_OF_KIND[kind]);
+    if (!hit) throw new BadRequestError('Category not found.');
+    return String(hit.id).toLowerCase();
+  };
+  if (!categoryId) return fallback();
+
+  const id = categoryId.toLowerCase();
+  const found = visible.find((c) => String(c.id).toLowerCase() === id);
+  if (!found) throw new BadRequestError('Category not found.');
+  if (found.scope === scope) return id;
+  if (found.scope === 'spend') {
+    const mapped = kind === 'income' ? 'Salary' : LEGACY_SUBSCRIPTION_CATEGORY[found.name.trim().toLowerCase()];
+    const hit = mapped ? named(mapped) : undefined;
+    return hit ? String(hit.id).toLowerCase() : fallback();
+  }
+  throw new BadRequestError(kind === 'income' ? 'Choose an income category.' : 'Choose a recurring expense category.');
 }
 
 export async function createRecurring(ctx: TxContext, body: RecurringCreateBody, later: Later, nowMs: number = Date.now()): Promise<RecurringResponse> {
@@ -75,10 +106,7 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
     day_of_month: body.day_of_month,
     month_of_year: body.cadence === 'yearly' ? (body.month_of_year ?? null) : null,
   };
-  const [explicit, income] = await Promise.all([
-    body.category_id ? assertVisibleCategory(ctx, body.category_id) : Promise.resolve(null),
-    body.kind === 'income' && !body.category_id ? repo.incomeCategoryId(ctx.db) : Promise.resolve(null),
-  ]);
+  const categoryId = await resolveItemCategory(ctx, body.kind, body.category_id);
 
   // Never backfill: the first posting is this period's due date if it is still ahead (or today), else the next period's.
   const row = await repo.insert(ctx.db, {
@@ -86,7 +114,7 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
     kind: body.kind,
     name: body.name,
     amount: decimalToCents(body.amount),
-    category_id: explicit ?? income,
+    category_id: categoryId,
     cadence: schedule.cadence,
     day_of_month: schedule.day_of_month,
     month_of_year: schedule.month_of_year,
@@ -119,8 +147,7 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
     return unprocessable([{ type: 'missing', loc: ['body', 'month_of_year'], msg: 'Field required' }]);
   }
   const tz = body.timezone === undefined ? existing.timezone : parseTimezone(body.timezone);
-  const categoryId =
-    body.category_id === undefined ? existing.category_id : body.category_id === null ? null : await assertVisibleCategory(ctx, body.category_id);
+  const categoryId = body.category_id === undefined ? existing.category_id : await resolveItemCategory(ctx, existing.kind, body.category_id);
 
   const merged: RecurringRow = {
     ...existing,

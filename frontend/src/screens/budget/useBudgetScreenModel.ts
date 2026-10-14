@@ -32,6 +32,10 @@ export function useBudgetScreenModel() {
   const stackNavigation = useNavigation<BudgetScreenNavigation>();
   const { showToast } = useToast();
   const { categories, isLoading: categoriesLoading } = useCategories();
+  // Posted subscriptions and bills keep their recurring category, which only the display needs.
+  const { categories: recurringExpenseCategories } = useCategories(
+    "recurring_expense",
+  );
 
   const {
     monthOptions,
@@ -86,6 +90,10 @@ export function useBudgetScreenModel() {
     () => new Set(categories.map((c) => c.id)),
     [categories],
   );
+  const recurringCategoryById = useMemo(
+    () => new Map(recurringExpenseCategories.map((c) => [c.id, c])),
+    [recurringExpenseCategories],
+  );
 
   const budgetItems = useMemo((): CategorySpendRowData[] => {
     const rows: CategorySpendRowData[] = categories.map((category) => ({
@@ -114,7 +122,20 @@ export function useBudgetScreenModel() {
 
     for (const [categoryId, amount] of Object.entries(spendByCategoryQuery)) {
       if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) continue;
-      if (!knownCategoryIds.has(categoryId)) {
+      if (knownCategoryIds.has(categoryId)) continue;
+      const recurring = recurringCategoryById.get(categoryId);
+      if (recurring) {
+        rows.push({
+          id: recurring.id,
+          name: recurring.name,
+          icon_name: recurring.icon_name,
+          color: recurring.color,
+          spentMonth: amount,
+          is_system: true,
+          monthlyCap: null,
+          budgetEditable: false,
+        });
+      } else {
         rows.push({
           id: categoryId,
           name: "Unknown category",
@@ -130,7 +151,13 @@ export function useBudgetScreenModel() {
     return rows.sort(
       (a, b) => b.spentMonth - a.spentMonth || a.name.localeCompare(b.name),
     );
-  }, [categories, spendByCategoryQuery, knownCategoryIds, categoryCapById]);
+  }, [
+    categories,
+    spendByCategoryQuery,
+    knownCategoryIds,
+    recurringCategoryById,
+    categoryCapById,
+  ]);
 
   const navigateToBudgetEditor = useCallback(
     (mode: "create" | "edit") => {

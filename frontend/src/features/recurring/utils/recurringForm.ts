@@ -6,6 +6,8 @@ import {
   toPaise,
 } from "@/utils/paise";
 
+import type { CategoryScope } from "@/features/categories/types";
+
 import type {
   CreateRecurringBody,
   RecurringFormState,
@@ -24,10 +26,19 @@ export function defaultPostCurrentPeriod(kind: RecurringKind): boolean {
   return kind === "income";
 }
 
+/** Recurring items have their own categories: one list per kind. */
+export function recurringCategoryScope(kind: RecurringKind): CategoryScope {
+  return kind === "income" ? "recurring_income" : "recurring_expense";
+}
+
+/** The recurring-income category a new salary starts on. */
+export const DEFAULT_INCOME_CATEGORY_NAME = "Salary";
+
+/** Income starts on `salaryCategoryId` (Salary); an expense has no default, the user picks one. */
 export function emptyRecurringForm(
   kind: RecurringKind,
   today: Date,
-  incomeCategoryId: string | null = null,
+  salaryCategoryId: string | null = null,
 ): RecurringFormState {
   return {
     name: "",
@@ -35,7 +46,7 @@ export function emptyRecurringForm(
     cadence: "monthly",
     dayOfMonthText: String(today.getDate()),
     monthOfYear: today.getMonth() + 1,
-    categoryId: kind === "income" ? incomeCategoryId : null,
+    categoryId: kind === "income" ? salaryCategoryId : null,
     note: "",
     active: true,
     postCurrentPeriod: defaultPostCurrentPeriod(kind),
@@ -66,10 +77,16 @@ export function parseDayOfMonth(text: string): number | null {
   return day >= 1 && day <= 31 ? day : null;
 }
 
-export type RecurringFormField = "name" | "amount" | "day" | "month" | "note";
+export type RecurringFormField =
+  | "name"
+  | "amount"
+  | "day"
+  | "month"
+  | "category"
+  | "note";
 
 export type RecurringFormValidation =
-  | { ok: true; paise: number; dayOfMonth: number }
+  | { ok: true; paise: number; dayOfMonth: number; categoryId: string }
   | { ok: false; field: RecurringFormField; error: string };
 
 export const MONTH_NAMES = [
@@ -115,6 +132,9 @@ export function collectFieldErrors(
   ) {
     errors.month = "Choose a month.";
   }
+  if (form.categoryId === null) {
+    errors.category = "Choose a category.";
+  }
   if (form.note.trim().length > MAX_NOTE_LENGTH) {
     errors.note = `Note can be at most ${MAX_NOTE_LENGTH} characters.`;
   }
@@ -126,6 +146,7 @@ const FIELD_ORDER: RecurringFormField[] = [
   "amount",
   "day",
   "month",
+  "category",
   "note",
 ];
 
@@ -143,6 +164,7 @@ export function validateRecurringForm(
     ok: true,
     paise: parseAmountInputToPaise(form.amountText) as number,
     dayOfMonth: parseDayOfMonth(form.dayOfMonthText) as number,
+    categoryId: form.categoryId as string,
   };
 }
 
@@ -163,6 +185,8 @@ export function visibleFieldErrors(
     amount: form.amountText.trim().length > 0,
     day: form.dayOfMonthText.trim().length > 0,
     month: true,
+    // Quiet until Save is tried: an expense starts with no category chosen.
+    category: false,
     note: true,
   };
   const visible: Partial<Record<RecurringFormField, string>> = {};
@@ -232,9 +256,7 @@ export function buildCreateBody(
     timezone,
     active: form.active,
   };
-  if (form.categoryId) {
-    body.category_id = form.categoryId;
-  }
+  body.category_id = checked.categoryId;
   if (form.cadence === "yearly") {
     body.month_of_year = form.monthOfYear;
   }
@@ -274,8 +296,8 @@ export function buildUpdateBody(
   if (checked.paise !== toPaise(item.amount)) {
     body.amount = paiseToAmountString(checked.paise);
   }
-  if (form.categoryId !== item.category_id) {
-    body.category_id = form.categoryId;
+  if (checked.categoryId !== item.category_id) {
+    body.category_id = checked.categoryId;
   }
   if (noteOrNull(form.note) !== (item.note ?? null)) {
     body.note = noteOrNull(form.note);

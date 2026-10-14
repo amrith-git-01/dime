@@ -19,14 +19,6 @@ export type HomeBentoContentProps = {
   /** "₹1.2k / ₹5k" compact remaining/total — used as hero subtitle. */
   monthlySubtext: string;
 
-  // Daily cap strip
-  spentTodayDisplay: string;
-  dayLabel: string;
-  dailySubtext: string;
-  hasDailyBudget: boolean;
-  /** 0–1 ratio of today's spend vs daily budget. */
-  dailyProgress: number;
-
   // Stat row
   netDisplay: string;
   netValue: number;
@@ -51,7 +43,6 @@ export type HomeBentoContentProps = {
   onNavigateBudgets: () => void;
   onNavigateTransactions: () => void;
   onAddMonthlyBudget: () => void;
-  onAddDailyBudget: () => void;
   onCategoryPress: (item: HomeTopCategoryItem) => void;
   onTransactionPress: (tx: TransactionRow) => void;
   onManualAdd: () => void;

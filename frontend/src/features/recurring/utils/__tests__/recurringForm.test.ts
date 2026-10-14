@@ -64,7 +64,7 @@ describe("defaultPostCurrentPeriod", () => {
     );
   });
 
-  it("defaults income to the Income category and subscriptions to none", () => {
+  it("defaults income to the Salary category and subscriptions to no category", () => {
     expect(emptyRecurringForm("income", TODAY, "cat-income").categoryId).toBe(
       "cat-income",
     );
@@ -145,7 +145,21 @@ describe("validateRecurringForm", () => {
       ok: true,
       paise: 5_000_000,
       dayOfMonth: 1,
+      categoryId: "cat-income",
     });
+  });
+
+  it("requires a category for both kinds", () => {
+    for (const kind of ["income", "subscription"] as const) {
+      expect(
+        validateRecurringForm({
+          ...emptyRecurringForm(kind, TODAY),
+          name: "x",
+          amountText: "10",
+          dayOfMonthText: "1",
+        }),
+      ).toMatchObject({ ok: false, field: "category" });
+    }
   });
 
   it("requires a name", () => {
@@ -211,7 +225,7 @@ describe("buildCreateBody", () => {
         cadence: "yearly",
         monthOfYear: 12,
         dayOfMonthText: "20",
-        categoryId: null,
+        categoryId: "cat-fees",
         note: "  renew  ",
         postCurrentPeriod: false,
       }),
@@ -222,6 +236,7 @@ describe("buildCreateBody", () => {
       kind: "subscription",
       name: "Domain",
       amount: "999.50",
+      category_id: "cat-fees",
       cadence: "yearly",
       month_of_year: 12,
       day_of_month: 20,
@@ -290,14 +305,33 @@ describe("buildUpdateBody", () => {
     });
   });
 
-  it("clears the category and note with null, and pauses", () => {
+  it("sends a changed category, clears the note with null, and pauses", () => {
     const original = item({ note: "family plan" });
     const body = buildUpdateBody(
       original,
-      { ...formFromItem(original), categoryId: null, note: " ", active: false },
+      {
+        ...formFromItem(original),
+        categoryId: "cat-subs",
+        note: " ",
+        active: false,
+      },
       TZ,
     );
-    expect(body).toEqual({ category_id: null, note: null, active: false });
+    expect(body).toEqual({
+      category_id: "cat-subs",
+      note: null,
+      active: false,
+    });
+  });
+
+  it("returns null when the category was cleared", () => {
+    expect(
+      buildUpdateBody(
+        item(),
+        { ...formFromItem(item()), categoryId: null },
+        TZ,
+      ),
+    ).toBeNull();
   });
 
   it("returns null for an invalid form", () => {
@@ -340,6 +374,14 @@ describe("visibleFieldErrors", () => {
       "day",
       "name",
     ]);
+  });
+
+  it("asks for a missing category only after a save attempt", () => {
+    const noCategory = form({ categoryId: null });
+    expect(visibleFieldErrors(noCategory, false)).toEqual({});
+    expect(visibleFieldErrors(noCategory, true)).toEqual({
+      category: "Choose a category.",
+    });
   });
 
   it("speaks up about a field that has something wrong in it", () => {

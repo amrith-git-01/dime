@@ -6,7 +6,7 @@ import { rateLimit } from '../../core/rate-limit';
 import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { requestPublisher } from '../realtime/publish';
-import { createCategorySchema, deleteQuerySchema, updateCategorySchema } from './schemas';
+import { createCategorySchema, deleteQuerySchema, listQuerySchema, updateCategorySchema } from './schemas';
 import * as service from './service';
 
 /** Mounted at `/categories`. */
@@ -14,7 +14,9 @@ export const categoriesRoutes = new Hono<AppBindings>();
 
 categoriesRoutes.use(requireAuth);
 
-categoriesRoutes.get('/', async (c) => c.json(await service.listCategories(getDb(c), currentUser(c).id)));
+categoriesRoutes.get('/', validate('query', listQuerySchema), async (c) =>
+  c.json(await service.listCategories(getDb(c), currentUser(c).id, c.req.valid('query').scope)),
+);
 
 categoriesRoutes.post('/', rateLimit('WRITE_LIMITER'), validate('json', createCategorySchema), async (c) =>
   c.json(await service.createCategory(getDb(c), currentUser(c).id, c.req.valid('json'), requestPublisher(c, currentUser(c).id)), 201),

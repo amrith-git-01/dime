@@ -27,8 +27,8 @@ const QUERY_TIMEOUT_MS = 3000;
 /** Tables the model can read, with the columns of the view (the schema context documents the same list). */
 export const EXPOSED_TABLES = {
   transactions: ['id', 'type', 'amount', 'local_date', 'local_at', 'transaction_at', 'category_id', 'counterparty_name', 'counterparty_type', 'payee_key', 'detected_via', 'recurring_item_id'],
-  categories: ['id', 'name', 'is_system'],
-  budgets: ['monthly_budget', 'daily_budget'],
+  categories: ['id', 'name', 'is_system', 'scope'],
+  budgets: ['monthly_budget'],
   category_budgets: ['category_id', 'monthly_amount'],
   recurring_items: ['id', 'kind', 'name', 'amount', 'category_id', 'cadence', 'day_of_month', 'month_of_year', 'next_due_date', 'active'],
 } as const;
@@ -57,8 +57,8 @@ const TABLE_LIST = Object.keys(EXPOSED_TABLES).join(', ');
 /** ?1 = user id, ?2 = UTC offset modifier such as '+330 minutes'. */
 const VIEWS = [
   `transactions AS (SELECT id, type, amount / 100.0 AS amount, date(datetime(transaction_at, ?2)) AS local_date, datetime(transaction_at, ?2) AS local_at, transaction_at, category_id, counterparty_name, counterparty_type, payee_key, detected_via, recurring_item_id FROM main.transactions WHERE user_id = ?1 AND deleted_at IS NULL)`,
-  `categories AS (SELECT id, name, is_system FROM main.categories WHERE user_id IS NULL OR user_id = ?1)`,
-  `budgets AS (SELECT monthly_budget / 100.0 AS monthly_budget, daily_budget / 100.0 AS daily_budget FROM main.budgets WHERE user_id = ?1)`,
+  `categories AS (SELECT id, name, is_system, scope FROM main.categories WHERE user_id IS NULL OR user_id = ?1)`,
+  `budgets AS (SELECT monthly_budget / 100.0 AS monthly_budget FROM main.budgets WHERE user_id = ?1)`,
   `category_budgets AS (SELECT category_id, monthly_amount / 100.0 AS monthly_amount FROM main.category_budgets WHERE user_id = ?1)`,
   `recurring_items AS (SELECT id, kind, name, amount / 100.0 AS amount, category_id, cadence, day_of_month, month_of_year, next_due_date, active FROM main.recurring_items WHERE user_id = ?1)`,
 ];

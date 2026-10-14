@@ -113,6 +113,10 @@ export function useEditTransactionScreenModel() {
       if (current && isCategoryAllowedForTxType(current, "credit")) {
         return;
       }
+      // A category outside the spending list belongs to a recurring item (e.g. Salary): keep it.
+      if (categoryId && !current) {
+        return;
+      }
       const income = findIncomeCategory(categories);
       if (income) {
         selectCategory(income.id, income.name);

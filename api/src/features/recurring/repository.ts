@@ -52,12 +52,6 @@ export async function remove(db: Db, userId: string, id: string): Promise<boolea
   return (await run(db, 'DELETE FROM recurring_items WHERE user_id = ? AND id = ?', [userId, id])) > 0;
 }
 
-/** The system "Income" category (default for income items). */
-export async function incomeCategoryId(db: Db): Promise<string | null> {
-  const row = await first<{ id: string }>(db, "SELECT id FROM categories WHERE is_system = 1 AND name = 'Income' LIMIT 1");
-  return row?.id ?? null;
-}
-
 /** True when the item already produced a transaction (deleted or not) inside `[from, to)`: that period is done. */
 export async function hasPostedIn(db: Db, itemId: string, range: { from: string; to: string }): Promise<boolean> {
   const row = await first<{ x: number }>(

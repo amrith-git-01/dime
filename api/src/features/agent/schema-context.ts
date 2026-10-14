@@ -33,10 +33,11 @@ One row per money movement.
 
 ### categories
 - id TEXT, name TEXT (e.g. 'Food & Dining'), is_system INTEGER (1 = shared system category, 0 = the user's own).
+- scope TEXT: 'spend' for everyday categories (Food & Dining, Transport, ...), 'recurring_expense' for subscription and bill categories (Rent, Subscriptions, Utilities, EMI & loans, ...), 'recurring_income' for salary-type income (Salary, Freelance, ...). Transactions posted from recurring items carry the recurring category.
 
 ### budgets
 At most one row: the user's overall budgets.
-- monthly_budget REAL: rupees per calendar month. daily_budget REAL: rupees per day, may be NULL.
+- monthly_budget REAL: rupees per calendar month. There is no daily budget.
 
 ### category_budgets
 - category_id TEXT -> categories.id, monthly_amount REAL: rupees per calendar month for that category.

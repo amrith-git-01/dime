@@ -4,7 +4,6 @@ import { Keyboard } from "react-native";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
-import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
@@ -18,11 +17,13 @@ import { RECURRING_COPY } from "../utils/recurringDisplay";
 import {
   buildCreateBody,
   buildUpdateBody,
+  DEFAULT_INCOME_CATEGORY_NAME,
   emptyRecurringForm,
   formFromItem,
   hasChanges,
   isCurrentPeriodDuePassed,
   parseDayOfMonth,
+  recurringCategoryScope,
   validateRecurringForm,
   visibleFieldErrors,
 } from "../utils/recurringForm";
@@ -48,8 +49,6 @@ export function useRecurringSheetModel({
 }: UseRecurringSheetModelArgs) {
   const isEditing = item !== undefined;
   const { showToast } = useToast();
-  const { categories, isLoading: categoriesLoading } = useCategories();
-
   const createMutation = useCreateRecurringMutation();
   const updateMutation = useUpdateRecurringMutation();
   const deleteMutation = useDeleteRecurringMutation();
@@ -57,9 +56,16 @@ export function useRecurringSheetModel({
   const kind = item ? item.kind : initialKind;
   const copy = RECURRING_COPY[kind];
 
-  const incomeCategoryId = useMemo(
-    () => findIncomeCategory(categories)?.id ?? null,
-    [categories],
+  // The recurring categories of this kind (Rent, Subscriptions ... or Salary, Freelance ...).
+  const { categories: pickerCategories, isLoading: categoriesLoading } =
+    useCategories(recurringCategoryScope(kind));
+
+  const salaryCategoryId = useMemo(
+    () =>
+      pickerCategories.find(
+        (category) => category.name === DEFAULT_INCOME_CATEGORY_NAME,
+      )?.id ?? null,
+    [pickerCategories],
   );
 
   // What the form shows before the user edits it; edits are a patch on top, so late-arriving
@@ -68,8 +74,8 @@ export function useRecurringSheetModel({
     () =>
       item
         ? formFromItem(item)
-        : emptyRecurringForm(kind, new Date(), incomeCategoryId),
-    [incomeCategoryId, item, kind],
+        : emptyRecurringForm(kind, new Date(), salaryCategoryId),
+    [salaryCategoryId, item, kind],
   );
   const [patch, setPatch] = useState<Partial<RecurringFormState>>({});
   const form = useMemo(() => ({ ...base, ...patch }), [base, patch]);
@@ -81,16 +87,10 @@ export function useRecurringSheetModel({
     setPatch((prev) => ({ ...prev, ...next }));
   }, []);
 
-  // Subscriptions get a picker; income stays on the Income category.
-  const pickerCategories = useMemo(
-    () => categories.filter((category) => category.name !== "Income"),
-    [categories],
-  );
-
   const onCategoryPress = useCallback(
-    (category: CategoryRow, selected: boolean) => {
+    (category: CategoryRow) => {
       void triggerHaptic();
-      update({ categoryId: selected ? null : category.id });
+      update({ categoryId: category.id });
     },
     [update],
   );

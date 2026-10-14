@@ -139,7 +139,7 @@ const WELCOME_POSTCARDS = [
   {
     kicker: '03 · BUDGETS',
     title: 'Limits with room left.',
-    body: 'Monthly, daily, category. The app tells you when you are close — not after you are through.',
+    body: 'Monthly and category. The app tells you when you are close — not after you are through.',
     file: 'slide-3.png',
   },
   {

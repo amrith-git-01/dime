@@ -141,33 +141,31 @@ export const RecurringEditor = memo(function RecurringEditor({
         </View>
       </View>
 
-      {kind === "subscription" ? (
-        <View style={[styles.card, styles.cardShadow]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.sectionLabel}>CATEGORY</Text>
-            <Text style={styles.optionalHint}>(optional)</Text>
-          </View>
-          <View style={styles.categoryGrid}>
-            {model.categoriesLoading ? (
-              <Text style={styles.hint}>Loading categories</Text>
-            ) : (
-              model.pickerCategories.map((category) => {
-                const selected = form.categoryId === category.id;
-                return (
-                  <CategoryPill
-                    key={category.id}
-                    label={category.name}
-                    iconName={category.icon_name}
-                    iconColor={category.color}
-                    selected={selected}
-                    onPress={() => model.onCategoryPress(category, selected)}
-                  />
-                );
-              })
-            )}
-          </View>
+      <View style={[styles.card, styles.cardShadow]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>CATEGORY</Text>
+          <Text style={styles.requiredHint}>(required)</Text>
         </View>
-      ) : null}
+        <View style={styles.categoryGrid}>
+          {model.categoriesLoading ? (
+            <Text style={styles.hint}>Loading categories</Text>
+          ) : (
+            model.pickerCategories.map((category) => (
+              <CategoryPill
+                key={category.id}
+                label={category.name}
+                iconName={category.icon_name}
+                iconColor={category.color}
+                selected={form.categoryId === category.id}
+                onPress={() => model.onCategoryPress(category)}
+              />
+            ))
+          )}
+        </View>
+        {errors.category ? (
+          <Text style={styles.errorText}>{errors.category}</Text>
+        ) : null}
+      </View>
 
       {showStatusCard ? (
         <View style={[styles.card, styles.cardShadow]}>
@@ -260,10 +258,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     color: colors.accentText,
     textTransform: "uppercase",
   },
-  optionalHint: {
+  errorText: {
+    marginTop: spacing.sm,
     fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    color: colors.inkFaint,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.danger,
   },
   requiredHint: {
     fontFamily: fontFamilies.regular,

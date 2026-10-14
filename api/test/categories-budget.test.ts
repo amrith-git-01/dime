@@ -30,11 +30,60 @@ describe('GET /categories', () => {
     expect(body.map((c) => c['name'])).toEqual([
       'Bills & Utilities', 'Education', 'Entertainment', 'Food & Dining', 'Health', 'Income', 'Other', 'Shopping', 'Snacks', 'Transport', 'Travel',
     ]);
+    expect(body.every((c) => c['scope'] === 'spend')).toBe(true);
     expect(body[0]).toEqual({
       id: 'ad296c59-42ec-49e5-b824-c011c5b1b28b', name: 'Bills & Utilities', icon_name: 'Zap', color: '#FBBF24', is_system: true,
-      created_at: '2026-06-11T17:30:06.824Z', user_id: null, budget_amount: null,
+      created_at: '2026-06-11T17:30:06.824Z', user_id: null, budget_amount: null, scope: 'spend',
     });
     expect(body.find((c) => c['name'] === 'Snacks')).toMatchObject({ user_id: USER_ID, is_system: false, budget_amount: null });
+  });
+});
+
+describe('category scopes', () => {
+  const SALARY = 'f48bfe4a-8f08-4229-b977-e1292b11490f';
+  const RENT = '94b82777-eee4-46de-8c18-7490bda02b60';
+
+  it('GET lists recurring categories only with ?scope=', async () => {
+    const expense = await (await call('/api/v1/categories?scope=recurring_expense')).json<Record<string, unknown>[]>();
+    expect(expense.map((c) => c['name'])).toContain('Rent');
+    expect(expense.every((c) => c['scope'] === 'recurring_expense')).toBe(true);
+    const income = await (await call('/api/v1/categories?scope=recurring_income')).json<Record<string, unknown>[]>();
+    expect(income.map((c) => c['name'])).toContain('Salary');
+    expect((await call('/api/v1/categories?scope=nope')).status).toBe(422);
+  });
+
+  it('a custom category cannot reuse a recurring category name (uniqueness spans all scopes)', async () => {
+    expect((await call('/api/v1/categories', { method: 'POST', json: { name: 'rent' } })).status).toBe(409);
+  });
+
+  it('category budgets are rejected on recurring categories (PUT and PATCH), but spend ones still work', async () => {
+    expect((await call(`/api/v1/budget/categories/${RENT}`, { method: 'PUT', json: { monthly_amount: '10' } })).status).toBe(422);
+    expect((await patch(SALARY, { budget_amount: '10' })).status).toBe(422);
+    expect((await call(`/api/v1/budget/categories/${FOOD}`, { method: 'PUT', json: { monthly_amount: '10' } })).status).toBe(200);
+  });
+
+  it('transactions cannot be filed under a recurring category, by id or by name', async () => {
+    const body = { amount: '10', type: 'debit', counterparty_name: 'Landlord', transaction_at: '2026-07-01T10:00:00.000Z' };
+    const byId = await call('/api/v1/transactions?timezone=Asia/Kolkata', { method: 'POST', json: { ...body, category_id: RENT } });
+    expect(byId.status, JSON.stringify(await byId.clone().json())).toBe(422);
+    // A name never matches a recurring category: the transaction is saved uncategorized.
+    const byName = await call('/api/v1/transactions?timezone=Asia/Kolkata', { method: 'POST', json: { ...body, category: 'Rent' } });
+    expect(byName.status, JSON.stringify(await byName.clone().json())).toBe(201);
+    expect(await oneRow('transactions', 'user_id = ?', USER_ID)).toMatchObject({ category_id: null });
+  });
+
+  it('editing a transaction keeps the recurring category it already has, but cannot move another one onto it', async () => {
+    const posted = await seedTransaction({ category_id: RENT, counterparty_name: 'Landlord', amount: '10', type: 'debit' });
+    const plain = await seedTransaction({ category_id: FOOD, counterparty_name: 'Cafe', amount: '5', type: 'debit' });
+    const put = (id: string, category_id: string) =>
+      call(`/api/v1/transactions/${id}?timezone=Asia/Kolkata`, {
+        method: 'PATCH',
+        json: { amount: '12', type: 'debit', counterparty_name: 'Landlord', category_id, transaction_at: '2026-10-04T10:00:00.000Z' },
+      });
+    const kept = await put(posted, RENT);
+    expect(kept.status, JSON.stringify(await kept.clone().json())).toBe(200);
+    expect(await oneRow('transactions', 'id = ?', posted)).toMatchObject({ category_id: RENT });
+    expect((await put(plain, RENT)).status).toBe(422);
   });
 });
 
@@ -245,39 +294,41 @@ describe('DELETE /categories/{id} and delete-impact', () => {
 describe('/budget', () => {
   const seedRow = () =>
     testDb()
-      .prepare('INSERT INTO budgets (id, user_id, monthly_budget, daily_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind('b1', USER_ID, 2500000, 50050, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+      .prepare('INSERT INTO budgets (id, user_id, monthly_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .bind('b1', USER_ID, 2500000, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
       .run();
 
   it('GET returns null budget when none exists, else decimal strings and Z timestamps', async () => {
     expect(await (await call('/api/v1/budget')).json()).toEqual({ budget: null });
     await seedRow();
     expect(await (await call('/api/v1/budget')).json()).toEqual({
-      budget: { id: 'b1', user_id: USER_ID, monthly_budget: '25000.00', daily_budget: '500.50', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-02T00:00:00.000Z' },
+      budget: { id: 'b1', user_id: USER_ID, monthly_budget: '25000.00', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-02T00:00:00.000Z' },
     });
   });
 
-  it('PATCH monthly only updates just that column', async () => {
+  it('PATCH updates the monthly budget and ignores daily_amount from old app builds', async () => {
     await seedRow();
-    const res = await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '30000.00' } });
-    expect(await res.json()).toMatchObject({ monthly_budget: '30000.00', daily_budget: '500.50' });
-    expect(await oneRow('budgets', 'user_id = ?', USER_ID)).toMatchObject({ monthly_budget: 3000000, daily_budget: 50050 });
-  });
-
-  it('PATCH on first save inserts the other cap as 0', async () => {
-    const res = await call('/api/v1/budget', { method: 'PATCH', json: { daily_amount: 500 } });
+    const res = await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '30000.00', daily_amount: '999' } });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ monthly_budget: '0.00', daily_budget: '500.00' });
-    expect(await rowsOf('budgets')).toHaveLength(1);
-    await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '10' } });
-    expect(await rowsOf('budgets')).toHaveLength(1);
-    expect(await oneRow('budgets', 'user_id = ?', USER_ID)).toMatchObject({ monthly_budget: 1000, daily_budget: 50000 });
+    const body = await res.json<Record<string, unknown>>();
+    expect(body).toMatchObject({ monthly_budget: '30000.00' });
+    expect(body).not.toHaveProperty('daily_budget');
+    expect(await oneRow('budgets', 'user_id = ?', USER_ID)).toMatchObject({ monthly_budget: 3000000 });
   });
 
-  it('PATCH requires at least one amount, and amounts must be >= 0', async () => {
-    const none = await call('/api/v1/budget', { method: 'PATCH', json: {} });
+  it('PATCH on first save inserts the row', async () => {
+    const res = await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '10' } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ monthly_budget: '10.00' });
+    expect(await rowsOf('budgets')).toHaveLength(1);
+    await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '20' } });
+    expect(await rowsOf('budgets')).toHaveLength(1);
+    expect(await oneRow('budgets', 'user_id = ?', USER_ID)).toMatchObject({ monthly_budget: 2000 });
+  });
+
+  it('PATCH requires the monthly amount, and amounts must be >= 0', async () => {
+    const none = await call('/api/v1/budget', { method: 'PATCH', json: { daily_amount: '5' } });
     expect(none.status).toBe(422);
-    expect(await none.json()).toMatchObject({ detail: [{ type: 'value_error', msg: 'Value error, At least one of monthly_amount or daily_amount is required.' }] });
     expect((await call('/api/v1/budget', { method: 'PATCH', json: { monthly_amount: '-5' } })).status).toBe(422);
   });
 

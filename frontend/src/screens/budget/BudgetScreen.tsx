@@ -32,7 +32,9 @@ import { createThemedStyles } from "@/theme";
 
 function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
   return (
-    item.id !== UNCATEGORIZED_SPEND_KEY && item.name !== "Unknown category"
+    item.budgetEditable !== false &&
+    item.id !== UNCATEGORIZED_SPEND_KEY &&
+    item.name !== "Unknown category"
   );
 }
 

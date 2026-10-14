@@ -13,7 +13,7 @@
 export const radius = {
   /** 10 — chips, small tags, icon tiles */
   sm: 10,
-  /** 16 — inputs, slim cards, daily cap strip */
+  /** 16 — inputs, slim cards */
   md: 16,
   /** 24 — primary content cards (hero, transaction list) */
   lg: 24,

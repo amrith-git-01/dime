@@ -5,6 +5,9 @@ export const NO_DATA_FOUND = 'P0002';
 /** Stand-in for 42501: the caller may not change this row (system categories). */
 export const INSUFFICIENT_PRIVILEGE = '42501';
 
+/** A category of the wrong scope for the write (e.g. a budget on a recurring category). */
+export const WRONG_SCOPE = 'DIME1';
+
 /** A repository-level failure carrying a SQLSTATE-style code that services map to HTTP statuses. */
 export class DbCodedError extends Error {
   override name = 'DbCodedError';

@@ -601,7 +601,7 @@ describe('POST /transactions: budget evaluation, notifications and push (backgro
 
   /** A monthly cap of 1000, a push token, and the Expo endpoint. */
   async function wire(o: { monthly?: string; categoryBudget?: string } = {}) {
-    await seedBudget({ monthly: o.monthly ?? '1000', daily: '0' });
+    await seedBudget({ monthly: o.monthly ?? '1000' });
     await seedPushToken('ExponentPushToken[abc]');
     stub.on('POST', '/--/api/v2/push/send', () => json({ data: [{ status: 'ok' }] }));
   }

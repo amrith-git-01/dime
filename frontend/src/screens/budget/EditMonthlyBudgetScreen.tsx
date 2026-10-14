@@ -8,17 +8,11 @@ export default function EditMonthlyBudgetScreen() {
   return (
     <BudgetLimitsEditor
       isEditMode={model.isEditMode}
-      dailyDisplayAmount={model.dailyControl.displayAmount}
       monthlyDisplayAmount={model.monthlyControl.displayAmount}
-      dailyIsCustom={model.dailyControl.isCustom}
       monthlyIsCustom={model.monthlyControl.isCustom}
-      dailyValue={model.dailyControl.valueText}
       monthlyValue={model.monthlyControl.valueText}
-      dailyStepIndex={model.dailyControl.stepIndex}
       monthlyStepIndex={model.monthlyControl.stepIndex}
-      onDailyChange={model.dailyControl.onChangeText}
       onMonthlyChange={model.monthlyControl.onChangeText}
-      onDailyStepChange={model.dailyControl.selectStep}
       onMonthlyStepChange={model.monthlyControl.selectStep}
       onSave={model.handleSave}
       onClear={model.handleClear}

@@ -2,10 +2,8 @@
 export interface UserSettings {
   budget_alerts_enabled: boolean;
   budget_monthly_alerts_enabled: boolean;
-  budget_daily_alerts_enabled: boolean;
   budget_category_alerts_enabled: boolean;
   budget_monthly_warn_pct: number;
-  budget_daily_warn_pct: number;
   budget_category_warn_pct: number;
   auto_capture_alerts_enabled: boolean;
   capture_failed_alerts_enabled: boolean;
@@ -19,10 +17,8 @@ export interface UserSettings {
 export const DEFAULT_SETTINGS: UserSettings = {
   budget_alerts_enabled: true,
   budget_monthly_alerts_enabled: true,
-  budget_daily_alerts_enabled: true,
   budget_category_alerts_enabled: true,
   budget_monthly_warn_pct: 80,
-  budget_daily_warn_pct: 80,
   budget_category_warn_pct: 80,
   auto_capture_alerts_enabled: true,
   capture_failed_alerts_enabled: true,
@@ -49,10 +45,8 @@ export function settingsFromRow(row: Record<string, unknown> | null | undefined)
   return {
     budget_alerts_enabled: bool('budget_alerts_enabled'),
     budget_monthly_alerts_enabled: bool('budget_monthly_alerts_enabled'),
-    budget_daily_alerts_enabled: bool('budget_daily_alerts_enabled'),
     budget_category_alerts_enabled: bool('budget_category_alerts_enabled'),
     budget_monthly_warn_pct: clampPct(row['budget_monthly_warn_pct']),
-    budget_daily_warn_pct: clampPct(row['budget_daily_warn_pct']),
     budget_category_warn_pct: clampPct(row['budget_category_warn_pct']),
     auto_capture_alerts_enabled: bool('auto_capture_alerts_enabled'),
     capture_failed_alerts_enabled: bool('capture_failed_alerts_enabled'),

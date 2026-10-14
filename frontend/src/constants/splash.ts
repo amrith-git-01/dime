@@ -2,7 +2,10 @@ import { Platform } from "react-native";
 
 import { colors } from "./colors";
 
-/** Must match `expo-splash-screen` backgroundColor in app.json. */
+/**
+ * Must match `expo-splash-screen` backgroundColor in app.json (the light one: the first native frame is always light,
+ * the JS splash then follows the resolved theme).
+ */
 export const splashBackgroundColor = colors.pageBackground;
 
 /** Minimum time the branded splash stays visible (ms). */

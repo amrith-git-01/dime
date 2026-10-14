@@ -190,7 +190,7 @@ export function prefetchSiblingTabQueries(
   prefetchIfStale(
     queryClient,
     categoriesQueryKeys.list(userId),
-    fetchCategories,
+    () => fetchCategories(),
   );
   prefetchIfStale(queryClient, budgetQueryKeys.current(userId), fetchBudget);
   prefetchIfStale(

@@ -1,6 +1,6 @@
 import { isUniqueViolation } from '../../core/db-errors';
 import { formatCents, formatMoney } from '../../core/decimal';
-import { ConflictError, NotFoundError } from '../../core/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../core/errors';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
 import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
@@ -8,6 +8,7 @@ import { addDays, dateKey, lastNDaysRange, localDate, monthRange, parseTimezone 
 import type { IsoRange } from '../../core/timezone';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
+import type { CategoryScope } from '../categories/schemas';
 import { emit } from '../realtime/publish';
 import { inserted, updated as changed } from '../realtime/events';
 import type { Publish } from '../realtime/events';
@@ -243,26 +244,38 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
  * Writes
  * -------------------------------------------------------------------------------------------- */
 
+interface ResolvedCategory {
+  id: string;
+  scope: CategoryScope;
+}
+
 /**
  * Category for a write: a visible `category_id` wins; otherwise the `category` name is matched
  * case-insensitively against the categories visible to the user. One query serves both, and none
- * is made when the request names no category.
+ * is made when the request names no category. A name only matches spending categories (so an AI-guessed or typed
+ * "Rent" never lands on a recurring category); an id may name any scope and the caller decides.
  */
-async function resolveCategoryId(
+async function resolveCategory(
   ctx: TxContext,
   input: { categoryId?: string | null | undefined; categoryName?: string | null | undefined },
-): Promise<string | null> {
+  anyScopeByName = false,
+): Promise<ResolvedCategory | null> {
   const wantedName = input.categoryName?.trim().toLowerCase() ?? '';
   if (!input.categoryId && !wantedName) return null;
   const visible = await listVisibleIdName(ctx.db, ctx.userId);
   if (input.categoryId) {
     const id = input.categoryId.toLowerCase();
-    if (visible.some((c) => String(c.id).toLowerCase() === id)) return id;
+    const hit = visible.find((c) => String(c.id).toLowerCase() === id);
+    if (hit) return { id, scope: hit.scope };
   }
   if (!wantedName) return null;
-  const hit = visible.find((c) => typeof c.name === 'string' && c.name.trim().toLowerCase() === wantedName);
-  return hit ? String(hit.id) : null;
+  const hit = visible.find(
+    (c) => typeof c.name === 'string' && c.name.trim().toLowerCase() === wantedName && (anyScopeByName || c.scope === 'spend'),
+  );
+  return hit ? { id: String(hit.id), scope: hit.scope } : null;
 }
+
+const SPEND_ONLY = 'Choose a spending category.';
 
 export interface NewTransactionInput {
   /** Decimal string with two places ("250.50"). */
@@ -305,10 +318,13 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
       counterpartyName: name,
       transactionAtMs: input.transactionAt.ms,
     }));
-  const [categoryId, existing] = await Promise.all([
-    resolveCategoryId(ctx, input),
+  const [resolved, existing] = await Promise.all([
+    resolveCategory(ctx, input, Boolean(input.recurringItemId)),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
   ]);
+  // Recurring categories belong to the recurring poster alone (it sets `recurringItemId`).
+  if (resolved && resolved.scope !== 'spend' && !input.recurringItemId) throw new ValidationError(SPEND_ONLY);
+  const categoryId = resolved?.id ?? null;
 
   const row: NewTransactionRow = {
     user_id: ctx.userId,
@@ -381,12 +397,23 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     transactionAtMs: body.transaction_at.ms,
   });
 
-  const [existing, categoryId, clash] = await Promise.all([
+  const [existing, resolved, clash] = await Promise.all([
     repo.fetchActive(ctx.db, ctx.userId, id),
-    resolveCategoryId(ctx, { categoryId: body.category_id, categoryName: body.category }),
+    resolveCategory(ctx, { categoryId: body.category_id, categoryName: body.category }),
     repo.findByPaymentHash(ctx.db, ctx.userId, newHash),
   ]);
   if (!existing) throw new NotFoundError(NOT_FOUND);
+  // A transaction posted by a recurring item keeps its recurring category when the client echoes it back unchanged.
+  if (resolved && resolved.scope !== 'spend' && resolved.id !== String(existing.category_id ?? '').toLowerCase()) {
+    throw new ValidationError(SPEND_ONLY);
+  }
+  // A name never matches a recurring category (only recurring-posted rows carry one), so an echoed-back
+  // name that doesn't resolve keeps such a row's category instead of silently clearing it.
+  let categoryId = resolved?.id ?? null;
+  if (!resolved && body.category?.trim() && existing.category_id) {
+    const current = await resolveCategory(ctx, { categoryId: existing.category_id });
+    if (current && current.scope !== 'spend') categoryId = current.id;
+  }
 
   const patch: Record<string, unknown> = {
     amount: body.amount,

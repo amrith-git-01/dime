@@ -433,7 +433,7 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
     await seedTransaction({ amount: '2000', type: 'credit', counterparty_name: 'Boss', transaction_at: '2026-08-11T10:00:00.000Z' });
     // Earlier in the month (outside the week): only the budget month sees it.
     await debit('7200', 'Landlord', '2026-08-02T00:00:00.000Z', null);
-    if (opts.monthly !== null) await seedBudget({ monthly: opts.monthly ?? '20000', daily: '0' });
+    if (opts.monthly !== null) await seedBudget({ monthly: opts.monthly ?? '20000' });
   }
 
   it('builds every card from the aggregates', async () => {
