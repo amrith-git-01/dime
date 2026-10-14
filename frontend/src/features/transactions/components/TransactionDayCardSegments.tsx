@@ -29,8 +29,7 @@ const SKELETON_COUNT = 4;
 
 function formatDayLabel(dayKey: string): string {
   const date = parseISO(`${dayKey}T12:00:00`);
-  const formatted = format(date, "MMMM d");
-  return isToday(date) ? `${formatted} · Today` : formatted;
+  return isToday(date) ? "Today" : format(date, "MMMM d");
 }
 
 export type TransactionDayCardHeaderProps = {
@@ -62,9 +61,14 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
   return (
     <SurfaceCardSegment isFirst isLast={false}>
       <View style={styles.header}>
-        <Text style={styles.dayLabel} numberOfLines={1}>
-          {formatDayLabel(dayKey)}
-        </Text>
+        <View style={styles.headerLeading}>
+          <Text style={styles.dayLabel} numberOfLines={1}>
+            {formatDayLabel(dayKey)}
+          </Text>
+          {onAdd && !isFutureDayKey(dayKey) ? (
+            <DayAddButton dayKey={dayKey} onPress={onAdd} />
+          ) : null}
+        </View>
         <View style={styles.headerTrailing}>
           {isFetching ? (
             <ActivityIndicator size="small" color={colors.inkFaint} />
@@ -72,9 +76,6 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
             <Text style={[styles.dayNet, netToneStyle]} numberOfLines={1}>
               {formatTransactionListAmount(dayNetTotal)} net
             </Text>
-          ) : null}
-          {onAdd && !isFutureDayKey(dayKey) ? (
-            <DayAddButton dayKey={dayKey} onPress={onAdd} />
           ) : null}
         </View>
       </View>
@@ -230,6 +231,12 @@ const useStyles = createThemedStyles(({ colors }) => ({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     gap: spacing.md,
+  },
+  headerLeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    gap: spacing.sm,
   },
   headerTrailing: {
     flexDirection: "row",

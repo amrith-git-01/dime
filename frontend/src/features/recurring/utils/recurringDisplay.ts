@@ -94,7 +94,7 @@ export const RECURRING_COPY = {
     screenTitle: "Recurring income",
     editTitle: "Edit recurring income",
     addTitle: "Add recurring income",
-    summaryKicker: "Monthly recurring income",
+    summaryKicker: "Recurring income",
     emptyHeadline: "No recurring income set up yet",
     emptySubtext:
       "Add your salary or other regular income and Dime will log it for you.",
@@ -112,7 +112,7 @@ export const RECURRING_COPY = {
     screenTitle: "Recurring expenses",
     editTitle: "Edit recurring expense",
     addTitle: "Add recurring expense",
-    summaryKicker: "Monthly recurring expenses",
+    summaryKicker: "Recurring expenses",
     emptyHeadline: "No recurring expenses yet",
     emptySubtext:
       "Add the bills that repeat and Dime will log them and show what is coming up.",
