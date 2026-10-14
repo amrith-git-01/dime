@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { categoriesQueryKeys } from "@/features/categories/queryKeys";
+import type { CategoryRow } from "@/features/categories/types";
 import {
   applyTransactionInsertToListCaches,
   applyTransactionRemoveFromListCaches,
@@ -90,6 +92,36 @@ export function mapRealtimeRecordToTransactionRow(
   };
 }
 
+/**
+ * Realtime frames carry `category_id` only. Fill the category name / icon / colour from any cached
+ * categories list (every scope, so recurring categories resolve too) so the row does not read
+ * "Uncategorized" until the next refetch. Left as is when the category is not cached.
+ */
+export function fillRealtimeRowCategory(
+  queryClient: QueryClient,
+  userId: string,
+  row: TransactionRow,
+): TransactionRow {
+  if (!row.category_id || row.category) {
+    return row;
+  }
+  const lists = queryClient.getQueriesData<CategoryRow[]>({
+    queryKey: [...categoriesQueryKeys.all, "list", userId],
+  });
+  for (const [, categories] of lists) {
+    const match = categories?.find((c) => c.id === row.category_id);
+    if (match) {
+      return {
+        ...row,
+        category: match.name,
+        category_icon_name: row.category_icon_name ?? match.icon_name,
+        category_color: row.category_color ?? match.color,
+      };
+    }
+  }
+  return row;
+}
+
 function isSoftDeleted(row: TransactionRow): boolean {
   return row.deleted_at != null && row.deleted_at.length > 0;
 }
@@ -131,13 +163,17 @@ export function applyRealtimeTransactionChange(
   }
   // Realtime carries raw storage paths in receipt_url/voice_url (C7): never let them replace
   // a signed URL that is already cached.
-  const row = reconcileRealtimeMedia(
-    mapped,
-    findTransactionInListCaches(queryClient, {
-      userId,
-      timezone,
-      transactionId: mapped.id,
-    }),
+  const row = fillRealtimeRowCategory(
+    queryClient,
+    userId,
+    reconcileRealtimeMedia(
+      mapped,
+      findTransactionInListCaches(queryClient, {
+        userId,
+        timezone,
+        transactionId: mapped.id,
+      }),
+    ),
   );
 
   if (isSoftDeleted(row)) {

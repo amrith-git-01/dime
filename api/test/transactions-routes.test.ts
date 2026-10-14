@@ -310,6 +310,7 @@ describe('GET /transactions/month-summary', () => {
       net: '749.50',
       transaction_count: 4,
       debit_by_category: { [CAT]: '200.00', __uncategorized__: '50.50' },
+      category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111' }],
     });
   });
 
@@ -325,7 +326,18 @@ describe('GET /transactions/month-summary', () => {
       net: '4.85',
       transaction_count: 3,
       debit_by_category: { [CAT]: '10.10', __uncategorized__: '5.05' },
+      category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111' }],
     });
+  });
+
+  it('returns meta for recurring-scoped categories too, and none for unknown ids', async () => {
+    await seedCategory({ id: CAT2, name: 'Subscriptions', icon_name: 'Repeat', color: '#222222', scope: 'recurring_expense', user_id: USER_ID });
+    await seedTransaction({ amount: '99', type: 'debit', category_id: CAT2, transaction_at: '2026-02-05T00:00:00.000Z' });
+    const body = await (await call(`/api/v1/transactions/month-summary?year=2026&month=2&timezone=UTC`)).json<Record<string, unknown>>();
+    expect(body['debit_by_category']).toEqual({ [CAT2]: '99.00' });
+    expect(body['category_meta']).toEqual([{ id: CAT2, name: 'Subscriptions', icon_name: 'Repeat', color: '#222222' }]);
+    const empty = await (await call(`/api/v1/transactions/month-summary?year=2026&month=3&timezone=UTC`)).json<Record<string, unknown>>();
+    expect(empty['category_meta']).toEqual([]);
   });
 
   it('validation: 422 for year/month ranges and missing timezone, 400 for an unknown timezone', async () => {

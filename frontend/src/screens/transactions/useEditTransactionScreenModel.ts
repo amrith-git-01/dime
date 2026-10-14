@@ -13,8 +13,9 @@ import type { ManualAddDateTimePickerMode } from "@/features/transactions/compon
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
 import {
-  findIncomeCategory,
-  isCategoryAllowedForTxType,
+  editVisibleCategories,
+  reconcileEditCategory,
+  recurringCategoryOfTransaction,
 } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { transactionRowToFormState } from "@/features/transactions/utils/transactionRowToFormState";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -102,46 +103,42 @@ export function useEditTransactionScreenModel() {
     }
   }, [categories, selectCategory]);
 
+  // The category of a recurring-posted row is outside the spend list: show it as a pill of its own.
+  const recurringCategory = useMemo(
+    () => recurringCategoryOfTransaction(transaction, categories),
+    [categories, transaction],
+  );
+
   useEffect(() => {
-    if (categories.length === 0) {
-      return;
-    }
-    const current = categoryId
-      ? categories.find((category) => category.id === categoryId)
-      : undefined;
-    if (txType === "credit") {
-      if (current && isCategoryAllowedForTxType(current, "credit")) {
-        return;
-      }
-      // A category outside the spending list belongs to a recurring item (e.g. Salary): keep it.
-      if (categoryId && !current) {
-        return;
-      }
-      const income = findIncomeCategory(categories);
-      if (income) {
-        selectCategory(income.id, income.name);
-      } else {
-        clearCategory();
-      }
-      return;
-    }
-    if (current && !isCategoryAllowedForTxType(current, "debit")) {
+    const action = reconcileEditCategory({
+      categories,
+      categoryId,
+      txType,
+      recurringCategory,
+    });
+    if (action.kind === "select") {
+      selectCategory(action.category.id, action.category.name);
+    } else if (action.kind === "clear") {
       clearCategory();
     }
-  }, [categories, categoryId, clearCategory, selectCategory, txType]);
+  }, [
+    categories,
+    categoryId,
+    clearCategory,
+    recurringCategory,
+    selectCategory,
+    txType,
+  ]);
 
   const customCategoryCount = useMemo(
     () => categories.filter((category) => !category.is_system).length,
     [categories],
   );
 
-  const visibleCategories = useMemo(() => {
-    if (txType === "credit") {
-      const income = findIncomeCategory(categories);
-      return income ? [income] : categories;
-    }
-    return categories.filter((category) => category.name !== "Income");
-  }, [categories, txType]);
+  const visibleCategories = useMemo(
+    () => editVisibleCategories({ categories, txType, recurringCategory }),
+    [categories, recurringCategory, txType],
+  );
 
   const openCreateCustomCategory = useCallback(() => {
     if (customCategoryCount >= MAX_CUSTOM_CATEGORIES) {

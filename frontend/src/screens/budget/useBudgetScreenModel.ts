@@ -32,10 +32,6 @@ export function useBudgetScreenModel() {
   const stackNavigation = useNavigation<BudgetScreenNavigation>();
   const { showToast } = useToast();
   const { categories, isLoading: categoriesLoading } = useCategories();
-  // Posted subscriptions and bills keep their recurring category, which only the display needs.
-  const { categories: recurringExpenseCategories } = useCategories(
-    "recurring_expense",
-  );
 
   const {
     monthOptions,
@@ -90,9 +86,13 @@ export function useBudgetScreenModel() {
     () => new Set(categories.map((c) => c.id)),
     [categories],
   );
-  const recurringCategoryById = useMemo(
-    () => new Map(recurringExpenseCategories.map((c) => [c.id, c])),
-    [recurringExpenseCategories],
+  // Posted subscriptions and bills keep their recurring category, which the spend list does not carry.
+  const spentCategoryMetaById = useMemo(
+    () =>
+      new Map(
+        (monthSummaryQuery.data?.category_meta ?? []).map((m) => [m.id.toLowerCase(), m]),
+      ),
+    [monthSummaryQuery.data?.category_meta],
   );
 
   const budgetItems = useMemo((): CategorySpendRowData[] => {
@@ -123,13 +123,13 @@ export function useBudgetScreenModel() {
     for (const [categoryId, amount] of Object.entries(spendByCategoryQuery)) {
       if (categoryId === UNCATEGORIZED_SPEND_KEY || amount <= 0) continue;
       if (knownCategoryIds.has(categoryId)) continue;
-      const recurring = recurringCategoryById.get(categoryId);
-      if (recurring) {
+      const spentMeta = spentCategoryMetaById.get(categoryId.toLowerCase());
+      if (spentMeta) {
         rows.push({
-          id: recurring.id,
-          name: recurring.name,
-          icon_name: recurring.icon_name,
-          color: recurring.color,
+          id: spentMeta.id,
+          name: spentMeta.name,
+          icon_name: spentMeta.icon_name ?? "Package",
+          color: spentMeta.color ?? categoryDefault,
           spentMonth: amount,
           is_system: true,
           monthlyCap: null,
@@ -155,7 +155,7 @@ export function useBudgetScreenModel() {
     categories,
     spendByCategoryQuery,
     knownCategoryIds,
-    recurringCategoryById,
+    spentCategoryMetaById,
     categoryCapById,
   ]);
 

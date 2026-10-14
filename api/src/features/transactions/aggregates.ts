@@ -106,7 +106,7 @@ export interface PeriodSummary {
   debitByCategory: Map<string, number>;
 }
 
-const UNCATEGORIZED_KEY = '__uncategorized__';
+export const UNCATEGORIZED_KEY = '__uncategorized__';
 
 /** month-summary `debit_by_category`: blank category -> `__uncategorized__`. */
 export function debitByCategoryResponse(summary: PeriodSummary): Record<string, string> {

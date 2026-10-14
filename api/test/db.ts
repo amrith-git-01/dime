@@ -108,11 +108,11 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
   return id;
 }
 
-export async function seedCategory(over: { id?: string; user_id?: string | null; name: string; icon_name?: string; color?: string; is_system?: boolean; created_at?: string }) {
+export async function seedCategory(over: { id?: string; user_id?: string | null; name: string; icon_name?: string; color?: string; is_system?: boolean; scope?: string; created_at?: string }) {
   const id = over.id ?? uid();
   await testDb()
-    .prepare('INSERT INTO categories (id, user_id, name, icon_name, color, is_system, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, over.is_system ? null : (over.user_id === undefined ? USER_ID : over.user_id), over.name, over.icon_name ?? 'Tag', over.color ?? '#94A3B8', over.is_system ? 1 : 0, over.created_at ?? '2026-07-01T00:00:00.000Z')
+    .prepare('INSERT INTO categories (id, user_id, name, icon_name, color, is_system, scope, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, over.is_system ? null : (over.user_id === undefined ? USER_ID : over.user_id), over.name, over.icon_name ?? 'Tag', over.color ?? '#94A3B8', over.is_system ? 1 : 0, over.scope ?? 'spend', over.created_at ?? '2026-07-01T00:00:00.000Z')
     .run();
   return id;
 }

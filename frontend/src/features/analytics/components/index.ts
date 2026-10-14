@@ -5,7 +5,6 @@ export { CompareSnapshotCard } from "./compare/CompareSnapshotCard";
 export { CompareSummarySection } from "./compare/CompareSummarySection";
 export { InsightsBurnRateMetricCard } from "./InsightsBurnRateMetricCard";
 export { InsightsCard } from "./InsightsCard";
-export { InsightsCategoryBreakdownCard } from "./InsightsCategoryBreakdownCard";
 export { InsightsCounterpartyDonutCard } from "./InsightsCounterpartyDonutCard";
 export {
   InsightsDailyCashflowChart,

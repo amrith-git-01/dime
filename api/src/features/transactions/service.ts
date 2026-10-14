@@ -14,7 +14,7 @@ import { inserted, updated as changed } from '../realtime/events';
 import type { Publish } from '../realtime/events';
 import { signMediaUrls } from '../media/storage';
 import type { MediaStore, SignOptions } from '../media/storage';
-import { buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse } from './aggregates';
+import { UNCATEGORIZED_KEY, buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse } from './aggregates';
 import type { DayTotals, PeriodSummary } from './aggregates';
 import { buildPaymentHash, buildSparseMergePatch, normalizedOrNull } from './dedupe';
 import * as repo from './repository';
@@ -179,12 +179,21 @@ export async function monthSummary(
 ): Promise<MonthSummaryResponse> {
   const tz = parseTimezone(input.timezone);
   const summary = await loadPeriodSummary(ctx, monthRange(tz, input.year, input.month));
+  const debitByCategory = debitByCategoryResponse(summary);
+  // Meta of every spent category, of any scope: posted recurring items keep their recurring category,
+  // which the spend-scoped categories list does not carry.
+  const meta = await fetchMetaByIds(
+    ctx.db,
+    Object.keys(debitByCategory).filter((key) => key !== UNCATEGORIZED_KEY),
+    ctx.userId,
+  );
   return {
     credit_total: formatCents(summary.creditCents),
     debit_total: formatCents(summary.debitCents),
     net: formatCents(summary.creditCents - summary.debitCents),
     transaction_count: summary.count,
-    debit_by_category: debitByCategoryResponse(summary),
+    debit_by_category: debitByCategory,
+    category_meta: [...meta.values()].map(({ id, name, icon_name, color }) => ({ id, name: name.trim(), icon_name, color })),
   };
 }
 

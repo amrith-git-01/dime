@@ -233,6 +233,8 @@ export interface MonthSummaryResponse {
   net: string;
   transaction_count: number;
   debit_by_category: Record<string, string>;
+  /** Display fields of the categories in `debit_by_category` (any scope); absent ids are unknown to the user. */
+  category_meta: { id: string; name: string; icon_name: string | null; color: string | null }[];
 }
 
 export interface TopCategoryRow {

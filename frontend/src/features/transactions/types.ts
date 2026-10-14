@@ -49,6 +49,15 @@ export type MonthSummary = {
   transaction_count: number;
   /** Debit totals keyed by category id; `__uncategorized__` when category is null. */
   debit_by_category: Record<string, string>;
+  /** Display fields of the categories in `debit_by_category`, including recurring-scoped ones. */
+  category_meta?: MonthSummaryCategoryMeta[];
+};
+
+export type MonthSummaryCategoryMeta = {
+  id: string;
+  name: string;
+  icon_name: string | null;
+  color: string | null;
 };
 
 export type TopCategoryHome = {
