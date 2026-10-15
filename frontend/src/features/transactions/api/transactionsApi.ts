@@ -111,6 +111,9 @@ export async function updateTransaction(
   await dimeApi.patch(`/api/v1/transactions/${id}`, body);
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
-  await dimeApi.delete(`/api/v1/transactions/${id}`);
+export async function deleteTransaction(
+  id: string,
+  options?: { timeout?: number; signal?: AbortSignal },
+): Promise<void> {
+  await dimeApi.delete(`/api/v1/transactions/${id}`, options);
 }

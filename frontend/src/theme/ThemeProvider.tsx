@@ -12,6 +12,8 @@ import {
 } from "react";
 import { Platform, useColorScheme } from "react-native";
 
+import { refreshWidgets } from "@/widgets/refreshWidgets";
+
 import { getTheme, lightTheme, type Theme } from "./palettes";
 import {
   applyAppearanceOverride,
@@ -79,6 +81,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setPreference = useCallback((next: ThemePreference) => {
     setThemePreference(next);
+    // Home-screen widgets draw from the stored choice, so they need a redraw.
+    refreshWidgets();
     applyAppearanceOverride(next);
     setPreferenceState(next);
   }, []);

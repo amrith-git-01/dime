@@ -25,6 +25,8 @@ type ManualAddAmountSectionProps = {
   showTypeToggle?: boolean;
   /** Inline validation message shown under the amount. */
   errorMessage?: string | null;
+  /** Focus the amount input (and raise the keypad) as soon as the screen opens. */
+  autoFocus?: boolean;
 };
 
 const TYPE_OPTIONS: readonly SlidingSegmentedOption<TransactionType>[] = [
@@ -42,6 +44,7 @@ export function ManualAddAmountSection({
   onSetIncome,
   showTypeToggle = true,
   errorMessage,
+  autoFocus,
 }: ManualAddAmountSectionProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -71,6 +74,7 @@ export function ManualAddAmountSection({
           placeholder="0"
           placeholderTextColor={colors.inkFaint}
           keyboardType="decimal-pad"
+          autoFocus={autoFocus}
           value={amountText}
           onChangeText={onAmountChange}
           onFocus={onAmountFocus}

@@ -21,6 +21,7 @@ import AnalyticsScreen from "@/screens/analytics/AnalyticsScreen";
 import BudgetScreen from "@/screens/budget/BudgetScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import TransactionsScreen from "@/screens/transactions/TransactionsScreen";
+import { usePendingDeepLinkStore } from "@/stores/pendingDeepLinkStore";
 import type { MainStackParamList, MainTabParamList } from "./types";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -70,7 +71,7 @@ export default function MainTabNavigator() {
     void captureReceiptAndCreate();
   }, [captureReceiptAndCreate]);
   const { showToast } = useToast();
-  const { data: limits } = useLimitsQuery();
+  const { data: limits, isLoading: limitsLoading } = useLimitsQuery();
   const receiptOption = useMemo(() => {
     const a = getCaptureAvailability("receipt", limits);
     return { ...a, blockedMessage: a.message };
@@ -83,6 +84,28 @@ export default function MainTabNavigator() {
     (message: string) => showToast({ variant: "info", message }),
     [showToast],
   );
+  // `dime://scan` (home-screen widget): open the receipt camera unless today's scans are used up.
+  const scanRequested = usePendingDeepLinkStore((s) => s.scanRequested);
+  useEffect(() => {
+    // Wait for today's limits (while they load) so a used-up scan limit shows its toast, not the camera.
+    if (!scanRequested || limitsLoading) {
+      return;
+    }
+    usePendingDeepLinkStore.getState().consumeScan();
+    if (receiptOption.blocked) {
+      if (receiptOption.blockedMessage) {
+        onBlockedOptionPress(receiptOption.blockedMessage);
+      }
+      return;
+    }
+    onCaptureReceiptPress();
+  }, [
+    scanRequested,
+    limitsLoading,
+    receiptOption,
+    onBlockedOptionPress,
+    onCaptureReceiptPress,
+  ]);
   useAppTourAutoStart({ shellReady, splashRevealed });
   const unreadQuery = useUnreadNotificationCount();
   const showUnreadNotificationDot = (unreadQuery.data ?? 0) > 0;

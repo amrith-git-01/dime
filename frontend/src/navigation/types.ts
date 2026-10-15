@@ -19,6 +19,7 @@ export type MainStackParamList = {
   SettingsFeedback: undefined;
   SettingsHaptic: undefined;
   SettingsAppearance: undefined;
+  SettingsWidgets: undefined;
   SettingsGlossary: undefined;
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;
@@ -27,6 +28,8 @@ export type MainStackParamList = {
     | {
         /** `yyyy-MM-dd` day the new transaction is dated to (a past day opens at 12:00). */
         presetDate?: string;
+        /** Open with the amount keypad focused (quick add from the home-screen widget). */
+        focusAmount?: boolean;
         createdCategoryId?: string;
         createdCategoryName?: string;
       }

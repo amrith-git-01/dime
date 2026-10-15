@@ -12,6 +12,16 @@ import {
   readPersistedUserSettings,
   writePersistedUserSettings,
 } from "@/lib/settings/userSettingsMmkv";
+import {
+  readWidgetOutbox,
+  readWidgetPresets,
+  writeWidgetOutbox,
+  writeWidgetPresets,
+} from "@/lib/widgets/widgetPresetsMmkv";
+import {
+  readWidgetSnapshot,
+  writeWidgetSnapshot,
+} from "@/lib/widgets/widgetSnapshotMmkv";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
@@ -39,6 +49,25 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
   writePersistedNotifications(userId, { inbox: [], unreadCount: 3 });
   writePersistedUserSettings(userId, DEFAULT_USER_SETTINGS);
   recentTransactionMutations.mark("tx-1");
+  writeWidgetSnapshot({
+    userId,
+    updatedAt: 1,
+    monthKey: "2026-10",
+    dayKey: "2026-10-15",
+    spentThisMonth: 100,
+    recurringSpent: 0,
+    flexibleSpent: 100,
+    monthlyBudget: null,
+    budgetLeft: null,
+    spentToday: 0,
+    recentTransactions: [],
+    topCategories: [],
+    recurring: [],
+  });
+  writeWidgetPresets(userId, [{ label: "Chai", amount: 20, categoryId: "c1" }]);
+  writeWidgetOutbox([
+    { key: "k", userId, body: {} as never, label: "Chai", amount: 20, createdAt: 1 },
+  ]);
 }
 
 describe("subscribeUserTransitionWipe", () => {
@@ -64,6 +93,10 @@ describe("subscribeUserTransitionWipe", () => {
     expect(readPersistedNotifications("user-a")).toBeNull();
     expect(readPersistedUserSettings("user-a")).toBeNull();
     expect(recentTransactionMutations.isRecent("tx-1")).toBe(false);
+    expect(readWidgetSnapshot()).toBeNull();
+    // The old account's widget presets and queued taps must not reach the next one.
+    expect(readWidgetPresets("user-a")).toEqual([]);
+    expect(readWidgetOutbox()).toEqual([]);
   }
 
   it("wipes when the user disappears (session revoked or expired)", () => {

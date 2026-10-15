@@ -14,6 +14,7 @@ type SettingsHubDestination =
   | "SettingsAccount"
   | "SettingsHaptic"
   | "SettingsAppearance"
+  | "SettingsWidgets"
   | "SettingsNotifications"
   | "SettingsEmail"
   | "SettingsGlossary"

@@ -64,6 +64,16 @@ export function useManualAddTransactionScreenModel() {
     setAmountFocused(false);
   }, []);
 
+  // Opened from the home-screen widget: the amount input takes focus by itself and its focus events
+  // drive `amountFocused`, so the first-focus reset must not clear it afterwards.
+  const autoFocusAmount = route.params?.focusAmount === true;
+  const resetUiOnFirstFocus = useCallback(() => {
+    setIosPickerMode(null);
+    if (!autoFocusAmount) {
+      setAmountFocused(false);
+    }
+  }, [autoFocusAmount]);
+
   const { markNavigatedToCreateCategory } = useManualAddScreenLifecycle({
     form: {
       reset,
@@ -77,7 +87,7 @@ export function useManualAddTransactionScreenModel() {
     navigation,
     returnCategoryId: route.params?.createdCategoryId,
     returnCategoryName: route.params?.createdCategoryName,
-    onResetUi: resetUiState,
+    onResetUi: resetUiOnFirstFocus,
     onSubmitMutationReset: submitMutation.reset,
   });
 
@@ -240,6 +250,7 @@ export function useManualAddTransactionScreenModel() {
   return {
     amountText,
     amountFocused,
+    autoFocusAmount,
     setAmountText,
     setAmountFocused,
     txType,

@@ -13,6 +13,10 @@ import type { CreateTransactionBody } from "./transactionsApi";
 
 type AcceptedResponse = {
   accepted: boolean;
+  /** The created (or already existing) transaction. Absent when replaying a response stored before ids existed. */
+  id?: string;
+  /** False when the payment already existed (a duplicate). Absent in replays stored before it existed. */
+  created?: boolean;
 };
 
 /** Server dedupes on this header (C2): one key per capture, reused on every retry of it. */
@@ -178,15 +182,43 @@ async function submitFile(input: SubmitFileInput): Promise<void> {
   }
 }
 
+type PostManualOptions = {
+  /** Per-request timeout in ms (the default is the client's 45 s). */
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+/**
+ * Posts a manual transaction and returns the server's id for it, and whether it was newly created, when it sends them. Axios errors
+ * are left as they are so callers can branch on the status (the home-screen widgets do).
+ */
+export async function postManualTransaction(
+  body: CreateTransactionBody,
+  idempotencyKey: string,
+  options: PostManualOptions = {},
+): Promise<{ id?: string; created?: boolean }> {
+  const { data } = await dimeApi.post<AcceptedResponse>(
+    "/api/v1/transactions",
+    body,
+    {
+      params: { timezone: getDeviceIanaTimezone() },
+      headers: { [IDEMPOTENCY_KEY_HEADER]: idempotencyKey },
+      ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    },
+  );
+  return {
+    ...(typeof data?.id === "string" ? { id: data.id } : {}),
+    ...(typeof data?.created === "boolean" ? { created: data.created } : {}),
+  };
+}
+
 export async function submitManualTransaction(
   body: CreateTransactionBody,
   idempotencyKey: string = randomUUID(),
 ): Promise<void> {
   try {
-    await dimeApi.post<AcceptedResponse>("/api/v1/transactions", body, {
-      params: { timezone: getDeviceIanaTimezone() },
-      headers: { [IDEMPOTENCY_KEY_HEADER]: idempotencyKey },
-    });
+    await postManualTransaction(body, idempotencyKey);
   } catch (e) {
     throw parseSubmitError(e);
   }

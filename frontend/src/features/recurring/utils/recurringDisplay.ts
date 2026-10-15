@@ -67,12 +67,14 @@ function kindRank(kind: RecurringKind): number {
 }
 
 /** Active items due in the next `windowDays` days, soonest first (ties: income before bills). */
-export function selectUpcoming(
-  items: readonly RecurringItem[],
+export function selectUpcoming<
+  T extends Pick<RecurringItem, "active" | "next_due_date" | "kind">,
+>(
+  items: readonly T[],
   today: Date,
   windowDays: number = UPCOMING_WINDOW_DAYS,
   max: number = UPCOMING_MAX_ITEMS,
-): RecurringItem[] {
+): T[] {
   return items
     .filter((item) => {
       if (!item.active) {

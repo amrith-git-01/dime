@@ -16,3 +16,4 @@ export { SettingsOptionRow } from "./SettingsOptionRow";
 export { SettingsSection } from "./SettingsSection";
 export { SettingsSurfaceCard } from "./SettingsSurfaceCard";
 export { SettingsToggleRow } from "./SettingsToggleRow";
+export { SettingsWidgetsEditor } from "./SettingsWidgetsEditor";
