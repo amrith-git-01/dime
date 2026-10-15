@@ -1,5 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { replayAppTour } from "@/features/appTour/utils/replayAppTour";
@@ -22,6 +23,7 @@ type SettingsHubDestination =
 export function useSettingsScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const queryClient = useQueryClient();
   const { displayName, email, avatarUrl } = useUserProfile();
   const { preference } = useThemePreference();
   const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
@@ -34,6 +36,11 @@ export function useSettingsScreenModel() {
     [navigation],
   );
 
+  const onShowAppTour = useCallback(
+    () => replayAppTour(queryClient),
+    [queryClient],
+  );
+
   return {
     displayName,
     email,
@@ -43,7 +50,7 @@ export function useSettingsScreenModel() {
     signOutConfirmModalProps,
     refreshLoading,
     openDestination,
-    onShowAppTour: replayAppTour,
+    onShowAppTour,
     onSignOut: confirmSignOut,
     onRefreshPress: confirmRefreshAppData,
   };

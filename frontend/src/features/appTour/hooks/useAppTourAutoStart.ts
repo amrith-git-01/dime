@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -26,6 +27,7 @@ export function useAppTourAutoStart({
   /** The branded splash overlay is gone. */
   splashRevealed: boolean;
 }): void {
+  const queryClient = useQueryClient();
   const { userId } = useSessionUserId();
   const permissionsBusy = usePermissionsPromptStore(
     (s) => s.pendingAfterGoogleSignIn || s.prompting,
@@ -51,8 +53,8 @@ export function useAppTourAutoStart({
       if (isAppTourSeen(userId) || getFocusedTourTab() === null) {
         return;
       }
-      startTour();
+      startTour(queryClient);
     }, AUTO_START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [calm, userId, startTour]);
+  }, [calm, userId, startTour, queryClient]);
 }

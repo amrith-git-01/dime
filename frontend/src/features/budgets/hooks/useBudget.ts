@@ -1,3 +1,4 @@
+import { usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
   fetchBudget,
@@ -12,11 +13,12 @@ import { budgetQueryKeys } from "../queryKeys";
 export function useBudgetQuery(options?: { enabled?: boolean }) {
   const { userId } = useSessionUserId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: budgetQueryKeys.current(userId),
     queryFn: fetchBudget,
     enabled: options?.enabled ?? true,
   });
+  return usePreviewable(query, (sample) => sample.budget);
 }
 
 export function useUpsertBudgetMutation() {

@@ -1,6 +1,11 @@
+import { QueryClient } from "@tanstack/react-query";
 import { createMMKV } from "react-native-mmkv";
 
+import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
+import type { HomeOverview } from "@/features/transactions/types";
+import { useTourPreviewStore } from "@/features/tourPreview/store/tourPreviewStore";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
+import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
 import { TOUR_STEP_COUNT } from "../../constants/tourSteps";
 import { isAppTourSeen, useAppTourStore } from "../appTourStore";
@@ -37,11 +42,27 @@ function switchUser(next: string | undefined): void {
 
 const store = () => useAppTourStore.getState();
 
+let client: QueryClient;
+
+/** Puts a Home overview in the cache the way a loaded account would have it. */
+function seedHome(userId: string, overrides: Partial<HomeOverview> = {}): void {
+  const home: HomeOverview = {
+    spent_today: "0",
+    spent_this_month: "0",
+    top_categories: [],
+    recent_transactions: [],
+    ...overrides,
+  };
+  client.setQueryData(transactionsQueryKeys.home(userId, getDeviceIanaTimezone()), home);
+}
+
 describe("app tour store", () => {
   beforeEach(() => {
     resetMockMmkv();
     mockUserId = "user-a";
     useAppTourStore.setState({ active: false, stepIndex: 0, userId: undefined });
+    useTourPreviewStore.setState({ active: false, userId: undefined, suspended: false });
+    client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
   });
 
   it("starts inactive", () => {
@@ -49,7 +70,7 @@ describe("app tour store", () => {
   });
 
   it("start activates the tour at the first step for the signed-in user", () => {
-    store().start();
+    store().start(client);
     expect(store()).toMatchObject({
       active: true,
       stepIndex: 0,
@@ -58,14 +79,14 @@ describe("app tour store", () => {
   });
 
   it("start is a no-op while a tour is running", () => {
-    store().start();
+    store().start(client);
     store().next();
-    store().start();
+    store().start(client);
     expect(store().stepIndex).toBe(1);
   });
 
   it("next and back move one step and clamp at the first step", () => {
-    store().start();
+    store().start(client);
     store().back();
     expect(store().stepIndex).toBe(0);
     store().next();
@@ -85,7 +106,7 @@ describe("app tour store", () => {
   });
 
   it("skip ends the tour and remembers it for that user only", () => {
-    store().start();
+    store().start(client);
     store().next();
     store().skip();
     expect(store()).toMatchObject({ active: false, stepIndex: 0 });
@@ -94,7 +115,7 @@ describe("app tour store", () => {
   });
 
   it("next on the last step finishes the tour and remembers it", () => {
-    store().start();
+    store().start(client);
     for (let i = 0; i < TOUR_STEP_COUNT - 1; i += 1) {
       store().next();
     }
@@ -106,11 +127,11 @@ describe("app tour store", () => {
   });
 
   it("can be replayed after it was seen, and records completion again", () => {
-    store().start();
+    store().start(client);
     store().skip();
     expect(isAppTourSeen("user-a")).toBe(true);
 
-    store().start();
+    store().start(client);
     expect(store().active).toBe(true);
     expect(store().stepIndex).toBe(0);
     store().skip();
@@ -118,7 +139,7 @@ describe("app tour store", () => {
   });
 
   it("stores completion under a per-user, versioned key", () => {
-    store().start();
+    store().start(client);
     store().skip();
     const mmkv = createMMKV({ id: "dime-onboarding" });
     expect(mmkv.getString("app_tour.completed.v1:user-a")).toEqual(
@@ -133,19 +154,84 @@ describe("app tour store", () => {
 
   it("does not persist anything when there is no signed-in user", () => {
     mockUserId = undefined;
-    store().start();
+    store().start(client);
     store().skip();
     const mmkv = createMMKV({ id: "dime-onboarding" });
     expect(mmkv.getAllKeys()).toEqual([]);
   });
 
   it("a user change mid-tour ends the tour without marking either user as seen", () => {
-    store().start();
+    store().start(client);
     expect(store().active).toBe(true);
     switchUser("user-b");
     expect(store().active).toBe(false);
     expect(store().stepIndex).toBe(0);
     expect(isAppTourSeen("user-a")).toBe(false);
     expect(isAppTourSeen("user-b")).toBe(false);
+  });
+
+  describe("sample data preview", () => {
+    const previewActive = () => useTourPreviewStore.getState().active;
+
+    it("starts when the account is known to be empty", () => {
+      seedHome("user-a");
+      store().start(client);
+      expect(useTourPreviewStore.getState()).toMatchObject({
+        active: true,
+        userId: "user-a",
+      });
+    });
+
+    it("does not start when the Home overview is not loaded yet", () => {
+      store().start(client);
+      expect(store().active).toBe(true);
+      expect(previewActive()).toBe(false);
+    });
+
+    it("does not start for an account that has activity", () => {
+      seedHome("user-a", { spent_this_month: "120.00" });
+      store().start(client);
+      expect(previewActive()).toBe(false);
+    });
+
+    it("only reads this user's Home overview", () => {
+      seedHome("user-b");
+      store().start(client);
+      expect(previewActive()).toBe(false);
+    });
+
+    it("never writes anything to the query cache", () => {
+      seedHome("user-a");
+      const before = client.getQueryCache().getAll().length;
+      store().start(client);
+      expect(client.getQueryCache().getAll()).toHaveLength(before);
+    });
+
+    it.each([
+      ["skip", () => store().skip()],
+      ["finish", () => store().finish()],
+    ])("%s ends the preview", (_name, end) => {
+      seedHome("user-a");
+      store().start(client);
+      end();
+      expect(previewActive()).toBe(false);
+    });
+
+    it("running to the last step ends the preview", () => {
+      seedHome("user-a");
+      store().start(client);
+      for (let i = 0; i < TOUR_STEP_COUNT; i += 1) {
+        store().next();
+      }
+      expect(store().active).toBe(false);
+      expect(previewActive()).toBe(false);
+    });
+
+    it("a user change ends the preview", () => {
+      seedHome("user-a");
+      store().start(client);
+      switchUser("user-b");
+      expect(previewActive()).toBe(false);
+    });
   });
 });

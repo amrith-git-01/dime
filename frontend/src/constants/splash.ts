@@ -8,11 +8,14 @@ import { colors } from "./colors";
  */
 export const splashBackgroundColor = colors.pageBackground;
 
-/** Minimum time the branded splash stays visible (ms). */
-export const SPLASH_MIN_DISPLAY_MS = 1500;
+/** Minimum time the branded splash stays visible (ms), counted from JS start. */
+export const SPLASH_MIN_DISPLAY_MS = 800;
 
-/** Longest the splash waits for the first screen to lay out, so it can never stick. */
-export const SPLASH_SHELL_TIMEOUT_MS = 4000;
+/**
+ * Longest the splash stays up (ms), counted from the same JS start as the minimum: a slow profile
+ * check or a shell that never reports cannot hold it past this.
+ */
+export const SPLASH_SHELL_TIMEOUT_MS = 2000;
 
 /**
  * Native splash `imageWidth` — keep in sync with `expo-splash-screen` in app.json.
