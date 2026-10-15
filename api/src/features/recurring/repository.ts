@@ -52,12 +52,6 @@ export async function remove(db: Db, userId: string, id: string): Promise<boolea
   return (await run(db, 'DELETE FROM recurring_items WHERE user_id = ? AND id = ?', [userId, id])) > 0;
 }
 
-/** The system "Income" category (default for income items). */
-export async function incomeCategoryId(db: Db): Promise<string | null> {
-  const row = await first<{ id: string }>(db, "SELECT id FROM categories WHERE is_system = 1 AND name = 'Income' LIMIT 1");
-  return row?.id ?? null;
-}
-
 /** True when the item already produced a transaction (deleted or not) inside `[from, to)`: that period is done. */
 export async function hasPostedIn(db: Db, itemId: string, range: { from: string; to: string }): Promise<boolean> {
   const row = await first<{ x: number }>(
@@ -66,6 +60,24 @@ export async function hasPostedIn(db: Db, itemId: string, range: { from: string;
     [itemId, range.from, range.to],
   );
   return row !== null;
+}
+
+export interface PostedRow {
+  id: string;
+  recurring_item_id: string;
+  amount: number;
+  transaction_at: string;
+  deleted_at: string | null;
+}
+
+/** Every transaction a recurring item posted in `[from, to)`, deleted ones included (a deleted one marks a skipped occurrence). */
+export function listPostedIn(db: Db, userId: string, range: { from: string; to: string }): Promise<PostedRow[]> {
+  return all<PostedRow>(
+    db,
+    `SELECT id, recurring_item_id, amount, transaction_at, deleted_at FROM transactions
+     WHERE user_id = ? AND recurring_item_id IS NOT NULL AND transaction_at >= ? AND transaction_at < ?`,
+    [userId, range.from, range.to],
+  );
 }
 
 /** Active items whose local due date is on or before `maxDate` (a UTC-date upper bound), oldest first. */

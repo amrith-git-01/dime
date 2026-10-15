@@ -34,6 +34,8 @@ export type ManualAddTransactionEditorProps = {
   onCounterpartyNameChange: (text: string) => void;
   categoriesLoading: boolean;
   visibleCategories: CategoryRow[];
+  /** Recurring categories that fit the type; shown as a collapsible group (income also gets the card). */
+  recurringCategories?: CategoryRow[];
   categoryId: string | null;
   onCategoryPress: (category: CategoryRow, selected: boolean) => void;
   onAddCategory: () => void;
@@ -86,6 +88,7 @@ export const ManualAddTransactionEditor = memo(
     onCounterpartyNameChange,
     categoriesLoading,
     visibleCategories,
+    recurringCategories,
     categoryId,
     onCategoryPress,
     onAddCategory,
@@ -128,20 +131,21 @@ export const ManualAddTransactionEditor = memo(
           />
         </View>
 
-        {/* Category card — expense only; income auto-assigns Income category */}
-        {txType === "debit" ? (
+        {/* Category card: expense always; income only to offer recurring income (Income is auto-assigned) */}
+        {txType === "debit" || (recurringCategories?.length ?? 0) > 0 ? (
           <View style={[styles.card, styles.cardShadow]}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionLabel}>CATEGORY</Text>
-              {requiredTag}
+              {txType === "debit" ? requiredTag : optionalTag}
             </View>
             <ManualAddCategorySection
               categoriesLoading={categoriesLoading}
               visibleCategories={visibleCategories}
               categoryId={categoryId}
               onCategoryPress={onCategoryPress}
-              onAddCategory={onAddCategory}
+              onAddCategory={txType === "debit" ? onAddCategory : undefined}
               addCategoryDisabled={addCategoryDisabled}
+              recurringCategories={recurringCategories}
             />
           </View>
         ) : null}

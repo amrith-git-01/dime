@@ -11,6 +11,7 @@ import {
   computeMonthSpendIntensities,
   type SpendIntensity,
 } from "@/features/transactions/utils/computeMonthSpendIntensities";
+import { formatInrCompact } from "@/utils/currency";
 import { createThemedStyles, useTheme } from "@/theme";
 
 // Week starts on Monday for Indian locale
@@ -26,6 +27,10 @@ export type TransactionCalendarCardProps = {
   monthIndex0: number;
   /** dayKey (yyyy-MM-dd) → total debit spend for that day */
   spendByDay: Record<string, number>;
+  /** Days (yyyy-MM-dd) with a recurring occurrence still to come: they get a small dot. */
+  upcomingDayKeys?: ReadonlySet<string>;
+  /** Recurring spend still to come this month (rupees); a caption shows when above 0. */
+  upcomingTotal?: number;
   selectedDayKey: string;
   onSelectDay: (dayKey: string) => void;
   onPrevMonth: () => void;
@@ -39,6 +44,8 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
   year,
   monthIndex0,
   spendByDay,
+  upcomingDayKeys,
+  upcomingTotal = 0,
   selectedDayKey,
   onSelectDay,
   onPrevMonth,
@@ -122,6 +129,12 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
           </Pressable>
         </View>
 
+        {upcomingTotal > 0 && !isLoading ? (
+          <Text style={styles.upcomingCaption}>
+            {`Upcoming ${formatInrCompact(upcomingTotal)} this month`}
+          </Text>
+        ) : null}
+
         {/* Weekday labels */}
         <View style={styles.weekdayRow}>
           {WEEKDAY_LABELS.map((label, i) => (
@@ -175,6 +188,7 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
                           isSelected={isSelected}
                           isToday={isTodayCell}
                           intensity={intensity}
+                          hasUpcoming={upcomingDayKeys?.has(dayKey) ?? false}
                           onPress={handleDayPress}
                         />
                       );
@@ -212,6 +226,8 @@ type DayCellProps = {
   isSelected: boolean;
   isToday: boolean;
   intensity: SpendIntensity;
+  /** A recurring occurrence is still to come on this day. */
+  hasUpcoming: boolean;
   onPress: (dayNum: number) => void;
 };
 
@@ -220,6 +236,7 @@ function DayCell({
   isSelected,
   isToday,
   intensity,
+  hasUpcoming,
   onPress,
 }: DayCellProps) {
   const { colors } = useTheme();
@@ -283,6 +300,19 @@ function DayCell({
         >
           {dayNum}
         </Text>
+        {hasUpcoming ? (
+          <View
+            style={[
+              styles.upcomingDot,
+              {
+                backgroundColor:
+                  isSelected || intensity === "high"
+                    ? colors.onAccent
+                    : colors.inkSoft,
+              },
+            ]}
+          />
+        ) : null}
       </View>
     </Pressable>
   );
@@ -330,6 +360,22 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   navBtnPressed: {
     opacity: 0.65,
+  },
+  upcomingCaption: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  upcomingDot: {
+    position: "absolute",
+    bottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   // Weekday row
   weekdayRow: {

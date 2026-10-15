@@ -12,16 +12,21 @@ import {
   CARD_SEGMENT_SHADOW_TOP_BLEED,
   EmptyState,
   emptyStateCopy,
+  TourTarget,
 } from "@/components/shared";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   BudgetCategoriesSectionHeader,
   BudgetCategoryRow,
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
-import { RecurringSection } from "@/features/recurring/components";
+import {
+  RecurringMonthSection,
+  RecurringSection,
+} from "@/features/recurring/components";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import {
@@ -32,7 +37,9 @@ import { createThemedStyles } from "@/theme";
 
 function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
   return (
-    item.id !== UNCATEGORIZED_SPEND_KEY && item.name !== "Unknown category"
+    item.budgetEditable !== false &&
+    item.id !== UNCATEGORIZED_SPEND_KEY &&
+    item.name !== "Unknown category"
   );
 }
 
@@ -63,7 +70,10 @@ export default function BudgetScreen() {
     summaryLoading,
   } = useBudgetScreenModel();
   const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
-  const recurring = useBudgetRecurringModel(listRef);
+  const recurring = useBudgetRecurringModel(listRef, {
+    year: selectedMonth.year,
+    monthIndex0: selectedMonth.monthIndex0,
+  });
 
   // Keys carry the month so rows remount (and progress bars snap) when the month changes.
   const keyExtractor = (item: CategorySpendRowData) =>
@@ -110,7 +120,19 @@ export default function BudgetScreen() {
               spentValue={monthSummary?.spentValue ?? 0}
             />
 
-            <View onLayout={recurring.onSectionLayout}>
+            <RecurringMonthSection
+              data={recurring.monthData}
+              isLoading={recurring.monthLoading}
+              isError={recurring.monthError}
+              onRetry={recurring.onMonthRetry}
+              today={recurring.today}
+              onItemPress={recurring.onOccurrencePress}
+            />
+
+            <TourTarget
+              id={tourTargetIds.budgetsRecurring}
+              onLayout={recurring.onSectionLayout}
+            >
               <RecurringSection
                 income={recurring.income}
                 subscriptions={recurring.subscriptions}
@@ -118,7 +140,7 @@ export default function BudgetScreen() {
                 onAdd={recurring.onAdd}
                 onItemPress={recurring.onItemPress}
               />
-            </View>
+            </TourTarget>
 
             <View style={styles.sectionHeader}>
               <BudgetCategoriesSectionHeader

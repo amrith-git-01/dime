@@ -11,10 +11,10 @@ const OTHER = '33333333-3333-3333-3333-333333333333';
 const JOB = 'aaaaaaaa-0000-0000-0000-00000000000a';
 
 describe('migration 0001: seed and constraints', () => {
-  it('seeds the ten system categories with their production ids', async () => {
+  it('seeds the ten spending system categories with their production ids', async () => {
     const rows = await rowsOf<{ id: string; name: string; icon_name: string; color: string; is_system: number; user_id: string | null; created_at: string }>(
       'categories',
-      'is_system = 1',
+      "is_system = 1 AND scope = 'spend'",
     );
     expect(rows.map((r) => [r.id, r.name, r.icon_name, r.color])).toEqual([
       ['ad296c59-42ec-49e5-b824-c011c5b1b28b', 'Bills & Utilities', 'Zap', '#FBBF24'],
@@ -29,6 +29,17 @@ describe('migration 0001: seed and constraints', () => {
       ['be46f4f5-efa9-4ad9-b09c-ca24a088e7f7', 'Travel', 'Plane', '#818CF8'],
     ]);
     expect(rows.every((r) => r.user_id === null && r.created_at === '2026-06-11T17:30:06.824Z')).toBe(true);
+  });
+
+  it('seeds the recurring system categories (migration 0007) with their scope', async () => {
+    const names = async (scope: string) =>
+      (await rowsOf<{ name: string }>('categories', 'is_system = 1 AND scope = ?', scope)).map((r) => r.name).sort();
+    expect(await names('recurring_expense')).toEqual([
+      'EMI & loans', 'Fees & tuition', 'Insurance', 'Internet & phone', 'Investments & SIP', 'Other expense', 'Rent', 'Subscriptions', 'Utilities',
+    ]);
+    expect(await names('recurring_income')).toEqual(['Allowance', 'Freelance', 'Interest & dividends', 'Other income', 'Rental income', 'Salary']);
+    const bad = await testDb().prepare("INSERT INTO categories (id, name, is_system, scope) VALUES ('x', 'X', 0, 'nope')").run().then(() => false, () => true);
+    expect(bad).toBe(true);
   });
 
   it('category names are unique per user, case-insensitively (categories_user_name_uniq), not across users (0004)', async () => {
@@ -48,7 +59,7 @@ describe('migration 0001: seed and constraints', () => {
     await testDb().prepare('DELETE FROM users WHERE id = ?').bind(USER_ID).run();
     for (const table of ['transactions', 'budgets', 'notifications']) expect(await rowsOf(table), table).toHaveLength(0);
     expect(await rowsOf('categories', 'is_system = 0')).toHaveLength(0);
-    expect(await rowsOf('categories', 'is_system = 1')).toHaveLength(10);
+    expect(await rowsOf('categories', 'is_system = 1')).toHaveLength(25);
   });
 
   it('keeps the CHECK constraints', async () => {

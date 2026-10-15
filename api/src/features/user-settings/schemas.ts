@@ -7,6 +7,8 @@ const pct = z.number().int().min(50).max(95).nullish();
 export const settingsPatchSchema = z.strictObject({
   budget_alerts_enabled: bool,
   budget_monthly_alerts_enabled: bool,
+  // Removed with the daily budget: still accepted (old app builds send them) but ignored. The columns stay unused
+  // in `user_settings` until a later migration drops them.
   budget_daily_alerts_enabled: bool,
   budget_category_alerts_enabled: bool,
   budget_monthly_warn_pct: pct,

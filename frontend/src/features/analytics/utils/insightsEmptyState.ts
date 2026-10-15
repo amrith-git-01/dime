@@ -29,6 +29,12 @@ export function buildEmptyInsightsMonthSummary(
     heroDisplay: ZERO,
     netValue: 0,
     savingsRatePct: null,
+    hasFixed: false,
+    fixedDisplay: ZERO,
+    flexibleDisplay: ZERO,
+    expectedIncomeDisplay: null,
+    projectedNetDisplay: null,
+    projectedNetValue: 0,
   };
 }
 
@@ -57,5 +63,11 @@ export function buildEmptyBurnRateMetrics(
     projected: 0,
     projectedDisplay: EM_DASH,
     projectedLabel: "At this pace",
+    fixedPlan: 0,
+    fixedPlanDisplay: ZERO,
+    flexibleSpent: 0,
+    flexibleSpentDisplay: ZERO,
+    flexibleAllowance: null,
+    flexibleAllowanceDisplay: EM_DASH,
   };
 }

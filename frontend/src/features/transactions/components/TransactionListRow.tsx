@@ -29,6 +29,8 @@ import {
 } from "@/features/transactions/utils/transactionDisplay";
 import { createThemedStyles, useTheme } from "@/theme";
 
+import { RecurringBadge } from "./RecurringBadge";
+
 type CategoryIconProps = {
   category: TransactionCategory;
 };
@@ -132,6 +134,7 @@ function RowBody({ ui }: { ui: UiTransaction }) {
             >
               {ui.viaLabel}
             </Text>
+            {ui.isRecurring ? <RecurringBadge /> : null}
           </View>
           <Text
             style={[

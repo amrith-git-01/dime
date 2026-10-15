@@ -16,6 +16,12 @@ export {
   type SelectDropdownOption,
   type SelectDropdownProps,
 } from "./SelectDropdown/SelectDropdown";
+export {
+  SlidingSegmentedControl,
+  type SlidingSegmentedControlProps,
+  type SlidingSegmentedOption,
+  type SlidingSegmentedTone,
+} from "./SlidingSegmentedControl/SlidingSegmentedControl";
 export { SkeletonBlock } from "./SkeletonBlock";
 export { SkeletonStrip, type SkeletonStripProps } from "./SkeletonStrip";
 export {

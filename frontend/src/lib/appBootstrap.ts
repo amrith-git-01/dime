@@ -24,7 +24,10 @@ import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { fetchUserSettings } from "@/features/settings/api/settingsApi";
 import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserSettingsMmkv";
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
-import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
+import {
+  PushPermissionDeniedError,
+  syncExpoPushTokenForUser,
+} from "@/features/settings/utils/syncExpoPushToken";
 import { syncDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { transactionsMonthPagesQueryOptions } from "@/features/transactions/api/monthPagesQueryOptions";
 import {
@@ -190,7 +193,7 @@ export function prefetchSiblingTabQueries(
   prefetchIfStale(
     queryClient,
     categoriesQueryKeys.list(userId),
-    fetchCategories,
+    () => fetchCategories(),
   );
   prefetchIfStale(queryClient, budgetQueryKeys.current(userId), fetchBudget);
   prefetchIfStale(
@@ -211,7 +214,10 @@ export function prefetchSiblingTabQueries(
         try {
           await syncExpoPushTokenForUser(true);
         } catch (error) {
-          reportError(error, "appBootstrap failed to register push token");
+          // Declined notifications is the user's choice, not an error worth reporting.
+          if (!(error instanceof PushPermissionDeniedError)) {
+            reportError(error, "appBootstrap failed to register push token");
+          }
         }
       }
 

@@ -34,13 +34,30 @@ export function parseDailyCashflow(
   });
 }
 
-export function isCurrentMonth(year: number, monthIndex0: number): boolean {
-  const now = new Date();
+/**
+ * The server's `today` (`YYYY-MM-DD`, in the request timezone) as a local date, so month maths follows the
+ * server's day instead of the device clock. Undefined when absent or malformed.
+ */
+export function parseServerToday(key: string | undefined | null): Date | undefined {
+  const match = key ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(key) : null;
+  if (!match) return undefined;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+export function isCurrentMonth(
+  year: number,
+  monthIndex0: number,
+  now: Date = new Date(),
+): boolean {
   return now.getFullYear() === year && now.getMonth() === monthIndex0;
 }
 
-export function isPastMonth(year: number, monthIndex0: number): boolean {
-  const now = new Date();
+export function isPastMonth(
+  year: number,
+  monthIndex0: number,
+  now: Date = new Date(),
+): boolean {
   return (
     year < now.getFullYear() ||
     (year === now.getFullYear() && monthIndex0 < now.getMonth())

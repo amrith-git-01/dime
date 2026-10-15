@@ -11,7 +11,10 @@ import type {
 } from "@/features/analytics/components";
 import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
-import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
+import {
+  isPastMonth,
+  parseServerToday,
+} from "@/features/analytics/utils/buildCashflowWindow";
 import {
   topPayeeKeysFromSpend,
   type CounterpartyDonutDatum,
@@ -19,11 +22,15 @@ import {
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import type { CompareMonthParam } from "@/features/analytics/utils/compareMonths";
 import { computeBurnRateMetrics } from "@/features/analytics/utils/computeBurnRateMetrics";
+import { fixedPlanFromOccurrences } from "@/features/analytics/utils/fixedPlan";
 import { buildEmptyBurnRateMetrics } from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import type { TransactionRow } from "@/features/transactions/types";
+import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
+import { toPaise } from "@/utils/paise";
 
 type AnalyticsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Insights">,
@@ -58,6 +65,11 @@ export function useAnalyticsScreenModel() {
     selectedMonth.monthIndex0,
   );
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  const recurringMonthQuery = useRecurringMonthQuery(
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+  );
+  const currentDay = useCurrentDay();
 
   const insightsData = insightsQuery.data;
   const budgetMonthly = budgetResp?.budget?.monthly_budget ?? null;
@@ -97,27 +109,27 @@ export function useAnalyticsScreenModel() {
   );
   const topExpenses: TransactionRow[] = insightsData?.top_expenses ?? [];
 
-  const summary = useMemo((): InsightsMonthSummary | null => {
-    if (summaryLoading || summaryFailed) return null;
-    const isPast = isPastMonth(selectedMonth.year, selectedMonth.monthIndex0);
-    return buildInsightsMonthSummary(
-      insightsData?.summary,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      isPast,
-    );
-  }, [
-    hasMonthlyBudget,
-    insightsData?.summary,
-    monthlyBudgetAmount,
-    selectedMonth.year,
-    selectedMonth.monthIndex0,
-    summaryFailed,
-    summaryLoading,
-  ]);
+  // The server's day drives the pace maths; the recurring month is "settled" once it loaded for THIS month
+  // (or failed, in which case pace falls back to the plain straight line).
+  const serverToday = useMemo(
+    () => parseServerToday(insightsData?.today),
+    [insightsData?.today],
+  );
+  const recurringMonth = recurringMonthQuery.data;
+  const recurringSettled =
+    recurringMonthQuery.isError ||
+    (recurringMonthQuery.isSuccess && !recurringMonthQuery.isPlaceholderData);
+  const fixedMonth = recurringSettled ? recurringMonth : undefined;
+  const fixedItems = useMemo(
+    () => fixedPlanFromOccurrences(fixedMonth?.items),
+    [fixedMonth?.items],
+  );
+  const fixedSpentSoFar =
+    toPaise(insightsData?.summary.fixed_debit_total) / 100;
+  const paceLoading = chartLoading || !recurringSettled;
 
   const burnRateMetrics = useMemo(() => {
-    if (chartLoading) return null;
+    if (paceLoading) return null;
     if (summaryFailed)
       return buildEmptyBurnRateMetrics(
         hasMonthlyBudget,
@@ -128,6 +140,11 @@ export function useAnalyticsScreenModel() {
       hasMonthlyBudget ? monthlyBudgetAmount : null,
       selectedMonth.year,
       selectedMonth.monthIndex0,
+      {
+        fixedItems,
+        fixedSpentSoFar,
+        ...(serverToday ? { today: serverToday } : {}),
+      },
     );
     return (
       computed ??
@@ -137,13 +154,46 @@ export function useAnalyticsScreenModel() {
       )
     );
   }, [
-    chartLoading,
+    paceLoading,
     dailyCashflow,
+    fixedItems,
+    fixedSpentSoFar,
     hasMonthlyBudget,
     monthlyBudgetAmount,
     selectedMonth.monthIndex0,
     selectedMonth.year,
+    serverToday,
     summaryFailed,
+  ]);
+
+  const expectedIncome =
+    toPaise(fixedMonth?.totals.fixed_income_upcoming) / 100;
+  const projectedSpend = burnRateMetrics?.projected ?? null;
+  const summary = useMemo((): InsightsMonthSummary | null => {
+    if (summaryLoading || summaryFailed) return null;
+    const isPast = isPastMonth(
+      selectedMonth.year,
+      selectedMonth.monthIndex0,
+      serverToday,
+    );
+    return buildInsightsMonthSummary(
+      insightsData?.summary,
+      hasMonthlyBudget,
+      monthlyBudgetAmount,
+      isPast,
+      { expectedIncome, projectedSpend },
+    );
+  }, [
+    expectedIncome,
+    hasMonthlyBudget,
+    insightsData?.summary,
+    monthlyBudgetAmount,
+    projectedSpend,
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+    serverToday,
+    summaryFailed,
+    summaryLoading,
   ]);
 
   const openTransactionDetail = useCallback(
@@ -210,6 +260,11 @@ export function useAnalyticsScreenModel() {
     dailyCashflow,
     chartLoading,
     burnRateMetrics,
+    paceLoading,
+    burnRateToday: serverToday,
+    fixedCostsMonth: fixedMonth,
+    fixedCostsLoading: !recurringSettled,
+    currentDay,
     chartYear: selectedMonth.year,
     chartMonthIndex0: selectedMonth.monthIndex0,
     counterpartySpend,

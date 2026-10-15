@@ -56,6 +56,7 @@ afterEach(() => {
 interface InsightsBody {
   year: number;
   month: number;
+  today: string;
   summary: unknown;
   daily_cashflow: unknown[];
   counterparty_spend: unknown[];
@@ -101,6 +102,8 @@ describe('GET /transactions', () => {
       category_id: CAT,
       category_icon_name: 'Utensils',
       category_color: '#111111',
+      category_scope: 'spend',
+      recurring_item_id: null,
       note: null,
       detected_via: 'sms',
       transaction_at: '2026-10-04T10:00:00.000Z',
@@ -175,8 +178,8 @@ describe('GET /transactions', () => {
     const res = await call(`/api/v1/transactions?from=2026-09-30T18:30:00Z&to=2026-10-31T18:30:00Z&${TZ}`);
     const body = await res.json<{ day_summaries: Record<string, unknown> }>();
     expect(body.day_summaries).toEqual({
-      '2026-10-01': { date: '2026-10-01', credit_total: '100.00', debit_total: '235.00', net: '-135.00', transaction_count: 3 },
-      '2026-10-02': { date: '2026-10-02', credit_total: '0.00', debit_total: '50.50', net: '-50.50', transaction_count: 1 },
+      '2026-10-01': { date: '2026-10-01', credit_total: '100.00', debit_total: '235.00', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-135.00', transaction_count: 3 },
+      '2026-10-02': { date: '2026-10-02', credit_total: '0.00', debit_total: '50.50', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-50.50', transaction_count: 1 },
     });
   });
 
@@ -309,7 +312,12 @@ describe('GET /transactions/month-summary', () => {
       debit_total: '250.50',
       net: '749.50',
       transaction_count: 4,
+      fixed_debit_total: '0.00',
+      flexible_debit_total: '250.50',
+      fixed_credit_total: '0.00',
+      flexible_credit_total: '1000.00',
       debit_by_category: { [CAT]: '200.00', __uncategorized__: '50.50' },
+      category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111', scope: 'spend' }],
     });
   });
 
@@ -324,8 +332,25 @@ describe('GET /transactions/month-summary', () => {
       debit_total: '15.15',
       net: '4.85',
       transaction_count: 3,
+      fixed_debit_total: '0.00',
+      flexible_debit_total: '15.15',
+      fixed_credit_total: '0.00',
+      flexible_credit_total: '20.00',
       debit_by_category: { [CAT]: '10.10', __uncategorized__: '5.05' },
+      category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111', scope: 'spend' }],
     });
+  });
+
+  it('returns meta for recurring-scoped categories too, and none for unknown ids', async () => {
+    await seedCategory({ id: CAT2, name: 'Subscriptions', icon_name: 'Repeat', color: '#222222', scope: 'recurring_expense', user_id: USER_ID });
+    await seedTransaction({ amount: '99', type: 'debit', category_id: CAT2, transaction_at: '2026-02-05T00:00:00.000Z' });
+    const body = await (await call(`/api/v1/transactions/month-summary?year=2026&month=2&timezone=UTC`)).json<Record<string, unknown>>();
+    expect(body['debit_by_category']).toEqual({ [CAT2]: '99.00' });
+    expect(body['category_meta']).toEqual([{ id: CAT2, name: 'Subscriptions', icon_name: 'Repeat', color: '#222222', scope: 'recurring_expense' }]);
+    expect(body['fixed_debit_total']).toBe('99.00');
+    expect(body['flexible_debit_total']).toBe('0.00');
+    const empty = await (await call(`/api/v1/transactions/month-summary?year=2026&month=3&timezone=UTC`)).json<Record<string, unknown>>();
+    expect(empty['category_meta']).toEqual([]);
   });
 
   it('validation: 422 for year/month ranges and missing timezone, 400 for an unknown timezone', async () => {
@@ -383,6 +408,37 @@ describe('GET /transactions/home', () => {
   });
 });
 
+describe('fixed vs flexible on home and rows', () => {
+  it('home splits the month and keeps fixed categories out of the top categories', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-10T08:00:00Z'));
+    await seedFood();
+    await seedCategory({ id: CAT2, name: 'Rent', icon_name: 'Home', color: '#222222', scope: 'recurring_expense', user_id: USER_ID });
+    await seedTransaction({ amount: '500', category_id: CAT, transaction_at: '2026-10-02T05:00:00.000Z' });
+    await seedTransaction({ amount: '15000', category_id: CAT2, transaction_at: '2026-10-01T05:00:00.000Z' });
+    const body = await (await call(`/api/v1/transactions/home?${TZ}`)).json<Record<string, unknown>>();
+    expect(body['spent_this_month']).toBe('15500.00');
+    expect(body['fixed_spent_this_month']).toBe('15000.00');
+    expect(body['flexible_spent_this_month']).toBe('500.00');
+    expect(body['top_categories']).toEqual([{ category_id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111', total: '500.00' }]);
+  });
+
+  it('rows carry category_scope and recurring_item_id', async () => {
+    await seedCategory({ id: CAT2, name: 'Rent', icon_name: 'Home', color: '#222222', scope: 'recurring_expense', user_id: USER_ID });
+    const itemId = '77777777-7777-4777-8777-777777777777';
+    await testDb()
+      .prepare(
+        `INSERT INTO recurring_items (id, user_id, kind, name, amount, category_id, cadence, day_of_month, timezone, next_due_date, active)
+         VALUES (?, ?, 'subscription', 'Rent', 1500000, ?, 'monthly', 1, 'Asia/Kolkata', '2026-11-01', 1)`,
+      )
+      .bind(itemId, USER_ID, CAT2)
+      .run();
+    await seedTx({ category_id: CAT2, recurring_item_id: itemId });
+    const body = await (await call('/api/v1/transactions')).json<{ items: Record<string, unknown>[] }>();
+    expect(body.items[0]).toMatchObject({ category_scope: 'recurring_expense', recurring_item_id: itemId });
+  });
+});
+
 describe('GET /transactions/month-insights', () => {
   it('builds the insights payload from daily totals, payee totals and the top debits', async () => {
     await seedFood();
@@ -396,10 +452,19 @@ describe('GET /transactions/month-insights', () => {
     const body = await res.json<InsightsBody>();
     expect(body.year).toBe(2026);
     expect(body.month).toBe(5);
-    expect(body.summary).toEqual({ credit_total: '50.00', debit_total: '150.00', net: '-100.00', transaction_count: 3 });
+    expect(body.summary).toEqual({
+      credit_total: '50.00',
+      debit_total: '150.00',
+      net: '-100.00',
+      transaction_count: 3,
+      fixed_debit_total: '0.00',
+      flexible_debit_total: '150.00',
+      fixed_credit_total: '0.00',
+      flexible_credit_total: '50.00',
+    });
     expect(body.daily_cashflow).toHaveLength(31);
-    expect(body.daily_cashflow[14]).toEqual({ date: '2026-05-15', debit_total: '100.00', credit_total: '50.00' });
-    expect(body.daily_cashflow[0]).toEqual({ date: '2026-05-01', debit_total: '0', credit_total: '0' });
+    expect(body.daily_cashflow[14]).toEqual({ date: '2026-05-15', debit_total: '100.00', credit_total: '50.00', fixed_debit_total: '0', fixed_credit_total: '0' });
+    expect(body.daily_cashflow[0]).toEqual({ date: '2026-05-01', debit_total: '0', credit_total: '0', fixed_debit_total: '0', fixed_credit_total: '0' });
     expect(body.counterparty_spend).toEqual([
       { payee_key: 'swiggy', display_name: 'Swiggy', debit_total: '100.00', share: 0.6667, transaction_count: 1 },
       { payee_key: 'uber', display_name: 'Uber', debit_total: '50.00', share: 0.3333, transaction_count: 1 },
@@ -408,6 +473,34 @@ describe('GET /transactions/month-insights', () => {
     expect(body.top_expenses).toHaveLength(2); // the two debits of the month, largest first
     expect(body.top_expenses[0]).toMatchObject({ id: swiggy, category: 'Food' });
     expect(body.top_expenses[1]).toMatchObject({ counterparty_name: 'Uber' });
+  });
+
+  it('splits fixed (recurring-category) money from flexible, leaves fixed debits out of the payee mix, and reports the server day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-05-20T20:00:00Z')); // already May 21 in Kolkata
+    await seedCategory({ id: CAT2, name: 'Rent', icon_name: 'Home', color: '#222222', scope: 'recurring_expense', user_id: USER_ID });
+    await seedCategory({ id: CAT, name: 'Pay', icon_name: 'Banknote', color: '#111111', scope: 'recurring_income', user_id: USER_ID });
+    await seedTransaction({ amount: '15000', type: 'debit', counterparty_name: 'Landlord', category_id: CAT2, transaction_at: '2026-05-01T00:30:00.000Z' });
+    await seedTransaction({ amount: '300', type: 'debit', counterparty_name: 'Cafe', transaction_at: '2026-05-10T10:00:00.000Z' });
+    await seedTransaction({ amount: '50000', type: 'credit', counterparty_name: 'Employer', category_id: CAT, transaction_at: '2026-05-01T00:30:00.000Z' });
+    await seedTransaction({ amount: '200', type: 'credit', counterparty_name: 'Friend', transaction_at: '2026-05-12T10:00:00.000Z' });
+
+    const body = await (await call('/api/v1/transactions/month-insights?year=2026&month=5&timezone=Asia/Kolkata')).json<InsightsBody>();
+    expect(body.today).toBe('2026-05-21');
+    expect(body.summary).toMatchObject({
+      debit_total: '15300.00',
+      fixed_debit_total: '15000.00',
+      flexible_debit_total: '300.00',
+      credit_total: '50200.00',
+      fixed_credit_total: '50000.00',
+      flexible_credit_total: '200.00',
+    });
+    expect(body.daily_cashflow[0]).toMatchObject({ date: '2026-05-01', debit_total: '15000.00', fixed_debit_total: '15000.00', fixed_credit_total: '50000.00' });
+    // Who you paid: flexible only, shares of the flexible total. Income sources keep fixed income.
+    expect(body.counterparty_spend).toEqual([{ payee_key: 'cafe', display_name: 'Cafe', debit_total: '300.00', share: 1, transaction_count: 1 }]);
+    expect(body.counterparty_income.map((r) => r['display_name'])).toEqual(['Employer', 'Friend']);
+    // Top expenses are flexible too: the 15,000 rent is not the biggest "expense".
+    expect(body.top_expenses.map((r) => r['counterparty_name'])).toEqual(['Cafe']);
   });
 
   it('groups payees by payee key: display name of the oldest named row, "Unknown" when nameless', async () => {
@@ -601,7 +694,7 @@ describe('POST /transactions: budget evaluation, notifications and push (backgro
 
   /** A monthly cap of 1000, a push token, and the Expo endpoint. */
   async function wire(o: { monthly?: string; categoryBudget?: string } = {}) {
-    await seedBudget({ monthly: o.monthly ?? '1000', daily: '0' });
+    await seedBudget({ monthly: o.monthly ?? '1000' });
     await seedPushToken('ExponentPushToken[abc]');
     stub.on('POST', '/--/api/v2/push/send', () => json({ data: [{ status: 'ok' }] }));
   }

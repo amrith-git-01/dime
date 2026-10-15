@@ -15,7 +15,7 @@ import { createThemedStyles, useTheme } from "@/theme";
 const wordmark = require("../../../assets/images/splash-wordmark.png");
 
 export default function AuthScreen() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const styles = useStyles();
   const model = useAuthScreenModel();
   const insets = useSafeAreaInsets();
@@ -29,7 +29,10 @@ export default function AuthScreen() {
         <View style={styles.brandHeader}>
           <Image
             source={wordmark}
-            style={styles.wordmark}
+            style={[
+              styles.wordmark,
+              scheme === "dark" ? { tintColor: colors.onAccent } : null,
+            ]}
             accessibilityLabel="Dime"
             resizeMode="contain"
           />

@@ -3,11 +3,14 @@ import { ScrollView } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
+import { TourTarget } from "@/components/shared";
 import { layout } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
+  InsightsFixedCostsCard,
   InsightsHeavyChartsPlaceholder,
   InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
@@ -39,6 +42,11 @@ function AnalyticsInsightsScroll() {
     hasMonthlyBudget,
     chartLoading,
     burnRateMetrics,
+    paceLoading,
+    burnRateToday,
+    fixedCostsMonth,
+    fixedCostsLoading,
+    currentDay,
     dailyCashflow,
     chartYear,
     chartMonthIndex0,
@@ -69,25 +77,33 @@ function AnalyticsInsightsScroll() {
       }}
       onMomentumScrollEnd={reportScroll}
     >
-      <InsightsMonthSummaryCard
-        selectedMonth={selectedMonth.label}
-        canGoPrevMonth={canGoPrevMonth}
-        canGoNextMonth={canGoNextMonth}
-        onPrevMonth={goPrevMonth}
-        onNextMonth={goNextMonth}
-        summary={summary}
-        summaryLoading={summaryLoading}
-        summaryFailed={summaryFailed}
-        hasMonthlyBudget={hasMonthlyBudget}
-      />
+      <TourTarget id={tourTargetIds.insightsSummary}>
+        <InsightsMonthSummaryCard
+          selectedMonth={selectedMonth.label}
+          canGoPrevMonth={canGoPrevMonth}
+          canGoNextMonth={canGoNextMonth}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryFailed={summaryFailed}
+          hasMonthlyBudget={hasMonthlyBudget}
+        />
+      </TourTarget>
 
       {chartsReady ? (
         <>
           <InsightsBurnRateMetricCard
             metrics={burnRateMetrics}
-            loading={chartLoading}
+            loading={paceLoading}
             year={chartYear}
             monthIndex0={chartMonthIndex0}
+            today={burnRateToday}
+          />
+          <InsightsFixedCostsCard
+            data={fixedCostsMonth}
+            loading={fixedCostsLoading}
+            today={currentDay}
           />
           <InsightsDailyCashflowChart
             dailyCashflow={dailyCashflow}

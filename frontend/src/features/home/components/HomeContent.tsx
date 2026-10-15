@@ -4,7 +4,6 @@ import { Text, View } from "react-native";
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
 
-import { DailyCapStrip } from "./DailyCapStrip";
 import { HeroMonthCard } from "./HeroMonthCard";
 import { HomeCategoriesSection } from "./HomeCategoriesSection";
 import { HomeRecentSection } from "./HomeRecentSection";
@@ -17,7 +16,7 @@ const SECTION_GAP = spacing.xl;
 
 /**
  * Root composer for the Home screen.
- * Layout: HeroMonthCard → DailyCapStrip → MonthStatRow → Upcoming → Categories → Recent
+ * Layout: HeroMonthCard → MonthStatRow → Upcoming → Categories → Recent
  */
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
@@ -37,16 +36,9 @@ export const HomeContent = memo(function HomeContent(
         hasBudget={props.hasMonthlyBudget}
         subtext={props.monthlySubtext}
         progress={props.monthlyProgress}
+        splitLine={props.monthSplitLine}
         isLoading={isLoading}
         onAddBudget={props.onAddMonthlyBudget}
-      />
-
-      <DailyCapStrip
-        spentDisplay={props.spentTodayDisplay}
-        subtext={props.dailySubtext}
-        hasBudget={props.hasDailyBudget}
-        progress={props.dailyProgress}
-        onAddBudget={props.onAddDailyBudget}
       />
 
       <MonthStatRow

@@ -12,6 +12,8 @@ import {
 } from "@/features/transactions/utils/transactionDisplay";
 import { createThemedStyles, useTheme } from "@/theme";
 
+import { RecurringBadge } from "./RecurringBadge";
+
 export type TransactionRowProps = {
   transaction: TransactionRowData;
   onPress: (tx: TransactionRowData) => void;
@@ -56,9 +58,12 @@ export const TransactionRow = memo(function TransactionRow({
         <Text style={styles.merchant} numberOfLines={1}>
           {ui.merchant}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {ui.category.name} · {ui.timeLabel}
-        </Text>
+        <View style={styles.subtitleRow}>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {ui.category.name} · {ui.timeLabel}
+          </Text>
+          {ui.isRecurring ? <RecurringBadge /> : null}
+        </View>
       </View>
       <Text
         style={[
@@ -103,7 +108,13 @@ const useStyles = createThemedStyles(({ colors }) => ({
     lineHeight: 19,
     color: colors.ink,
   },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   subtitle: {
+    flexShrink: 1,
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,

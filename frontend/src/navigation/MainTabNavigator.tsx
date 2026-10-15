@@ -10,6 +10,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
+import { useAppTourAutoStart } from "@/features/appTour/hooks/useAppTourAutoStart";
 import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
 import { getCaptureAvailability } from "@/features/limits/utils/limitsFormat";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
@@ -42,7 +43,11 @@ export default function MainTabNavigator() {
   // The splash overlay owns the first reveal: it stays up until this shell reports ready.
   // `splashShellReady` is already true only on a later remount (e.g. after signing in), when
   // the splash is gone and the loader below covers the layout pass instead.
-  const { shellReady: splashShellReady, markShellReady } = useSplashReveal();
+  const {
+    shellReady: splashShellReady,
+    splashRevealed,
+    markShellReady,
+  } = useSplashReveal();
   useEffect(() => {
     if (shellReady) {
       markShellReady();
@@ -78,6 +83,7 @@ export default function MainTabNavigator() {
     (message: string) => showToast({ variant: "info", message }),
     [showToast],
   );
+  useAppTourAutoStart({ shellReady, splashRevealed });
   const unreadQuery = useUnreadNotificationCount();
   const showUnreadNotificationDot = (unreadQuery.data ?? 0) > 0;
 

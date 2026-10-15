@@ -35,6 +35,16 @@ export function hasBudgetChange(body: object): boolean {
   return Object.hasOwn(body, 'budget_amount');
 }
 
+/**
+ * Where a category is used: `spend` for ordinary transactions and category budgets, the `recurring_*` scopes only for
+ * recurring expense / income items.
+ */
+export const CATEGORY_SCOPES = ['spend', 'recurring_expense', 'recurring_income'] as const;
+export type CategoryScope = (typeof CATEGORY_SCOPES)[number];
+
+/** `GET /categories?scope=`: defaults to `spend`, so older app builds never see the recurring categories. */
+export const listQuerySchema = z.object({ scope: z.enum(CATEGORY_SCOPES).default('spend') });
+
 export const deleteQuerySchema = z.object({ reassign_to_category_id: z.string().max(64).optional() });
 
 export interface CategoryRow {
@@ -45,9 +55,10 @@ export interface CategoryRow {
   color: string;
   is_system: boolean;
   created_at: string;
+  scope: CategoryScope;
 }
 
-export const CATEGORY_COLUMNS = 'id,user_id,name,icon_name,color,is_system,created_at';
+export const CATEGORY_COLUMNS = 'id,user_id,name,icon_name,color,is_system,created_at,scope';
 
 export interface CategoryResponse {
   id: string;
@@ -55,6 +66,7 @@ export interface CategoryResponse {
   icon_name: string;
   color: string;
   is_system: boolean;
+  scope: CategoryScope;
   created_at: string;
   user_id: string | null;
   /** Populated by PATCH only: the category's monthly budget after the update. */

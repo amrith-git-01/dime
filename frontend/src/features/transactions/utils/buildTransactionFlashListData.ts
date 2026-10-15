@@ -1,6 +1,9 @@
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 
+import type { RecurringOccurrence } from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
+
+import { todayDayKey } from "./transactionsCalendar";
 
 export function transactionCalendarDayKey(transactionAtIso: string): string {
   return format(parseISO(transactionAtIso), "yyyy-MM-dd");
@@ -89,12 +92,42 @@ export function buildTransactionListSections(
   return groupTransactionsByCalendarDay(transactions);
 }
 
-export type TransactionFlashListItem = {
+export type TransactionFlashListRowItem = {
   kind: "row";
   id: string;
   transaction: TransactionRow;
   sectionRowIndex: number;
 };
+
+/** A recurring occurrence due on the day that is not a real transaction yet (a ghost row, never counted). */
+export type TransactionFlashListUpcomingItem = {
+  kind: "upcoming";
+  id: string;
+  occurrence: RecurringOccurrence;
+  sectionRowIndex: number;
+};
+
+export type TransactionFlashListItem =
+  | TransactionFlashListRowItem
+  | TransactionFlashListUpcomingItem;
+
+/**
+ * Upcoming recurring occurrences grouped by their due day, for TODAY and later only: a past day with an
+ * unposted occurrence is not shown as upcoming. Only `upcoming` status counts (paid ones are real rows).
+ */
+export function groupUpcomingByDay(
+  occurrences: readonly RecurringOccurrence[] | undefined,
+  now: Date = new Date(),
+): Record<string, RecurringOccurrence[]> {
+  const byDay: Record<string, RecurringOccurrence[]> = {};
+  const today = todayDayKey(now);
+  for (const occurrence of occurrences ?? []) {
+    if (occurrence.status !== "upcoming") continue;
+    if (occurrence.due_date < today) continue;
+    (byDay[occurrence.due_date] ??= []).push(occurrence);
+  }
+  return byDay;
+}
 
 export function filterTransactionsByCalendarDay(
   transactions: TransactionRow[],
@@ -106,22 +139,39 @@ export function filterTransactionsByCalendarDay(
   );
 }
 
-/** Newest first within the day (matches API month ordering). */
+/**
+ * Newest first within the day (matches API month ordering). Upcoming recurring occurrences due on
+ * `dayKey` follow the real rows, only when the day is today or later.
+ */
 export function buildTransactionFlashListItemsForSingleDay(
   transactions: TransactionRow[],
   dayKey: string,
+  upcoming: readonly RecurringOccurrence[] = [],
+  now: Date = new Date(),
 ): TransactionFlashListItem[] {
   const forDay = filterTransactionsByCalendarDay(transactions, dayKey).sort(
     (a, b) =>
       parseISO(b.transaction_at).getTime() -
       parseISO(a.transaction_at).getTime(),
   );
-  return forDay.map((transaction, sectionRowIndex) => ({
+  const rows: TransactionFlashListItem[] = forDay.map((transaction, sectionRowIndex) => ({
     kind: "row" as const,
     id: transaction.id,
     transaction,
     sectionRowIndex,
   }));
+  if (dayKey < todayDayKey(now) || upcoming.length === 0) {
+    return rows;
+  }
+  const ghosts = upcoming
+    .filter((occurrence) => occurrence.status === "upcoming" && occurrence.due_date === dayKey)
+    .map((occurrence, index) => ({
+      kind: "upcoming" as const,
+      id: `upcoming:${occurrence.id}:${occurrence.due_date}`,
+      occurrence,
+      sectionRowIndex: rows.length + index,
+    }));
+  return [...rows, ...ghosts];
 }
 
 export type TransactionListHeaderItem = {

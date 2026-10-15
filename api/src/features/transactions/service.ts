@@ -1,6 +1,6 @@
 import { isUniqueViolation } from '../../core/db-errors';
 import { formatCents, formatMoney } from '../../core/decimal';
-import { ConflictError, NotFoundError } from '../../core/errors';
+import { ConflictError, NotFoundError, ValidationError } from '../../core/errors';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
 import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
@@ -8,12 +8,13 @@ import { addDays, dateKey, lastNDaysRange, localDate, monthRange, parseTimezone 
 import type { IsoRange } from '../../core/timezone';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
+import type { CategoryScope } from '../categories/schemas';
 import { emit } from '../realtime/publish';
 import { inserted, updated as changed } from '../realtime/events';
 import type { Publish } from '../realtime/events';
 import { signMediaUrls } from '../media/storage';
 import type { MediaStore, SignOptions } from '../media/storage';
-import { buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse } from './aggregates';
+import { UNCATEGORIZED_KEY, buildDaySummaries, dailyDebitSeries, dayTotalsFromRows, debitByCategoryResponse, fixedFlexibleFields } from './aggregates';
 import type { DayTotals, PeriodSummary } from './aggregates';
 import { buildPaymentHash, buildSparseMergePatch, normalizedOrNull } from './dedupe';
 import * as repo from './repository';
@@ -113,6 +114,8 @@ function toResponse(row: TransactionRow, enrichment: Enrichment): TransactionRes
     category_id: cid,
     category_icon_name: typeof cat?.icon_name === 'string' ? cat.icon_name : null,
     category_color: typeof cat?.color === 'string' ? cat.color : null,
+    category_scope: cat?.scope ?? null,
+    recurring_item_id: row.recurring_item_id ?? null,
     note: row.note ?? null,
     detected_via: normalizeDetectedVia(row.detected_via),
     transaction_at: isoUtc(row.transaction_at),
@@ -178,12 +181,22 @@ export async function monthSummary(
 ): Promise<MonthSummaryResponse> {
   const tz = parseTimezone(input.timezone);
   const summary = await loadPeriodSummary(ctx, monthRange(tz, input.year, input.month));
+  const debitByCategory = debitByCategoryResponse(summary);
+  // Meta of every spent category, of any scope: posted recurring items keep their recurring category,
+  // which the spend-scoped categories list does not carry.
+  const meta = await fetchMetaByIds(
+    ctx.db,
+    Object.keys(debitByCategory).filter((key) => key !== UNCATEGORIZED_KEY),
+    ctx.userId,
+  );
   return {
     credit_total: formatCents(summary.creditCents),
     debit_total: formatCents(summary.debitCents),
     net: formatCents(summary.creditCents - summary.debitCents),
     transaction_count: summary.count,
-    debit_by_category: debitByCategoryResponse(summary),
+    ...fixedFlexibleFields(summary),
+    debit_by_category: debitByCategory,
+    category_meta: [...meta.values()].map(({ id, name, icon_name, color, scope }) => ({ id, name: name.trim(), icon_name, color, scope })),
   };
 }
 
@@ -207,7 +220,9 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
     repo.listPage(ctx.db, ctx.userId, { filters: {}, limit: RECENT_COUNT, offset: 0 }),
   ]);
 
+  // Everyday spending only: recurring (fixed) categories are shown as their own split, not as a "top category".
   const top = [...month.debitByCategory]
+    .filter(([key]) => !month.fixedDebitCategories.has(key))
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_CATEGORIES)
     .map(([key, cents]) => ({ id: key === '' ? null : key, cents }));
@@ -233,6 +248,8 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
   return {
     spent_today: formatCents(todayTotals?.debitCents ?? 0),
     spent_this_month: formatCents(month.debitCents),
+    fixed_spent_this_month: formatCents(month.fixedDebitCents),
+    flexible_spent_this_month: formatCents(month.debitCents - month.fixedDebitCents),
     top_categories,
     recent_transactions: recent.map((row) => toResponse(row, enrichment)),
     last_7_days_spend: dailyDebitSeries(weekTotals, days),
@@ -243,26 +260,42 @@ export async function homeOverview(ctx: TxContext, timezone: string, nowMs: numb
  * Writes
  * -------------------------------------------------------------------------------------------- */
 
+interface ResolvedCategory {
+  id: string;
+  scope: CategoryScope;
+}
+
 /**
  * Category for a write: a visible `category_id` wins; otherwise the `category` name is matched
  * case-insensitively against the categories visible to the user. One query serves both, and none
- * is made when the request names no category.
+ * is made when the request names no category. A name only matches spending categories (so an AI-guessed or typed
+ * "Rent" never lands on a recurring category); an id may name any scope and the caller decides.
  */
-async function resolveCategoryId(
+async function resolveCategory(
   ctx: TxContext,
   input: { categoryId?: string | null | undefined; categoryName?: string | null | undefined },
-): Promise<string | null> {
+  anyScopeByName = false,
+): Promise<ResolvedCategory | null> {
   const wantedName = input.categoryName?.trim().toLowerCase() ?? '';
   if (!input.categoryId && !wantedName) return null;
   const visible = await listVisibleIdName(ctx.db, ctx.userId);
   if (input.categoryId) {
     const id = input.categoryId.toLowerCase();
-    if (visible.some((c) => String(c.id).toLowerCase() === id)) return id;
+    const hit = visible.find((c) => String(c.id).toLowerCase() === id);
+    if (hit) return { id, scope: hit.scope };
   }
   if (!wantedName) return null;
-  const hit = visible.find((c) => typeof c.name === 'string' && c.name.trim().toLowerCase() === wantedName);
-  return hit ? String(hit.id) : null;
+  const hit = visible.find(
+    (c) => typeof c.name === 'string' && c.name.trim().toLowerCase() === wantedName && (anyScopeByName || c.scope === 'spend'),
+  );
+  return hit ? { id: String(hit.id), scope: hit.scope } : null;
 }
+
+const SCOPE_MISMATCH = 'Choose a category that matches the transaction type.';
+
+/** A recurring-scope category fits only its own direction: recurring_expense <-> debit, recurring_income <-> credit. */
+const fitsType = (scope: CategoryScope, type: TransactionType): boolean =>
+  scope === 'spend' || (scope === 'recurring_expense' && type === 'debit') || (scope === 'recurring_income' && type === 'credit');
 
 export interface NewTransactionInput {
   /** Decimal string with two places ("250.50"). */
@@ -305,10 +338,13 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
       counterpartyName: name,
       transactionAtMs: input.transactionAt.ms,
     }));
-  const [categoryId, existing] = await Promise.all([
-    resolveCategoryId(ctx, input),
+  const [resolved, existing] = await Promise.all([
+    resolveCategory(ctx, input, Boolean(input.recurringItemId)),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
   ]);
+  // A recurring category may be used by hand when its direction matches the type (the poster, which sets `recurringItemId`, is trusted).
+  if (resolved && !input.recurringItemId && !fitsType(resolved.scope, input.type)) throw new ValidationError(SCOPE_MISMATCH);
+  const categoryId = resolved?.id ?? null;
 
   const row: NewTransactionRow = {
     user_id: ctx.userId,
@@ -381,12 +417,23 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     transactionAtMs: body.transaction_at.ms,
   });
 
-  const [existing, categoryId, clash] = await Promise.all([
+  const [existing, resolved, clash] = await Promise.all([
     repo.fetchActive(ctx.db, ctx.userId, id),
-    resolveCategoryId(ctx, { categoryId: body.category_id, categoryName: body.category }),
+    resolveCategory(ctx, { categoryId: body.category_id, categoryName: body.category }),
     repo.findByPaymentHash(ctx.db, ctx.userId, newHash),
   ]);
   if (!existing) throw new NotFoundError(NOT_FOUND);
+  // A recurring category fits only its own direction; a row keeps its current category when the client echoes it back unchanged.
+  if (resolved && !fitsType(resolved.scope, body.type) && resolved.id !== String(existing.category_id ?? '').toLowerCase()) {
+    throw new ValidationError(SCOPE_MISMATCH);
+  }
+  // A name never matches a recurring category (only recurring-posted rows carry one), so an echoed-back
+  // name that doesn't resolve keeps such a row's category instead of silently clearing it.
+  let categoryId = resolved?.id ?? null;
+  if (!resolved && body.category?.trim() && existing.category_id) {
+    const current = await resolveCategory(ctx, { categoryId: existing.category_id });
+    if (current && current.scope !== 'spend') categoryId = current.id;
+  }
 
   const patch: Record<string, unknown> = {
     amount: body.amount,

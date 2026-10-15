@@ -186,7 +186,7 @@ export const InsightsCounterpartyDonutCard = memo(
       <>
         <InsightsCard
           kicker="WHO YOU PAID"
-          subtitle="Debit spending by payee this month"
+          subtitle="Debit spending by payee this month · Excludes fixed costs"
         >
           <View style={styles.body}>
             {chartLoading ? (

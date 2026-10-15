@@ -12,7 +12,6 @@ import { fontFamilies } from "@/constants/fonts";
 import { BudgetAmountStepSlider } from "./BudgetAmountStepSlider";
 import {
   BUDGET_CUSTOM_STEP_INDEX,
-  DAILY_BUDGET_PRESETS,
   MONTHLY_BUDGET_PRESETS,
 } from "./budgetEditorPresets";
 import { BudgetLimitsBentoRow } from "./BudgetLimitsBentoRow";
@@ -21,17 +20,11 @@ import { createThemedStyles } from "@/theme";
 
 type BudgetLimitsEditorProps = {
   isEditMode: boolean;
-  dailyDisplayAmount: string;
   monthlyDisplayAmount: string;
-  dailyIsCustom: boolean;
   monthlyIsCustom: boolean;
-  dailyValue: string;
   monthlyValue: string;
-  dailyStepIndex: number;
   monthlyStepIndex: number;
-  onDailyChange: (text: string) => void;
   onMonthlyChange: (text: string) => void;
-  onDailyStepChange: (index: number) => void;
   onMonthlyStepChange: (index: number) => void;
   onSave: () => void;
   onClear: () => void;
@@ -41,17 +34,11 @@ type BudgetLimitsEditorProps = {
 
 export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   isEditMode,
-  dailyDisplayAmount,
   monthlyDisplayAmount,
-  dailyIsCustom,
   monthlyIsCustom,
-  dailyValue,
   monthlyValue,
-  dailyStepIndex,
   monthlyStepIndex,
-  onDailyChange,
   onMonthlyChange,
-  onDailyStepChange,
   onMonthlyStepChange,
   onSave,
   onClear,
@@ -59,30 +46,14 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   saveLoading,
 }: BudgetLimitsEditorProps) {
   const styles = useStyles();
-  const dailyInputRef = useRef<TextInput>(null);
   const monthlyInputRef = useRef<TextInput>(null);
-  const pendingDailyFocusRef = useRef(false);
   const pendingMonthlyFocusRef = useRef(false);
-  const [dailyFocusGeneration, setDailyFocusGeneration] = useState(0);
   const [monthlyFocusGeneration, setMonthlyFocusGeneration] = useState(0);
-
-  const queueDailyFocus = useCallback(() => {
-    pendingDailyFocusRef.current = true;
-    setDailyFocusGeneration((generation) => generation + 1);
-  }, []);
 
   const queueMonthlyFocus = useCallback(() => {
     pendingMonthlyFocusRef.current = true;
     setMonthlyFocusGeneration((generation) => generation + 1);
   }, []);
-
-  useLayoutEffect(() => {
-    if (!pendingDailyFocusRef.current || !dailyIsCustom) {
-      return;
-    }
-    pendingDailyFocusRef.current = false;
-    focusBudgetAmountInput(dailyInputRef.current);
-  }, [dailyIsCustom, dailyStepIndex, dailyFocusGeneration]);
 
   useLayoutEffect(() => {
     if (!pendingMonthlyFocusRef.current || !monthlyIsCustom) {
@@ -91,16 +62,6 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
     pendingMonthlyFocusRef.current = false;
     focusBudgetAmountInput(monthlyInputRef.current);
   }, [monthlyIsCustom, monthlyStepIndex, monthlyFocusGeneration]);
-
-  const handleDailyStepChange = useCallback(
-    (index: number) => {
-      if (index === BUDGET_CUSTOM_STEP_INDEX) {
-        queueDailyFocus();
-      }
-      onDailyStepChange(index);
-    },
-    [onDailyStepChange, queueDailyFocus],
-  );
 
   const handleMonthlyStepChange = useCallback(
     (index: number) => {
@@ -112,13 +73,6 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
     [onMonthlyStepChange, queueMonthlyFocus],
   );
 
-  const handleDailyTilePress = useCallback(() => {
-    if (!dailyIsCustom) {
-      return;
-    }
-    focusBudgetAmountInput(dailyInputRef.current);
-  }, [dailyIsCustom]);
-
   const handleMonthlyTilePress = useCallback(() => {
     if (!monthlyIsCustom) {
       return;
@@ -127,7 +81,6 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   }, [monthlyIsCustom]);
 
   const handleClear = useCallback(() => {
-    pendingDailyFocusRef.current = false;
     pendingMonthlyFocusRef.current = false;
     onClear();
   }, [onClear]);
@@ -137,35 +90,23 @@ export const BudgetLimitsEditor = memo(function BudgetLimitsEditor({
   return (
     <View style={styles.content}>
       <Text style={styles.description}>
-        Slide to a preset or choose Custom. Daily and monthly caps stay
-        independent.
+        Slide to a preset or choose Custom. Your monthly cap applies to every
+        calendar month.
       </Text>
 
-      {/* Cap tiles */}
+      {/* Cap tile */}
       <BudgetLimitsBentoRow
-        dailyInputRef={dailyInputRef}
         monthlyInputRef={monthlyInputRef}
-        dailyDisplayAmount={dailyDisplayAmount}
         monthlyDisplayAmount={monthlyDisplayAmount}
-        dailyIsCustom={dailyIsCustom}
         monthlyIsCustom={monthlyIsCustom}
-        dailyValue={dailyValue}
         monthlyValue={monthlyValue}
-        onDailyChange={onDailyChange}
         onMonthlyChange={onMonthlyChange}
-        onDailyAmountPress={handleDailyTilePress}
         onMonthlyAmountPress={handleMonthlyTilePress}
         onSubmitEditing={onSave}
       />
 
-      {/* Sliders */}
+      {/* Slider */}
       <View style={styles.slidersBlock}>
-        <BudgetAmountStepSlider
-          label="Daily cap"
-          presets={DAILY_BUDGET_PRESETS}
-          stepIndex={dailyStepIndex}
-          onStepChange={handleDailyStepChange}
-        />
         <BudgetAmountStepSlider
           label="Monthly cap"
           presets={MONTHLY_BUDGET_PRESETS}

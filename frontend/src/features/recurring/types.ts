@@ -72,3 +72,42 @@ export type RecurringFormState = {
   active: boolean;
   postCurrentPeriod: boolean;
 };
+
+/** paid: posted this month; skipped: posted, then deleted; upcoming: active and not posted yet. */
+export type RecurringOccurrenceStatus = "paid" | "skipped" | "upcoming";
+
+/** One recurring item's occurrence in a calendar month (`GET /api/v1/recurring/month`). */
+export type RecurringOccurrence = {
+  id: string;
+  kind: RecurringKind;
+  name: string;
+  amount: string;
+  category: {
+    id: string;
+    name: string;
+    icon_name: string | null;
+    color: string | null;
+    scope: string;
+  } | null;
+  /** `YYYY-MM-DD`, a calendar date with no timezone. */
+  due_date: string;
+  status: RecurringOccurrenceStatus;
+  transaction_id?: string;
+  /** Paid only: the amount that was actually posted. */
+  posted_amount?: string;
+};
+
+export type RecurringMonthTotals = {
+  fixed_expense_paid: string;
+  fixed_expense_upcoming: string;
+  fixed_income_received: string;
+  fixed_income_upcoming: string;
+};
+
+export type RecurringMonthResponse = {
+  year: number;
+  /** 1-12. */
+  month: number;
+  items: RecurringOccurrence[];
+  totals: RecurringMonthTotals;
+};

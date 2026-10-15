@@ -1,11 +1,11 @@
 import { all, batch, chunks, first, fromFlag, newId, nowIso, placeholders, stmt } from '../../core/db';
 import type { Db } from '../../core/db';
-import { DbCodedError, INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND } from '../../core/db-errors';
+import { DbCodedError, INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, WRONG_SCOPE } from '../../core/db-errors';
 import { decimalToCents, formatCents } from '../../core/decimal';
 import { DETAIL_COLUMNS } from '../transactions/schemas';
 import type { TransactionRow } from '../transactions/schemas';
 import { CATEGORY_COLUMNS } from './schemas';
-import type { CategoryRow } from './schemas';
+import type { CategoryRow, CategoryScope } from './schemas';
 
 /** Raw `categories` row: `is_system` is 0/1. */
 interface CategoryDbRow extends Omit<CategoryRow, 'is_system'> {
@@ -20,12 +20,15 @@ const toCategoryRow = (row: CategoryDbRow): CategoryRow => ({ ...row, is_system:
 /** `NOCASE` gives case-insensitive ordering. */
 const BY_NAME = 'ORDER BY name COLLATE NOCASE ASC, name ASC';
 
-/** System categories plus the user's own, ordered by name. One query serves lookups and uniqueness checks. */
-export async function listVisible(db: Db, userId: string): Promise<CategoryRow[]> {
+/**
+ * System categories plus the user's own, ordered by name. One query serves lookups and uniqueness checks, so write paths
+ * call it unfiltered (names must be unique across every scope); the list endpoint passes a `scope`.
+ */
+export async function listVisible(db: Db, userId: string, scope?: CategoryScope): Promise<CategoryRow[]> {
   const rows = await all<CategoryDbRow>(
     db,
-    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE is_system = 1 OR user_id = ? ${BY_NAME}`,
-    [userId],
+    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE (is_system = 1 OR user_id = ?)${scope ? ' AND scope = ?' : ''} ${BY_NAME}`,
+    scope ? [userId, scope] : [userId],
   );
   return rows.map(toCategoryRow);
 }
@@ -87,6 +90,10 @@ export async function updateCategoryWithBudget(db: Db, input: CategoryBudgetUpda
     [categoryId, input.userId],
   );
   if (!current) throw new DbCodedError(NO_DATA_FOUND, 'category not found');
+  // Budgets are for spending categories only (recurring categories are never budgeted; removing a stale budget is fine).
+  if (input.setBudget && input.budgetAmount !== null && current.scope !== 'spend') {
+    throw new DbCodedError(WRONG_SCOPE, 'only spending categories can have a budget');
+  }
 
   const editsCategory = input.name !== null || input.iconName !== null || input.color !== null;
   if (editsCategory && fromFlag(current.is_system)) {
@@ -177,6 +184,7 @@ export interface CategoryMeta {
   icon_name: string | null;
   color: string | null;
   is_system: boolean;
+  scope: CategoryScope;
 }
 
 /** Display fields for a set of category ids, limited to categories visible to the user (system + own). */
@@ -187,7 +195,7 @@ export async function fetchMetaByIds(db: Db, ids: readonly string[], userId: str
   for (const part of chunks(ids, 80)) {
     const rows = await all<Omit<CategoryMeta, 'is_system'> & { is_system: number }>(
       db,
-      `SELECT id, name, icon_name, color, is_system FROM categories
+      `SELECT id, name, icon_name, color, is_system, scope FROM categories
        WHERE id IN (${placeholders(part.length)}) AND (is_system = 1 OR user_id = ?)`,
       [...part.map((id) => id.toLowerCase()), userId],
     );
@@ -196,11 +204,11 @@ export async function fetchMetaByIds(db: Db, ids: readonly string[], userId: str
   return out;
 }
 
-/** Just `id,name` of every category visible to the user: resolves an id or a name in one query. */
-export async function listVisibleIdName(db: Db, userId: string): Promise<{ id: string; name: string }[]> {
-  return all<{ id: string; name: string }>(
+/** Just `id,name,scope` of every category visible to the user: resolves an id or a name in one query. */
+export async function listVisibleIdName(db: Db, userId: string): Promise<{ id: string; name: string; scope: CategoryScope }[]> {
+  return all<{ id: string; name: string; scope: CategoryScope }>(
     db,
-    `SELECT id, name FROM categories WHERE is_system = 1 OR user_id = ? ${BY_NAME}`,
+    `SELECT id, name, scope FROM categories WHERE is_system = 1 OR user_id = ? ${BY_NAME}`,
     [userId],
   );
 }

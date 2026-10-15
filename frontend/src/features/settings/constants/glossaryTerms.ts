@@ -89,11 +89,6 @@ export const GLOSSARY_GROUPS: readonly GlossaryGroup[] = [
         description: "The cap you set for a month, overall or per category.",
       },
       {
-        id: "daily-budget",
-        term: "Daily budget",
-        description: "A daily spending cap. Alerts can fire when you near it.",
-      },
-      {
         id: "remaining",
         term: "Remaining",
         description: "Budget minus what you have spent so far this period.",

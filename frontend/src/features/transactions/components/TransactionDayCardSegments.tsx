@@ -11,9 +11,12 @@ import { SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { RecurringOccurrenceRow } from "@/features/recurring/components";
+import type { RecurringOccurrence } from "@/features/recurring/types";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalendar";
+import { formatInrCompact } from "@/utils/currency";
 
 import { DayAddButton } from "./DayAddButton";
 import { TransactionRow } from "./TransactionRow";
@@ -105,27 +108,73 @@ export const TransactionDayCardRow = memo(function TransactionDayCardRow({
   );
 });
 
+export type TransactionDayCardUpcomingRowProps = {
+  occurrence: RecurringOccurrence;
+  /** Start of the current local day (the occurrence's own day wording is replaced by "Upcoming"). */
+  today: Date;
+  showDivider: boolean;
+  onPress: (occurrence: RecurringOccurrence) => void;
+};
+
+/**
+ * A recurring occurrence still to be posted, drawn dimmed inside the day card. It is not a transaction:
+ * the day's totals and counts leave it out. Tapping opens the recurring item.
+ */
+export const TransactionDayCardUpcomingRow = memo(
+  function TransactionDayCardUpcomingRow({
+    occurrence,
+    today,
+    showDivider,
+    onPress,
+  }: TransactionDayCardUpcomingRowProps) {
+    const styles = useStyles();
+    return (
+      <SurfaceCardSegment isFirst={false} isLast={false}>
+        {showDivider ? <View style={styles.rowDivider} /> : null}
+        <RecurringOccurrenceRow
+          occurrence={occurrence}
+          today={today}
+          onPress={onPress}
+          subtitle="Upcoming · Recurring"
+          dimmed
+        />
+      </SurfaceCardSegment>
+    );
+  },
+);
+
 export type TransactionDayCardFooterProps = {
   transactionCount: number;
   dayIncomeTotal: number;
   dayExpenseTotal: number;
+  /** Sum of the day's upcoming recurring occurrences (rupees); shown apart from the totals. */
+  upcomingTotal?: number;
 };
 
 export const TransactionDayCardFooter = memo(function TransactionDayCardFooter({
   transactionCount,
   dayIncomeTotal,
   dayExpenseTotal,
+  upcomingTotal = 0,
 }: TransactionDayCardFooterProps) {
   const styles = useStyles();
+  const countLabel =
+    transactionCount === 0
+      ? null
+      : transactionCount === 1
+        ? "1 transaction"
+        : `${transactionCount} transactions`;
+  const label = [
+    countLabel,
+    upcomingTotal > 0 ? `Upcoming ${formatInrCompact(upcomingTotal)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <SurfaceCardSegment isFirst={false} isLast>
       <View style={styles.footerDivider} />
       <View style={styles.footer}>
-        <Text style={styles.footerCount}>
-          {transactionCount === 1
-            ? "1 transaction"
-            : `${transactionCount} transactions`}
-        </Text>
+        <Text style={styles.footerCount}>{label}</Text>
         <View style={styles.footerTotals}>
           {dayIncomeTotal > 0 ? (
             <Text style={styles.footerIncome}>

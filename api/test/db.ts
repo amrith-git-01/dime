@@ -71,6 +71,7 @@ export interface SeedTransaction {
   updated_at?: string;
   deleted_at?: string | null;
   payment_hash?: string | null;
+  recurring_item_id?: string | null;
 }
 
 export async function seedTransaction(over: SeedTransaction = {}): Promise<string> {
@@ -81,8 +82,8 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
   await testDb()
     .prepare(
       `INSERT INTO transactions (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, deleted_at,
-         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -103,25 +104,26 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
       normalized,
       over.payment_hash ?? null,
       payeeKey(normalized, name),
+      over.recurring_item_id ?? null,
     )
     .run();
   return id;
 }
 
-export async function seedCategory(over: { id?: string; user_id?: string | null; name: string; icon_name?: string; color?: string; is_system?: boolean; created_at?: string }) {
+export async function seedCategory(over: { id?: string; user_id?: string | null; name: string; icon_name?: string; color?: string; is_system?: boolean; scope?: string; created_at?: string }) {
   const id = over.id ?? uid();
   await testDb()
-    .prepare('INSERT INTO categories (id, user_id, name, icon_name, color, is_system, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, over.is_system ? null : (over.user_id === undefined ? USER_ID : over.user_id), over.name, over.icon_name ?? 'Tag', over.color ?? '#94A3B8', over.is_system ? 1 : 0, over.created_at ?? '2026-07-01T00:00:00.000Z')
+    .prepare('INSERT INTO categories (id, user_id, name, icon_name, color, is_system, scope, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, over.is_system ? null : (over.user_id === undefined ? USER_ID : over.user_id), over.name, over.icon_name ?? 'Tag', over.color ?? '#94A3B8', over.is_system ? 1 : 0, over.scope ?? 'spend', over.created_at ?? '2026-07-01T00:00:00.000Z')
     .run();
   return id;
 }
 
-export async function seedBudget(over: { user_id?: string; monthly?: string; daily?: string | null } = {}) {
+export async function seedBudget(over: { user_id?: string; monthly?: string } = {}) {
   const now = nowIso();
   await testDb()
-    .prepare('INSERT INTO budgets (id, user_id, monthly_budget, daily_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(uid(), over.user_id ?? USER_ID, decimalToCents(over.monthly ?? '0'), over.daily === null ? null : decimalToCents(over.daily ?? '0'), now, now)
+    .prepare('INSERT INTO budgets (id, user_id, monthly_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(uid(), over.user_id ?? USER_ID, decimalToCents(over.monthly ?? '0'), now, now)
     .run();
 }
 

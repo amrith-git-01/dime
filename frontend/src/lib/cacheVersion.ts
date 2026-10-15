@@ -4,7 +4,7 @@ import Constants from "expo-constants";
  * Bump when the shape of any persisted cache entry (React Query blob, notifications and
  * settings snapshots) changes incompatibly. Stored data written under another version is dropped.
  */
-export const CACHE_SCHEMA_VERSION = 1;
+export const CACHE_SCHEMA_VERSION = 2;
 
 type CacheBusterParts = {
   appVersion: string | null | undefined;

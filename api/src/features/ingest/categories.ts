@@ -9,7 +9,7 @@ import type { CategoryContext } from '../ai/service';
 export async function loadCategoryContext(db: Db, userId: string): Promise<CategoryContext> {
   const data = await all<{ id: unknown; name: unknown }>(
     db,
-    'SELECT id, name FROM categories WHERE is_system = 1 OR user_id = ? ORDER BY name COLLATE NOCASE ASC, name ASC',
+    "SELECT id, name FROM categories WHERE (is_system = 1 OR user_id = ?) AND scope = 'spend' ORDER BY name COLLATE NOCASE ASC, name ASC",
     [userId],
   );
 

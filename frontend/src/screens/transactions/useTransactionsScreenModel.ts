@@ -4,6 +4,9 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo } from "react";
 
+import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
+import { useRecurringQuery } from "@/features/recurring/hooks/useRecurringQuery";
+import type { RecurringOccurrence } from "@/features/recurring/types";
 import type { TransactionsMonthBentoSummary } from "@/features/transactions/components";
 import { usePrefetchTransactionsForSelectedDay } from "@/features/transactions/hooks/usePrefetchTransactionsForSelectedDay";
 import { useTransactionsCalendarSelection } from "@/features/transactions/hooks/useTransactionsCalendarSelection";
@@ -15,14 +18,21 @@ import type { TransactionRow } from "@/features/transactions/types";
 import {
   buildTransactionFlashListItemsForSingleDay,
   filterTransactionsByCalendarDay,
+  groupUpcomingByDay,
   transactionCalendarDayKey,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { resolveDaySummary } from "@/features/transactions/utils/daySummaries";
 import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
+import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
-import { formatNetDisplay, formatSpendMagnitude } from "@/utils/currency";
+import {
+  formatInrCompact,
+  formatNetDisplay,
+  formatSpendMagnitude,
+} from "@/utils/currency";
+import { toPaise } from "@/utils/paise";
 
 type TransactionsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Transactions">,
@@ -61,6 +71,13 @@ export function useTransactionsScreenModel() {
     selectedMonth.year,
     selectedMonth.monthIndex0,
   );
+  const recurringMonthQuery = useRecurringMonthQuery(
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+  );
+  const incomeRecurringQuery = useRecurringQuery("income");
+  const subscriptionRecurringQuery = useRecurringQuery("subscription");
+  const today = useCurrentDay();
   const {
     data: infiniteData,
     fetchNextPage,
@@ -70,6 +87,51 @@ export function useTransactionsScreenModel() {
   } = useTransactionsMonthInfiniteQuery(
     selectedMonth.year,
     selectedMonth.monthIndex0,
+  );
+
+  // Recurring occurrences still to be posted: drawn as ghost rows on today / future days, never counted.
+  const upcomingByDay = useMemo(
+    () => groupUpcomingByDay(recurringMonthQuery.data?.items, today),
+    [recurringMonthQuery.data?.items, today],
+  );
+  const upcomingForSelectedDay = useMemo(
+    () => upcomingByDay[selectedDayKey] ?? [],
+    [selectedDayKey, upcomingByDay],
+  );
+  const upcomingDayKeys = useMemo(
+    () => new Set(Object.keys(upcomingByDay)),
+    [upcomingByDay],
+  );
+  const upcomingDayTotal = useMemo(
+    () =>
+      upcomingForSelectedDay.reduce(
+        (sum, occurrence) =>
+          occurrence.kind === "subscription"
+            ? sum + toPaise(occurrence.amount) / 100
+            : sum,
+        0,
+      ),
+    [upcomingForSelectedDay],
+  );
+  const upcomingExpenseTotal =
+    toPaise(recurringMonthQuery.data?.totals.fixed_expense_upcoming) / 100;
+
+  const openUpcomingOccurrence = useCallback(
+    (occurrence: RecurringOccurrence) => {
+      const item = [
+        ...(incomeRecurringQuery.data?.items ?? []),
+        ...(subscriptionRecurringQuery.data?.items ?? []),
+      ].find((candidate) => candidate.id === occurrence.id);
+      if (item) {
+        void triggerHaptic();
+        navigation.navigate("RecurringEditor", { kind: item.kind, item });
+      }
+    },
+    [
+      incomeRecurringQuery.data?.items,
+      navigation,
+      subscriptionRecurringQuery.data?.items,
+    ],
   );
 
   const summary = useMemo((): TransactionsMonthBentoSummary | null => {
@@ -85,8 +147,9 @@ export function useTransactionsScreenModel() {
         const n = Number.parseFloat(data.net);
         return Number.isFinite(n) ? n : 0;
       })(),
+      upcomingDisplay: upcomingExpenseTotal > 0 ? formatInrCompact(upcomingExpenseTotal) : null,
     };
-  }, [summaryQuery.data]);
+  }, [summaryQuery.data, upcomingExpenseTotal]);
 
   const flatRows = useMemo(() => {
     const pages = infiniteData?.pages ?? [];
@@ -134,11 +197,18 @@ export function useTransactionsScreenModel() {
   });
 
   const flashListData = useMemo(
-    () => buildTransactionFlashListItemsForSingleDay(flatRows, selectedDayKey),
-    [flatRows, selectedDayKey],
+    () =>
+      buildTransactionFlashListItemsForSingleDay(
+        flatRows,
+        selectedDayKey,
+        upcomingForSelectedDay,
+        today,
+      ),
+    [flatRows, selectedDayKey, today, upcomingForSelectedDay],
   );
 
-  const dayRowCount = useMemo(() => flashListData.length, [flashListData]);
+  // Real transactions only: ghost rows never count towards loading or emptiness.
+  const dayRowCount = dayTransactions.length;
   const lastRowIndex = dayRowCount > 0 ? dayRowCount - 1 : -1;
 
   const spendByDay = useMemo(() => {
@@ -282,6 +352,11 @@ export function useTransactionsScreenModel() {
     showMonthLoading,
     spendByDay,
     summary,
+    today,
+    upcomingDayKeys,
+    upcomingDayTotal,
+    upcomingExpenseTotal,
+    openUpcomingOccurrence,
     summaryFailed: summaryQuery.isError,
     summaryLoading: summaryQuery.isPending,
   };

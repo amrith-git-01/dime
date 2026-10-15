@@ -5,13 +5,9 @@ import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 
 import { BudgetLimitAmountInput } from "./BudgetLimitAmountInput";
-import { BUDGET_EDITOR_FLEX } from "./budgetEditorBentoTokens";
 import { createThemedStyles } from "@/theme";
 
-export type BudgetLimitTileKind = "daily" | "monthly";
-
 type BudgetLimitBentoTileProps = {
-  kind: BudgetLimitTileKind;
   displayAmount: string;
   isCustom: boolean;
   value: string;
@@ -20,27 +16,15 @@ type BudgetLimitBentoTileProps = {
   onSubmitEditing?: () => void;
 };
 
-const TILE_CONFIG: Record<
-  BudgetLimitTileKind,
-  { flex: number; title: string; hint: string }
-> = {
-  daily: {
-    flex: BUDGET_EDITOR_FLEX.daily,
-    title: "Daily cap",
-    hint: "Warns when today exceeds this",
-  },
-  monthly: {
-    flex: BUDGET_EDITOR_FLEX.monthly,
-    title: "Monthly cap",
-    hint: "Applies to every calendar month",
-  },
-};
+const TILE_CONFIG = {
+  title: "Monthly cap",
+  hint: "Applies to every calendar month",
+} as const;
 
 export const BudgetLimitBentoTile = memo(
   forwardRef<TextInput, BudgetLimitBentoTileProps>(
     function BudgetLimitBentoTile(
       {
-        kind,
         displayAmount,
         isCustom,
         value,
@@ -51,10 +35,10 @@ export const BudgetLimitBentoTile = memo(
       ref,
     ) {
       const styles = useStyles();
-      const config = TILE_CONFIG[kind];
+      const config = TILE_CONFIG;
 
       return (
-        <View style={[styles.tile, { flex: config.flex }]}>
+        <View style={styles.tile}>
           <Text style={styles.title}>{config.title}</Text>
 
           <Pressable

@@ -2,6 +2,7 @@ import * as z from 'zod';
 
 import { decimalInput, quantizeMoney } from '../../core/decimal';
 import { uuidString } from '../../core/validation';
+import type { CategoryScope } from '../categories/schemas';
 
 const TRANSACTION_TYPES = ['debit', 'credit'] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
@@ -183,10 +184,12 @@ export interface TransactionRow {
   updated_at: string | null;
   deleted_at?: string | null;
   payment_hash?: string | null;
+  /** The recurring item that posted this row; null for everything else. */
+  recurring_item_id?: string | null;
 }
 
 export const LIST_COLUMNS =
-  'id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,category_id,note,detected_via,receipt_url,voice_url,transaction_at,created_at,updated_at';
+  'id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,category_id,note,detected_via,receipt_url,voice_url,transaction_at,created_at,updated_at,recurring_item_id';
 export const DETAIL_COLUMNS = `${LIST_COLUMNS},deleted_at,payment_hash`;
 
 export interface TransactionResponse {
@@ -202,6 +205,10 @@ export interface TransactionResponse {
   category_id: string | null;
   category_icon_name: string | null;
   category_color: string | null;
+  /** Scope of the category: `recurring_*` marks fixed money. Null without a category. */
+  category_scope: CategoryScope | null;
+  /** The recurring item that posted this row; null for everything else. */
+  recurring_item_id: string | null;
   note: string | null;
   detected_via: string | null;
   transaction_at: string;
@@ -217,6 +224,9 @@ export interface DayTransactionSummary {
   date: string;
   credit_total: string;
   debit_total: string;
+  /** Part of `debit_total` / `credit_total` in recurring (fixed) categories. */
+  fixed_debit_total: string;
+  fixed_credit_total: string;
   net: string;
   transaction_count: number;
 }
@@ -232,7 +242,14 @@ export interface MonthSummaryResponse {
   debit_total: string;
   net: string;
   transaction_count: number;
+  /** Fixed = in a recurring category (fixed spend / fixed income); flexible = everything else. */
+  fixed_debit_total: string;
+  flexible_debit_total: string;
+  fixed_credit_total: string;
+  flexible_credit_total: string;
   debit_by_category: Record<string, string>;
+  /** Display fields of the categories in `debit_by_category` (any scope); absent ids are unknown to the user. */
+  category_meta: { id: string; name: string; icon_name: string | null; color: string | null; scope: CategoryScope }[];
 }
 
 export interface TopCategoryRow {
@@ -251,6 +268,9 @@ interface DailySpendRow {
 export interface HomeOverviewResponse {
   spent_today: string;
   spent_this_month: string;
+  fixed_spent_this_month: string;
+  flexible_spent_this_month: string;
+  /** Everyday spending categories only (recurring ones are fixed, shown separately). */
   top_categories: TopCategoryRow[];
   recent_transactions: TransactionResponse[];
   last_7_days_spend: DailySpendRow[];

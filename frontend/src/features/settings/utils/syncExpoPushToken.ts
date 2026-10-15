@@ -23,6 +23,14 @@ let warnedPushUnavailable = false;
  * FCM is not configured (no google-services.json in the build): the native layer throws
  * "Default FirebaseApp is not initialized". This is an expected, non-fatal setup state.
  */
+/** The user declined (or hasn't granted) notifications: an expected state, not a failure to report. */
+export class PushPermissionDeniedError extends Error {
+  constructor() {
+    super("[syncExpoPushToken] Notifications permission not granted");
+    this.name = "PushPermissionDeniedError";
+  }
+}
+
 export function isPushNotConfiguredError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /FirebaseApp|fcm-credentials|FCM|firebase/i.test(message);
@@ -87,7 +95,7 @@ export async function syncExpoPushTokenForUser(
 
   const granted = await requestAppPermission("notifications");
   if (!granted) {
-    throw new Error("[syncExpoPushToken] Notifications permission not granted");
+    throw new PushPermissionDeniedError();
   }
 
   let token: string;

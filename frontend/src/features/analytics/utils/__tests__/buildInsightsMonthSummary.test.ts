@@ -45,4 +45,57 @@ describe("buildInsightsMonthSummary", () => {
     expect(withIncome.hasIncome).toBe(true);
     expect(withIncome.heroDisplay).toBe(formatNetDisplay("72178"));
   });
+
+  it("splits fixed from flexible spend", () => {
+    const summary = buildInsightsMonthSummary(
+      {
+        credit_total: "0",
+        debit_total: "16000",
+        net: "-16000",
+        transaction_count: 4,
+        fixed_debit_total: "15000",
+        flexible_debit_total: "1000",
+      },
+      false,
+      0,
+      false,
+    );
+    expect(summary.hasFixed).toBe(true);
+    expect(summary.fixedDisplay).toBe(formatInrCompact(15000));
+    expect(summary.flexibleDisplay).toBe(formatInrCompact(1000));
+    expect(summary.expectedIncomeDisplay).toBeNull();
+    expect(summary.projectedNetDisplay).toBeNull();
+  });
+
+  it("shows expected income and a projected net: credited + expected - projected spend", () => {
+    const summary = buildInsightsMonthSummary(
+      {
+        credit_total: "2000",
+        debit_total: "16000",
+        net: "-14000",
+        transaction_count: 5,
+        fixed_debit_total: "15000",
+      },
+      false,
+      0,
+      false,
+      { expectedIncome: 50000, projectedSpend: 30000 },
+    );
+    expect(summary.expectedIncomeDisplay).toBe(formatInrCompact(50000));
+    expect(summary.projectedNetValue).toBe(22000);
+    expect(summary.projectedNetDisplay).toBe(formatNetDisplay(22000));
+  });
+
+  it("leaves expected income and projection out for a closed month, and has no fixed split without fixed spend", () => {
+    const summary = buildInsightsMonthSummary(
+      { credit_total: "2000", debit_total: "100", net: "1900", transaction_count: 2 },
+      false,
+      0,
+      true,
+      { expectedIncome: 50000, projectedSpend: 30000 },
+    );
+    expect(summary.hasFixed).toBe(false);
+    expect(summary.expectedIncomeDisplay).toBeNull();
+    expect(summary.projectedNetDisplay).toBeNull();
+  });
 });

@@ -2,9 +2,12 @@ import type { LucideProps } from "lucide-react-native";
 import {
   ArrowLeftRight,
   Banknote,
+  Briefcase,
+  Building,
   Bus,
   Car,
   ChartLine,
+  CirclePlus,
   Clapperboard,
   CreditCard,
   CupSoda,
@@ -15,11 +18,13 @@ import {
   HeartPulse,
   House,
   Landmark,
+  Laptop,
   Package,
   PiggyBank,
   Pill,
   Plane,
   Receipt,
+  Repeat,
   Shield,
   ShoppingBag,
   ShoppingBasket,
@@ -27,6 +32,7 @@ import {
   Tag,
   TrendingUp,
   UtensilsCrossed,
+  Wifi,
   Wrench,
   Zap,
 } from "lucide-react-native";
@@ -72,6 +78,19 @@ const ICON_BY_NAME: Record<string, IconComponent> = {
   Tag,
 };
 
+/**
+ * Icons of the system recurring categories (Subscriptions, Internet & phone, Salary ...). They render everywhere but
+ * stay out of the custom-category icon picker, which lists `CATEGORY_LUCIDE_ICON_NAMES`.
+ */
+const RECURRING_ICON_BY_NAME: Record<string, IconComponent> = {
+  Repeat,
+  Wifi,
+  Briefcase,
+  Laptop,
+  Building,
+  CirclePlus,
+};
+
 export const CATEGORY_LUCIDE_ICON_NAMES = Object.keys(
   ICON_BY_NAME,
 ) as (keyof typeof ICON_BY_NAME)[];
@@ -90,7 +109,8 @@ export const CategoryLucideIcon = memo(function CategoryLucideIcon({
   strokeWidth = 1.5,
 }: CategoryLucideIconProps) {
   const { scheme } = useTheme();
-  const Icon = ICON_BY_NAME[iconName] ?? DEFAULT_ICON;
+  const Icon =
+    ICON_BY_NAME[iconName] ?? RECURRING_ICON_BY_NAME[iconName] ?? DEFAULT_ICON;
   return (
     <Icon
       width={size}

@@ -5,6 +5,8 @@ import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { createThemedStyles, useTheme } from "@/theme";
 
 type HeroMonthCardProps = {
@@ -12,9 +14,11 @@ type HeroMonthCardProps = {
   /** Month spent — leftover and % used live in the subtitle when a budget exists. */
   heroAmount: string;
   hasBudget: boolean;
-  /** "₹1.2k / ₹5k" compact remaining/total. Empty when no budget. */
+  /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
+  /** "Fixed ₹X · Flexible ₹Y"; omitted when none of the spend is fixed. */
+  splitLine?: string | null;
   isLoading?: boolean;
   onAddBudget: () => void;
 };
@@ -25,13 +29,15 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   hasBudget,
   subtext,
   progress,
+  splitLine,
   isLoading = false,
   onAddBudget,
 }: HeroMonthCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.homeMonthCard);
   return (
-    <View style={styles.card}>
+    <View {...tourTarget} style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.eyebrow}>THIS MONTH</Text>
         <Text style={styles.monthLabel}>{monthLabel}</Text>
@@ -45,6 +51,10 @@ export const HeroMonthCard = memo(function HeroMonthCard({
           {heroAmount}
         </Text>
       )}
+
+      {!isLoading && splitLine ? (
+        <Text style={styles.splitLine}>{splitLine}</Text>
+      ) : null}
 
       {/* Status line */}
       {isLoading ? (
@@ -129,6 +139,13 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.inkSoft,
+  },
+  splitLine: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+    fontVariant: ["tabular-nums"],
   },
   statusLineMuted: {
     color: colors.inkFaint,

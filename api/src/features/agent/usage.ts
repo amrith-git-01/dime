@@ -61,6 +61,23 @@ export async function claimQuestion(db: Db, userId: string, nowMs: number, limit
   }
 }
 
+/**
+ * Gives back a question claimed by `claimQuestion` when the turn failed without an answer (model or
+ * network error, timeout, client gone). `claimedAtMs` is the claim time, so a turn that crosses UTC
+ * midnight refunds the day it was charged to. Never below zero; failures are logged, not thrown.
+ */
+export async function refundQuestion(db: Db, userId: string, claimedAtMs: number): Promise<void> {
+  try {
+    await run(
+      db,
+      `UPDATE agent_usage SET turns = turns - 1, updated_at = ? WHERE user_id = ? AND day = ? AND turns > 0`,
+      [nowIso(), userId, utcDay(claimedAtMs)],
+    );
+  } catch (err) {
+    log.warn('agent_usage_refund_failed', { err: String(err) });
+  }
+}
+
 /** Atomic upsert-increment of the day's token totals (the question itself was counted by `claimQuestion`). */
 export async function recordUsage(db: Db, userId: string, nowMs: number, usage: Usage): Promise<void> {
   try {

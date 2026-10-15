@@ -4,7 +4,6 @@ export type BudgetResponse = {
   id: string;
   user_id: string;
   monthly_budget: string; // decimal as string
-  daily_budget: string; // decimal as string
   created_at: string;
   updated_at: string;
 };
@@ -15,7 +14,6 @@ export type BudgetGetResponse = {
 
 export type UpsertBudgetInput = {
   monthlyAmount?: number;
-  dailyAmount?: number;
 };
 
 export async function fetchBudget(): Promise<BudgetGetResponse> {
@@ -28,9 +26,6 @@ export async function upsertBudget(input: UpsertBudgetInput) {
   const body: Record<string, string> = {};
   if (input.monthlyAmount !== undefined) {
     body.monthly_amount = input.monthlyAmount.toFixed(2);
-  }
-  if (input.dailyAmount !== undefined) {
-    body.daily_amount = input.dailyAmount.toFixed(2);
   }
   const { data } = await dimeApi.patch<BudgetResponse>("/api/v1/budget", body);
   return data;

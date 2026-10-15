@@ -6,6 +6,8 @@ import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
 import type { TransactionRow } from "@/features/transactions/types";
 import { toPaise } from "@/utils/paise";
 
+import { isRecurringTransaction } from "./isRecurringTransaction";
+
 export type TransactionCategory = {
   name: string;
   icon_name: string;
@@ -23,6 +25,8 @@ export type UiTransaction = {
   timeLabel: string;
   viaLabel: string;
   dateKey: string;
+  /** Posted by a recurring item, or filed under a recurring (fixed) category. */
+  isRecurring: boolean;
 };
 
 export function signedAmount(tx: TransactionRow): number {
@@ -67,6 +71,7 @@ export function mapTransactionRowToUi(
     timeLabel,
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,
+    isRecurring: isRecurringTransaction(tx),
   };
 }
 

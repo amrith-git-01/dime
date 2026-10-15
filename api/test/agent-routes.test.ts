@@ -303,7 +303,7 @@ describe('kill switch and daily budget', () => {
     expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 5 })]);
   });
 
-  it('counts failed turns too, and records the tokens of the calls that did finish', async () => {
+  it('counts a turn that still answered, and gives the question back when a turn fails outright', async () => {
     let n = 0;
     stub.on('POST', '/chat/completions', () => {
       n += 1;
@@ -320,12 +320,16 @@ describe('kill switch and daily budget', () => {
     expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ prompt_tokens: 100, completion_tokens: 20, turns: 1 })]);
     expect((await chat('again', { env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) })).status).toBe(429);
 
-    // A turn that fails outright (no tool data) is counted as well.
+    // A turn that fails outright (no answer at all) is refunded, so the user can ask again.
     await testDb().prepare('DELETE FROM agent_usage').run();
     stub.on('POST', '/chat/completions', () => json({ error: 'overloaded' }, { status: 503 }));
-    const failed = await chat('hi', { db: null, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) });
+    const failedCtx = makeCtx();
+    const failed = await chat('hi', { db: null, ctx: failedCtx.ctx, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) });
     expect(await failed.json()).toMatchObject({ error: { code: 'assistant_busy' } });
-    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 1 })]);
+    await failedCtx.flush();
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ turns: 0 })]);
+    deepseek([{ content: 'Hello!' }]);
+    expect((await chat('hi again', { db: null, env: envWith({ AGENT_DAILY_QUESTIONS: '1' }) })).status).toBe(200);
   });
 
   it('concurrent requests cannot exceed the daily questions', async () => {

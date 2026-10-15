@@ -154,10 +154,8 @@ export function useSettingsNotificationsScreenModel() {
         );
       },
       budgetMonthlyAlertsEnabled: editorDraft.budgetMonthlyAlertsEnabled,
-      budgetDailyAlertsEnabled: editorDraft.budgetDailyAlertsEnabled,
       budgetCategoryAlertsEnabled: editorDraft.budgetCategoryAlertsEnabled,
       budgetMonthlyWarnPct: editorDraft.budgetMonthlyWarnPct,
-      budgetDailyWarnPct: editorDraft.budgetDailyWarnPct,
       budgetCategoryWarnPct: editorDraft.budgetCategoryWarnPct,
       autoCaptureAlertsEnabled: editorDraft.autoCaptureAlertsEnabled,
       captureFailedAlertsEnabled: editorDraft.captureFailedAlertsEnabled,
@@ -172,13 +170,6 @@ export function useSettingsNotificationsScreenModel() {
           }),
         );
       },
-      onBudgetDailyAlertsChange: (enabled: boolean) => {
-        setDraft((prev) =>
-          patchDraft(prev, savedSettings, {
-            budgetDailyAlertsEnabled: enabled,
-          }),
-        );
-      },
       onBudgetCategoryAlertsChange: (enabled: boolean) => {
         setDraft((prev) =>
           patchDraft(prev, savedSettings, {
@@ -189,11 +180,6 @@ export function useSettingsNotificationsScreenModel() {
       onBudgetMonthlyWarnPctChange: (pct: number) => {
         setDraft((prev) =>
           patchDraft(prev, savedSettings, { budgetMonthlyWarnPct: pct }),
-        );
-      },
-      onBudgetDailyWarnPctChange: (pct: number) => {
-        setDraft((prev) =>
-          patchDraft(prev, savedSettings, { budgetDailyWarnPct: pct }),
         );
       },
       onBudgetCategoryWarnPctChange: (pct: number) => {

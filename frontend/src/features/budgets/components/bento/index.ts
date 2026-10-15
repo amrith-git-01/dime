@@ -6,7 +6,6 @@ export {
 export { BudgetCategoryRowsSkeleton } from "./BudgetCategoryRowsSkeleton";
 export {
   BUDGET_CUSTOM_STEP_INDEX,
-  DAILY_BUDGET_PRESETS,
   MONTHLY_BUDGET_PRESETS,
   findPresetStepIndex,
   resolveBudgetAmountForSave,

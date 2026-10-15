@@ -42,7 +42,7 @@ export type PushSender = typeof sendExpoPush;
 export interface Emitter {
   transactionAuto(input: { transactionId: string; title: string; body: string }): Promise<void>;
   captureFailed(input: { source: 'scan'; title: string; body: string; dayKey: string }): Promise<void>;
-  budgetThreshold(input: { scope: 'monthly' | 'daily'; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
+  budgetThreshold(input: { scope: 'monthly'; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
   categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
 }
 

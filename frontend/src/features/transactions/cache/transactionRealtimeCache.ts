@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { categoriesQueryKeys } from "@/features/categories/queryKeys";
+import type { CategoryRow } from "@/features/categories/types";
 import {
   applyTransactionInsertToListCaches,
   applyTransactionRemoveFromListCaches,
@@ -79,6 +81,8 @@ export function mapRealtimeRecordToTransactionRow(
     category_id: asNullableString(record.category_id),
     category_icon_name: asNullableString(record.category_icon_name),
     category_color: asNullableString(record.category_color),
+    // Realtime frames carry the raw columns: the recurring item, but not the category scope (filled from cached categories).
+    recurring_item_id: asNullableString(record.recurring_item_id),
     note: asNullableString(record.note),
     detected_via: asNullableString(record.detected_via),
     transaction_at: asString(record.transaction_at) ?? new Date().toISOString(),
@@ -88,6 +92,37 @@ export function mapRealtimeRecordToTransactionRow(
     receipt_url: asNullableString(record.receipt_url),
     voice_url: asNullableString(record.voice_url),
   };
+}
+
+/**
+ * Realtime frames carry `category_id` only. Fill the category name / icon / colour from any cached
+ * categories list (every scope, so recurring categories resolve too) so the row does not read
+ * "Uncategorized" until the next refetch. Left as is when the category is not cached.
+ */
+export function fillRealtimeRowCategory(
+  queryClient: QueryClient,
+  userId: string,
+  row: TransactionRow,
+): TransactionRow {
+  if (!row.category_id || row.category) {
+    return row;
+  }
+  const lists = queryClient.getQueriesData<CategoryRow[]>({
+    queryKey: [...categoriesQueryKeys.all, "list", userId],
+  });
+  for (const [, categories] of lists) {
+    const match = categories?.find((c) => c.id === row.category_id);
+    if (match) {
+      return {
+        ...row,
+        category: match.name,
+        category_icon_name: row.category_icon_name ?? match.icon_name,
+        category_color: row.category_color ?? match.color,
+        category_scope: row.category_scope ?? match.scope ?? null,
+      };
+    }
+  }
+  return row;
 }
 
 function isSoftDeleted(row: TransactionRow): boolean {
@@ -131,13 +166,17 @@ export function applyRealtimeTransactionChange(
   }
   // Realtime carries raw storage paths in receipt_url/voice_url (C7): never let them replace
   // a signed URL that is already cached.
-  const row = reconcileRealtimeMedia(
-    mapped,
-    findTransactionInListCaches(queryClient, {
-      userId,
-      timezone,
-      transactionId: mapped.id,
-    }),
+  const row = fillRealtimeRowCategory(
+    queryClient,
+    userId,
+    reconcileRealtimeMedia(
+      mapped,
+      findTransactionInListCaches(queryClient, {
+        userId,
+        timezone,
+        transactionId: mapped.id,
+      }),
+    ),
   );
 
   if (isSoftDeleted(row)) {

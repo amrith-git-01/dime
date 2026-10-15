@@ -4,7 +4,6 @@ import { Keyboard } from "react-native";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
-import { findIncomeCategory } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
@@ -18,11 +17,13 @@ import { RECURRING_COPY } from "../utils/recurringDisplay";
 import {
   buildCreateBody,
   buildUpdateBody,
+  DEFAULT_INCOME_CATEGORY_NAME,
   emptyRecurringForm,
   formFromItem,
   hasChanges,
   isCurrentPeriodDuePassed,
   parseDayOfMonth,
+  recurringCategoryScope,
   validateRecurringForm,
   visibleFieldErrors,
 } from "../utils/recurringForm";
@@ -33,7 +34,7 @@ import {
 } from "./useRecurringMutations";
 
 export type UseRecurringSheetModelArgs = {
-  /** Kind preselected by the card that opened the sheet (create only; edit uses the item's). */
+  /** Kind chosen by the card that opened the page (create only; edit uses the item's). */
   kind: RecurringKind;
   /** The item being edited; omit to add a new one. */
   item?: RecurringItem;
@@ -48,19 +49,23 @@ export function useRecurringSheetModel({
 }: UseRecurringSheetModelArgs) {
   const isEditing = item !== undefined;
   const { showToast } = useToast();
-  const { categories, isLoading: categoriesLoading } = useCategories();
-
   const createMutation = useCreateRecurringMutation();
   const updateMutation = useUpdateRecurringMutation();
   const deleteMutation = useDeleteRecurringMutation();
 
-  const [createKind, setCreateKind] = useState<RecurringKind>(initialKind);
-  const kind = item ? item.kind : createKind;
+  const kind = item ? item.kind : initialKind;
   const copy = RECURRING_COPY[kind];
 
-  const incomeCategoryId = useMemo(
-    () => findIncomeCategory(categories)?.id ?? null,
-    [categories],
+  // The recurring categories of this kind (Rent, Subscriptions ... or Salary, Freelance ...).
+  const { categories: pickerCategories, isLoading: categoriesLoading } =
+    useCategories(recurringCategoryScope(kind));
+
+  const salaryCategoryId = useMemo(
+    () =>
+      pickerCategories.find(
+        (category) => category.name === DEFAULT_INCOME_CATEGORY_NAME,
+      )?.id ?? null,
+    [pickerCategories],
   );
 
   // What the form shows before the user edits it; edits are a patch on top, so late-arriving
@@ -69,8 +74,8 @@ export function useRecurringSheetModel({
     () =>
       item
         ? formFromItem(item)
-        : emptyRecurringForm(kind, new Date(), incomeCategoryId),
-    [incomeCategoryId, item, kind],
+        : emptyRecurringForm(kind, new Date(), salaryCategoryId),
+    [salaryCategoryId, item, kind],
   );
   const [patch, setPatch] = useState<Partial<RecurringFormState>>({});
   const form = useMemo(() => ({ ...base, ...patch }), [base, patch]);
@@ -82,34 +87,10 @@ export function useRecurringSheetModel({
     setPatch((prev) => ({ ...prev, ...next }));
   }, []);
 
-  const onKindChange = useCallback(
-    (next: RecurringKind) => {
-      if (isEditing || next === createKind) {
-        return;
-      }
-      setCreateKind(next);
-      // The base form follows the kind, so dropping these two overrides resets the category and
-      // "already paid" defaults while keeping everything else typed so far.
-      setPatch((prev) => {
-        const rest = { ...prev };
-        delete rest.categoryId;
-        delete rest.postCurrentPeriod;
-        return rest;
-      });
-    },
-    [createKind, isEditing],
-  );
-
-  // Subscriptions get a picker; income stays on the Income category.
-  const pickerCategories = useMemo(
-    () => categories.filter((category) => category.name !== "Income"),
-    [categories],
-  );
-
   const onCategoryPress = useCallback(
-    (category: CategoryRow, selected: boolean) => {
+    (category: CategoryRow) => {
       void triggerHaptic();
-      update({ categoryId: selected ? null : category.id });
+      update({ categoryId: category.id });
     },
     [update],
   );
@@ -220,7 +201,6 @@ export function useRecurringSheetModel({
     form,
     errors,
     update,
-    onKindChange,
     categoriesLoading,
     pickerCategories,
     onCategoryPress,

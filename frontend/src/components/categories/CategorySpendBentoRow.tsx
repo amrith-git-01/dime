@@ -23,6 +23,8 @@ export type CategorySpendRowData = {
   spentMonth: number;
   is_system: boolean;
   monthlyCap?: number | null;
+  /** False for recurring categories (Rent, Subscriptions, ...): they show spend but take no budget. */
+  budgetEditable?: boolean;
 };
 
 type CategorySpendBentoRowProps = {

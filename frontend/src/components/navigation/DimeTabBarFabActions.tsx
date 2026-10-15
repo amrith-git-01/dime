@@ -10,6 +10,8 @@ import Animated, {
 
 import { fontFamilies } from "@/constants/fonts";
 import { springs } from "@/constants/motion";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
@@ -63,6 +65,7 @@ export function DimeTabBarFabActions({
   const setFabOpen = useAddTransactionFabStore((s) => s.setFabOpen);
   const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
   const actionsProgress = useSharedValue(0);
+  const fanTourTarget = useTourTarget(tourTargetIds.fabMenu);
 
   useEffect(() => {
     actionsProgress.value = withSpring(fabOpen ? 1 : 0, springs.fabActions);
@@ -99,6 +102,9 @@ export function DimeTabBarFabActions({
       pointerEvents={fabOpen ? "box-none" : "none"}
       style={styles.actionsRow}
     >
+      {/* Invisible box around the fully fanned-out bubbles, for the guided tour to spotlight. */}
+      <View {...fanTourTarget} pointerEvents="none" style={styles.fanBounds} />
+
       <Animated.View style={[styles.actionBubble, manualActionStyle]}>
         <Pressable
           accessibilityRole="button"
@@ -193,6 +199,14 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 20,
+  },
+  // Spans the three bubbles at rest-open: ±52px sideways, 58px up, plus the bubble radius.
+  fanBounds: {
+    position: "absolute",
+    left: -52,
+    top: -58,
+    width: 148,
+    height: 74,
   },
   actionBubble: {
     position: "absolute",

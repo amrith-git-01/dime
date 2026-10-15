@@ -5,7 +5,6 @@ import { useCallback, useMemo } from "react";
 import { Keyboard } from "react-native";
 
 import {
-  DAILY_BUDGET_PRESETS,
   MONTHLY_BUDGET_PRESETS,
   resolveBudgetAmountForSave,
   useBudgetLimitStepControl,
@@ -35,26 +34,15 @@ export function useEditMonthlyBudgetScreenModel() {
   const existingMonthly = budgetResp?.budget
     ? Number.parseFloat(budgetResp.budget.monthly_budget)
     : 0;
-  const existingDaily = budgetResp?.budget
-    ? Number.parseFloat(budgetResp.budget.daily_budget)
-    : 0;
   const hasMonthlyBudget =
     Number.isFinite(existingMonthly) && existingMonthly > 0;
-  const hasDailyBudget = Number.isFinite(existingDaily) && existingDaily > 0;
-  const hasAnyBudget = hasMonthlyBudget || hasDailyBudget;
-  const isEditMode = route.params?.mode === "edit" || hasAnyBudget;
+  const isEditMode = route.params?.mode === "edit" || hasMonthlyBudget;
 
-  const dailyControl = useBudgetLimitStepControl(
-    DAILY_BUDGET_PRESETS,
-    existingDaily,
-    hasDailyBudget,
-  );
   const monthlyControl = useBudgetLimitStepControl(
     MONTHLY_BUDGET_PRESETS,
     existingMonthly,
     hasMonthlyBudget,
   );
-  const { resetToUnset: resetDailyBudget } = dailyControl;
   const { resetToUnset: resetMonthlyBudget } = monthlyControl;
 
   const savePatch = useMemo((): UpsertBudgetInput => {
@@ -63,10 +51,6 @@ export function useEditMonthlyBudgetScreenModel() {
       monthlyControl.stepIndex,
       monthlyControl.valueText,
     );
-    const parsedDaily = resolveBudgetAmountForSave(
-      dailyControl.stepIndex,
-      dailyControl.valueText,
-    );
 
     if (
       parsedMonthly !== null &&
@@ -74,19 +58,9 @@ export function useEditMonthlyBudgetScreenModel() {
     ) {
       patch.monthlyAmount = parsedMonthly;
     }
-    if (
-      parsedDaily !== null &&
-      (!hasDailyBudget || !amountsClose(parsedDaily, existingDaily))
-    ) {
-      patch.dailyAmount = parsedDaily;
-    }
     return patch;
   }, [
-    dailyControl.stepIndex,
-    dailyControl.valueText,
-    existingDaily,
     existingMonthly,
-    hasDailyBudget,
     hasMonthlyBudget,
     monthlyControl.stepIndex,
     monthlyControl.valueText,
@@ -110,13 +84,11 @@ export function useEditMonthlyBudgetScreenModel() {
 
   const handleClear = useCallback(() => {
     Keyboard.dismiss();
-    resetDailyBudget();
     resetMonthlyBudget();
-  }, [resetDailyBudget, resetMonthlyBudget]);
+  }, [resetMonthlyBudget]);
 
   return {
     isEditMode,
-    dailyControl,
     monthlyControl,
     handleSave,
     handleClear,

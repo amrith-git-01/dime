@@ -106,11 +106,13 @@ describe('PUT /me/profile', () => {
 
 describe('/me/settings', () => {
   const full = {
-    budget_alerts_enabled: true, budget_monthly_alerts_enabled: true, budget_daily_alerts_enabled: true,
-    budget_category_alerts_enabled: true, budget_monthly_warn_pct: 80, budget_daily_warn_pct: 80,
+    budget_alerts_enabled: true, budget_monthly_alerts_enabled: true,
+    budget_category_alerts_enabled: true, budget_monthly_warn_pct: 80,
     budget_category_warn_pct: 80, auto_capture_alerts_enabled: true, capture_failed_alerts_enabled: true,
     device_notifications_enabled: true, daily_expense_reminder_enabled: true, daily_expense_reminder_time: '20:00',
     weekly_email_enabled: true, monthly_email_enabled: true,
+    // Removed daily-budget keys, still answered as 'off' for installed 1.0.0 builds.
+    budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80,
   };
 
   it('GET creates defaults when the row is missing', async () => {
@@ -140,16 +142,29 @@ describe('/me/settings', () => {
   });
 
   it('rejects bad time, out-of-range pct and unknown fields with FastAPI-style 422s', async () => {
-    const bad = await call('/api/v1/me/settings', { method: 'PATCH', json: { daily_expense_reminder_time: '25:00', budget_daily_warn_pct: 99, nope: 1 } });
+    const bad = await call('/api/v1/me/settings', { method: 'PATCH', json: { daily_expense_reminder_time: '25:00', budget_monthly_warn_pct: 99, nope: 1 } });
     expect(bad.status).toBe(422);
     const { detail } = await bad.json<{ detail: { type: string; loc: string[] }[] }>();
     expect(detail.map((d) => d.type).sort()).toEqual(['extra_forbidden', 'less_than_equal', 'string_pattern_mismatch']);
   });
 
+  it('still accepts the removed daily budget keys (old app builds) and ignores them', async () => {
+    const res = await call('/api/v1/me/settings', {
+      method: 'PATCH',
+      json: { budget_daily_alerts_enabled: false, budget_daily_warn_pct: 60, budget_alerts_enabled: false },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json<Record<string, unknown>>();
+    expect(body).toMatchObject({ budget_alerts_enabled: false });
+    // The sent values are ignored: the response keeps the fixed legacy values.
+    expect(body).toMatchObject({ budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80 });
+    expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ budget_daily_alerts_enabled: 1, budget_daily_warn_pct: 80 });
+  });
+
   it('clamps stored warn percentages like the Python snapshot', async () => {
     // The table's CHECK (50..95) keeps such values out of D1; the clamp still guards legacy / imported rows.
-    const body = settingsFromRow({ ...full, budget_monthly_warn_pct: 10, budget_daily_warn_pct: 200 });
-    expect([body.budget_monthly_warn_pct, body.budget_daily_warn_pct]).toEqual([50, 95]);
+    const body = settingsFromRow({ ...full, budget_monthly_warn_pct: 10, budget_category_warn_pct: 200 });
+    expect([body.budget_monthly_warn_pct, body.budget_category_warn_pct]).toEqual([50, 95]);
     await expect(seedSettings({ budget_monthly_warn_pct: 10 })).rejects.toThrow();
   });
 });

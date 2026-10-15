@@ -15,9 +15,12 @@ type SplashRevealContextValue = {
    * the route is mounted). One-way: once true it stays true, so a remount cannot re-gate it.
    */
   shellReady: boolean;
+  /** The branded splash overlay is gone and the app is visible. One-way, like `shellReady`. */
+  splashRevealed: boolean;
   setContentReady: (ready: boolean) => void;
   setLayoutReady: (ready: boolean) => void;
   markShellReady: () => void;
+  markSplashRevealed: () => void;
 };
 
 const SplashRevealContext = createContext<SplashRevealContextValue | null>(
@@ -28,6 +31,7 @@ export function SplashRevealProvider({ children }: { children: ReactNode }) {
   const [contentReady, setContentReadyState] = useState(false);
   const [layoutReady, setLayoutReadyState] = useState(false);
   const [shellReady, setShellReadyState] = useState(false);
+  const [splashRevealed, setSplashRevealedState] = useState(false);
 
   const setContentReady = useCallback((ready: boolean) => {
     setContentReadyState(ready);
@@ -41,22 +45,30 @@ export function SplashRevealProvider({ children }: { children: ReactNode }) {
     setShellReadyState(true);
   }, []);
 
+  const markSplashRevealed = useCallback(() => {
+    setSplashRevealedState(true);
+  }, []);
+
   const value = useMemo(
     () => ({
       contentReady,
       layoutReady,
       shellReady,
+      splashRevealed,
       setContentReady,
       setLayoutReady,
       markShellReady,
+      markSplashRevealed,
     }),
     [
       contentReady,
       layoutReady,
       shellReady,
+      splashRevealed,
       setContentReady,
       setLayoutReady,
       markShellReady,
+      markSplashRevealed,
     ],
   );
 

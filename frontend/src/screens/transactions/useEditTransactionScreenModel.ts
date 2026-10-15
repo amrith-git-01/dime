@@ -11,10 +11,13 @@ import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
+import { useRecurringCategories } from "@/features/transactions/hooks/useRecurringCategories";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
 import {
-  findIncomeCategory,
-  isCategoryAllowedForTxType,
+  reconcileEditCategory,
+  recurringCategoryOfTransaction,
+  recurringOptionsForType,
+  visibleSpendCategories,
 } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { transactionRowToFormState } from "@/features/transactions/utils/transactionRowToFormState";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -32,6 +35,7 @@ export function useEditTransactionScreenModel() {
   const { showToast } = useToast();
   const transaction = route.params.transaction;
   const { categories, isLoading: categoriesLoading } = useCategories();
+  const recurringCategories = useRecurringCategories();
 
   const baseline = useMemo(
     () => (transaction ? transactionRowToFormState(transaction) : undefined),
@@ -102,42 +106,53 @@ export function useEditTransactionScreenModel() {
     }
   }, [categories, selectCategory]);
 
+  // The category of a recurring-posted row is outside the spend list: offered in the Recurring group even before the lists load.
+  const recurringCategory = useMemo(
+    () => recurringCategoryOfTransaction(transaction, categories),
+    [categories, transaction],
+  );
+
   useEffect(() => {
-    if (categories.length === 0) {
-      return;
-    }
-    const current = categoryId
-      ? categories.find((category) => category.id === categoryId)
-      : undefined;
-    if (txType === "credit") {
-      if (current && isCategoryAllowedForTxType(current, "credit")) {
-        return;
-      }
-      const income = findIncomeCategory(categories);
-      if (income) {
-        selectCategory(income.id, income.name);
-      } else {
-        clearCategory();
-      }
-      return;
-    }
-    if (current && !isCategoryAllowedForTxType(current, "debit")) {
+    const action = reconcileEditCategory({
+      categories,
+      categoryId,
+      txType,
+      recurringCategory,
+      recurringCategories,
+    });
+    if (action.kind === "select") {
+      selectCategory(action.category.id, action.category.name);
+    } else if (action.kind === "clear") {
       clearCategory();
     }
-  }, [categories, categoryId, clearCategory, selectCategory, txType]);
+  }, [
+    categories,
+    categoryId,
+    clearCategory,
+    recurringCategories,
+    recurringCategory,
+    selectCategory,
+    txType,
+  ]);
 
   const customCategoryCount = useMemo(
     () => categories.filter((category) => !category.is_system).length,
     [categories],
   );
 
-  const visibleCategories = useMemo(() => {
-    if (txType === "credit") {
-      const income = findIncomeCategory(categories);
-      return income ? [income] : categories;
-    }
-    return categories.filter((category) => category.name !== "Income");
-  }, [categories, txType]);
+  const visibleCategories = useMemo(
+    () => visibleSpendCategories(categories, txType),
+    [categories, txType],
+  );
+  const recurringOptions = useMemo(
+    () =>
+      recurringOptionsForType({
+        recurringCategories,
+        txType,
+        own: recurringCategory,
+      }),
+    [recurringCategories, recurringCategory, txType],
+  );
 
   const openCreateCustomCategory = useCallback(() => {
     if (customCategoryCount >= MAX_CUSTOM_CATEGORIES) {
@@ -308,6 +323,7 @@ export function useEditTransactionScreenModel() {
     setCounterpartyName,
     categoriesLoading,
     visibleCategories,
+    recurringCategories: recurringOptions,
     categoryId,
     handleCategoryPress,
     openCreateCustomCategory,

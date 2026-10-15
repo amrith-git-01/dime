@@ -34,6 +34,7 @@ import {
   formatSpendMagnitude,
 } from "@/utils/currency";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+import { toPaise } from "@/utils/paise";
 
 type HomeScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Home">,
@@ -119,34 +120,18 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       : 0;
   const monthlySubtext =
     hasMonthlyBudget && hasSpentMonth
-      ? `${formatInrCompact(monthlyLeft)} / ${formatInrCompact(monthlyBudget)}`
+      ? `${formatInrCompact(monthlyLeft)} left of ${formatInrCompact(monthlyBudget)}`
       : "";
 
-  const dailyBudget = budget?.daily_budget
-    ? Number.parseFloat(budget.daily_budget)
-    : NaN;
-  const spentTodayNum = overview
-    ? Math.abs(Number.parseFloat(overview.spent_today))
-    : NaN;
-  const hasDailyBudget = Number.isFinite(dailyBudget) && dailyBudget > 0;
-  const hasSpentToday = Number.isFinite(spentTodayNum);
-  const dailyLeft =
-    hasDailyBudget && hasSpentToday
-      ? Math.max(0, dailyBudget - spentTodayNum)
-      : NaN;
-  const dailySubtext =
-    hasDailyBudget && hasSpentToday
-      ? `${formatInrCompact(dailyLeft)} / ${formatInrCompact(dailyBudget)}`
-      : "";
-
-  const spentTodayDisplay = overview
-    ? formatSpendMagnitude(overview.spent_today)
-    : "\u2014";
   const spentMonthDisplay = overview
     ? formatSpendMagnitude(overview.spent_this_month)
     : "\u2014";
-  const dayLabel = format(now, "d MMM");
   const monthLabel = format(now, "MMM yyyy");
+  const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
+  const monthSplitLine =
+    overview && fixedSpentPaise > 0
+      ? `Fixed ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
+      : null;
 
   const monthSummaryData = monthSummaryQuery.data;
 
@@ -192,11 +177,6 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       ? formatSpendMagnitude(monthlyLeft)
       : spentMonthDisplay;
 
-  const dailyProgress =
-    hasDailyBudget && hasSpentToday && dailyBudget > 0
-      ? Math.min(1, spentTodayNum / dailyBudget)
-      : 0;
-
   const last7DaysSpend = useMemo(
     () => buildLast7DaysSpend(overview?.last_7_days_spend, now),
     [now, overview?.last_7_days_spend],
@@ -210,9 +190,6 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     navigation.navigate("Budgets");
   }, [navigation]);
   const onAddMonthlyBudget = useCallback(() => {
-    navigation.navigate("EditMonthlyBudget", { mode: "create" });
-  }, [navigation]);
-  const onAddDailyBudget = useCallback(() => {
     navigation.navigate("EditMonthlyBudget", { mode: "create" });
   }, [navigation]);
   const onNavigateTransactions = useCallback(() => {
@@ -249,24 +226,20 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   return {
     creditedDisplay,
     incomeValue,
-    dailyProgress,
-    dailySubtext,
-    dayLabel,
     debitedDisplay,
-    hasDailyBudget,
     hasMonthlyBudget,
     incomePending: monthSummaryQuery.isPending,
     isError,
     isPending,
     last7DaysSpend,
     monthLabel,
+    monthSplitLine,
     monthlyBudgetAmount,
     monthlyProgress,
     monthlyRemainingDisplay,
     monthlySubtext,
     netDisplay,
     netValue,
-    onAddDailyBudget,
     onAddMonthlyBudget,
     onCategoryPress,
     onManualAdd,
@@ -279,7 +252,6 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     showRecentEmpty,
     spentMonthDisplay,
     spentMonthValue,
-    spentTodayDisplay,
     topCategories,
     upcomingItems,
     upcomingToday,

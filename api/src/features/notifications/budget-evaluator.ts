@@ -1,6 +1,6 @@
 import { toCents } from '../../core/decimal';
 import type { Db } from '../../core/db';
-import { dateKey, dayRange, localDate, monthRange, parseTimezone } from '../../core/timezone';
+import { localDate, monthRange, parseTimezone } from '../../core/timezone';
 import { fetchBudget, fetchCategoryBudget } from '../budgets/repository';
 import { fetchMetaByIds } from '../categories/repository';
 import { loadPeriodSummary } from '../transactions/service';
@@ -37,8 +37,8 @@ interface ScopeMessages {
 }
 
 /**
- * Daily, monthly and per-category budget threshold notifications after a debit. Port of backend
- * `features/notifications/budget_evaluator.py`: category first, then monthly, then daily; each scope
+ * Monthly and per-category budget threshold notifications after a debit. Port of backend
+ * `features/notifications/budget_evaluator.py`: category first, then monthly; each scope
  * emits a "warn" notification at the user's warn percentage and an "over" one past 100%. Dedupe keys
  * make every threshold fire once per period. Intended to run in the background (`waitUntil`).
  */
@@ -52,7 +52,6 @@ export async function evaluateAfterDebit(
   const tz = parseTimezone(input.timezone);
   const local = localDate(tz, input.transactionAtMs);
   const monthKey = `${local.year}-${String(local.month).padStart(2, '0')}`;
-  const dayKey = dateKey(local);
   const scope = { db, userId };
 
   // Month totals serve both the category and the monthly cap; fetch them at most once.
@@ -105,24 +104,6 @@ export async function evaluateAfterDebit(
         bodyOver: `You're ${formatInrCents(spent - monthlyCap)} over your ${formatInrCents(monthlyCap)} monthly budget.`,
       },
       emit: (threshold, title, body) => emitter.budgetThreshold({ scope: 'monthly', periodKey: monthKey, threshold, title, body }),
-    });
-  }
-
-  const dailyCap = toCents(budget.daily_budget ?? 0);
-  if (dailyCap > 0 && settings.budget_daily_alerts_enabled) {
-    const spent = (await loadPeriodSummary(scope, dayRange(tz, local))).debitCents;
-    const warnPct = settings.budget_daily_warn_pct;
-    await emitScope({
-      spent,
-      cap: dailyCap,
-      warnPct,
-      messages: {
-        titleWarn: `${warnPct}% of daily budget used`,
-        titleOver: 'Daily budget exceeded',
-        bodyWarn: `You've spent ${formatInrCents(spent)} of ${formatInrCents(dailyCap)} today.`,
-        bodyOver: `You're ${formatInrCents(spent - dailyCap)} over your ${formatInrCents(dailyCap)} daily budget.`,
-      },
-      emit: (threshold, title, body) => emitter.budgetThreshold({ scope: 'daily', periodKey: dayKey, threshold, title, body }),
     });
   }
 }

@@ -1,10 +1,8 @@
 export type UserSettings = {
   budgetAlertsEnabled: boolean;
   budgetMonthlyAlertsEnabled: boolean;
-  budgetDailyAlertsEnabled: boolean;
   budgetCategoryAlertsEnabled: boolean;
   budgetMonthlyWarnPct: number;
-  budgetDailyWarnPct: number;
   budgetCategoryWarnPct: number;
   autoCaptureAlertsEnabled: boolean;
   captureFailedAlertsEnabled: boolean;
@@ -27,10 +25,8 @@ export type FeedbackSubmitPayload = {
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   budgetAlertsEnabled: true,
   budgetMonthlyAlertsEnabled: true,
-  budgetDailyAlertsEnabled: true,
   budgetCategoryAlertsEnabled: true,
   budgetMonthlyWarnPct: 80,
-  budgetDailyWarnPct: 80,
   budgetCategoryWarnPct: 80,
   autoCaptureAlertsEnabled: true,
   captureFailedAlertsEnabled: true,
