@@ -9,6 +9,7 @@ export default function ManualAddTransactionScreen() {
     <ManualAddTransactionEditor
       amountText={model.amountText}
       amountFocused={model.amountFocused}
+      autoFocusAmount={model.autoFocusAmount}
       onAmountChange={model.setAmountText}
       onAmountFocus={() => model.setAmountFocused(true)}
       onAmountBlur={() => model.setAmountFocused(false)}

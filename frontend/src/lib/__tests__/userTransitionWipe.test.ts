@@ -12,6 +12,10 @@ import {
   readPersistedUserSettings,
   writePersistedUserSettings,
 } from "@/lib/settings/userSettingsMmkv";
+import {
+  readWidgetSnapshot,
+  writeWidgetSnapshot,
+} from "@/lib/widgets/widgetSnapshotMmkv";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
@@ -39,6 +43,20 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
   writePersistedNotifications(userId, { inbox: [], unreadCount: 3 });
   writePersistedUserSettings(userId, DEFAULT_USER_SETTINGS);
   recentTransactionMutations.mark("tx-1");
+  writeWidgetSnapshot({
+    userId,
+    updatedAt: 1,
+    monthKey: "2026-10",
+    dayKey: "2026-10-15",
+    spentThisMonth: 100,
+    recurringSpent: 0,
+    flexibleSpent: 100,
+    monthlyBudget: null,
+    budgetLeft: null,
+    spentToday: 0,
+    recentTransactions: [],
+    topCategories: [],
+  });
 }
 
 describe("subscribeUserTransitionWipe", () => {
@@ -64,6 +82,7 @@ describe("subscribeUserTransitionWipe", () => {
     expect(readPersistedNotifications("user-a")).toBeNull();
     expect(readPersistedUserSettings("user-a")).toBeNull();
     expect(recentTransactionMutations.isRecent("tx-1")).toBe(false);
+    expect(readWidgetSnapshot()).toBeNull();
   }
 
   it("wipes when the user disappears (session revoked or expired)", () => {

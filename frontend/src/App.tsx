@@ -31,9 +31,11 @@ import {
   createAppQueryClient,
   subscribeQueryClientLifecycle,
 } from "@/lib/appBootstrap";
+import { useDeepLinkHandler } from "@/lib/deepLinks/useDeepLinkHandler";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
 import { appQueryPersistOptions } from "@/lib/queryPersister";
+import { subscribeWidgetSnapshotWriter } from "@/lib/widgets/widgetSnapshotWriter";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
 import { getNavigationTheme } from "@/navigation/theme";
@@ -111,8 +113,14 @@ function AppSplashCoordinator({
 
 function AppRoot() {
   useBlurFocusedInputOnKeyboardHide();
-  const { handleNavigationReady } = useNotificationOpenHandler();
+  const { handleNavigationReady: handleNotificationsReady } =
+    useNotificationOpenHandler();
+  const { handleNavigationReady: handleDeepLinksReady } = useDeepLinkHandler();
   const { scheme } = useTheme();
+  const handleNavigationReady = () => {
+    handleNotificationsReady();
+    handleDeepLinksReady();
+  };
 
   return (
     <>
@@ -141,6 +149,9 @@ function AppContent() {
   }, []);
 
   useEffect(() => subscribeQueryClientLifecycle(queryClient), [queryClient]);
+
+  // Keeps the Android home-screen widgets' snapshot in step with the cache.
+  useEffect(() => subscribeWidgetSnapshotWriter(queryClient), [queryClient]);
 
   useEffect(() => {
     return persistQueryClientSubscribe({

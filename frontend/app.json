@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "dime",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#FAFAFA",
     "newArchEnabled": true,
@@ -29,7 +29,7 @@
           "autoVerify": false,
           "data": [
             {
-              "scheme": "frontend"
+              "scheme": "dime"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
@@ -86,10 +86,21 @@
               "label": "Dime — This month",
               "description": "Your spending this month at a glance.",
               "minWidth": "110dp",
-              "minHeight": "110dp",
+              "minHeight": "40dp",
               "targetCellWidth": 2,
               "targetCellHeight": 2,
               "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 0
+            },
+            {
+              "name": "QuickAdd",
+              "label": "Dime — Quick add",
+              "description": "Add a transaction, scan a receipt or speak one.",
+              "minWidth": "250dp",
+              "minHeight": "40dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 1,
+              "resizeMode": "horizontal",
               "updatePeriodMillis": 0
             }
           ]

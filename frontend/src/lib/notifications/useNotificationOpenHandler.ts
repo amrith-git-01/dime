@@ -12,6 +12,7 @@ import {
   readLastHandledNotificationResponseStamp,
   writeLastHandledNotificationResponseStamp,
 } from "@/lib/notifications/notificationsMmkv";
+import { canNavigateToMain } from "@/navigation/canNavigateToMain";
 import { navigationRef } from "@/navigation/navigationRef";
 
 type NotificationActionData = {
@@ -20,20 +21,6 @@ type NotificationActionData = {
   // Allow additional backend fields without tightening the type.
   [key: string]: unknown;
 };
-
-function canNavigateToMain(): boolean {
-  if (!navigationRef.isReady()) {
-    return false;
-  }
-
-  const rootState = navigationRef.getRootState();
-
-  if (!rootState) {
-    return false;
-  }
-
-  return rootState.routeNames?.includes("Main") ?? false;
-}
 
 function navigateToNotifications(): void {
   navigationRef.navigate("Main", {

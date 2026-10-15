@@ -13,6 +13,7 @@ import { useUpcomingRecurring } from "@/features/recurring/hooks/useUpcomingRecu
 import type { RecurringItem } from "@/features/recurring/types";
 import type { HomeBentoContentProps } from "@/features/home/components";
 import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import {
   useMonthSummaryQuery,
@@ -102,22 +103,17 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   const budget = budgetResp?.budget ?? null;
 
-  const monthlyBudget = budget?.monthly_budget
-    ? Number.parseFloat(budget.monthly_budget)
-    : NaN;
-  const spentMonthNum = overview
-    ? Math.abs(Number.parseFloat(overview.spent_this_month))
-    : NaN;
-  const hasMonthlyBudget = Number.isFinite(monthlyBudget) && monthlyBudget > 0;
-  const hasSpentMonth = Number.isFinite(spentMonthNum);
-  const monthlyLeft =
-    hasMonthlyBudget && hasSpentMonth
-      ? Math.max(0, monthlyBudget - spentMonthNum)
-      : NaN;
-  const monthlyProgress =
-    hasMonthlyBudget && hasSpentMonth
-      ? Math.min(1, spentMonthNum / monthlyBudget)
-      : 0;
+  const {
+    monthlyBudget,
+    spentMonthNum,
+    hasMonthlyBudget,
+    hasSpentMonth,
+    monthlyLeft,
+    monthlyProgress,
+  } = computeMonthlyBudgetMath(
+    budget?.monthly_budget,
+    overview?.spent_this_month,
+  );
   const monthlySubtext =
     hasMonthlyBudget && hasSpentMonth
       ? `${formatInrCompact(monthlyLeft)} left of ${formatInrCompact(monthlyBudget)}`

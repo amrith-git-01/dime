@@ -22,6 +22,8 @@ import { createThemedStyles, useTheme } from "@/theme";
 export type ManualAddTransactionEditorProps = {
   amountText: string;
   amountFocused: boolean;
+  /** Focus the amount as soon as the editor opens. */
+  autoFocusAmount?: boolean;
   onAmountChange: (text: string) => void;
   onAmountFocus: () => void;
   onAmountBlur: () => void;
@@ -76,6 +78,7 @@ export const ManualAddTransactionEditor = memo(
   function ManualAddTransactionEditor({
     amountText,
     amountFocused,
+    autoFocusAmount,
     onAmountChange,
     onAmountFocus,
     onAmountBlur,
@@ -128,6 +131,7 @@ export const ManualAddTransactionEditor = memo(
             txType={txType}
             onSetExpense={onSetExpense}
             onSetIncome={onSetIncome}
+            autoFocus={autoFocusAmount}
           />
         </View>
 
