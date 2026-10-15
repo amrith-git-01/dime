@@ -27,6 +27,18 @@ export class AuthRejectedError extends Error {
 type Listener = (session: AuthSession | null) => void;
 
 let current: AuthSession | null = readStoredAuthSession();
+
+// Local end-to-end runs only (debug builds against `wrangler dev`): a session minted for a seeded
+// test user, passed when starting Metro. Never set for release bundles, and __DEV__ strips it.
+if (__DEV__ && !current && process.env.EXPO_PUBLIC_DEV_SESSION) {
+  try {
+    current = JSON.parse(process.env.EXPO_PUBLIC_DEV_SESSION) as AuthSession;
+    writeStoredAuthSession(current);
+  } catch {
+    current = null;
+  }
+}
+
 const listeners = new Set<Listener>();
 let inflightRefresh: Promise<AuthSession | null> | null = null;
 

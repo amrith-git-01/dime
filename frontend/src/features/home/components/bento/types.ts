@@ -16,7 +16,7 @@ export type HomeBentoContentProps = {
   spentMonthDisplay: string;
   monthlyProgress: number;
   hasMonthlyBudget: boolean;
-  /** "₹1.2k / ₹5k" compact remaining/total — used as hero subtitle. */
+  /** "₹1.2k left of ₹5k" compact remaining/total — used as hero subtitle. */
   monthlySubtext: string;
   /** "Fixed ₹X · Flexible ₹Y" under the hero amount; null/absent when none of the spend is fixed. */
   monthSplitLine?: string | null;

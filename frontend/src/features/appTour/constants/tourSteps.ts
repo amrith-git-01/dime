@@ -136,7 +136,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     targetId: tourTargetIds.budgetsRecurring,
     tab: "Budgets",
     title: "Budgets and recurring money",
-    body: "Set a monthly budget, then add salary and subscriptions here so you always see what's coming up.",
+    body: "Set a monthly budget, then add your recurring income and expenses here so you always see what's coming up.",
     interaction: "next",
     placement: "below",
     shape: "rounded",

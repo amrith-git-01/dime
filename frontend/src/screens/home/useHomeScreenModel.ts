@@ -120,7 +120,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       : 0;
   const monthlySubtext =
     hasMonthlyBudget && hasSpentMonth
-      ? `${formatInrCompact(monthlyLeft)} / ${formatInrCompact(monthlyBudget)}`
+      ? `${formatInrCompact(monthlyLeft)} left of ${formatInrCompact(monthlyBudget)}`
       : "";
 
   const spentMonthDisplay = overview

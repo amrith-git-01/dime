@@ -6,7 +6,7 @@ import {
   RoundedRect,
   Skia,
 } from "@shopify/react-native-skia";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useDerivedValue, type SharedValue } from "react-native-reanimated";
 
 import { useTheme } from "@/theme";
@@ -78,46 +78,48 @@ export function TourScrim({
   const ringHeight = useDerivedValue(
     () => holeHeight.value + ringInset.value * 2,
   );
-  const ringRadius = useDerivedValue(
-    () => holeRadius.value + ringInset.value,
-  );
+  const ringRadius = useDerivedValue(() => holeRadius.value + ringInset.value);
   const ringOpacity = useDerivedValue(() => {
     const hasHole = holeWidth.value > 0.5 && holeHeight.value > 0.5 ? 1 : 0;
     return enter.value * hasHole * (0.5 + pulse.value * 0.5);
   });
 
   return (
-    <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Path
-        path={scrimPath}
-        fillType="evenOdd"
-        color={colors.overlays.scrimHeavy}
-        opacity={enter}
-      />
-      <Group opacity={ringOpacity}>
-        <RoundedRect
-          x={ringX}
-          y={ringY}
-          width={ringWidth}
-          height={ringHeight}
-          r={ringRadius}
-          style="stroke"
-          strokeWidth={8}
-          color={colors.accentText}
-        >
-          <BlurMask blur={9} style="normal" />
-        </RoundedRect>
-        <RoundedRect
-          x={ringX}
-          y={ringY}
-          width={ringWidth}
-          height={ringHeight}
-          r={ringRadius}
-          style="stroke"
-          strokeWidth={2}
-          color={colors.accentText}
+    // The wrapper, not the Canvas, owns pointerEvents: a Skia Canvas on Android swallows touches
+    // even with pointerEvents="none", which would block taps through the spotlight hole.
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Canvas style={StyleSheet.absoluteFill}>
+        <Path
+          path={scrimPath}
+          fillType="evenOdd"
+          color={colors.overlays.scrimHeavy}
+          opacity={enter}
         />
-      </Group>
-    </Canvas>
+        <Group opacity={ringOpacity}>
+          <RoundedRect
+            x={ringX}
+            y={ringY}
+            width={ringWidth}
+            height={ringHeight}
+            r={ringRadius}
+            style="stroke"
+            strokeWidth={8}
+            color={colors.accentText}
+          >
+            <BlurMask blur={9} style="normal" />
+          </RoundedRect>
+          <RoundedRect
+            x={ringX}
+            y={ringY}
+            width={ringWidth}
+            height={ringHeight}
+            r={ringRadius}
+            style="stroke"
+            strokeWidth={2}
+            color={colors.accentText}
+          />
+        </Group>
+      </Canvas>
+    </View>
   );
 }

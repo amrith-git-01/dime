@@ -14,7 +14,7 @@ type HeroMonthCardProps = {
   /** Month spent — leftover and % used live in the subtitle when a budget exists. */
   heroAmount: string;
   hasBudget: boolean;
-  /** "₹1.2k / ₹5k" compact remaining/total. Empty when no budget. */
+  /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
   /** "Fixed ₹X · Flexible ₹Y"; omitted when none of the spend is fixed. */

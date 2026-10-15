@@ -42,4 +42,4 @@ The update is published for the `version` currently in `app.json`; it only reach
 - **Native splash changes don't need a version bump.** The dark splash (soft-dark background, white wordmark `assets/images/splash-wordmark-dark.png`) is native config only and doesn't change the JS↔native interface, so it stays on runtime 1.0.0: JS ships by OTA now, and the next APK picks up the dark splash. Bump `version` only when a native module or the JS↔native interface changes (new native dependency, Expo SDK upgrade).
 - **Backend:** deploys through CI on merge to `main` (`api/DEPLOY.md`); no app release needed.
 
-The server side is `api/src/features/updates` (R2 layout in `storage.ts`). Dev builds (`expo start`, dev client) never check for updates.
+The server side is `api/src/features/updates` (R2 layout in `storage.ts`). Dev builds never check for updates, but with code signing on, the dev client asks Metro for a signed development manifest: start Metro with `npm run start:dev` (passes `--private-key-path ../keys/private-key.pem`); plain `expo start --dev-client` fails with "Must specify --private-key-path".
