@@ -13,6 +13,7 @@ import Animated, {
 import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { springs } from "@/constants/motion";
 import { createThemedStyles } from "@/theme";
 
@@ -203,7 +204,10 @@ export function TourCard({
               accessibilityRole="button"
               accessibilityLabel="Skip tour"
               hitSlop={12}
-              onPress={onSkip}
+              onPress={() => {
+              void triggerHaptic();
+              onSkip();
+            }}
             >
               <Text style={styles.skip}>Skip tour</Text>
             </Pressable>
@@ -255,7 +259,10 @@ export function TourCard({
           <Button title={primaryLabel} onPress={onFinaleAction} />
           <Pressable
             accessibilityRole="button"
-            onPress={onNext}
+            onPress={() => {
+              void triggerHaptic();
+              onNext();
+            }}
             hitSlop={8}
             style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
           >
