@@ -26,6 +26,8 @@ export function fixedPlanFromOccurrences(
   const plan: FixedPlanItem[] = [];
   for (const item of items ?? []) {
     if (item.kind !== "subscription") continue;
+    // Same definition as the server's fixed/flexible split: fixed = a recurring-scope category.
+    if (item.category && item.category.scope === "spend") continue;
     if (item.status === "paid") {
       plan.push({
         day: dueDay(item.due_date),

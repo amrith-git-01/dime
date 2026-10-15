@@ -10,9 +10,30 @@ jest.mock("react-native-mmkv", () =>
 );
 
 let mockUserId: string | undefined = "user-a";
+type AuthListener = (state: { userId?: string }, prev: { userId?: string }) => void;
+// On globalThis: jest.mock is hoisted above this file's declarations, and the store module
+// subscribes while it is first imported.
+const authListeners = (): AuthListener[] => {
+  const holder = globalThis as { mockAuthListeners?: AuthListener[] };
+  holder.mockAuthListeners ??= [];
+  return holder.mockAuthListeners;
+};
 jest.mock("@/stores/authSessionStore", () => ({
-  useAuthSessionStore: { getState: () => ({ userId: mockUserId }) },
+  useAuthSessionStore: {
+    getState: () => ({ userId: mockUserId }),
+    subscribe: (listener: AuthListener) => {
+      authListeners().push(listener);
+      return () => undefined;
+    },
+  },
 }));
+
+/** Simulates a sign-in / sign-out / account switch in the auth store. */
+function switchUser(next: string | undefined): void {
+  const prev = mockUserId;
+  mockUserId = next;
+  for (const listener of authListeners()) listener({ userId: next }, { userId: prev });
+}
 
 const store = () => useAppTourStore.getState();
 
@@ -116,5 +137,15 @@ describe("app tour store", () => {
     store().skip();
     const mmkv = createMMKV({ id: "dime-onboarding" });
     expect(mmkv.getAllKeys()).toEqual([]);
+  });
+
+  it("a user change mid-tour ends the tour without marking either user as seen", () => {
+    store().start();
+    expect(store().active).toBe(true);
+    switchUser("user-b");
+    expect(store().active).toBe(false);
+    expect(store().stepIndex).toBe(0);
+    expect(isAppTourSeen("user-a")).toBe(false);
+    expect(isAppTourSeen("user-b")).toBe(false);
   });
 });

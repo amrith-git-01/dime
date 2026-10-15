@@ -89,3 +89,11 @@ export const useAppTourStore = create<AppTourState>((set, get) => ({
 export function isAppTourSeen(userId: string | undefined): boolean {
   return userId === undefined || getAppTourCompleted(userId);
 }
+
+// A tour started by one account must not carry over to the next sign-in (or survive sign-out):
+// end it silently, without marking anyone as having seen it.
+useAuthSessionStore.subscribe((state, prev) => {
+  if (state.userId !== prev.userId && useAppTourStore.getState().active) {
+    useAppTourStore.setState({ active: false, stepIndex: 0 });
+  }
+});

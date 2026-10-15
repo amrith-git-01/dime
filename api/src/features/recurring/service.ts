@@ -203,12 +203,17 @@ const DAY_MS = 86_400_000;
 export async function monthOccurrences(ctx: TxContext, year: number, month: number): Promise<RecurringMonthResponse> {
   const first = Date.UTC(year, month - 1, 1);
   const after = Date.UTC(year, month, 1);
-  const [items, posted] = await Promise.all([
-    repo.listForUser(ctx.db, ctx.userId),
-    repo.listPostedIn(ctx.db, ctx.userId, { from: new Date(first - DAY_MS).toISOString(), to: new Date(after + DAY_MS).toISOString() }),
-  ]);
+  const items = await repo.listForUser(ctx.db, ctx.userId);
   const inMonth = items.filter((item) => item.cadence === 'monthly' || item.month_of_year === month);
-  const meta = await fetchMetaByIds(ctx.db, [...new Set(inMonth.flatMap((r) => (r.category_id ? [r.category_id] : [])))], ctx.userId);
+  // A yearly item's period is its whole year (periodRange), and it may be posted in another month
+  // ("post now", or a moved posting): widen the posted lookup to the year when one is due this month.
+  const hasYearly = inMonth.some((item) => item.cadence === 'yearly');
+  const from = hasYearly ? Math.min(first, Date.UTC(year, 0, 1)) : first;
+  const to = hasYearly ? Math.max(after, Date.UTC(year + 1, 0, 1)) : after;
+  const [posted, meta] = await Promise.all([
+    repo.listPostedIn(ctx.db, ctx.userId, { from: new Date(from - DAY_MS).toISOString(), to: new Date(to + DAY_MS).toISOString() }),
+    fetchMetaByIds(ctx.db, [...new Set(inMonth.flatMap((r) => (r.category_id ? [r.category_id] : [])))], ctx.userId),
+  ]);
 
   const out: RecurringOccurrence[] = [];
   const totals = { expensePaid: 0, expenseUpcoming: 0, incomeReceived: 0, incomeUpcoming: 0 };

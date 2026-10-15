@@ -534,6 +534,15 @@ describe('GET /recurring/month', () => {
     expect((await month(2026, 9)).items).toEqual([]);
   });
 
+  it('a yearly item posted in another month of its year still shows as paid in its due month', async () => {
+    const id = await seedItem({ name: 'Insurance', amount: 1200000, category_id: UTILITIES, cadence: 'yearly', month_of_year: 10, day_of_month: 20, next_due_date: '2027-10-20' });
+    // Posted early, in August ("post now"): next_due_date has already moved to next year.
+    await seedTransaction({ amount: '12000', category_id: UTILITIES, counterparty_name: 'Insurance', recurring_item_id: id, transaction_at: '2026-08-10T06:00:00.000Z' });
+    const body = await month(2026, 10);
+    expect(body.items.map((i) => [i.name, i.status])).toEqual([['Insurance', 'paid']]);
+    expect(body.totals.fixed_expense_paid).toBe('12000.00');
+  });
+
   it('only returns the caller\'s items and validates the query', async () => {
     await seedUser(OTHER);
     await seedItem({ user_id: OTHER, name: 'Theirs', day_of_month: 15, next_due_date: '2026-10-15' });
