@@ -16,8 +16,8 @@ export type BuildBudgetCategoryRowsInput = {
 };
 
 /**
- * Rows of the Budgets category list: spend categories only. Fixed spend (rent, subscriptions, ...) lives in the
- * "Recurring this month" card, so spend in a recurring-scoped category never becomes a row here.
+ * Rows of the Budgets category list: spend categories only. Recurring spend (rent, subscriptions, ...) lives in the
+ * Recurring sections, so spend in a recurring-scoped category never becomes a row here.
  */
 export function buildBudgetCategoryRows({
   categories,

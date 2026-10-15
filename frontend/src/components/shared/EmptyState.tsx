@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
 import { createThemedStyles, useTheme } from "@/theme";
 
 export type EmptyStateLayout = "inset" | "card" | "centered";
@@ -52,16 +52,13 @@ export const EmptyState = memo(function EmptyState({
         </Text>
       </View>
       {showAction ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAction}
-          style={({ pressed }) => [
-            styles.actionBtn,
-            pressed && styles.actionBtnPressed,
-          ]}
-        >
-          <Text style={styles.actionLabel}>{actionLabel}</Text>
-        </Pressable>
+        <View style={styles.action}>
+          <Button
+            title={actionLabel}
+            size="compact"
+            onPress={onAction}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -118,23 +115,7 @@ const useStyles = createThemedStyles(({ colors, typography }) => ({
     marginTop: spacing.xs,
     alignSelf: "stretch",
   },
-  actionBtn: {
+  action: {
     marginTop: spacing.md,
-    backgroundColor: colors.accent,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBtnPressed: {
-    opacity: 0.92,
-  },
-  actionLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.onAccent,
   },
 }));

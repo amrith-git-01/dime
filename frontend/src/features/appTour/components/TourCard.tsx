@@ -241,12 +241,26 @@ export function TourCard({
       {step.kind === "welcome" ? (
         <View style={styles.stackedActions}>
           <Button title={primaryLabel} onPress={onNext} />
-          <Button title={step.skipLabel ?? "Skip"} variant="ghost" onPress={onSkip} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSkip}
+            hitSlop={8}
+            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
+          >
+            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Skip"}</Text>
+          </Pressable>
         </View>
       ) : step.kind === "finale" ? (
         <View style={styles.stackedActions}>
           <Button title={primaryLabel} onPress={onFinaleAction} />
-          <Button title={step.skipLabel ?? "Done"} variant="ghost" onPress={onNext} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onNext}
+            hitSlop={8}
+            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
+          >
+            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Done"}</Text>
+          </Pressable>
         </View>
       ) : (
         <View style={styles.actionsRow}>
@@ -405,5 +419,19 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   stackedActions: {
     gap: spacing.sm,
     marginTop: spacing.lg,
+  },
+  skipLink: {
+    alignSelf: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  skipLinkPressed: {
+    opacity: 0.7,
+  },
+  skipLinkLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.inkSoft,
   },
 }));

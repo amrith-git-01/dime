@@ -13,7 +13,7 @@ export type TwoToneCardProps = {
 
 /**
  * Shared two-tone card shell — violet-tinted header + white body + brand shadow.
- * Used by TransactionsMonthBentoCard and BudgetMonthBentoCard.
+ * Used by TransactionsMonthBentoCard.
  *
  * overflow: "visible" is intentional — required for Android elevation shadow to
  * render outside the card bounds.

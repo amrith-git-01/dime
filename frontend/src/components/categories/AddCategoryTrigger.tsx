@@ -2,7 +2,7 @@ import { Plus } from "lucide-react-native";
 import { ActivityIndicator, Pressable, Text } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
-import { spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -45,7 +45,7 @@ export function AddCategoryTrigger({
 const useStyles = createThemedStyles(({ colors }) => ({
   addPill: {
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: radius.full,
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: colors.accent,

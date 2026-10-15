@@ -198,11 +198,11 @@ export function useBudgetScreenModel() {
   );
   const splitLine =
     fixedPaise > 0
-      ? `Fixed ${formatInrCompact(fixedPaise / 100)} · Flexible ${formatInrCompact(flexiblePaise / 100)}`
+      ? `Recurring ${formatInrCompact(fixedPaise / 100)} · Flexible ${formatInrCompact(flexiblePaise / 100)}`
       : null;
   const upcomingLine =
     upcomingPaise > 0
-      ? `${formatInrCompact(upcomingPaise / 100)} fixed still to come`
+      ? `${formatInrCompact(upcomingPaise / 100)} recurring still to come`
       : null;
 
   const monthSummary: BudgetMonthBentoSummary | null =

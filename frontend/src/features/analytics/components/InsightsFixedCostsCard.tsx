@@ -38,7 +38,7 @@ export const InsightsFixedCostsCard = memo(function InsightsFixedCostsCard({
 
   return (
     <InsightsCard
-      kicker="FIXED COSTS"
+      kicker="RECURRING COSTS"
       subtitle="Recurring bills this month"
     >
       {loading && expenses.length === 0 ? (

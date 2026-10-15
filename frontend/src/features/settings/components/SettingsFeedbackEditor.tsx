@@ -6,7 +6,7 @@ import { fontFamilies, useFormStyles } from "@/constants";
 
 import type { FeedbackType } from "../types";
 import { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
-import { SettingsEditorFooter } from "./SettingsEditorFooter";
+import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
 import { createThemedStyles } from "@/theme";
 
@@ -60,7 +60,7 @@ export const SettingsFeedbackEditor = memo(function SettingsFeedbackEditor({
         showClear={false}
       />
 
-      <SettingsEditorFooter
+      <BentoEditorFooter
         onClear={onClear}
         onSave={onSend}
         saveTitle="Send"

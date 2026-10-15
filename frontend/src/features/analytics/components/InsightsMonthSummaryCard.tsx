@@ -185,7 +185,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         ) : null}
       </View>
 
-      {/* Fixed vs flexible split + what is still expected */}
+      {/* Recurring vs flexible split + what is still expected */}
       {summary && !summaryLoading && (summary.hasFixed || summary.expectedIncomeDisplay) ? (
         <>
           <View style={styles.divider} />
@@ -193,7 +193,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             {summary.hasFixed ? (
               <View style={styles.splitRow}>
                 <Text style={styles.splitText}>
-                  {`Fixed ${summary.fixedDisplay} · Flexible ${summary.flexibleDisplay}`}
+                  {`Recurring ${summary.fixedDisplay} · Flexible ${summary.flexibleDisplay}`}
                 </Text>
               </View>
             ) : null}

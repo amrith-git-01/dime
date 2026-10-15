@@ -5,7 +5,6 @@ export {
   BudgetAmountStepSlider,
   BudgetCategoryRowsSkeleton,
   BudgetLimitsEditor,
-  BudgetMonthBentoCard,
   MONTHLY_BUDGET_PRESETS,
   findPresetStepIndex,
   resolveBudgetAmountForSave,

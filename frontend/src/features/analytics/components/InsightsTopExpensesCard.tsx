@@ -34,7 +34,7 @@ export const InsightsTopExpensesCard = memo(function InsightsTopExpensesCard({
   return (
     <InsightsCard
       kicker="TOP EXPENSES"
-      subtitle="Largest debits this month · Excludes fixed costs"
+      subtitle="Largest debits this month · Excludes recurring costs"
     >
       {loading ? (
         <InsightsTopExpensesSkeleton />

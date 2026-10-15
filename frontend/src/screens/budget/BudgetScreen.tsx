@@ -23,10 +23,7 @@ import {
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
-import {
-  RecurringMonthSection,
-  RecurringSection,
-} from "@/features/recurring/components";
+import { RecurringSection } from "@/features/recurring/components";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import {
@@ -70,10 +67,7 @@ export default function BudgetScreen() {
     summaryLoading,
   } = useBudgetScreenModel();
   const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
-  const recurring = useBudgetRecurringModel(listRef, {
-    year: selectedMonth.year,
-    monthIndex0: selectedMonth.monthIndex0,
-  });
+  const recurring = useBudgetRecurringModel(listRef);
 
   // Keys carry the month so rows remount (and progress bars snap) when the month changes.
   const keyExtractor = (item: CategorySpendRowData) =>
@@ -118,15 +112,6 @@ export default function BudgetScreen() {
               onEditBudget={handleEditBudget}
               onSetBudget={handleSetBudget}
               spentValue={monthSummary?.spentValue ?? 0}
-            />
-
-            <RecurringMonthSection
-              data={recurring.monthData}
-              isLoading={recurring.monthLoading}
-              isError={recurring.monthError}
-              onRetry={recurring.onMonthRetry}
-              today={recurring.today}
-              onItemPress={recurring.onOccurrencePress}
             />
 
             <TourTarget

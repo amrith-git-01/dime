@@ -9,10 +9,9 @@ import {
   View,
 } from "react-native";
 
-import { ButtonBusyContent } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
 export type ConfirmModalProps = {
@@ -33,65 +32,6 @@ export type ConfirmModalProps = {
   errorMessage?: string | null;
   children?: ReactNode;
 };
-
-type ModalActionButtonProps = {
-  label: string;
-  busyLabel?: string;
-  variant: "secondary" | "primary" | "danger";
-  flex?: number;
-  loading?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-};
-
-function ModalActionButton({
-  label,
-  busyLabel,
-  variant,
-  flex = 1,
-  loading = false,
-  disabled = false,
-  onPress,
-}: ModalActionButtonProps) {
-  const { colors } = useTheme();
-  const styles = useStyles();
-  const isSecondary = variant === "secondary";
-  const isDanger = variant === "danger";
-  const isDisabled = disabled || loading;
-
-  const labelColor = isSecondary
-    ? colors.ink
-    : isDanger
-      ? colors.onDanger
-      : colors.onAccent;
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={isDisabled}
-      onPress={() => {
-        void triggerHaptic();
-        onPress();
-      }}
-      style={({ pressed }) => [
-        styles.actionButton,
-        { flex },
-        styles[variant],
-        isSecondary && styles.actionButtonSecondary,
-        isDisabled && styles.actionButtonDisabled,
-        pressed && !isDisabled && styles.actionButtonPressed,
-      ]}
-    >
-      <ButtonBusyContent
-        loading={loading}
-        label={label}
-        busyLabel={busyLabel}
-        color={labelColor}
-        textStyle={styles.actionLabel}
-      />
-    </Pressable>
-  );
-}
 
 export const ConfirmModal = memo(function ConfirmModal({
   visible,
@@ -180,22 +120,24 @@ export const ConfirmModal = memo(function ConfirmModal({
             ) : null}
 
             <View style={styles.footer}>
-              <ModalActionButton
-                label={cancelLabel}
-                variant="secondary"
-                flex={1}
-                onPress={onCancel}
-                disabled={confirmLoading}
-              />
-              <ModalActionButton
-                label={confirmLabel}
-                busyLabel={confirmBusyLabel}
-                variant={confirmVariant}
-                flex={2}
-                loading={confirmLoading}
-                disabled={confirmDisabled}
-                onPress={onConfirm}
-              />
+              <View style={styles.cancelSlot}>
+                <Button
+                  title={cancelLabel}
+                  variant="secondary"
+                  onPress={onCancel}
+                  disabled={confirmLoading}
+                />
+              </View>
+              <View style={styles.confirmSlot}>
+                <Button
+                  title={confirmLabel}
+                  busyLabel={confirmBusyLabel}
+                  variant={confirmVariant}
+                  loading={confirmLoading}
+                  disabled={confirmDisabled}
+                  onPress={onConfirm}
+                />
+              </View>
             </View>
           </View>
         </Pressable>
@@ -278,36 +220,10 @@ const useStyles = createThemedStyles(({ colors, typography }) => ({
     gap: spacing.md,
     marginTop: spacing.xs,
   },
-  actionButton: {
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
+  cancelSlot: {
+    flex: 1,
   },
-  secondary: {
-    backgroundColor: colors.surface,
-  },
-  danger: {
-    backgroundColor: colors.danger,
-  },
-  primary: {
-    backgroundColor: colors.accent,
-  },
-  actionButtonSecondary: {
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  actionButtonDisabled: {
-    opacity: 0.45,
-  },
-  actionButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  actionLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
+  confirmSlot: {
+    flex: 2,
   },
 }));

@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { BentoEditorFooter } from "@/components/bento";
-import { ButtonBusyContent, TextField } from "@/components/ui";
+import { Button, TextField } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
@@ -11,7 +11,7 @@ import type { CustomCategoryIconName } from "@/features/categories/constants/cus
 import { CategoryBudgetSection } from "../CategoryBudgetSection";
 import { CustomCategoryChipPickers } from "./CustomCategoryChipPickers";
 import { CustomCategoryPreviewTile } from "./CustomCategoryPreviewTile";
-import { createThemedStyles, useTheme } from "@/theme";
+import { createThemedStyles } from "@/theme";
 
 type CustomCategoryEditorProps = {
   name: string;
@@ -54,7 +54,6 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
   onDelete,
   deleteLoading = false,
 }: CustomCategoryEditorProps) {
-  const { colors } = useTheme();
   const styles = useStyles();
   const optionalTag = <Text style={styles.optionalHint}>(optional)</Text>;
   const requiredTag = <Text style={styles.requiredHint}>(required)</Text>;
@@ -145,25 +144,14 @@ export const CustomCategoryEditor = memo(function CustomCategoryEditor({
 
       <View style={styles.actions}>
         {onDelete ? (
-          <Pressable
+          <Button
+            title="Delete category"
+            busyLabel="Deleting"
+            variant="danger"
             onPress={onDelete}
-            disabled={deleteLoading}
-            style={({ pressed }) => [
-              styles.deleteBtn,
-              deleteLoading && styles.deleteBtnDisabled,
-              pressed && !deleteLoading && styles.deleteBtnPressed,
-            ]}
-            accessibilityRole="button"
+            loading={deleteLoading}
             accessibilityLabel="Delete category"
-          >
-            <ButtonBusyContent
-              loading={deleteLoading}
-              label="Delete category"
-              busyLabel="Deleting"
-              color={colors.onDanger}
-              textStyle={styles.deleteBtnText}
-            />
-          </Pressable>
+          />
         ) : null}
 
         <BentoEditorFooter
@@ -225,23 +213,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   actions: {
     gap: spacing.lg,
     marginTop: spacing.sm,
-  },
-  deleteBtn: {
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-    backgroundColor: colors.danger,
-  },
-  deleteBtnDisabled: {
-    opacity: 0.45,
-  },
-  deleteBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  deleteBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
   },
 }));

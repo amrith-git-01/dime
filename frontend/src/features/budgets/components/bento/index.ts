@@ -11,8 +11,5 @@ export {
   resolveBudgetAmountForSave,
 } from "./budgetEditorPresets";
 export { BudgetLimitsEditor } from "./BudgetLimitsEditor";
-export {
-  BudgetMonthBentoCard,
-  type BudgetMonthBentoSummary,
-} from "./BudgetMonthBentoCard";
+export type { BudgetMonthBentoSummary } from "./BudgetMonthBentoSummary";
 export { useBudgetLimitStepControl } from "./useBudgetLimitStepControl";

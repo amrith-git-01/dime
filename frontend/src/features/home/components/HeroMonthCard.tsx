@@ -17,7 +17,7 @@ type HeroMonthCardProps = {
   /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
-  /** "Fixed ₹X · Flexible ₹Y"; omitted when none of the spend is fixed. */
+  /** "Recurring ₹X · Flexible ₹Y"; omitted when none of the spend is recurring. */
   splitLine?: string | null;
   isLoading?: boolean;
   onAddBudget: () => void;
