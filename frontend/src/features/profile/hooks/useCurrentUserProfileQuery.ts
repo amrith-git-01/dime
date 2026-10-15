@@ -14,6 +14,9 @@ export function useCurrentUserProfileQuery(userId: string | undefined) {
     // device reports offline, so it settles in about 10 s instead of waiting for the network.
     retry: false,
     networkMode: "always",
+    // A failed gate attempt (offline, timeout) sends the user on without a profile: keep trying in
+    // the background so a brand-new user still reaches profile setup once the network is back.
+    refetchInterval: (query) => (query.state.status === "error" ? 30_000 : false),
     queryFn: async () => {
       const me = await fetchMe();
       setProfile(me);

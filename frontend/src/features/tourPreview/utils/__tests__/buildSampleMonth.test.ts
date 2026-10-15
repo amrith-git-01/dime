@@ -291,6 +291,17 @@ describe("buildSampleMonth details", () => {
     );
   });
 
+  it("never dates a sample row after now (early morning, and on the 1st)", () => {
+    for (const now of [new Date(2026, 9, 15, 7, 0), new Date(2026, 9, 1, 9, 0)]) {
+      const sample = buildSampleMonth({ today: now, now, timezone: TZ });
+      const rows = sample.monthPages.pages.flatMap((p) => p.items);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(Date.parse(row.transaction_at)).toBeLessThanOrEqual(now.getTime());
+      }
+    }
+  });
+
   it("uses the app's real system categories when cached, else the built-in seed", () => {
     const seeded = buildSampleMonth({ today: new Date(2026, 9, 15), timezone: TZ });
     const food = seeded.monthSummary.category_meta?.find((m) => m.name === "Food & Dining");

@@ -56,6 +56,8 @@ export type TourSampleMonth = {
 export type BuildSampleMonthInput = {
   /** The device-local day the sample ends on (time of day is ignored). */
   today: Date;
+  /** The current instant: no sample row is dated after it. Defaults to the end of `today`. */
+  now?: Date;
   timezone: string;
   /** Owner stamped on the sample rows; they never leave the screen. */
   userId?: string;
@@ -190,6 +192,9 @@ function shareOf(part: number, whole: number): number {
  */
 export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth {
   const today = startOfDay(input.today);
+  // Never in the future: rows "later today" (or folded onto the 1st) are pulled back to just before now.
+  const nowMs = input.now?.getTime() ?? today.getTime() + 24 * 60 * 60 * 1000 - 1;
+  let futureClamps = 0;
   const year = today.getFullYear();
   const monthIndex0 = today.getMonth();
   const calendarMonth = monthIndex0 + 1;
@@ -221,7 +226,12 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
     minute: number;
     recurringItemId?: string;
   }): SampleTx => {
-    const at = new Date(year, monthIndex0, spec.day, spec.hour, spec.minute).toISOString();
+    let atMs = new Date(year, monthIndex0, spec.day, spec.hour, spec.minute).getTime();
+    if (atMs > nowMs) {
+      futureClamps += 1;
+      atMs = Math.max(today.getTime(), nowMs - futureClamps * 60_000);
+    }
+    const at = new Date(atMs).toISOString();
     return {
       dayKey: dayKeyOf(new Date(year, monthIndex0, spec.day)),
       cents: spec.cents,

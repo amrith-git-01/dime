@@ -33,6 +33,7 @@ export function useTourSampleMonth(): TourSampleMonth | null {
     );
     return buildSampleMonth({
       today,
+      now: new Date(),
       timezone: getDeviceIanaTimezone(),
       userId,
       categories,
