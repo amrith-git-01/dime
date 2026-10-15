@@ -1,3 +1,5 @@
+import { recurringQueryKeys } from "@/features/recurring/queryKeys";
+import type { RecurringItem } from "@/features/recurring/types";
 import { budgetQueryKeys, categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview, TransactionRow } from "@/features/transactions/types";
@@ -93,12 +95,14 @@ describe("buildWidgetSnapshot", () => {
     expect(snapshot?.updatedAt).toBe(new Date(2026, 9, 15, 10, 0).getTime());
   });
 
-  it("keeps up to three recent transactions with positive amounts and a display name", () => {
+  it("keeps up to five recent transactions with positive amounts and a display name", () => {
     const snapshot = buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ });
+    const at = "2026-10-15T08:00:00Z";
     expect(snapshot?.recentTransactions).toEqual([
-      { id: "t1", name: "Swiggy", amount: 250, type: "debit" },
-      { id: "t2", name: "Rahul", amount: 1000, type: "credit" },
-      { id: "t3", name: "—", amount: 100, type: "debit" },
+      { id: "t1", name: "Swiggy", amount: 250, type: "debit", at },
+      { id: "t2", name: "Rahul", amount: 1000, type: "credit", at },
+      { id: "t3", name: "—", amount: 100, type: "debit", at },
+      { id: "t4", name: "Fourth", amount: 100, type: "debit", at },
     ]);
   });
 
@@ -108,6 +112,53 @@ describe("buildWidgetSnapshot", () => {
       { id: "cat-food", name: "Food", color: "#112233", iconName: "Utensils", spent: 3000, budget: 5000 },
       { id: "__uncategorized__", name: "Other", color: null, iconName: null, spent: 500, budget: null },
     ]);
+  });
+
+  it("collects active recurring income and bills from both cached lists, soonest first", () => {
+    const queryClient = seed();
+    const item = (id: string, overrides: Partial<RecurringItem>): RecurringItem => ({
+      id,
+      kind: "subscription",
+      name: id,
+      amount: "649.00",
+      category_id: null,
+      category: null,
+      category_icon_name: null,
+      category_color: null,
+      cadence: "monthly",
+      day_of_month: 1,
+      month_of_year: null,
+      timezone: TZ,
+      next_due_date: "2026-11-01",
+      active: true,
+      note: null,
+      monthly_equivalent: "649.00",
+      created_at: "",
+      updated_at: "",
+      ...overrides,
+    });
+    queryClient.setQueryData(recurringQueryKeys.list(USER, "subscription"), {
+      items: [
+        item("Netflix", { next_due_date: "2026-11-05" }),
+        item("Paused", { active: false }),
+      ],
+      summary: { monthly_income_total: "0", monthly_subscriptions_total: "0" },
+    });
+    queryClient.setQueryData(recurringQueryKeys.list(USER, "income"), {
+      items: [item("Salary", { kind: "income", amount: "50000.00", next_due_date: "2026-10-31" })],
+      summary: { monthly_income_total: "0", monthly_subscriptions_total: "0" },
+    });
+    const snapshot = buildWidgetSnapshot({ queryClient, userId: USER, timezone: TZ });
+    expect(snapshot?.recurring).toEqual([
+      { id: "Salary", kind: "income", name: "Salary", amount: 50000, nextDueDate: "2026-10-31" },
+      { id: "Netflix", kind: "subscription", name: "Netflix", amount: 649, nextDueDate: "2026-11-05" },
+    ]);
+  });
+
+  it("has an empty recurring list when none is cached", () => {
+    expect(
+      buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ })?.recurring,
+    ).toEqual([]);
   });
 
   it("has no budget when none is cached or set", () => {

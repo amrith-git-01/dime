@@ -9,6 +9,7 @@ import type { ThemeColors } from "@/theme/palettes";
 
 import type { ThisMonthLayout, ThisMonthModel } from "./thisMonthModel";
 import { hex } from "./widgetTheme";
+import { WidgetProgressBar } from "./WidgetProgressBar";
 
 type ThisMonthWidgetProps = {
   model: ThisMonthModel;
@@ -17,44 +18,6 @@ type ThisMonthWidgetProps = {
   /** Room for the Recurring / Flexible line (3+ rows tall). */
   showSplit: boolean;
 };
-
-function ProgressBar({
-  percent,
-  fill,
-  track,
-  marginTop,
-}: {
-  percent: number;
-  fill: string;
-  track: string;
-  marginTop: number;
-}) {
-  return (
-    <FlexWidget
-      style={{
-        flexDirection: "row",
-        width: "match_parent",
-        height: 6,
-        marginTop,
-        borderRadius: 3,
-        backgroundColor: hex(track),
-      }}
-    >
-      <FlexWidget
-        style={{
-          width: 0,
-          flex: percent,
-          height: "match_parent",
-          borderRadius: 3,
-          backgroundColor: hex(fill),
-        }}
-      />
-      {percent < 100 ? (
-        <FlexWidget style={{ width: 0, flex: 100 - percent, height: "match_parent" }} />
-      ) : null}
-    </FlexWidget>
-  );
-}
 
 export function ThisMonthWidget({
   model,
@@ -65,7 +28,7 @@ export function ThisMonthWidget({
   const fill = model.overBudget ? colors.danger : colors.accent;
   const bar =
     model.progressPercent === null ? null : (
-      <ProgressBar
+      <WidgetProgressBar
         percent={model.progressPercent}
         fill={fill}
         track={colors.surfaceSunken}
@@ -179,7 +142,7 @@ export function ThisMonthWidget({
       {showSplit && model.splitLine ? (
         <TextWidget
           text={model.splitLine}
-          maxLines={1}
+          maxLines={2}
           truncate="END"
           style={{ marginTop: 4, fontSize: 11, color: hex(colors.inkFaint) }}
         />

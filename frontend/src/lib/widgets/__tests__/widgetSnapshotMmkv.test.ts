@@ -23,7 +23,14 @@ const SNAPSHOT: Omit<WidgetSnapshot, "version"> = {
   spentToday: 10,
   recentTransactions: [],
   topCategories: [],
+  recurring: [],
 };
+
+/** The schema version a fresh write is stamped with. */
+function readWidgetSnapshotVersion(): number {
+  writeWidgetSnapshot(SNAPSHOT);
+  return readWidgetSnapshot()!.version;
+}
 
 describe("widget snapshot MMKV", () => {
   beforeEach(resetMockMmkv);
@@ -48,6 +55,15 @@ describe("widget snapshot MMKV", () => {
     );
     expect(readWidgetSnapshot()).toBeNull();
     expect(store.contains(WIDGET_SNAPSHOT_MMKV_KEY)).toBe(false);
+  });
+
+  it("tolerates a snapshot saved before the recurring list existed", () => {
+    const { recurring: _recurring, ...older } = SNAPSHOT;
+    createMMKV({ id: "widget-snapshot" }).set(
+      WIDGET_SNAPSHOT_MMKV_KEY,
+      JSON.stringify({ ...older, version: readWidgetSnapshotVersion() }),
+    );
+    expect(readWidgetSnapshot()?.recurring).toEqual([]);
   });
 
   it("ignores garbage", () => {

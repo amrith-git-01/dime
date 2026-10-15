@@ -23,6 +23,7 @@ function snapshot(overrides: Partial<WidgetSnapshot> = {}): WidgetSnapshot {
     spentToday: 0,
     recentTransactions: [],
     topCategories: [],
+    recurring: [],
     ...overrides,
   };
 }
@@ -43,11 +44,17 @@ describe("buildThisMonthModel", () => {
     expect(model.budgetLine).toBe("₹ 23,823 left of ₹ 30,000");
     expect(model.progressPercent).toBe(21);
     expect(model.overBudget).toBe(false);
-    expect(model.splitLine).toBe(
-      "Recurring ₹ 2,000 · Flexible ₹ 4,177",
-    );
+    expect(model.splitLine).toBe("Recurring ₹2k · Flexible ₹4.2k");
     expect(model.accessibilityLabel).toContain("Spent");
     expect(model.accessibilityLabel).toContain("left of");
+  });
+
+  it("hides every amount when asked", () => {
+    const model = buildThisMonthModel(snapshot(), NOW, true);
+    expect(model.amount).toBe("₹ ••••");
+    expect(model.budgetLine).toBe("₹ •••• left of ₹ ••••");
+    expect(model.splitLine).toBe("Recurring ₹ •••• · Flexible ₹ ••••");
+    expect(model.accessibilityLabel).not.toMatch(/\d,?\d{3}/);
   });
 
   it("shows only the spend without a budget or recurring spend", () => {

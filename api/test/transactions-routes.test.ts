@@ -552,7 +552,7 @@ describe('POST /transactions: size limits', () => {
 });
 
 describe('POST /transactions', () => {
-  it('inserts a manual transaction, ignores server-only fields (S7) and answers 201 {accepted}', async () => {
+  it('inserts a manual transaction, ignores server-only fields (S7) and answers 201 {accepted, id, created}', async () => {
     await seedCategory({ id: CAT, name: 'Salary', user_id: USER_ID });
     const res = await postTx(
       createBody({
@@ -566,10 +566,9 @@ describe('POST /transactions', () => {
       }),
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ accepted: true });
-
     const rows = await rowsOf<Record<string, unknown>>('transactions');
     expect(rows).toHaveLength(1);
+    expect(await res.json()).toEqual({ accepted: true, id: rows[0]!['id'], created: true });
     expect(rows[0]).toEqual({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown,
       user_id: USER_ID,
@@ -617,6 +616,8 @@ describe('POST /transactions', () => {
     });
     const res = await postTx(createBody({ note: 'late', category: 'Salary', counterparty_type: 'person' }));
     expect(res.status).toBe(201);
+    // The id of the row it matched, flagged as not created so a client never undoes someone else's row.
+    expect(await res.json()).toEqual({ accepted: true, id: TX, created: false });
     expect(await rowsOf('transactions')).toHaveLength(1);
     expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT, note: 'late', counterparty_type: 'person' });
   });
@@ -843,7 +844,9 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
   it('claims the key with a manual_create job, creates once and stores the response', async () => {
     const res = await postTx(createBody(), withKey);
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ accepted: true });
+    const created = await rowsOf<{ id: string }>('transactions');
+    const stored = { accepted: true, id: created[0]!.id, created: true };
+    expect(await res.json()).toEqual(stored);
     const jobs = await jobsOfKey();
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
@@ -853,15 +856,42 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
       status: 'done',
       attempts: 1,
       idempotency_key: KEY,
-      result: JSON.stringify({ status_code: 201, body: { accepted: true } }),
+      result: JSON.stringify({ status_code: 201, body: stored }),
     });
     expect(await rowsOf('transactions')).toHaveLength(1);
     // The same key again replays and creates nothing.
-    expect(await (await postTx(createBody(), withKey)).json()).toEqual({ accepted: true });
+    expect(await (await postTx(createBody(), withKey)).json()).toEqual(stored);
     expect(await rowsOf('transactions')).toHaveLength(1);
   });
 
-  it('replays the stored response without creating anything', async () => {
+  it('replays the stored response (id included) without creating anything', async () => {
+    await seedJob({ kind: 'manual_create', status: 'done', idempotency_key: KEY, result: { status_code: 201, body: { accepted: true, id: TX, created: true } } });
+    const res = await postTx(createBody(), withKey);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ accepted: true, id: TX, created: true });
+    expect(await rowsOf('transactions')).toHaveLength(0);
+  });
+
+  it('stores created: false for a dedupe hit and replays it', async () => {
+    await seedFood();
+    await seedTx({
+      type: 'credit',
+      amount: '250.50',
+      counterparty_name: 'Acme Corp',
+      counterparty_normalized: 'acme corp',
+      note: 'x',
+      category_id: CAT,
+      counterparty_type: 'merchant',
+      payment_hash: await hashFor(),
+    });
+    const first = await postTx(createBody(), withKey);
+    expect(await first.json()).toEqual({ accepted: true, id: TX, created: false });
+    const replay = await postTx(createBody(), withKey);
+    expect(await replay.json()).toEqual({ accepted: true, id: TX, created: false });
+    expect(await rowsOf('transactions')).toHaveLength(1);
+  });
+
+  it('replays a response stored before ids existed as 201 {accepted: true} (no id)', async () => {
     await seedJob({ kind: 'manual_create', status: 'done', idempotency_key: KEY, result: { status_code: 201, body: { accepted: true } } });
     const res = await postTx(createBody(), withKey);
     expect(res.status).toBe(201);

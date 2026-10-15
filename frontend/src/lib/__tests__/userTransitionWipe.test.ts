@@ -13,6 +13,12 @@ import {
   writePersistedUserSettings,
 } from "@/lib/settings/userSettingsMmkv";
 import {
+  readWidgetOutbox,
+  readWidgetPresets,
+  writeWidgetOutbox,
+  writeWidgetPresets,
+} from "@/lib/widgets/widgetPresetsMmkv";
+import {
   readWidgetSnapshot,
   writeWidgetSnapshot,
 } from "@/lib/widgets/widgetSnapshotMmkv";
@@ -56,7 +62,12 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
     spentToday: 0,
     recentTransactions: [],
     topCategories: [],
+    recurring: [],
   });
+  writeWidgetPresets(userId, [{ label: "Chai", amount: 20, categoryId: "c1" }]);
+  writeWidgetOutbox([
+    { key: "k", userId, body: {} as never, label: "Chai", amount: 20, createdAt: 1 },
+  ]);
 }
 
 describe("subscribeUserTransitionWipe", () => {
@@ -83,6 +94,9 @@ describe("subscribeUserTransitionWipe", () => {
     expect(readPersistedUserSettings("user-a")).toBeNull();
     expect(recentTransactionMutations.isRecent("tx-1")).toBe(false);
     expect(readWidgetSnapshot()).toBeNull();
+    // The old account's widget presets and queued taps must not reach the next one.
+    expect(readWidgetPresets("user-a")).toEqual([]);
+    expect(readWidgetOutbox()).toEqual([]);
   }
 
   it("wipes when the user disappears (session revoked or expired)", () => {

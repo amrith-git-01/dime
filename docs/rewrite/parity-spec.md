@@ -21,7 +21,7 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
   4. If the insert fails for any other reason, delete the object and propagate the error.
 - **SMS and notification capture were removed (2026-10):** no `/sms` route and no `sms` job kind. Old `sms` / `notification` values in `detected_via` stay valid for existing rows.
 - **Manual `POST /transactions`:** the key is claimed through a `jobs` row with kind `manual_create`, status `processing`, attempts 1.
-  - **Success:** `status=done`, `result={"status_code":201,"body":{"accepted":true}}`. A replay returns that status and body.
+  - **Success:** `status=done`, `result={"status_code":201,"body":{"accepted":true,"id":"<transaction id>","created":true}}`. A replay returns that status and body.
   - **Concurrent duplicate:** 409 "A request with this Idempotency-Key is still being processed."
   - **Re-claim:** a `failed` row, or a `processing` row with `updated_at` older than 600 s, can be re-claimed with a conditional update.
   - **Action raises:** `status=failed`, `last_error` set, error propagated.

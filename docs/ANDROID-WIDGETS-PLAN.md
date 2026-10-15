@@ -1,6 +1,6 @@
 # Dime Android home-screen widgets — plan
 
-Status: proposal (2026-10-15). Android only. Ships in a **new APK** (native code), not OTA.
+Status: built (2026-10-15), version **1.1.0**. Phases 0-5 are in code; a device check, the picker preview images and the release APK remain. Android only. Ships in a **new APK** (native code), not OTA.
 
 ## 1. What Android widgets can and can't do
 
@@ -59,6 +59,8 @@ App (JS)                                  Background (headless JS task)
 - **Deep links:** switch the URL scheme from the generic `frontend://` to **`dime://`** in this APK (`dime://add?date=today`, `dime://scan`, `dime://voice`, `dime://budgets/recurring`, `dime://agent`). New quick-add screen: amount-first, category chips, one Save.
 
 ## 5. Phases
+
+Built status: all phases below are implemented. The deliberate differences from the proposal: the Quick add widget is 4x1 with a 4x2 resize (presets and a status line appear from about 110dp tall); presets are managed in **Settings > Home screen widgets** (also `dime://settings/widgets`), not in a widget configuration screen; Undo lasts 2 minutes; a failed or offline tap is queued in an MMKV outbox (sent on the next widget update or app start, with its Idempotency-Key); `POST /api/v1/transactions` now also returns `id` and `created` (false for a duplicate, which Undo never deletes); category icons are not drawn (colour dots only); periodic widget refresh (every 30 minutes) re-renders from the snapshot and drains the outbox, nothing else.
 
 | Phase | Work | Done when |
 |---|---|---|

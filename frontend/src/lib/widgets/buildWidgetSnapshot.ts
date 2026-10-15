@@ -9,18 +9,50 @@ import {
 } from "@/features/budgets/queryKeys";
 import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
+import { recurringQueryKeys } from "@/features/recurring/queryKeys";
+import type { RecurringKind, RecurringListResponse } from "@/features/recurring/types";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview } from "@/features/transactions/types";
 import { toPaise } from "@/utils/paise";
 
-import type { WidgetSnapshot } from "./widgetSnapshotMmkv";
+import type {
+  WidgetSnapshot,
+  WidgetSnapshotRecurring,
+} from "./widgetSnapshotMmkv";
 
-const MAX_RECENT = 3;
+// The home overview carries five; the Today widget filters them down to today's.
+const MAX_RECENT = 5;
+const MAX_RECURRING = 10;
 const MAX_CATEGORIES = 3;
 
 /** Rupees from an API decimal string, exact to the paisa, never negative. */
 function rupees(value: string | undefined): number {
   return Math.abs(toPaise(value)) / 100;
+}
+
+/** Active income and bills from both cached recurring lists, soonest due first. */
+function recurringForWidget(
+  queryClient: QueryClient,
+  userId: string,
+): WidgetSnapshotRecurring[] {
+  const kinds: RecurringKind[] = ["income", "subscription"];
+  return kinds
+    .flatMap((kind) =>
+      (
+        queryClient.getQueryData<RecurringListResponse>(
+          recurringQueryKeys.list(userId, kind),
+        )?.items ?? []
+      ).filter((item) => item.active),
+    )
+    .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date))
+    .slice(0, MAX_RECURRING)
+    .map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      name: item.name,
+      amount: rupees(item.amount),
+      nextDueDate: item.next_due_date,
+    }));
 }
 
 /**
@@ -83,6 +115,7 @@ export function buildWidgetSnapshot(input: {
         name: tx.merchant || tx.counterparty_name?.trim() || "—",
         amount: rupees(tx.amount),
         type: tx.type,
+        at: tx.transaction_at,
       })),
     topCategories: (overview.top_categories ?? [])
       .slice(0, MAX_CATEGORIES)
@@ -94,5 +127,6 @@ export function buildWidgetSnapshot(input: {
         spent: rupees(row.total),
         budget: (row.category_id && categoryBudgets.get(row.category_id)) || null,
       })),
+    recurring: recurringForWidget(queryClient, userId),
   };
 }

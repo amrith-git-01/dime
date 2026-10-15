@@ -1,7 +1,13 @@
 import { format } from "date-fns";
 
 import type { WidgetSnapshot } from "@/lib/widgets/widgetSnapshotMmkv";
-import { formatInrCompact, formatSpendMagnitude } from "@/utils/currency";
+import {
+  formatInrChartAxis,
+  formatInrCompact,
+  formatSpendMagnitude,
+} from "@/utils/currency";
+
+import { HIDDEN_AMOUNT } from "./widgetFormat";
 
 export type ThisMonthLayout = "full" | "compact";
 
@@ -16,7 +22,7 @@ export type ThisMonthModel = {
   /** Budget used, 0..100; null without a budget. */
   progressPercent: number | null;
   overBudget: boolean;
-  /** "Recurring ₹X · Flexible ₹Y"; null when nothing recurring was spent. */
+  /** "Recurring ₹15k · Flexible ₹3k" (short amounts so it fits a 2x2); null when nothing recurring was spent. */
   splitLine: string | null;
   hint: string | null;
   accessibilityLabel: string;
@@ -37,6 +43,7 @@ export function thisMonthShowsSplit(heightDp: number): boolean {
 export function buildThisMonthModel(
   snapshot: WidgetSnapshot | null,
   now: Date = new Date(),
+  hideAmounts: boolean = false,
 ): ThisMonthModel {
   if (!snapshot) {
     return {
@@ -67,13 +74,15 @@ export function buildThisMonthModel(
     };
   }
 
-  const amount = formatSpendMagnitude(snapshot.spentThisMonth);
+  const money = (rupees: number, format: (value: number) => string) =>
+    hideAmounts ? HIDDEN_AMOUNT : format(rupees);
+  const amount = money(snapshot.spentThisMonth, formatSpendMagnitude);
   const hasBudget =
     snapshot.monthlyBudget !== null &&
     snapshot.monthlyBudget > 0 &&
     snapshot.budgetLeft !== null;
   const budgetLine = hasBudget
-    ? `${formatInrCompact(snapshot.budgetLeft!)} left of ${formatInrCompact(snapshot.monthlyBudget!)}`
+    ? `${money(snapshot.budgetLeft!, formatInrCompact)} left of ${money(snapshot.monthlyBudget!, formatInrCompact)}`
     : null;
   const progressPercent = hasBudget
     ? Math.min(
@@ -86,7 +95,7 @@ export function buildThisMonthModel(
     : null;
   const splitLine =
     snapshot.recurringSpent > 0
-      ? `Recurring ${formatInrCompact(snapshot.recurringSpent)} · Flexible ${formatInrCompact(snapshot.flexibleSpent)}`
+      ? `Recurring ${money(snapshot.recurringSpent, formatInrChartAxis)} · Flexible ${money(snapshot.flexibleSpent, formatInrChartAxis)}`
       : null;
 
   return {

@@ -72,7 +72,7 @@ transactionRoutes.post(
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = txContext(c);
 
-    const create = async () => {
+    const create = async (): Promise<{ accepted: true; id?: string; created?: boolean }> => {
       const result = await service.createManual(ctx, body);
       if (result.kind === 'created' && body.type === 'debit') {
         defer(
@@ -92,7 +92,9 @@ transactionRoutes.post(
           'manual_create_notifications',
         );
       }
-      return { accepted: true };
+      // The id lets a client undo its own add (widgets) without listing; `created: false` says the
+      // payment already existed, so it is not the client's to undo. Idempotent replays return this body.
+      return { accepted: true, id: result.id, created: result.kind === 'created' };
     };
 
     if (key === null) return c.json(await create(), 201);

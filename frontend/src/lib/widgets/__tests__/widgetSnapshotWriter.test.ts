@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 
 import { budgetQueryKeys, categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
+import { recurringQueryKeys } from "@/features/recurring/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview } from "@/features/transactions/types";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
@@ -46,6 +47,10 @@ describe("affectsWidgetSnapshot", () => {
       affectsWidgetSnapshot(transactionsQueryKeys.monthPages(USER, 2026, 10, "UTC")),
     ).toBe(false);
     expect(affectsWidgetSnapshot(["notifications", USER])).toBe(false);
+    // The recurring lists feed the Upcoming widget; the month view does not.
+    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "income"))).toBe(true);
+    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "subscription"))).toBe(true);
+    expect(affectsWidgetSnapshot(recurringQueryKeys.month(USER, 2026, 9))).toBe(false);
   });
 });
 

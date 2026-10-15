@@ -17,6 +17,18 @@ export type WidgetSnapshotTransaction = {
   /** Rupees, always positive; `type` carries the direction. */
   amount: number;
   type: "debit" | "credit";
+  /** ISO time of the transaction, for the "today" filter. Empty for rows from an older build. */
+  at: string;
+};
+
+export type WidgetSnapshotRecurring = {
+  id: string;
+  kind: "income" | "subscription";
+  name: string;
+  /** Rupees, always positive. */
+  amount: number;
+  /** Local calendar day it is next due, `yyyy-MM-dd`. */
+  nextDueDate: string;
 };
 
 export type WidgetSnapshotCategory = {
@@ -49,6 +61,8 @@ export type WidgetSnapshot = {
   spentToday: number;
   recentTransactions: WidgetSnapshotTransaction[];
   topCategories: WidgetSnapshotCategory[];
+  /** Active recurring income and bills, soonest first; the widget picks what is due soon at draw time. */
+  recurring: WidgetSnapshotRecurring[];
 };
 
 /** Synchronous read. A snapshot written by another schema version is dropped, never rendered. */
@@ -69,7 +83,8 @@ export function readWidgetSnapshot(): WidgetSnapshot | null {
     ) {
       return null;
     }
-    return snapshot;
+    // Fields added after the first widget build: tolerate a snapshot that predates them.
+    return { ...snapshot, recurring: snapshot.recurring ?? [] };
   } catch {
     return null;
   }
@@ -94,4 +109,19 @@ export function clearWidgetSnapshot(): boolean {
   }
   widgetMmkv.remove(WIDGET_SNAPSHOT_MMKV_KEY);
   return true;
+}
+
+/**
+ * Applies `change` to the stored snapshot (the widgets' optimistic bump after a preset add or undo).
+ * Returns false when there is no snapshot or the change left it identical.
+ */
+export function updateWidgetSnapshot(
+  change: (snapshot: WidgetSnapshot) => WidgetSnapshot,
+): boolean {
+  const current = readWidgetSnapshot();
+  if (!current) {
+    return false;
+  }
+  const { version: _version, ...next } = change(current);
+  return writeWidgetSnapshot(next);
 }

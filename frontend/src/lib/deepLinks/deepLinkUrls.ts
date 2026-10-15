@@ -11,4 +11,6 @@ export const deepLinkUrls = {
   budgets: `${DEEP_LINK_SCHEME}://budgets`,
   budgetsRecurring: `${DEEP_LINK_SCHEME}://budgets/recurring`,
   agent: `${DEEP_LINK_SCHEME}://agent`,
+  /** Settings > Home screen widgets (presets, hide amounts). */
+  settingsWidgets: `${DEEP_LINK_SCHEME}://settings/widgets`,
 } as const;

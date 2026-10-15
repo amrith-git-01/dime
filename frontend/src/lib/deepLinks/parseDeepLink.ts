@@ -9,7 +9,8 @@ export type DeepLinkIntent =
   | { kind: "scan" }
   | { kind: "voice" }
   | { kind: "budgets"; recurring: boolean }
-  | { kind: "agent" };
+  | { kind: "agent" }
+  | { kind: "settingsWidgets" };
 
 const URL_PATTERN = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?/i;
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,6 +71,8 @@ export function parseDeepLink(
       return { kind: "budgets", recurring: path === "recurring" };
     case "agent":
       return { kind: "agent" };
+    case "settings":
+      return path === "widgets" ? { kind: "settingsWidgets" } : null;
     default:
       return null;
   }

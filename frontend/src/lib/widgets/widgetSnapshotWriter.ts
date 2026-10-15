@@ -5,6 +5,7 @@ import {
   budgetQueryKeys,
   categoryBudgetsQueryKeys,
 } from "@/features/budgets/queryKeys";
+import { recurringQueryKeys } from "@/features/recurring/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { reportError } from "@/lib/reportError";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
@@ -20,12 +21,16 @@ const WRITE_DEBOUNCE_MS = 500;
 const TRANSACTIONS_ROOT = transactionsQueryKeys.all[0];
 const BUDGET_ROOT = budgetQueryKeys.all[0];
 const CATEGORY_BUDGETS_ROOT = categoryBudgetsQueryKeys.all[0];
+const RECURRING_ROOT = recurringQueryKeys.all[0];
 
-/** Only the queries the snapshot is built from: the home overview and the budgets. */
+/** Only the queries the snapshot is built from: the home overview, the budgets and the recurring lists. */
 export function affectsWidgetSnapshot(queryKey: QueryKey): boolean {
   const [root, kind] = queryKey;
   if (root === TRANSACTIONS_ROOT) {
     return kind === "home";
+  }
+  if (root === RECURRING_ROOT) {
+    return kind === "list";
   }
   return root === BUDGET_ROOT || root === CATEGORY_BUDGETS_ROOT;
 }

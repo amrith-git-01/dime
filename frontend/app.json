@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dime",
     "slug": "frontend",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dime",
@@ -13,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 2,
       "allowBackup": false,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
@@ -89,19 +90,57 @@
               "minHeight": "40dp",
               "targetCellWidth": 2,
               "targetCellHeight": 2,
+              "previewImage": "./assets/widgets/thismonth-preview.png",
               "resizeMode": "horizontal|vertical",
-              "updatePeriodMillis": 0
+              "updatePeriodMillis": 1800000
             },
             {
               "name": "QuickAdd",
               "label": "Dime — Quick add",
-              "description": "Add a transaction, scan a receipt or speak one.",
+              "description": "Add a transaction, scan a receipt or speak one. Resize to 4×2 for one-tap presets.",
               "minWidth": "250dp",
               "minHeight": "40dp",
               "targetCellWidth": 4,
               "targetCellHeight": 1,
-              "resizeMode": "horizontal",
-              "updatePeriodMillis": 0
+              "previewImage": "./assets/widgets/quickadd-preview.png",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Today",
+              "label": "Dime — Today",
+              "description": "What you have spent today and your latest transactions.",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/widgets/today-preview.png",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Upcoming",
+              "label": "Dime — Upcoming recurring",
+              "description": "The next recurring bills and income, with due dates.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/widgets/upcoming-preview.png",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "CategoryBudgets",
+              "label": "Dime — Category budgets",
+              "description": "Your top spending categories with budget progress.",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "previewImage": "./assets/widgets/categorybudgets-preview.png",
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
             }
           ]
         }

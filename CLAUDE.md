@@ -24,7 +24,7 @@ Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend a
 
 **Code-complete and verified locally:** audit phases 0–2 and 5–7, the Hono rewrite, agent v2, caching fixes, and the Cloudflare migration phases 1–7 (D1, auth, R2, Workers AI with the cost cap, agent on D1, live updates and frontend, config and docs). Work is **uncommitted** on the branch `feat/audit-and-workers-rewrite`. Nothing has been deployed.
 
-Test counts: `api/` 854 tests passing, frontend 231 tests passing.
+Test counts: `api/` 882 tests passing, frontend 683 tests passing.
 
 **Next steps:** the user follows `api/DEPLOY.md` (create D1 / R2 / queues, secrets, migrations, deploy) and `docs/rewrite/GO-LIVE.md` (production deploy, device test, new app build, then pause and delete Supabase).
 

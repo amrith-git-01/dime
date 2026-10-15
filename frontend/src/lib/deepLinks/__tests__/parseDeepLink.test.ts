@@ -19,6 +19,14 @@ describe("parseDeepLink", () => {
     });
   });
 
+  it("parses the widgets settings link and no other settings page", () => {
+    expect(parseDeepLink(deepLinkUrls.settingsWidgets, NOW)).toEqual({
+      kind: "settingsWidgets",
+    });
+    expect(parseDeepLink("dime://settings", NOW)).toBeNull();
+    expect(parseDeepLink("dime://settings/account", NOW)).toBeNull();
+  });
+
   it("turns date=today into the local day", () => {
     expect(parseDeepLink(deepLinkUrls.addToday, NOW)).toEqual({
       kind: "add",

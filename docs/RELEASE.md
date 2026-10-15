@@ -31,6 +31,14 @@ Exports the JS, builds and signs the manifest with the private key, uploads asse
 
 The update is published for the `version` currently in `app.json`; it only reaches APKs built with that same version.
 
+## Android widgets (runtime 1.1.0)
+
+The home-screen widgets (`react-native-android-widget`) are native code, so they ship in a **new APK built as version 1.1.0** (`android.versionCode` 2). Every later JS-only change to them goes by OTA, but an OTA published for 1.1.0 reaches only 1.1.0 installs: 1.0.0 installs keep receiving 1.0.0 updates until they install the new APK.
+
+Each widget has a `previewImage` in `app.json` pointing at `frontend/assets/widgets/<widgetname-lowercase>-preview.png` (thismonth, quickadd, today, upcoming, categorybudgets). The PNGs must exist before `expo prebuild` / `npm run build:apk`, which fails on a missing file; tests and lint do not read them.
+
+On Xiaomi/MIUI, preset taps (the headless task) are killed unless Dime is allowed to **Autostart** (Settings, Apps, Permissions, Autostart). The same note is shown in Settings > Home screen widgets.
+
 ## Roll back
 
 `npm run publish:update -- --rollback-to-embedded` sends apps back to the JS inside their APK. To undo a bad update with a good one, just publish a fixed update.
