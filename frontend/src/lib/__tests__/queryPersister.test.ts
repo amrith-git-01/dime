@@ -12,6 +12,7 @@ import {
   QUERY_CACHE_MAX_AGE_MS,
   restoreQueryCache,
 } from "../queryPersister";
+import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 jest.mock("@/lib/reportError", () => ({ reportError: jest.fn() }));
@@ -19,7 +20,7 @@ jest.mock("@/lib/reportError", () => ({ reportError: jest.fn() }));
 const KEY = categoriesQueryKeys.list("user-a");
 
 function writeBlob(overrides: { buster?: string; timestamp?: number }): void {
-  const source = new QueryClient();
+  const source = createTestQueryClient();
   source.setQueryData(KEY, [{ id: "c1" }]);
   const clientState = dehydrate(source);
   source.clear();
@@ -39,7 +40,7 @@ describe("restoreQueryCache", () => {
 
   beforeEach(() => {
     resetMockMmkv();
-    queryClient = new QueryClient();
+    queryClient = createTestQueryClient();
   });
 
   afterEach(() => queryClient.clear());

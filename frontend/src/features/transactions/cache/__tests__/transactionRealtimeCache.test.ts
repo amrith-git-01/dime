@@ -1,10 +1,10 @@
-import { QueryClient } from "@tanstack/react-query";
 
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import type { CategoryRow } from "@/features/categories/types";
 
 import type { TransactionRow } from "../../types";
 import { fillRealtimeRowCategory } from "../transactionRealtimeCache";
+import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
 function category(over: Partial<CategoryRow>): CategoryRow {
   return {
@@ -46,7 +46,7 @@ function row(over: Partial<TransactionRow>): TransactionRow {
 
 describe("fillRealtimeRowCategory", () => {
   it("fills name, icon and colour from a spend category", () => {
-    const qc = new QueryClient();
+    const qc = createTestQueryClient();
     qc.setQueryData(categoriesQueryKeys.list("u1", "spend"), [category({})]);
     const filled = fillRealtimeRowCategory(qc, "u1", row({ category_id: "c1" }));
     expect(filled).toMatchObject({
@@ -57,7 +57,7 @@ describe("fillRealtimeRowCategory", () => {
   });
 
   it("resolves a recurring-scoped category cached under another scope", () => {
-    const qc = new QueryClient();
+    const qc = createTestQueryClient();
     qc.setQueryData(categoriesQueryKeys.list("u1", "spend"), [category({})]);
     qc.setQueryData(categoriesQueryKeys.list("u1", "recurring_income"), [
       category({ id: "c9", name: "Salary", icon_name: "Wallet", color: "#222222" }),
@@ -68,7 +68,7 @@ describe("fillRealtimeRowCategory", () => {
   });
 
   it("leaves the row alone when the category is not cached, has a name already, or has no id", () => {
-    const qc = new QueryClient();
+    const qc = createTestQueryClient();
     qc.setQueryData(categoriesQueryKeys.list("u1", "spend"), [category({})]);
     const unknown = row({ category_id: "zzz" });
     expect(fillRealtimeRowCategory(qc, "u1", unknown)).toBe(unknown);
@@ -79,7 +79,7 @@ describe("fillRealtimeRowCategory", () => {
   });
 
   it("ignores another user's cached categories", () => {
-    const qc = new QueryClient();
+    const qc = createTestQueryClient();
     qc.setQueryData(categoriesQueryKeys.list("u2", "spend"), [category({})]);
     const r = row({ category_id: "c1" });
     expect(fillRealtimeRowCategory(qc, "u1", r)).toBe(r);

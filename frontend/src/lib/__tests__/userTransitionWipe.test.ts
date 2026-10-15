@@ -16,6 +16,7 @@ import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
 import { subscribeUserTransitionWipe } from "../userTransitionWipe";
+import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 jest.mock("@/stores/authSessionStore", () => {
@@ -48,7 +49,7 @@ describe("subscribeUserTransitionWipe", () => {
     resetMockMmkv();
     recentTransactionMutations.clear();
     setUser("user-a");
-    queryClient = new QueryClient();
+    queryClient = createTestQueryClient();
     unsubscribe = subscribeUserTransitionWipe(queryClient);
     seedUserData(queryClient, "user-a");
   });

@@ -1,4 +1,3 @@
-import { QueryClient } from "@tanstack/react-query";
 
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 import { writePersistedNotifications } from "@/lib/notifications/notificationsMmkv";
@@ -9,6 +8,7 @@ import {
   hydrateNotificationsFromMmkv,
   persistNotificationsMmkvFromQueryClient,
 } from "../syncNotificationsMmkv";
+import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 
@@ -32,7 +32,7 @@ describe("hydrateNotificationsFromMmkv", () => {
 
   it("never seeds an empty inbox (it would read as 'no notifications')", () => {
     writePersistedNotifications(USER, { inbox: [], unreadCount: 2 });
-    const queryClient = new QueryClient();
+    const queryClient = createTestQueryClient();
 
     expect(hydrateNotificationsFromMmkv(queryClient, USER)).toBe(true);
 
@@ -47,7 +47,7 @@ describe("hydrateNotificationsFromMmkv", () => {
   it("seeds a real inbox with the snapshot's age, not as fresh data", () => {
     const writtenAt = Date.now();
     writePersistedNotifications(USER, { inbox: [note("a")], unreadCount: 1 });
-    const queryClient = new QueryClient();
+    const queryClient = createTestQueryClient();
 
     hydrateNotificationsFromMmkv(queryClient, USER);
 
@@ -64,11 +64,11 @@ describe("persistNotificationsMmkvFromQueryClient", () => {
   beforeEach(resetMockMmkv);
 
   it("does not write an invented empty inbox when only the badge is cached", () => {
-    const queryClient = new QueryClient();
+    const queryClient = createTestQueryClient();
     queryClient.setQueryData(notificationQueryKeys.unreadCount(USER), 3);
 
     persistNotificationsMmkvFromQueryClient(queryClient, USER);
 
-    expect(hydrateNotificationsFromMmkv(new QueryClient(), USER)).toBe(false);
+    expect(hydrateNotificationsFromMmkv(createTestQueryClient(), USER)).toBe(false);
   });
 });
