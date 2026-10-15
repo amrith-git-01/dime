@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
+import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { iconSizes } from "@/constants/iconSizes";
@@ -101,19 +102,13 @@ export default function WelcomeTourScreen() {
             />
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={isLastSlide ? "Get started" : "Continue"}
-            onPress={handlePrimaryPress}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.primaryButtonPressed,
-            ]}
-          >
-            <Text style={styles.primaryButtonLabel}>
-              {isLastSlide ? "Get started" : "Continue"}
-            </Text>
-          </Pressable>
+          <View style={styles.primarySlot}>
+            <Button
+              title={isLastSlide ? "Get started" : "Continue"}
+              accessibilityLabel={isLastSlide ? "Get started" : "Continue"}
+              onPress={handlePrimaryPress}
+            />
+          </View>
         </View>
       </View>
     </StackScreenShell>
@@ -182,23 +177,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
     opacity: 0.75,
     transform: [{ scale: 0.97 }],
   },
-  primaryButton: {
+  primarySlot: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.lg,
-  },
-  primaryButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.98 }],
-  },
-  primaryButtonLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.onAccent,
   },
 }));

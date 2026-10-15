@@ -2,8 +2,16 @@ import { dimeApi } from "@/lib/api/dimeApi";
 
 import type { MeResponse } from "../types";
 
+/**
+ * The profile check gates the first screen, so it must not wait out the client's long default
+ * timeout on a bad connection.
+ */
+export const ME_REQUEST_TIMEOUT_MS = 10_000;
+
 export async function fetchMe(): Promise<MeResponse> {
-  const { data } = await dimeApi.get<MeResponse>("/api/v1/me");
+  const { data } = await dimeApi.get<MeResponse>("/api/v1/me", {
+    timeout: ME_REQUEST_TIMEOUT_MS,
+  });
   return data;
 }
 

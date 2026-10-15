@@ -1,7 +1,7 @@
 import { memo } from "react";
 
 import { useSettingsToggleBusyGate } from "../hooks/useSettingsToggleBusyGate";
-import { SettingsEditorFooter } from "./SettingsEditorFooter";
+import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 
@@ -40,7 +40,7 @@ export const SettingsHapticEditor = memo(function SettingsHapticEditor({
         onAnimationBusyChange={onAnimationBusyChange}
       />
 
-      <SettingsEditorFooter
+      <BentoEditorFooter
         onClear={() => {
           if (busy) {
             return;

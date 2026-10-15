@@ -13,6 +13,7 @@ import Animated, {
 import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { springs } from "@/constants/motion";
 import { createThemedStyles } from "@/theme";
 
@@ -37,6 +38,8 @@ export type TourCardProps = {
    */
   settled: boolean;
   motion: TourMotion;
+  /** The screens behind the card are showing sample data, not the user's own. */
+  showSampleBadge?: boolean;
   /** Bumped when the user taps the dimmed area, to nudge the card toward its buttons. */
   nudgeCount: number;
   onMeasured: (height: number) => void;
@@ -47,6 +50,16 @@ export type TourCardProps = {
   onFinaleAction: () => void;
 };
 
+/** Marks the screens behind the card as sample data (an empty account's preview). */
+function SampleDataBadge() {
+  const styles = useStyles();
+  return (
+    <View style={styles.sampleBadge}>
+      <Text style={styles.sampleBadgeText}>Sample data</Text>
+    </View>
+  );
+}
+
 /** The tooltip card: springs in, glides to each target, and points at it with an arrow. */
 export function TourCard({
   step,
@@ -56,6 +69,7 @@ export function TourCard({
   placement,
   settled,
   motion,
+  showSampleBadge = false,
   nudgeCount,
   onMeasured,
   onNext,
@@ -182,17 +196,29 @@ export function TourCard({
           </View>
         ) : (
           <View style={styles.headerRow}>
-            <Text style={styles.eyebrow}>{progressLabel}</Text>
+            <View style={styles.eyebrowGroup}>
+              <Text style={styles.eyebrow}>{progressLabel}</Text>
+              {showSampleBadge ? <SampleDataBadge /> : null}
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Skip tour"
               hitSlop={12}
-              onPress={onSkip}
+              onPress={() => {
+              void triggerHaptic();
+              onSkip();
+            }}
             >
               <Text style={styles.skip}>Skip tour</Text>
             </Pressable>
           </View>
         )}
+
+        {showSampleBadge && step.kind === "finale" ? (
+          <View style={styles.finaleBadge}>
+            <SampleDataBadge />
+          </View>
+        ) : null}
 
         <Text
           accessibilityRole="header"
@@ -219,12 +245,29 @@ export function TourCard({
       {step.kind === "welcome" ? (
         <View style={styles.stackedActions}>
           <Button title={primaryLabel} onPress={onNext} />
-          <Button title={step.skipLabel ?? "Skip"} variant="ghost" onPress={onSkip} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSkip}
+            hitSlop={8}
+            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
+          >
+            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Skip"}</Text>
+          </Pressable>
         </View>
       ) : step.kind === "finale" ? (
         <View style={styles.stackedActions}>
           <Button title={primaryLabel} onPress={onFinaleAction} />
-          <Button title={step.skipLabel ?? "Done"} variant="ghost" onPress={onNext} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void triggerHaptic();
+              onNext();
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
+          >
+            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Done"}</Text>
+          </Pressable>
         </View>
       ) : (
         <View style={styles.actionsRow}>
@@ -288,6 +331,28 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  eyebrowGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flexShrink: 1,
+  },
+  sampleBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.accentTint,
+  },
+  sampleBadgeText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.accentText,
+  },
+  finaleBadge: {
+    alignItems: "center",
     marginBottom: spacing.sm,
   },
   eyebrow: {
@@ -361,5 +426,19 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   stackedActions: {
     gap: spacing.sm,
     marginTop: spacing.lg,
+  },
+  skipLink: {
+    alignSelf: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  skipLinkPressed: {
+    opacity: 0.7,
+  },
+  skipLinkLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.inkSoft,
   },
 }));

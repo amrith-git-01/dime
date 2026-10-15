@@ -6,10 +6,6 @@ export {
 } from "./RecurringSection";
 export { RecurringEditor, type RecurringEditorProps } from "./RecurringEditor";
 export {
-  RecurringMonthSection,
-  type RecurringMonthSectionProps,
-} from "./RecurringMonthSection";
-export {
   RecurringOccurrenceRow,
   type RecurringOccurrenceRowProps,
 } from "./RecurringOccurrenceRow";

@@ -4,7 +4,6 @@ export { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 export { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
 export { SettingsAccountEditor } from "./SettingsAccountEditor";
 export { SettingsAppearanceEditor } from "./SettingsAppearanceEditor";
-export { SettingsEditorFooter } from "./SettingsEditorFooter";
 export { SettingsEmailEditor } from "./SettingsEmailEditor";
 export { SettingsFeedbackEditor } from "./SettingsFeedbackEditor";
 export { SettingsFormCard } from "./SettingsFormCard";

@@ -1,6 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useEffect, useMemo } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { useCategoriesRealtimeSync } from "@/features/categories/hooks/useCategoriesRealtimeSync";
@@ -17,7 +17,8 @@ import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
-import { createThemedStyles } from "@/theme";
+import { resolveRootAppRoute, type ProfileKnowledge } from "./resolveRootAppRoute";
+import { createThemedStyles, useTheme } from "@/theme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -32,35 +33,15 @@ function hasEstablishedUsername(
   return Boolean(profile?.username?.trim());
 }
 
-type RootAppRoute =
-  | "welcome"
-  | "auth"
-  | "bootstrapping"
-  | "setup"
-  | "main";
-
-function resolveUnauthenticatedRoute(
-  welcomeTourCompleted: boolean,
-): "welcome" | "auth" {
-  return welcomeTourCompleted ? "auth" : "welcome";
-}
-
-function resolveRootAppRoute(
-  signedIn: boolean,
-  profileGateReady: boolean,
-  hasUsername: boolean,
-  welcomeTourCompleted: boolean,
-): RootAppRoute {
-  if (!signedIn) {
-    return resolveUnauthenticatedRoute(welcomeTourCompleted);
-  }
-  if (!profileGateReady) {
-    return "bootstrapping";
-  }
-  if (!hasUsername) {
-    return "setup";
-  }
-  return "main";
+/** Shown while the profile check runs: neutral, so a signed-in user never sees the sign-in screen. */
+function BootstrapLoader() {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <View style={styles.loader} accessibilityLabel="Loading">
+      <ActivityIndicator color={colors.inkFaint} />
+    </View>
+  );
 }
 
 export default function RootNavigator() {
@@ -84,26 +65,19 @@ export default function RootNavigator() {
   const ownCachedProfile =
     cachedProfile && cachedProfile.id === profileUserId ? cachedProfile : null;
   const resolvedProfile = meQuery.data ?? ownCachedProfile;
-  const hasUsername = hasEstablishedUsername(resolvedProfile);
+  const profile: ProfileKnowledge = !resolvedProfile
+    ? "unknown"
+    : hasEstablishedUsername(resolvedProfile)
+      ? "has-username"
+      : "no-username";
+  const me = meQuery.isError ? "failed" : meQuery.isFetched ? "success" : "pending";
 
-  const profileGateReady = !signedIn || meQuery.isFetched || hasUsername;
   const route = useMemo(
     () =>
       googleAuthPending
         ? "auth"
-        : resolveRootAppRoute(
-            signedIn,
-            profileGateReady,
-            hasUsername,
-            welcomeTourCompleted,
-          ),
-    [
-      googleAuthPending,
-      hasUsername,
-      profileGateReady,
-      signedIn,
-      welcomeTourCompleted,
-    ],
+        : resolveRootAppRoute({ signedIn, welcomeTourCompleted, profile, me }),
+    [googleAuthPending, me, profile, signedIn, welcomeTourCompleted],
   );
 
   useEffect(() => {
@@ -122,7 +96,9 @@ export default function RootNavigator() {
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
         {route === "welcome" ? (
           <Stack.Screen name="WelcomeTour" component={WelcomeTourScreen} />
-        ) : route === "auth" || route === "bootstrapping" ? (
+        ) : route === "bootstrapping" ? (
+          <Stack.Screen name="Bootstrapping" component={BootstrapLoader} />
+        ) : route === "auth" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : route === "setup" ? (
           <Stack.Screen
@@ -141,6 +117,12 @@ export default function RootNavigator() {
 const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     flex: 1,
+    backgroundColor: colors.paper,
+  },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.paper,
   },
 }));

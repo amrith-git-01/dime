@@ -1,13 +1,12 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Image, Pressable, Text, View } from "react-native";
+import { Image, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
-import { ButtonBusyContent } from "@/components/ui";
-import { radius, spacing } from "@/constants";
+import { Button } from "@/components/ui";
+import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 import { createThemedStyles, useTheme } from "@/theme";
@@ -52,38 +51,28 @@ export default function AuthScreen() {
             <Text style={styles.errorText}>{model.googleError}</Text>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            title="Continue with Google"
+            busyLabel="Signing in"
             accessibilityLabel="Continue with Google"
+            loading={model.googleLoading}
             disabled={model.busy}
-            onPress={() => {
-              void triggerHaptic();
-              model.submitGoogle();
-            }}
-            style={({ pressed }) => [
-              styles.googleButton,
-              pressed && !model.busy && styles.googleButtonPressed,
-              model.busy && styles.googleButtonDisabled,
-            ]}
-          >
-            {model.googleLoading ? null : (
-              <MaterialCommunityIcons name="google" size={22} color={colors.onAccent} />
-            )}
-            <ButtonBusyContent
-              loading={model.googleLoading}
-              label="Continue with Google"
-              busyLabel="Signing in"
-              color={colors.onAccent}
-              textStyle={styles.googleLabel}
-            />
-          </Pressable>
+            leadingIcon={
+              <MaterialCommunityIcons
+                name="google"
+                size={22}
+                color={colors.onAccent}
+              />
+            }
+            onPress={() => model.submitGoogle()}
+          />
         </View>
       </View>
     </StackScreenShell>
   );
 }
 
-const useStyles = createThemedStyles(({ colors, shadows }) => ({
+const useStyles = createThemedStyles(({ colors }) => ({
   shellContent: {
     flex: 1,
     backgroundColor: colors.paper,
@@ -112,29 +101,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   ctaRegion: {
     gap: spacing.md,
     paddingTop: spacing.md,
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    minHeight: 54,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.accent,
-    ...shadows.cardElevated,
-  },
-  googleButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.98 }],
-  },
-  googleButtonDisabled: {
-    opacity: 0.55,
-  },
-  googleLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
-    lineHeight: 22,
   },
   errorText: {
     fontFamily: fontFamilies.regular,

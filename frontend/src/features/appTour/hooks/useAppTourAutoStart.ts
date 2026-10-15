@@ -1,5 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
@@ -26,6 +28,7 @@ export function useAppTourAutoStart({
   /** The branded splash overlay is gone. */
   splashRevealed: boolean;
 }): void {
+  const queryClient = useQueryClient();
   const { userId } = useSessionUserId();
   const permissionsBusy = usePermissionsPromptStore(
     (s) => s.pendingAfterGoogleSignIn || s.prompting,
@@ -34,10 +37,13 @@ export function useAppTourAutoStart({
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const tourActive = useAppTourStore((s) => s.active);
   const startTour = useAppTourStore((s) => s.start);
+  // Wait for the real Home overview: the sample-data preview only latches once an empty account is known.
+  const homeLoaded = useTransactionsHomeQuery().isSuccess;
 
   const calm =
     shellReady &&
     splashRevealed &&
+    homeLoaded &&
     !permissionsBusy &&
     !modalFlowOpen &&
     !fabOpen &&
@@ -51,8 +57,8 @@ export function useAppTourAutoStart({
       if (isAppTourSeen(userId) || getFocusedTourTab() === null) {
         return;
       }
-      startTour();
+      startTour(queryClient);
     }, AUTO_START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [calm, userId, startTour]);
+  }, [calm, userId, startTour, queryClient]);
 }

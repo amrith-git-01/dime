@@ -2,17 +2,17 @@ import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { ProgressBar } from "@/components/ui";
+import { Button, ProgressBar } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { formatInrCompact } from "@/utils/currency";
 
 import { BudgetSummaryBodySkeleton } from "./BudgetSummaryBodySkeleton";
-import type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoCard";
+import type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoSummary";
 import { createThemedStyles, useTheme } from "@/theme";
 
-export type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoCard";
+export type { BudgetMonthBentoSummary } from "./bento/BudgetMonthBentoSummary";
 
 type BudgetSummaryCardProps = {
   selectedMonth: string;
@@ -29,7 +29,7 @@ type BudgetSummaryCardProps = {
   spentValue?: number;
 };
 
-/** "Fixed ₹X · Flexible ₹Y" plus "₹Z fixed still to come", under the month's totals. */
+/** "Recurring ₹X · Flexible ₹Y" plus "₹Z recurring still to come", under the month's totals. */
 function SplitLines({
   summary,
   centered = false,
@@ -208,17 +208,11 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
             spent so far · no budget set
           </Text>
           <SplitLines summary={summary} centered />
-          <Pressable
+          <Button
+            title="Set monthly budget"
             onPress={onSetBudget}
-            style={({ pressed }) => [
-              styles.setBtn,
-              pressed && styles.setBtnPressed,
-            ]}
-            accessibilityRole="button"
             accessibilityLabel="Set monthly budget"
-          >
-            <Text style={styles.setBtnText}>Set monthly budget</Text>
-          </Pressable>
+          />
         </>
       )}
     </View>
@@ -385,21 +379,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   splitTextCentered: {
     textAlign: "center",
-  },
-  setBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.full,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  setBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  setBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.onAccent,
   },
 }));

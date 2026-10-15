@@ -17,6 +17,7 @@ import {
   serializePersistedClient,
   shouldDehydrateQuery,
 } from "../queryCachePolicy";
+import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
 jest.mock("@/lib/reportError", () => ({ reportError: jest.fn() }));
 
@@ -56,7 +57,7 @@ describe("shouldDehydrateQuery", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    queryClient = new QueryClient();
+    queryClient = createTestQueryClient();
   });
 
   afterEach(() => queryClient.clear());
@@ -144,7 +145,7 @@ describe("serializePersistedClient", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
-    queryClient = new QueryClient();
+    queryClient = createTestQueryClient();
   });
 
   afterEach(() => queryClient.clear());

@@ -194,8 +194,8 @@ export const InsightsBurnRateMetricCard = memo(
             <View style={styles.divider} />
             <Text style={styles.fixedLine}>
               {metrics.flexibleAllowance != null
-                ? `${metrics.fixedPlanDisplay} fixed costs planned · ${metrics.flexibleAllowanceDisplay} left of the budget for everything else`
-                : `${metrics.fixedPlanDisplay} fixed costs planned this month`}
+                ? `${metrics.fixedPlanDisplay} recurring costs planned · ${metrics.flexibleAllowanceDisplay} left of the budget for everything else`
+                : `${metrics.fixedPlanDisplay} recurring costs planned this month`}
             </Text>
           </>
         ) : null}

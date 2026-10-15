@@ -39,7 +39,7 @@ describe("buildBudgetCategoryRows", () => {
     ]);
   });
 
-  it("leaves out spend in recurring-scoped categories (it lives in Recurring this month)", () => {
+  it("leaves out spend in recurring-scoped categories (it lives in the Recurring sections)", () => {
     const rows = buildBudgetCategoryRows({
       categories: [food],
       spendByCategory: { food: 300, rent: 15000, pay: 10 },

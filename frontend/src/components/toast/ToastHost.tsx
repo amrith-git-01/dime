@@ -17,7 +17,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { springs } from "@/constants/motion";
 import { useToastUiStore } from "@/stores/toastUiStore";
@@ -219,7 +219,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   action: {
     minHeight: 30,
     paddingHorizontal: 8,
-    borderRadius: 8,
+    borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
   },

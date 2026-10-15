@@ -2,7 +2,6 @@ import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { memo } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -16,7 +15,7 @@ import {
   emptyStateCopy,
   SurfaceCardSegment,
 } from "@/components/shared";
-import { ButtonBusyContent } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { DayAddButton, TransactionRow } from "@/features/transactions/components";
@@ -207,20 +206,16 @@ export default function TransactionsListScreen() {
             <Text style={styles.footerError}>
               {emptyStateCopy.transactionsListError.headline}
             </Text>
-            <Pressable
-              onPress={retry}
-              disabled={isRetrying}
-              accessibilityRole="button"
-              accessibilityLabel="Retry loading transactions"
-              hitSlop={8}
-            >
-              <ButtonBusyContent
+            <View style={styles.retrySlot}>
+              <Button
+                title="Retry"
+                variant="ghost"
+                size="compact"
+                onPress={retry}
                 loading={isRetrying}
-                label="Retry"
-                color={colors.accentText}
-                textStyle={styles.footerRetry}
+                accessibilityLabel="Retry loading transactions"
               />
-            </Pressable>
+            </View>
           </View>
         ) : showLoadingMore ? (
           <View style={styles.loadingMore}>
@@ -299,11 +294,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
     lineHeight: 18,
     color: colors.inkSoft,
   },
-  footerRetry: {
+  retrySlot: {
     marginTop: spacing.sm,
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.accentText,
   },
 }));

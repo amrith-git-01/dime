@@ -22,7 +22,7 @@ export type BentoStatCellProps = {
 
 /**
  * Shared cash-flow stat cell — uppercase label + mono value with semantic tone.
- * Used in HomeIncomeExpenseTile, TransactionsMonthBentoCard, BudgetMonthBentoCard.
+ * Used in HomeIncomeExpenseTile, TransactionsMonthBentoCard.
  */
 
 /** Maps a net numeric value to the correct BentoStatCellTone for sign-aware coloring. */

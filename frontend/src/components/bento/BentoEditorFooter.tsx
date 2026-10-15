@@ -1,11 +1,9 @@
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
 
-import { ButtonBusyContent } from "@/components/ui";
-import { radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
-import { createThemedStyles, useTheme } from "@/theme";
+import { Button } from "@/components/ui";
+import { spacing } from "@/constants";
+import { createThemedStyles } from "@/theme";
 
 export type BentoEditorFooterProps = {
   onClear: () => void;
@@ -20,8 +18,8 @@ export type BentoEditorFooterProps = {
 };
 
 /**
- * Clear + primary action row for stack bento form editors.
- * Matches ManualAdd / category / budget editor footers (full pill, accent save).
+ * Clear + primary action row for stack bento form editors and settings editors
+ * (secondary flex 1, primary flex 2).
  */
 export const BentoEditorFooter = memo(function BentoEditorFooter({
   onClear,
@@ -33,119 +31,43 @@ export const BentoEditorFooter = memo(function BentoEditorFooter({
   saveDisabled = false,
   clearDisabled = false,
 }: BentoEditorFooterProps) {
-  const { colors } = useTheme();
   const styles = useStyles();
-  const saveBlocked = saveDisabled || saveLoading;
 
   return (
     <View style={styles.row}>
-      <Pressable
-        onPress={() => {
-          if (clearDisabled) {
-            return;
-          }
-          void triggerHaptic();
-          onClear();
-        }}
-        disabled={clearDisabled}
-        accessibilityRole="button"
-        accessibilityLabel={clearTitle}
-        style={({ pressed }) => [
-          styles.clearBtn,
-          clearDisabled && styles.clearBtnDisabled,
-          pressed && !clearDisabled && styles.clearBtnPressed,
-        ]}
-      >
-        <Text
-          style={[
-            styles.clearBtnText,
-            clearDisabled && styles.clearBtnTextDisabled,
-          ]}
-        >
-          {clearTitle}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => {
-          if (saveBlocked) {
-            return;
-          }
-          void triggerHaptic();
-          onSave();
-        }}
-        disabled={saveBlocked}
-        accessibilityRole="button"
-        accessibilityLabel={saveTitle}
-        style={({ pressed }) => [
-          styles.saveBtn,
-          saveBlocked && styles.saveBtnDisabled,
-          pressed && !saveBlocked && styles.saveBtnPressed,
-        ]}
-      >
-        <ButtonBusyContent
-          loading={saveLoading}
-          label={saveTitle}
-          busyLabel={saveBusyLabel}
-          color={colors.onAccent}
-          textStyle={styles.saveBtnText}
+      <View style={styles.clearSlot}>
+        <Button
+          title={clearTitle}
+          variant="secondary"
+          onPress={onClear}
+          disabled={clearDisabled}
+          accessibilityLabel={clearTitle}
         />
-      </Pressable>
+      </View>
+      <View style={styles.saveSlot}>
+        <Button
+          title={saveTitle}
+          busyLabel={saveBusyLabel}
+          onPress={onSave}
+          loading={saveLoading}
+          disabled={saveDisabled}
+          accessibilityLabel={saveTitle}
+        />
+      </View>
     </View>
   );
 });
 
-const useStyles = createThemedStyles(({ colors }) => ({
+const useStyles = createThemedStyles(() => ({
   row: {
     flexDirection: "row",
     gap: spacing.md,
     marginTop: spacing.xs,
   },
-  clearBtn: {
+  clearSlot: {
     flex: 1,
-    minHeight: 50,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
   },
-  clearBtnDisabled: {
-    opacity: 0.4,
-  },
-  clearBtnPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.98 }],
-  },
-  clearBtnText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.ink,
-  },
-  clearBtnTextDisabled: {
-    color: colors.inkFaint,
-  },
-  saveBtn: {
+  saveSlot: {
     flex: 2,
-    minHeight: 50,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.accent,
-  },
-  saveBtnDisabled: {
-    opacity: 0.45,
-  },
-  saveBtnPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  saveBtnText: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
   },
 }));

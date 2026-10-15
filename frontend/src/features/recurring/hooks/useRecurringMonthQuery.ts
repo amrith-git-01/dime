@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { isSampleMonth, usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { keepPreviousDataForUser } from "@/lib/keepPreviousDataForUser";
 import { TRANSACTIONS_QUERY_STALE_MS } from "@/lib/queryDefaults";
@@ -18,11 +19,14 @@ export function useRecurringMonthQuery(
 ) {
   const { userId } = useSessionUserId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: recurringQueryKeys.month(userId, year, monthIndex0),
     queryFn: () => fetchRecurringMonth(year, monthIndex0),
     enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
+  return usePreviewable(query, (sample) =>
+    isSampleMonth(sample, year, monthIndex0) ? sample.recurringMonth : undefined,
+  );
 }

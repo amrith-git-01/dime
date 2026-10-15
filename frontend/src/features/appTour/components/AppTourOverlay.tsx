@@ -20,6 +20,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { springs } from "@/constants/motion";
 import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import {
+  setTourPreviewSuspended,
+  useTourPreviewStore,
+} from "@/features/tourPreview";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 
 import { TOUR_STEPS } from "../constants/tourSteps";
@@ -113,6 +117,7 @@ function TourStage() {
   const skip = useAppTourStore((s) => s.skip);
   const finish = useAppTourStore((s) => s.finish);
   const step = TOUR_STEPS[stepIndex];
+  const showSampleBadge = useTourPreviewStore((s) => s.active && !s.suspended);
 
   const insets = useSafeAreaInsets();
   const windowSize = useWindowDimensions();
@@ -251,6 +256,7 @@ function TourStage() {
     setNudgeCount((count) => count + 1);
   }, []);
 
+  // Finishing ends the sample-data preview first, so the add form opens on the real (empty) data.
   const onFinaleAction = useCallback(() => {
     finish();
     openManualAddFromTour();
@@ -317,6 +323,7 @@ function TourStage() {
         placement={placement}
         settled={status !== "resolving"}
         motion={motion}
+        showSampleBadge={showSampleBadge}
         nudgeCount={nudgeCount}
         onMeasured={onMeasured}
         onNext={next}
@@ -331,6 +338,10 @@ function TourStage() {
 /** Hides the tour (keeping its place) while the user is elsewhere; shows the stage otherwise. */
 function TourSession() {
   const paused = useTourPaused();
+  // While hidden, the screens underneath show the user's real data (and can be used for real).
+  useEffect(() => {
+    setTourPreviewSuspended(paused);
+  }, [paused]);
   return paused ? null : <TourStage />;
 }
 

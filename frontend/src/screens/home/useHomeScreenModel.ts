@@ -130,7 +130,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
   const monthSplitLine =
     overview && fixedSpentPaise > 0
-      ? `Fixed ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
+      ? `Recurring ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
       : null;
 
   const monthSummaryData = monthSummaryQuery.data;

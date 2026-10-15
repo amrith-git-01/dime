@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
@@ -32,7 +33,6 @@ export const InsightsMonthCompareLauncherCard = memo(
     insightsSelectedMonthIndex,
     onCompare,
   }: InsightsMonthCompareLauncherCardProps) {
-    const { colors } = useTheme();
     const styles = useStyles();
     const [monthAIndex, setMonthAIndex] = useState(insightsSelectedMonthIndex);
     const [monthBIndex, setMonthBIndex] = useState(() =>
@@ -152,26 +152,11 @@ export const InsightsMonthCompareLauncherCard = memo(
 
         {/* CTA */}
         <View style={styles.ctaSection}>
-          <Pressable
+          <Button
+            title="View full comparison"
             onPress={handleCompare}
             disabled={compareDisabled}
-            style={[styles.ctaButton, compareDisabled && styles.ctaDisabled]}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[
-                styles.ctaLabel,
-                compareDisabled && styles.ctaLabelDisabled,
-              ]}
-            >
-              View full comparison
-            </Text>
-            <ChevronRight
-              size={18}
-              color={compareDisabled ? colors.inkFaint : colors.onAccent}
-              strokeWidth={2}
-            />
-          </Pressable>
+          />
         </View>
       </View>
     );
@@ -339,26 +324,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
     paddingTop: spacing.xs,
-  },
-  ctaButton: {
-    flexDirection: "row",
-    backgroundColor: colors.accent,
-    borderRadius: radius.full,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-  },
-  ctaDisabled: {
-    backgroundColor: colors.accentTint,
-  },
-  ctaLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.onAccent,
-  },
-  ctaLabelDisabled: {
-    color: colors.inkFaint,
   },
 }));

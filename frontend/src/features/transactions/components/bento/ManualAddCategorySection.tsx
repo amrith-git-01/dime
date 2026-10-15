@@ -82,7 +82,7 @@ export function ManualAddCategorySection({
             <Repeat size={14} color={colors.inkSoft} strokeWidth={2} />
             <Text style={styles.recurringTitle}>Recurring</Text>
             <Text style={styles.recurringHint} numberOfLines={1}>
-              Rent, salary and other fixed money
+              Rent, salary and other recurring money
             </Text>
             {recurringOpen ? (
               <ChevronUp size={16} color={colors.inkSoft} strokeWidth={2} />

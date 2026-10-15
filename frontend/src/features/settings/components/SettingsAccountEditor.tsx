@@ -9,7 +9,7 @@ import {
   SETTINGS_ACCOUNT_REFRESH_FAB_SIZE,
   SETTINGS_ACCOUNT_REFRESH_ICON_SIZE,
 } from "../constants/settingsTokens";
-import { SettingsEditorFooter } from "./SettingsEditorFooter";
+import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
 
 export type SettingsAccountEditorProps = {
@@ -64,7 +64,7 @@ export const SettingsAccountEditor = memo(function SettingsAccountEditor({
 
       <TextField label="Email" value={email} editable={false} />
 
-      <SettingsEditorFooter
+      <BentoEditorFooter
         onClear={onClear}
         onSave={onSave}
         saveTitle="Update"

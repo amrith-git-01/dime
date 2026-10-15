@@ -94,6 +94,7 @@ export type MainStackParamList = {
 
 export type RootStackParamList = {
   WelcomeTour: undefined;
+  Bootstrapping: undefined;
   Auth: undefined;
   ProfileSetup: undefined;
   Main: NavigatorScreenParams<MainStackParamList>;

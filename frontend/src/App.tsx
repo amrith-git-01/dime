@@ -14,6 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppBootstrap } from "@/components/app/AppBootstrap";
 import { AppErrorBoundary } from "@/components/app/AppErrorBoundary";
+import { computeSplashRevealDelayMs } from "@/components/app/splashRevealDelay";
 import { SplashBrandedShell } from "@/components/app/SplashBrandedShell";
 import {
   SplashRevealProvider,
@@ -21,10 +22,6 @@ import {
 } from "@/components/app/SplashRevealContext";
 import { ToastHost } from "@/components/toast/ToastHost";
 import { loadableAppFonts } from "@/constants/fonts";
-import {
-  SPLASH_MIN_DISPLAY_MS,
-  SPLASH_SHELL_TIMEOUT_MS,
-} from "@/constants/splash";
 import { AppTourOverlay } from "@/features/appTour/components";
 import {
   ReceiptScanBusyOverlay,
@@ -64,7 +61,10 @@ function AppSplashCoordinator({
   const splashStartedAtRef = useRef(Date.now());
   const [splashRevealed, setSplashRevealed] = useState(splashRevealedLatch);
 
-  const bootstrapReady = fontsReady && layoutReady && contentReady;
+  // The release timer runs as soon as fonts and layout are ready, whatever the content (profile
+  // gate) is doing; `bootstrapReady` only decides whether it can release early.
+  const timerReady = fontsReady && layoutReady;
+  const bootstrapReady = timerReady && contentReady;
 
   // Lets the rest of the app (the guided tour) wait until the splash is actually gone.
   useEffect(() => {
@@ -74,18 +74,19 @@ function AppSplashCoordinator({
   }, [splashRevealed, markSplashRevealed]);
 
   // The splash is the single loading cover: it goes once bootstrap AND the first screen's shell
-  // (header + tab bar, or the auth / onboarding route) are laid out. The timeout keeps a shell
-  // that never reports from holding it forever.
+  // (header + tab bar, or the auth / onboarding route) are laid out. Otherwise the timeout
+  // releases it, so a shell that never reports, or a profile check on a bad connection, cannot
+  // hold it forever.
   useEffect(() => {
-    if (!bootstrapReady || splashRevealed) {
+    if (!timerReady || splashRevealed) {
       return;
     }
 
-    const elapsed = Date.now() - splashStartedAtRef.current;
-    const remaining = Math.max(0, SPLASH_MIN_DISPLAY_MS - elapsed);
-    const delay = shellReady
-      ? remaining
-      : Math.max(remaining, SPLASH_SHELL_TIMEOUT_MS);
+    const delay = computeSplashRevealDelayMs({
+      now: Date.now(),
+      splashStartedAt: splashStartedAtRef.current,
+      ready: bootstrapReady && shellReady,
+    });
 
     const timer = setTimeout(() => {
       splashRevealedLatch = true;
@@ -94,7 +95,7 @@ function AppSplashCoordinator({
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [bootstrapReady, shellReady, splashRevealed]);
+  }, [timerReady, bootstrapReady, shellReady, splashRevealed]);
 
   return (
     <View style={styles.splashCoordinator}>

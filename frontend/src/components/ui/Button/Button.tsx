@@ -1,30 +1,36 @@
-import { Pressable, StyleSheet, type PressableProps } from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, View, type PressableProps } from "react-native";
 
 import { ButtonBusyContent } from "./ButtonBusyContent";
-import { spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
-type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "danger"
-  | "ghost"
-  | "ghostDanger";
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
 export type ButtonProps = Omit<PressableProps, "style" | "children"> & {
   title: string;
   variant?: ButtonVariant;
+  /** `compact` is for inline CTAs (empty states, retry rows); `default` is the full-height pill. */
+  size?: "default" | "compact";
+  /** Icon rendered left of the label (hidden while busy; the spinner takes its place). */
+  leadingIcon?: ReactNode;
   /** Busy state: disables the button and shows a spinner left of `busyLabel`. */
   loading?: boolean;
   /** Continuous-tense label while busy ("Saving"). Derived from `title` when omitted. */
   busyLabel?: string;
 };
 
+/**
+ * The one button of the app: a full pill (the Add transaction footer look).
+ * `primary` = accent fill, `danger` = danger fill, `secondary`/`ghost` = outlined.
+ */
 export function Button({
   title,
   variant = "primary",
+  size = "default",
+  leadingIcon,
   loading = false,
   busyLabel,
   disabled,
@@ -34,24 +40,14 @@ export function Button({
   const styles = useStyles();
   const { colors } = useTheme();
   const isDisabled = disabled || loading;
-
-  const containerStyle =
-    variant === "primary" && isDisabled
-      ? styles.primaryDisabled
-      : variant === "danger" && isDisabled
-        ? styles.dangerDisabled
-        : styles[variant];
+  const isFilled = variant === "primary" || variant === "danger";
 
   const labelColor =
     variant === "primary"
       ? colors.onAccent
       : variant === "danger"
         ? colors.onDanger
-        : variant === "ghostDanger"
-          ? colors.danger
-          : variant === "ghost"
-            ? colors.ink
-            : colors.accentText;
+        : colors.ink;
 
   return (
     <Pressable
@@ -63,63 +59,85 @@ export function Button({
       }}
       style={({ pressed }) => [
         styles.base,
-        containerStyle,
+        size === "compact" && styles.baseCompact,
+        styles[variant],
+        isDisabled && (isFilled ? styles.disabledFilled : styles.disabledOutlined),
         pressed && !isDisabled && styles.pressed,
       ]}
       {...rest}
     >
-      <ButtonBusyContent
-        loading={loading}
-        label={title}
-        busyLabel={busyLabel}
-        color={labelColor}
-        textStyle={styles.label}
-      />
+      <View style={styles.row}>
+        {leadingIcon && !loading ? leadingIcon : null}
+        <ButtonBusyContent
+          loading={loading}
+          label={title}
+          busyLabel={busyLabel}
+          color={labelColor}
+          textStyle={[
+            isFilled ? styles.labelFilled : styles.labelOutlined,
+            size === "compact" && styles.labelCompact,
+          ]}
+        />
+      </View>
     </Pressable>
   );
 }
 
 const useStyles = createThemedStyles(({ colors }) => ({
   base: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: spacing.lg,
+    minHeight: 50,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
+  },
+  baseCompact: {
+    minHeight: 40,
+    paddingHorizontal: spacing.lg,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
   },
   primary: {
     backgroundColor: colors.accent,
   },
-  primaryDisabled: {
-    backgroundColor: colors.accentDisabled,
-  },
   danger: {
     backgroundColor: colors.danger,
   },
-  dangerDisabled: {
-    backgroundColor: colors.dangerDisabled,
-  },
   secondary: {
     backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.line,
   },
   ghost: {
     backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.line,
   },
-  ghostDanger: {
-    backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.danger,
+  disabledFilled: {
+    opacity: 0.45,
+  },
+  disabledOutlined: {
+    opacity: 0.4,
   },
   pressed: {
-    opacity: 0.92,
+    opacity: 0.86,
+    transform: [{ scale: 0.98 }],
   },
-  label: {
+  labelFilled: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  labelOutlined: {
     fontFamily: fontFamilies.medium,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  labelCompact: {
+    fontSize: 14,
   },
 }));

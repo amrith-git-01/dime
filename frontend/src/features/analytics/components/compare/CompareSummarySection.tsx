@@ -60,7 +60,7 @@ function SummaryColumn({
       {showSplit ? (
         <>
           <CompareMiniStat
-            label="Fixed"
+            label="Recurring"
             value={summary?.fixedDisplay ?? "—"}
             tone="neutral"
             loading={loading}

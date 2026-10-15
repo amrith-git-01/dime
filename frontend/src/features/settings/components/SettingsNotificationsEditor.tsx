@@ -6,7 +6,7 @@ import { useSettingsToggleBusyGate } from "../hooks/useSettingsToggleBusyGate";
 import { BudgetAlertScopeBlock } from "./BudgetAlertScopeBlock";
 import { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 import { DeviceNotificationsSection } from "./DeviceNotificationsSection";
-import { SettingsEditorFooter } from "./SettingsEditorFooter";
+import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 
@@ -132,7 +132,7 @@ export const SettingsNotificationsEditor = memo(
           />
         </SettingsFormCard>
 
-        <SettingsEditorFooter
+        <BentoEditorFooter
           onClear={() => {
             if (busy) {
               return;
