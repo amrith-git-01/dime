@@ -76,6 +76,24 @@
         {
           "microphonePermission": "Dime uses the microphone to capture spoken expenses and add them for you."
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "ThisMonth",
+              "label": "Dime — This month",
+              "description": "Your spending this month at a glance.",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 0
+            }
+          ]
+        }
       ]
     ],
     "experiments": {
