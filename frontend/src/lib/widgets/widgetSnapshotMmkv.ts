@@ -3,33 +3,13 @@ import { createMMKV } from "react-native-mmkv";
 import { CACHE_SCHEMA_VERSION } from "@/lib/cacheVersion";
 
 /**
- * Plain-data copy of what the Android home-screen widgets show. The widgets render in a headless
- * JS task with no React Query and no session, so everything they need is stored here. No tokens.
+ * Plain-data copy of what the Android home-screen widget shows. The widget renders in a headless
+ * JS task with no React Query and no session, so everything it needs is stored here. No tokens.
  * This module must stay free of React and navigation imports.
  */
 const widgetMmkv = createMMKV({ id: "widget-snapshot" });
 
 export const WIDGET_SNAPSHOT_MMKV_KEY = "dime:widget-snapshot";
-
-export type WidgetSnapshotTransaction = {
-  id: string;
-  name: string;
-  /** Rupees, always positive; `type` carries the direction. */
-  amount: number;
-  type: "debit" | "credit";
-  /** ISO time of the transaction, for the "today" filter. Empty for rows from an older build. */
-  at: string;
-};
-
-export type WidgetSnapshotRecurring = {
-  id: string;
-  kind: "income" | "subscription";
-  name: string;
-  /** Rupees, always positive. */
-  amount: number;
-  /** Local calendar day it is next due, `yyyy-MM-dd`. */
-  nextDueDate: string;
-};
 
 export type WidgetSnapshotCategory = {
   id: string;
@@ -50,19 +30,13 @@ export type WidgetSnapshot = {
   updatedAt: number;
   /** Local `yyyy-MM` the month totals describe (the month `updatedAt` falls in). */
   monthKey: string;
-  /** Local `yyyy-MM-dd` the "today" total describes. */
-  dayKey: string;
   /** Rupee amounts. Format them with `@/utils/currency`, as the app does. */
   spentThisMonth: number;
   recurringSpent: number;
   flexibleSpent: number;
   monthlyBudget: number | null;
   budgetLeft: number | null;
-  spentToday: number;
-  recentTransactions: WidgetSnapshotTransaction[];
   topCategories: WidgetSnapshotCategory[];
-  /** Active recurring income and bills, soonest first; the widget picks what is due soon at draw time. */
-  recurring: WidgetSnapshotRecurring[];
 };
 
 /** Synchronous read. A snapshot written by another schema version is dropped, never rendered. */
@@ -83,8 +57,7 @@ export function readWidgetSnapshot(): WidgetSnapshot | null {
     ) {
       return null;
     }
-    // Fields added after the first widget build: tolerate a snapshot that predates them.
-    return { ...snapshot, recurring: snapshot.recurring ?? [] };
+    return snapshot;
   } catch {
     return null;
   }
@@ -109,19 +82,4 @@ export function clearWidgetSnapshot(): boolean {
   }
   widgetMmkv.remove(WIDGET_SNAPSHOT_MMKV_KEY);
   return true;
-}
-
-/**
- * Applies `change` to the stored snapshot (the widgets' optimistic bump after a preset add or undo).
- * Returns false when there is no snapshot or the change left it identical.
- */
-export function updateWidgetSnapshot(
-  change: (snapshot: WidgetSnapshot) => WidgetSnapshot,
-): boolean {
-  const current = readWidgetSnapshot();
-  if (!current) {
-    return false;
-  }
-  const { version: _version, ...next } = change(current);
-  return writeWidgetSnapshot(next);
 }

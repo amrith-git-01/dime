@@ -13,7 +13,6 @@ import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsAppearanceScreenBase from "@/screens/settings/SettingsAppearanceScreen";
-import SettingsWidgetsScreenBase from "@/screens/settings/SettingsWidgetsScreen";
 import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
 import SettingsFeedbackScreenBase from "@/screens/settings/SettingsFeedbackScreen";
 import SettingsGlossaryScreenBase from "@/screens/settings/SettingsGlossaryScreen";
@@ -46,7 +45,6 @@ const SettingsEmailScreen = withStackScreen(SettingsEmailScreenBase);
 const SettingsFeedbackScreen = withStackScreen(SettingsFeedbackScreenBase);
 const SettingsHapticScreen = withStackScreen(SettingsHapticScreenBase);
 const SettingsAppearanceScreen = withStackScreen(SettingsAppearanceScreenBase);
-const SettingsWidgetsScreen = withStackScreen(SettingsWidgetsScreenBase);
 const SettingsGlossaryScreen = withStackScreen(
   SettingsGlossaryScreenBase,
   settingsStackShellConfig,
@@ -121,11 +119,6 @@ export default function MainStackNavigator() {
         name="SettingsAppearance"
         component={SettingsAppearanceScreen}
         options={{ ...stackScreenOptions, title: "Appearance" }}
-      />
-      <Stack.Screen
-        name="SettingsWidgets"
-        component={SettingsWidgetsScreen}
-        options={{ ...stackScreenOptions, title: "Home screen widgets" }}
       />
       <Stack.Screen
         name="SettingsGlossary"

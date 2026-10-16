@@ -15,10 +15,11 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
   - Malformed returns 422.
 - **Scope:** `(user_id, key)`, backed by a unique index `jobs (user_id, idempotency_key) where idempotency_key is not null`.
 - **Receipt / voice:**
-  1. Look up the key **before** reading the body or uploading. If found, return 202 `{"accepted": true}` with no side effects.
+  1. Look up the key **before** reading the body or uploading. If found, return 202 `{"accepted": true, "job_id": "<the existing job>"}` with no side effects.
   2. Otherwise upload, then insert the job with the key.
-  3. If the insert hits a unique violation, return 202 and delete the uploaded object (best effort).
+  3. If the insert hits a unique violation, return 202 (with the winner's `job_id`) and delete the uploaded object (best effort).
   4. If the insert fails for any other reason, delete the object and propagate the error.
+- **Job status (added 1.2.0):** a receipt / voice 202 is `{"accepted": true, "job_id": "<id>"}`. `GET /api/v1/ingest/jobs/:id` (auth, no rate limiter) answers `{"status": "pending"|"processing"|"done"|"failed", "transaction"?: {id, amount, type, counterparty_name, category}}`. `transaction` comes from the job's `result.transaction_id` (a payment-hash duplicate names the existing row) and is omitted when the row was deleted since. 404 for another user's job, an unknown id or a `manual_create` record. The Android widget's capture card polls it.
 - **SMS and notification capture were removed (2026-10):** no `/sms` route and no `sms` job kind. Old `sms` / `notification` values in `detected_via` stay valid for existing rows.
 - **Manual `POST /transactions`:** the key is claimed through a `jobs` row with kind `manual_create`, status `processing`, attempts 1.
   - **Success:** `status=done`, `result={"status_code":201,"body":{"accepted":true,"id":"<transaction id>","created":true}}`. A replay returns that status and body.

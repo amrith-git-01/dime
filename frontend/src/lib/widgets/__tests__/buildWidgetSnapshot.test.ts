@@ -1,11 +1,9 @@
-import { recurringQueryKeys } from "@/features/recurring/queryKeys";
-import type { RecurringItem } from "@/features/recurring/types";
 import { budgetQueryKeys, categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview, TransactionRow } from "@/features/transactions/types";
 import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
-import { buildWidgetSnapshot } from "../buildWidgetSnapshot";
+import { buildWidgetSnapshot, buildWidgetSnapshotFromData } from "../buildWidgetSnapshot";
 
 const USER = "user-a";
 const TZ = "Asia/Kolkata";
@@ -79,31 +77,18 @@ describe("buildWidgetSnapshot", () => {
     ).toBeNull();
   });
 
-  it("builds month totals, split, budget and today from the cache", () => {
+  it("builds month totals, split and budget from the cache", () => {
     const snapshot = buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ });
     expect(snapshot).toMatchObject({
       userId: USER,
       monthKey: "2026-10",
-      dayKey: "2026-10-15",
       spentThisMonth: 6177.5,
       recurringSpent: 2000,
       flexibleSpent: 4177.5,
       monthlyBudget: 30000,
       budgetLeft: 23822.5,
-      spentToday: 250,
     });
     expect(snapshot?.updatedAt).toBe(new Date(2026, 9, 15, 10, 0).getTime());
-  });
-
-  it("keeps up to five recent transactions with positive amounts and a display name", () => {
-    const snapshot = buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ });
-    const at = "2026-10-15T08:00:00Z";
-    expect(snapshot?.recentTransactions).toEqual([
-      { id: "t1", name: "Swiggy", amount: 250, type: "debit", at },
-      { id: "t2", name: "Rahul", amount: 1000, type: "credit", at },
-      { id: "t3", name: "—", amount: 100, type: "debit", at },
-      { id: "t4", name: "Fourth", amount: 100, type: "debit", at },
-    ]);
   });
 
   it("joins top categories with their category budget", () => {
@@ -112,53 +97,6 @@ describe("buildWidgetSnapshot", () => {
       { id: "cat-food", name: "Food", color: "#112233", iconName: "Utensils", spent: 3000, budget: 5000 },
       { id: "__uncategorized__", name: "Other", color: null, iconName: null, spent: 500, budget: null },
     ]);
-  });
-
-  it("collects active recurring income and bills from both cached lists, soonest first", () => {
-    const queryClient = seed();
-    const item = (id: string, overrides: Partial<RecurringItem>): RecurringItem => ({
-      id,
-      kind: "subscription",
-      name: id,
-      amount: "649.00",
-      category_id: null,
-      category: null,
-      category_icon_name: null,
-      category_color: null,
-      cadence: "monthly",
-      day_of_month: 1,
-      month_of_year: null,
-      timezone: TZ,
-      next_due_date: "2026-11-01",
-      active: true,
-      note: null,
-      monthly_equivalent: "649.00",
-      created_at: "",
-      updated_at: "",
-      ...overrides,
-    });
-    queryClient.setQueryData(recurringQueryKeys.list(USER, "subscription"), {
-      items: [
-        item("Netflix", { next_due_date: "2026-11-05" }),
-        item("Paused", { active: false }),
-      ],
-      summary: { monthly_income_total: "0", monthly_subscriptions_total: "0" },
-    });
-    queryClient.setQueryData(recurringQueryKeys.list(USER, "income"), {
-      items: [item("Salary", { kind: "income", amount: "50000.00", next_due_date: "2026-10-31" })],
-      summary: { monthly_income_total: "0", monthly_subscriptions_total: "0" },
-    });
-    const snapshot = buildWidgetSnapshot({ queryClient, userId: USER, timezone: TZ });
-    expect(snapshot?.recurring).toEqual([
-      { id: "Salary", kind: "income", name: "Salary", amount: 50000, nextDueDate: "2026-10-31" },
-      { id: "Netflix", kind: "subscription", name: "Netflix", amount: 649, nextDueDate: "2026-11-05" },
-    ]);
-  });
-
-  it("has an empty recurring list when none is cached", () => {
-    expect(
-      buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ })?.recurring,
-    ).toEqual([]);
   });
 
   it("has no budget when none is cached or set", () => {
@@ -174,5 +112,43 @@ describe("buildWidgetSnapshot", () => {
     expect(
       buildWidgetSnapshot({ queryClient: seed(), userId: "user-b", timezone: TZ }),
     ).toBeNull();
+  });
+});
+
+describe("buildWidgetSnapshotFromData", () => {
+  const AT = new Date(2026, 9, 15, 10, 0).getTime();
+
+  it("builds the same snapshot from plain API data, with no query cache", () => {
+    const fromData = buildWidgetSnapshotFromData({
+      userId: USER,
+      updatedAt: AT,
+      overview: OVERVIEW,
+      monthlyBudget: "30000.00",
+      categoryBudgets: [{ category_id: "cat-food", monthly_amount: "5000.00" }],
+    });
+    expect(fromData).toEqual(buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ }));
+  });
+
+  it("has no budget without one, and keeps at most three categories", () => {
+    const snapshot = buildWidgetSnapshotFromData({
+      userId: USER,
+      updatedAt: AT,
+      overview: {
+        ...OVERVIEW,
+        top_categories: ["a", "b", "c", "d"].map((id) => ({
+          category_id: id,
+          name: id,
+          icon_name: null,
+          color: null,
+          total: "10.00",
+        })),
+      },
+      monthlyBudget: undefined,
+      categoryBudgets: [],
+    });
+    expect(snapshot.monthlyBudget).toBeNull();
+    expect(snapshot.budgetLeft).toBeNull();
+    expect(snapshot.topCategories.map((category) => category.id)).toEqual(["a", "b", "c"]);
+    expect(snapshot.monthKey).toBe("2026-10");
   });
 });

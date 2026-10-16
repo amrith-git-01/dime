@@ -2,8 +2,8 @@ import { env as workerEnv } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import type { Bindings } from '../src/core/env';
-import { USER_ID, call, makeEnv } from './helpers';
-import { failingOn, rowsOf, seedJob } from './db';
+import { USER_ID, call, makeEnv, signToken } from './helpers';
+import { failingOn, rowsOf, seedCategory, seedJob, seedTransaction, seedUser, uid } from './db';
 import { CAF, FakeQueue, JPEG, KEY, M4A, TEXT, TZ, uploadForm } from './ingest-fixtures';
 import { useSupabaseStub } from './supabase-stub';
 
@@ -82,7 +82,8 @@ describe('POST /transactions/receipt', () => {
     const queue = new FakeQueue();
     const res = await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG, 'r.jpg', 'text/plain'), env: ingestEnv(queue) });
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ accepted: true });
+    const [job] = await jobs();
+    expect(await res.json()).toEqual({ accepted: true, job_id: job?.id });
 
     const [key] = await storedKeys();
     const upload = await workerEnv.MEDIA.get(key ?? '');
@@ -91,7 +92,6 @@ describe('POST /transactions/receipt', () => {
     expect(key).toMatch(new RegExp(`^receipts/${USER_ID}/receipts/\\d{4}-\\d{2}-\\d{2}/\\d+-[0-9a-f]{8}\\.jpg$`));
     expect(upload?.size).toBe(JPEG.byteLength);
 
-    const [job] = await jobs();
     expect(job).toMatchObject({ user_id: USER_ID, kind: 'receipt', status: 'pending', attempts: 0, idempotency_key: null });
     const payload = job?.payload as Record<string, string>;
     expect(payload).toEqual({ object_path: expect.stringMatching(/^receipts\//) as string, mime_type: 'image/jpeg', timezone: 'Asia/Kolkata' });
@@ -100,7 +100,7 @@ describe('POST /transactions/receipt', () => {
   });
 
   it('replays a known Idempotency-Key before reading the body or uploading anything', async () => {
-    await seedJob({ kind: 'receipt', idempotency_key: KEY });
+    const jobId = await seedJob({ kind: 'receipt', idempotency_key: KEY });
     const queue = new FakeQueue();
     // Not even a valid multipart body: if the handler read it the request would be a 422/415.
     const res = await call(`/api/v1/transactions/receipt?${TZ}`, {
@@ -110,7 +110,8 @@ describe('POST /transactions/receipt', () => {
       env: ingestEnv(queue),
     });
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ accepted: true });
+    // The replay names the original job, so the client keeps polling the same capture.
+    expect(await res.json()).toEqual({ accepted: true, job_id: jobId });
     expect(await storedKeys()).toEqual([]);
     expect(await jobs()).toHaveLength(1);
     expect(queue.sent).toEqual([]);
@@ -225,11 +226,11 @@ describe('POST /transactions/voice', () => {
     const queue = new FakeQueue();
     const res = await call(`/api/v1/transactions/voice?${TZ}`, { method: 'POST', body: uploadForm(M4A, 'v.m4a', 'audio/m4a'), env: ingestEnv(queue) });
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ accepted: true });
+    const [job] = await jobs();
+    expect(await res.json()).toEqual({ accepted: true, job_id: job?.id });
     const [key] = await storedKeys();
     expect((await workerEnv.MEDIA.head(key ?? ''))?.httpMetadata?.contentType).toBe('audio/mp4');
     expect(key).toMatch(new RegExp(`^voice_inputs/${USER_ID}/voice_inputs/.*\\.m4a$`));
-    const [job] = await jobs();
     expect(job).toMatchObject({ kind: 'voice', payload: { mime_type: 'audio/mp4', timezone: 'Asia/Kolkata' } });
     expect(queue.sent).toEqual([{ job_id: job?.id, kind: 'voice' }]);
   });
@@ -262,5 +263,65 @@ describe('POST /transactions/voice', () => {
     });
     expect(replay.status).toBe(202);
     expect(await storedKeys()).toEqual([]);
+  });
+});
+
+describe('GET /ingest/jobs/:id', () => {
+  const OTHER = '22222222-2222-2222-2222-222222222222';
+  const status = (id: string, extra: { token?: string | false } = {}) => call(`/api/v1/ingest/jobs/${id}`, extra);
+
+  it('401 without a token', async () => {
+    expect((await status(uid(), { token: false })).status).toBe(401);
+  });
+
+  it('reports pending, then processing, with no transaction yet', async () => {
+    const id = await seedJob({ kind: 'receipt', status: 'pending' });
+    const pending = await status(id);
+    expect(pending.status).toBe(200);
+    expect(await pending.json()).toEqual({ status: 'pending' });
+
+    const processing = await seedJob({ kind: 'voice', status: 'processing', attempts: 1 });
+    expect(await (await status(processing)).json()).toEqual({ status: 'processing' });
+  });
+
+  it('a done job carries the transaction it created', async () => {
+    await seedCategory({ id: 'cccccccc-0000-0000-0000-00000000000c', name: 'Food', icon_name: 'Utensils', color: '#111111' });
+    const txId = await seedTransaction({ amount: '250.00', counterparty_name: 'Swiggy', category_id: 'cccccccc-0000-0000-0000-00000000000c' });
+    const id = await seedJob({ kind: 'receipt', status: 'done', result: { transaction_id: txId } });
+    const res = await status(id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: 'done',
+      transaction: { id: txId, amount: '250.00', type: 'debit', counterparty_name: 'Swiggy', category: 'Food' },
+    });
+  });
+
+  it('a done job whose transaction was deleted since is still done, without a transaction', async () => {
+    const txId = await seedTransaction({ deleted_at: '2026-10-05T10:00:00.000Z' });
+    const id = await seedJob({ kind: 'voice', status: 'done', result: { transaction_id: txId } });
+    expect(await (await status(id)).json()).toEqual({ status: 'done' });
+  });
+
+  it('reports failed', async () => {
+    const id = await seedJob({ kind: 'receipt', status: 'failed' });
+    expect(await (await status(id)).json()).toEqual({ status: 'failed' });
+  });
+
+  it("404 for another user's job, an unknown id and a manual-create record", async () => {
+    await seedUser(OTHER);
+    const theirs = await seedJob({ user_id: OTHER, kind: 'receipt', status: 'done' });
+    expect((await status(theirs)).status).toBe(404);
+    expect((await status(uid())).status).toBe(404);
+    const manual = await seedJob({ kind: 'manual_create', status: 'done', idempotency_key: KEY });
+    expect((await status(manual)).status).toBe(404);
+    // The other user can read their own job.
+    expect((await status(theirs, { token: await signToken({ sub: OTHER }) })).status).toBe(200);
+  });
+
+  it('is not rate limited: polling must not spend the write budget', async () => {
+    const id = await seedJob({ kind: 'receipt' });
+    const limiter = { limit: () => Promise.resolve({ success: false }) };
+    const env = { ...makeEnv(), WRITE_LIMITER: limiter, AI_LIMITER: limiter } as unknown as Bindings;
+    expect((await call(`/api/v1/ingest/jobs/${id}`, { env })).status).toBe(200);
   });
 });

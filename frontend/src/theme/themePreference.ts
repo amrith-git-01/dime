@@ -1,6 +1,8 @@
 import { Appearance } from "react-native";
 import { createMMKV } from "react-native-mmkv";
 
+import { setApplicationNightMode } from "../../modules/dime-system";
+
 import type { ColorScheme } from "./palettes";
 
 /** What the user picked: follow the OS, or force a scheme. */
@@ -49,8 +51,10 @@ export function resolveScheme(
 
 /**
  * Makes native chrome (dialogs, pickers, keyboard) follow the choice. `null` hands control back
- * to the OS. Idempotent and synchronous so it can run before the first paint.
+ * to the OS. Idempotent and synchronous so it can run before the first paint. Also hands the
+ * choice to Android (12+), which remembers it across restarts for the system splash screen.
  */
 export function applyAppearanceOverride(preference: ThemePreference): void {
   Appearance.setColorScheme(preference === "system" ? null : preference);
+  setApplicationNightMode(preference);
 }

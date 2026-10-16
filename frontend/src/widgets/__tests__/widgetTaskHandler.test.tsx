@@ -1,10 +1,7 @@
 import type { WidgetTaskHandlerProps } from "react-native-android-widget";
 
-import {
-  drainWidgetOutbox,
-  runWidgetPreset,
-  undoLastWidgetAction,
-} from "@/lib/widgets/widgetPresetActions";
+import { settlePendingCaptures } from "@/features/widgetActions/utils/settleCapture";
+import { getSession } from "@/lib/auth/session";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
 import { widgetTaskHandler } from "../widgetTaskHandler";
@@ -15,15 +12,14 @@ jest.mock("react-native-android-widget", () => {
   return {
     FlexWidget: primitive("LinearLayoutWidget"),
     TextWidget: primitive("TextWidget"),
+    SvgWidget: primitive("SvgWidget"),
     requestWidgetUpdate: jest.fn().mockResolvedValue(undefined),
   };
 });
-jest.mock("@/lib/widgets/widgetPresetActions", () => ({
-  drainWidgetOutbox: jest.fn().mockResolvedValue(0),
-  runWidgetPreset: jest.fn().mockResolvedValue(undefined),
-  undoLastWidgetAction: jest.fn().mockResolvedValue(undefined),
+jest.mock("@/features/widgetActions/utils/settleCapture", () => ({
+  settlePendingCaptures: jest.fn().mockResolvedValue(undefined),
 }));
-
+jest.mock("@/lib/auth/session", () => ({ getSession: jest.fn() }));
 jest.mock("@/lib/reportError", () => ({ reportError: jest.fn() }));
 
 const renderWidget = jest.fn();
@@ -31,10 +27,10 @@ const renderWidget = jest.fn();
 function props(overrides: Partial<WidgetTaskHandlerProps>): WidgetTaskHandlerProps {
   return {
     widgetInfo: {
-      widgetName: "QuickAdd",
+      widgetName: "Dime",
       widgetId: 1,
-      height: 150,
-      width: 300,
+      height: 200,
+      width: 320,
       screenInfo: { screenHeightDp: 0, screenWidthDp: 0, density: 1, densityDpi: 160 },
     },
     widgetAction: "WIDGET_UPDATE",
@@ -47,67 +43,45 @@ describe("widgetTaskHandler", () => {
   beforeEach(() => {
     resetMockMmkv();
     jest.clearAllMocks();
+    jest.mocked(getSession).mockReturnValue({ user: { id: "user-a" } } as never);
   });
 
   it("draws on add and resize without touching the network", async () => {
     await widgetTaskHandler(props({ widgetAction: "WIDGET_ADDED" }));
     await widgetTaskHandler(props({ widgetAction: "WIDGET_RESIZED" }));
     expect(renderWidget).toHaveBeenCalledTimes(2);
-    expect(drainWidgetOutbox).not.toHaveBeenCalled();
+    expect(settlePendingCaptures).not.toHaveBeenCalled();
   });
 
-  it("on a periodic update draws first, then drains the outbox", async () => {
+  it("on a periodic update draws first, settles waiting captures within 5 s, then draws again", async () => {
     const order: string[] = [];
     renderWidget.mockImplementation(() => order.push("render"));
-    jest.mocked(drainWidgetOutbox).mockImplementationOnce(async () => {
-      order.push("drain");
-      return 0;
+    jest.mocked(settlePendingCaptures).mockImplementationOnce(async () => {
+      order.push("settle");
     });
     await widgetTaskHandler(props({ widgetAction: "WIDGET_UPDATE" }));
-    expect(order).toEqual(["render", "drain"]);
+    expect(order).toEqual(["render", "settle", "render"]);
+    expect(settlePendingCaptures).toHaveBeenCalledWith("user-a", 5_000);
   });
 
-  it("runs a preset tap with the index from the click data, then redraws", async () => {
+  it("settles nothing for a signed-out device, and still draws", async () => {
+    jest.mocked(getSession).mockReturnValue(null);
+    await widgetTaskHandler(props({ widgetAction: "WIDGET_UPDATE" }));
+    expect(settlePendingCaptures).toHaveBeenCalledWith(undefined, 5_000);
+    expect(renderWidget).toHaveBeenCalledTimes(2);
+  });
+
+  it("survives a failing settle and draws the last good state", async () => {
+    jest.mocked(settlePendingCaptures).mockRejectedValueOnce(new Error("offline"));
+    await expect(widgetTaskHandler(props({ widgetAction: "WIDGET_UPDATE" }))).resolves.toBeUndefined();
+    expect(renderWidget).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not draw a widget this build does not know, and ignores deletion", async () => {
     await widgetTaskHandler(
-      props({
-        widgetAction: "WIDGET_CLICK",
-        clickAction: "PRESET",
-        clickActionData: { index: 1 },
-      }),
+      props({ widgetInfo: { ...props({}).widgetInfo, widgetName: "QuickAdd" } }),
     );
-    expect(runWidgetPreset).toHaveBeenCalledWith(1, expect.any(Function));
-    expect(renderWidget).toHaveBeenCalled();
-  });
-
-  it("ignores a preset tap without a usable index", async () => {
-    await widgetTaskHandler(
-      props({ widgetAction: "WIDGET_CLICK", clickAction: "PRESET", clickActionData: {} }),
-    );
-    expect(runWidgetPreset).not.toHaveBeenCalled();
-  });
-
-  it("runs Undo", async () => {
-    await widgetTaskHandler(props({ widgetAction: "WIDGET_CLICK", clickAction: "UNDO" }));
-    expect(undoLastWidgetAction).toHaveBeenCalledTimes(1);
-  });
-
-  it("survives a failing action and still redraws", async () => {
-    jest.mocked(runWidgetPreset).mockRejectedValueOnce(new Error("boom"));
-    await expect(
-      widgetTaskHandler(
-        props({
-          widgetAction: "WIDGET_CLICK",
-          clickAction: "PRESET",
-          clickActionData: { index: 0 },
-        }),
-      ),
-    ).resolves.toBeUndefined();
-    expect(renderWidget).toHaveBeenCalled();
-  });
-
-  it("does nothing for a deleted widget", async () => {
     await widgetTaskHandler(props({ widgetAction: "WIDGET_DELETED" }));
     expect(renderWidget).not.toHaveBeenCalled();
-    expect(drainWidgetOutbox).not.toHaveBeenCalled();
   });
 });

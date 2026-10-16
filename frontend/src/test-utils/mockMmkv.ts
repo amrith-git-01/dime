@@ -19,3 +19,11 @@ export function createMMKV({ id }: { id: string }) {
 export function resetMockMmkv(): void {
   stores.forEach((data) => data.clear());
 }
+
+export function existsMMKV(id: string): boolean {
+  return stores.has(id);
+}
+
+export function deleteMMKV(id: string): boolean {
+  return stores.delete(id);
+}

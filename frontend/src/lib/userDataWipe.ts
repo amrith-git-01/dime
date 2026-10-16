@@ -4,7 +4,7 @@ import { recentTransactionMutations } from "@/features/transactions/utils/recent
 import { clearPersistedNotifications } from "@/lib/notifications/notificationsMmkv";
 import { clearQueryMmkv } from "@/lib/queryPersister";
 import { clearPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
-import { clearWidgetPresetData } from "@/lib/widgets/widgetPresetsMmkv";
+import { clearWidgetCaptureData } from "@/lib/widgets/widgetCaptureMmkv";
 import { clearWidgetSnapshot } from "@/lib/widgets/widgetSnapshotMmkv";
 import { refreshWidgets } from "@/widgets/refreshWidgets";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
@@ -25,9 +25,9 @@ export function clearAppDataMmkv(): void {
   clearPersistedNotifications();
   clearPersistedUserSettings();
   useCurrentUserStore.getState().clearProfile();
-  // Home-screen widgets fall back to "Sign in to Dime" instead of showing the old user's money,
-  // and the old user's presets and queued taps never reach the next account.
-  clearWidgetPresetData();
+  // The home-screen widget falls back to "Sign in to Dime" instead of showing the old user's money,
+  // and the old user's capture status never reaches the next account.
+  clearWidgetCaptureData();
   if (clearWidgetSnapshot()) {
     refreshWidgets();
   }

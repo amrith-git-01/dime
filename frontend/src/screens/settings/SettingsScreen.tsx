@@ -2,7 +2,6 @@ import {
   Bell,
   BookOpen,
   Compass,
-  LayoutGrid,
   Mail,
   MessageSquareText,
   Shield,
@@ -10,7 +9,7 @@ import {
   Vibrate,
 } from "lucide-react-native";
 import * as Updates from "expo-updates";
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { ConfirmModal } from "@/components/shared";
 import { Button } from "@/components/ui";
@@ -65,15 +64,6 @@ export default function SettingsScreen() {
             onPress={() => openDestination("SettingsHaptic")}
             showSeparator
           />
-          {Platform.OS === "android" ? (
-            <SettingsNavRow
-              icon={LayoutGrid}
-              label="Home screen widgets"
-              subtitle="One-tap presets and hiding amounts"
-              onPress={() => openDestination("SettingsWidgets")}
-              showSeparator
-            />
-          ) : null}
           <SettingsNavRow
             icon={Bell}
             label="Notifications & alerts"

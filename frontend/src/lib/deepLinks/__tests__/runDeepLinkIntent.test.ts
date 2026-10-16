@@ -57,13 +57,6 @@ describe("runDeepLinkIntent", () => {
     expect(useAgentChatUiStore.getState().visible).toBe(true);
   });
 
-  it("opens Settings > Home screen widgets", () => {
-    runDeepLinkIntent({ kind: "settingsWidgets" });
-    expect(navigationRef.navigate).toHaveBeenCalledWith("Main", {
-      screen: "SettingsWidgets",
-    });
-  });
-
   it("opens Budgets, scrolling to Recurring for the recurring link", () => {
     runDeepLinkIntent({ kind: "budgets", recurring: false });
     expect(navigationRef.navigate).toHaveBeenLastCalledWith("Main", {

@@ -13,11 +13,11 @@ import {
   writePersistedUserSettings,
 } from "@/lib/settings/userSettingsMmkv";
 import {
-  readWidgetOutbox,
-  readWidgetPresets,
-  writeWidgetOutbox,
-  writeWidgetPresets,
-} from "@/lib/widgets/widgetPresetsMmkv";
+  addPendingCaptureJob,
+  readPendingCaptureJobs,
+  readWidgetCaptureStatus,
+  writeWidgetCaptureStatus,
+} from "@/lib/widgets/widgetCaptureMmkv";
 import {
   readWidgetSnapshot,
   writeWidgetSnapshot,
@@ -53,21 +53,21 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
     userId,
     updatedAt: 1,
     monthKey: "2026-10",
-    dayKey: "2026-10-15",
     spentThisMonth: 100,
     recurringSpent: 0,
     flexibleSpent: 100,
     monthlyBudget: null,
     budgetLeft: null,
-    spentToday: 0,
-    recentTransactions: [],
     topCategories: [],
-    recurring: [],
   });
-  writeWidgetPresets(userId, [{ label: "Chai", amount: 20, categoryId: "c1" }]);
-  writeWidgetOutbox([
-    { key: "k", userId, body: {} as never, label: "Chai", amount: 20, createdAt: 1 },
-  ]);
+  writeWidgetCaptureStatus({
+    kind: "reading",
+    text: "Reading receipt…",
+    at: Date.now(),
+    userId,
+    jobId: "job-1",
+  });
+  addPendingCaptureJob({ id: "job-1", userId, at: Date.now() });
 }
 
 describe("subscribeUserTransitionWipe", () => {
@@ -94,9 +94,9 @@ describe("subscribeUserTransitionWipe", () => {
     expect(readPersistedUserSettings("user-a")).toBeNull();
     expect(recentTransactionMutations.isRecent("tx-1")).toBe(false);
     expect(readWidgetSnapshot()).toBeNull();
-    // The old account's widget presets and queued taps must not reach the next one.
-    expect(readWidgetPresets("user-a")).toEqual([]);
-    expect(readWidgetOutbox()).toEqual([]);
+    // The old account's capture status and waiting jobs must not reach the next one.
+    expect(readWidgetCaptureStatus()).toBeNull();
+    expect(readPendingCaptureJobs()).toEqual([]);
   }
 
   it("wipes when the user disappears (session revoked or expired)", () => {

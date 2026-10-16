@@ -7,7 +7,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -36,10 +36,8 @@ import { useDeepLinkHandler } from "@/lib/deepLinks/useDeepLinkHandler";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
 import { appQueryPersistOptions } from "@/lib/queryPersister";
-import {
-  drainWidgetOutbox,
-  onWidgetTransactionsChanged,
-} from "@/lib/widgets/widgetPresetActions";
+import { removeLegacyWidgetPresets } from "@/lib/widgets/legacyWidgetData";
+import { onWidgetTransactionsChanged } from "@/lib/widgets/widgetCaptureEvents";
 import { subscribeWidgetSnapshotWriter } from "@/lib/widgets/widgetSnapshotWriter";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
@@ -173,26 +171,22 @@ function AppContent() {
   // Keeps the Android home-screen widgets' snapshot in step with the cache.
   useEffect(() => subscribeWidgetSnapshotWriter(queryClient), [queryClient]);
 
-  // One-tap widget presets that could not be sent (offline) go out as soon as the app opens and
-  // whenever it returns to the foreground; the session is already restored from the encrypted
-  // store at this point. Whatever the widgets add or delete is refetched here.
+  // The widget's capture card saves in this same JS runtime: refetch what it added. (Also keeps the
+  // snapshot writer above from overwriting the card's fresher numbers with stale cached ones.)
+  useEffect(
+    () =>
+      onWidgetTransactionsChanged(() => {
+        if (useAuthSessionStore.getState().userId) {
+          invalidateTransactionDerivedQueries(queryClient);
+        }
+      }),
+    [queryClient],
+  );
+
+  // 1.1.0 kept one-tap presets on disk; send any tap still queued there once, then delete the store.
   useEffect(() => {
-    const stopListening = onWidgetTransactionsChanged(() => {
-      if (useAuthSessionStore.getState().userId) {
-        invalidateTransactionDerivedQueries(queryClient);
-      }
-    });
-    void drainWidgetOutbox();
-    const appState = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        void drainWidgetOutbox();
-      }
-    });
-    return () => {
-      stopListening();
-      appState.remove();
-    };
-  }, [queryClient]);
+    void removeLegacyWidgetPresets();
+  }, []);
 
   useEffect(() => {
     return persistQueryClientSubscribe({

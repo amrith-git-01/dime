@@ -12,7 +12,7 @@ import { budgetRoutes } from './features/budgets/routes';
 import { categoriesRoutes } from './features/categories/routes';
 import { emailRoutes } from './features/email/routes';
 import { healthRoutes } from './features/health/routes';
-import { ingestRoutes } from './features/ingest/routes';
+import { ingestJobRoutes, ingestRoutes } from './features/ingest/routes';
 import { limitsRoutes } from './features/limits/routes';
 import { mediaRoutes } from './features/media/routes';
 import { notificationsRoutes } from './features/notifications/routes';
@@ -59,6 +59,7 @@ export function createApp() {
   api.route('/notifications', notificationsRoutes);
   api.route('/transactions', transactionRoutes);
   api.route('/transactions', ingestRoutes); // receipt / voice capture (R3)
+  api.route('/ingest', ingestJobRoutes); // capture job status (polled by the Android widget card)
   api.route('/recurring', recurringRoutes);
   api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);

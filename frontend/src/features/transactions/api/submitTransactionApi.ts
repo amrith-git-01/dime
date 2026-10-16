@@ -17,7 +17,16 @@ type AcceptedResponse = {
   id?: string;
   /** False when the payment already existed (a duplicate). Absent in replays stored before it existed. */
   created?: boolean;
+  /** Receipt / voice uploads: the queued job, polled on `GET /api/v1/ingest/jobs/:id`. */
+  job_id?: string | null;
 };
+
+/** What an accepted receipt / voice upload returns. `jobId` is null when the server did not name a job. */
+export type SubmittedCapture = { jobId: string | null };
+
+function jobIdOf(data: AcceptedResponse | null | undefined): string | null {
+  return typeof data?.job_id === "string" && data.job_id.length > 0 ? data.job_id : null;
+}
 
 /** Server dedupes on this header (C2): one key per capture, reused on every retry of it. */
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
@@ -111,7 +120,7 @@ async function postFileWithFetch(
  * Fallback for RN FormData + axios XHR network errors. Reuses the same Idempotency-Key so a
  * request that actually reached the server is not duplicated, and refreshes the token on 401.
  */
-async function submitFileWithFetch(input: SubmitFileInput): Promise<void> {
+async function submitFileWithFetch(input: SubmitFileInput): Promise<SubmittedCapture> {
   if (!getDimeApiBaseUrl()) {
     throw new Error("EXPO_PUBLIC_API_BASE_URL is not set");
   }
@@ -131,6 +140,8 @@ async function submitFileWithFetch(input: SubmitFileInput): Promise<void> {
       messageFromErrorText(text) ?? `Submission failed (${response.status})`,
     );
   }
+  const accepted = (await response.json().catch(() => null)) as AcceptedResponse | null;
+  return { jobId: jobIdOf(accepted) };
 }
 
 /** Server error bodies are `{detail}` JSON (e.g. a 429 limit message); show the detail, not the JSON. */
@@ -158,22 +169,26 @@ function timezoneQuerySuffix(): string {
   return `timezone=${encodeURIComponent(getDeviceIanaTimezone())}`;
 }
 
-async function submitFile(input: SubmitFileInput): Promise<void> {
+async function submitFile(input: SubmitFileInput): Promise<SubmittedCapture> {
   if (!getDimeApiBaseUrl()) {
     throw new Error("EXPO_PUBLIC_API_BASE_URL is not set");
   }
 
   try {
-    await dimeApi.post<AcceptedResponse>(input.path, buildUploadForm(input), {
-      timeout: UPLOAD_TIMEOUT_MS,
-      params: { timezone: getDeviceIanaTimezone() },
-      headers: { [IDEMPOTENCY_KEY_HEADER]: input.idempotencyKey },
-    });
+    const { data } = await dimeApi.post<AcceptedResponse>(
+      input.path,
+      buildUploadForm(input),
+      {
+        timeout: UPLOAD_TIMEOUT_MS,
+        params: { timezone: getDeviceIanaTimezone() },
+        headers: { [IDEMPOTENCY_KEY_HEADER]: input.idempotencyKey },
+      },
+    );
+    return { jobId: jobIdOf(data) };
   } catch (e) {
     if (isAxiosError(e) && e.code === "ERR_NETWORK") {
       try {
-        await submitFileWithFetch(input);
-        return;
+        return await submitFileWithFetch(input);
       } catch (fallbackError) {
         throw parseSubmitError(fallbackError);
       }
@@ -234,16 +249,18 @@ type SubmitCaptureFileInput = {
 
 export async function submitReceipt(
   input: SubmitCaptureFileInput,
-): Promise<void> {
-  await submitFile({
+): Promise<SubmittedCapture> {
+  return submitFile({
     path: "/api/v1/transactions/receipt",
     ...input,
     idempotencyKey: input.idempotencyKey ?? randomUUID(),
   });
 }
 
-export async function submitVoice(input: SubmitCaptureFileInput): Promise<void> {
-  await submitFile({
+export async function submitVoice(
+  input: SubmitCaptureFileInput,
+): Promise<SubmittedCapture> {
+  return submitFile({
     path: "/api/v1/transactions/voice",
     ...input,
     idempotencyKey: input.idempotencyKey ?? randomUUID(),
