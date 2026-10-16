@@ -2,7 +2,7 @@ import type { CategoryScope } from "./types";
 
 export const categoriesQueryKeys = {
   all: ["categories"] as const,
-  list: (userId: string | undefined, scope: CategoryScope = "spend") =>
+  list: (userId: string | undefined, scope: CategoryScope) =>
     [...categoriesQueryKeys.all, "list", userId ?? "none", scope] as const,
   deleteImpact: (userId: string | undefined, categoryId: string) =>
     [

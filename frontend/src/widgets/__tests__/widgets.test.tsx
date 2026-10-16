@@ -1,30 +1,28 @@
 import { format } from "date-fns";
-import type { WidgetRepresentation } from "react-native-android-widget";
+import type { WidgetInfo, WidgetRepresentation } from "react-native-android-widget";
 
-import { deepLinkUrls } from "@/lib/deepLinks/deepLinkUrls";
+import { cardLinkUrl, deepLinkUrls } from "@/lib/deepLinks/deepLinkUrls";
+import { getWidgetCardToken } from "@/lib/widgets/widgetCardToken";
 import { setHideWidgetAmounts } from "@/lib/widgets/widgetPreferences";
 import {
-  writeWidgetLastAction,
-  writeWidgetOutbox,
-  writeWidgetPresets,
-} from "@/lib/widgets/widgetPresetsMmkv";
-import { writeWidgetSnapshot } from "@/lib/widgets/widgetSnapshotMmkv";
+  WIDGET_CAPTURE_STATUS_TTL_MS,
+  writeWidgetCaptureStatus,
+} from "@/lib/widgets/widgetCaptureMmkv";
+import { writeWidgetSnapshot, type WidgetSnapshot } from "@/lib/widgets/widgetSnapshotMmkv";
 import { darkColors, lightColors } from "@/theme/palettes";
 import { setThemePreference } from "@/theme/themePreference";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
+import { formatInrChartAxis, formatInrCompact } from "@/utils/currency";
 
-import { CategoryBudgetsWidget } from "../CategoryBudgetsWidget";
-import { buildCategoryBudgetsModel } from "../categoryBudgetsModel";
-import { QuickAddWidget } from "../QuickAddWidget";
-import { buildQuickAddModel } from "../quickAddModel";
+import { DimeWidget } from "../DimeWidget";
+import {
+  buildDimeWidgetModel,
+  dimeWidgetLayout,
+  dimeWidgetShowsCategories,
+} from "../dimeWidgetModel";
 import { renderKnownWidget, renderWidget } from "../renderWidget";
-import { ThisMonthWidget } from "../ThisMonthWidget";
-import { buildThisMonthModel } from "../thisMonthModel";
-import { TodayWidget } from "../TodayWidget";
-import { buildTodayModel } from "../todayModel";
-import { UpcomingWidget } from "../UpcomingWidget";
-import { buildUpcomingModel } from "../upcomingModel";
 import { WIDGET_NAMES } from "../widgetNames";
+import { HIDDEN_AMOUNT } from "../widgetFormat";
 import {
   flattenWidgetTree,
   widgetClickUris,
@@ -38,6 +36,7 @@ jest.mock("react-native-android-widget", () => {
   return {
     FlexWidget: primitive("LinearLayoutWidget"),
     TextWidget: primitive("TextWidget"),
+    SvgWidget: primitive("SvgWidget"),
     requestWidgetUpdate: jest.fn(),
   };
 });
@@ -48,342 +47,353 @@ function lightOf(widget: WidgetRepresentation) {
 }
 
 const NOW = new Date();
-const MONTH_KEY = `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, "0")}`;
-const TODAY_KEY = format(NOW, "yyyy-MM-dd");
+const MONTH_KEY = format(NOW, "yyyy-MM");
+const SIZE = { widthDp: 320, heightDp: 200 };
+const TOKEN = "a".repeat(32);
+/** Rupee text exactly as the widget formats it (the symbol is followed by a narrow no-break space). */
+const inr = formatInrCompact;
 
-const SNAPSHOT_FULL = {
+const SNAPSHOT_FULL: Omit<WidgetSnapshot, "version"> = {
   userId: "user-a",
   updatedAt: NOW.getTime(),
   monthKey: MONTH_KEY,
-  dayKey: TODAY_KEY,
   spentThisMonth: 6177,
   recurringSpent: 2000,
   flexibleSpent: 4177,
   monthlyBudget: 30000,
   budgetLeft: 23823,
-  spentToday: 270,
-  recentTransactions: [
-    { id: "t1", name: "Chai", amount: 20, type: "debit" as const, at: NOW.toISOString() },
-    { id: "t2", name: "Swiggy", amount: 250, type: "debit" as const, at: NOW.toISOString() },
-  ],
   topCategories: [
     { id: "food", name: "Food", color: "#112233", iconName: null, spent: 1535, budget: 5000 },
     { id: "fuel", name: "Fuel", color: null, iconName: null, spent: 800, budget: null },
   ],
-  recurring: [
-    {
-      id: "r1",
-      kind: "subscription" as const,
-      name: "Netflix",
-      amount: 649,
-      nextDueDate: TODAY_KEY,
-    },
-  ],
 };
+const SNAPSHOT: WidgetSnapshot = { ...SNAPSHOT_FULL, version: 2 };
 
 function writeSnapshot(overrides: Record<string, unknown> = {}): void {
   writeWidgetSnapshot({ ...SNAPSHOT_FULL, ...overrides });
 }
 
-describe("ThisMonthWidget", () => {
-  beforeEach(resetMockMmkv);
+beforeEach(resetMockMmkv);
 
-  const model = buildThisMonthModel({ ...SNAPSHOT_FULL, version: 2 }, NOW);
-
-  it("shows the amount, budget line and split, and opens Home when tapped", () => {
-    const tree = ThisMonthWidget({ model, colors: lightColors, layout: "full", showSplit: true });
-    const texts = widgetTexts(tree);
-    expect(texts).toContain(model.amount);
-    expect(texts).toContain(model.budgetLine);
-    expect(texts).toContain(model.splitLine);
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home]);
-    expect(tree.props.accessibilityLabel).toBe(model.accessibilityLabel);
-  });
-
-  it("hides the split line when the widget is too short for it", () => {
-    const tree = ThisMonthWidget({ model, colors: lightColors, layout: "full", showSplit: false });
-    expect(widgetTexts(tree)).not.toContain(model.splitLine);
-  });
-
-  it("lets the split line wrap to two lines instead of cutting it off", () => {
-    const tree = ThisMonthWidget({ model, colors: lightColors, layout: "full", showSplit: true });
-    const split = flattenWidgetTree(tree).find((element) => element.props.text === model.splitLine);
-    expect(split?.props.maxLines).toBe(2);
-  });
-
-  it("draws the budget bar as weighted segments that sum to 100", () => {
-    const tree = ThisMonthWidget({ model, colors: lightColors, layout: "full", showSplit: true });
-    const weights = widgetStyles(tree)
-      .map((style) => style.flex)
-      .filter((flex): flex is number => typeof flex === "number");
-    expect(weights).toEqual([model.progressPercent, 100 - model.progressPercent!]);
-  });
-
-  it("uses the palette it is given", () => {
-    const light = widgetStyles(
-      ThisMonthWidget({ model, colors: lightColors, layout: "full", showSplit: true }),
-    )[0]!;
-    const dark = widgetStyles(
-      ThisMonthWidget({ model, colors: darkColors, layout: "full", showSplit: true }),
-    )[0]!;
-    expect(light.backgroundColor).toBe(lightColors.surface);
-    expect(dark.backgroundColor).toBe(darkColors.surface);
-  });
-
-  it("has a compact 4x1 layout that still shows the amount and opens Home", () => {
-    const tree = ThisMonthWidget({ model, colors: lightColors, layout: "compact", showSplit: false });
-    expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining([model.title, model.amount, model.budgetLine]),
-    );
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home]);
-  });
-
-  it("shows the sign-in prompt without a snapshot", () => {
-    const tree = ThisMonthWidget({
-      model: buildThisMonthModel(null, NOW),
-      colors: lightColors,
-      layout: "full",
-      showSplit: true,
+describe("buildDimeWidgetModel", () => {
+  it("formats the month, the budget line, the split and the top categories", () => {
+    const model = buildDimeWidgetModel(SNAPSHOT, NOW);
+    expect(model).toMatchObject({
+      signedOut: false,
+      title: "This month",
+      amount: inr(6177),
+      budgetLine: `${inr(23823)} left of ${inr(30000)}`,
+      progressPercent: 21,
+      overBudget: false,
+      splitLine: `Recurring ${formatInrChartAxis(2000)} · Flexible ${formatInrChartAxis(4177)}`,
+      status: null,
     });
-    expect(widgetTexts(tree)).toContain("Sign in to Dime");
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home]);
-  });
-});
-
-const QUICK_BASE = {
-  signedOut: false,
-  presets: [],
-  lastAction: null,
-  outboxCount: 0,
-  heightDp: 70,
-  now: NOW.getTime(),
-} as const;
-
-describe("QuickAddWidget", () => {
-  it("has Add, Scan and Voice buttons that open their deep links (4x1)", () => {
-    const tree = QuickAddWidget({
-      colors: lightColors,
-      model: buildQuickAddModel(QUICK_BASE),
-    });
-    expect(widgetTexts(tree)).toEqual(["+ Add", "Scan", "Voice"]);
-    expect(widgetClickUris(tree)).toEqual([
-      deepLinkUrls.addToday,
-      deepLinkUrls.scan,
-      deepLinkUrls.voice,
+    expect(model.categories).toEqual([
+      { id: "food", name: "Food", color: "#112233", amountText: inr(1535), percent: 31, overBudget: false },
+      { id: "fuel", name: "Fuel", color: null, amountText: inr(800), percent: 52, overBudget: false },
     ]);
-    expect(tree.props.accessibilityLabel).toBe("Dime quick add");
-  });
-
-  it("labels every button for screen readers", () => {
-    const labels = flattenWidgetTree(
-      QuickAddWidget({ colors: lightColors, model: buildQuickAddModel(QUICK_BASE) }),
-    )
-      .filter((element) => element.props.clickAction === "OPEN_URI")
-      .map((element) => element.props.accessibilityLabel);
-    expect(labels).toEqual(["Add a transaction", "Scan a receipt", "Add by voice"]);
-  });
-
-  it("4x2 adds one-tap preset buttons that send their index to the task handler", () => {
-    const model = buildQuickAddModel({
-      ...QUICK_BASE,
-      heightDp: 150,
-      presets: [
-        { label: "Chai", amount: 20, categoryId: "c1" },
-        { label: "Auto", amount: 50, categoryId: "c2" },
-      ],
-    });
-    const tree = QuickAddWidget({ colors: lightColors, model });
-    expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining(["Chai ₹ 20", "Auto ₹ 50"]),
+    expect(model.accessibilityLabel).toBe(
+      `Dime this month. Spent ${inr(6177)}. ${inr(23823)} left of ${inr(30000)}. Opens Dime.`,
     );
-    const presetTaps = flattenWidgetTree(tree).filter(
-      (element) => element.props.clickAction === "PRESET",
+  });
+
+  it("shows just the amount spent when there is no budget, and no split without recurring spend", () => {
+    const model = buildDimeWidgetModel(
+      { ...SNAPSHOT, monthlyBudget: null, budgetLeft: null, recurringSpent: 0 },
+      NOW,
     );
-    expect(presetTaps.map((element) => element.props.clickActionData)).toEqual([
-      { index: 0 },
-      { index: 1 },
-    ]);
+    expect(model.budgetLine).toBeNull();
+    expect(model.progressPercent).toBeNull();
+    expect(model.splitLine).toBeNull();
   });
 
-  it("4x2 top-aligns its content and lets the button and preset rows share the height", () => {
-    const tree = QuickAddWidget({
-      colors: lightColors,
-      model: buildQuickAddModel({
-        ...QUICK_BASE,
-        heightDp: 150,
-        presets: [{ label: "Chai", amount: 20, categoryId: "c1" }],
-      }),
-    });
-    const styles = widgetStyles(tree);
-    expect(styles[0]).toMatchObject({ flexDirection: "column", justifyContent: "flex-start" });
-    expect(styles.filter((style) => style.flex === 1 && style.height === 0)).toHaveLength(2);
-  });
-
-  it("4x2 without presets offers a Set up presets button to the widgets settings", () => {
-    const tree = QuickAddWidget({
-      colors: lightColors,
-      model: buildQuickAddModel({ ...QUICK_BASE, heightDp: 150 }),
-    });
-    expect(widgetTexts(tree)).toContain("Set up presets");
-    expect(widgetClickUris(tree)).toContain(deepLinkUrls.settingsWidgets);
-  });
-
-  it("4x2 shows the last action with an Undo control", () => {
-    const model = buildQuickAddModel({
-      ...QUICK_BASE,
-      heightDp: 150,
-      presets: [{ label: "Chai", amount: 20, categoryId: "c1" }],
-      lastAction: {
-        kind: "added",
-        userId: "user-a",
-        id: "tx-1",
-        key: "k",
-        label: "Chai",
-        amount: 20,
-        at: NOW.getTime(),
-        createdAt: NOW.getTime(),
-      },
-    });
-    const tree = QuickAddWidget({ colors: lightColors, model });
-    expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining(["Added ₹ 20 · Chai", "Undo"]),
-    );
-    expect(
-      flattenWidgetTree(tree).some((element) => element.props.clickAction === "UNDO"),
-    ).toBe(true);
-  });
-
-  it("4x1 never shows presets or a status line", () => {
-    const model = buildQuickAddModel({
-      ...QUICK_BASE,
-      presets: [{ label: "Chai", amount: 20, categoryId: "c1" }],
-      outboxCount: 1,
-    });
-    expect(widgetTexts(QuickAddWidget({ colors: lightColors, model }))).toEqual([
-      "+ Add",
-      "Scan",
-      "Voice",
-    ]);
-  });
-});
-
-describe("TodayWidget", () => {
-  const model = buildTodayModel({ ...SNAPSHOT_FULL, version: 2 }, NOW);
-
-  it("shows today's total and rows, with a + that opens quick add dated today", () => {
-    const tree = TodayWidget({ model, colors: lightColors });
-    expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining(["Today", model.amount, "Chai", "Swiggy", "+"]),
-    );
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home, deepLinkUrls.addToday]);
-    expect(tree.props.accessibilityLabel).toBe(model.accessibilityLabel);
-  });
-
-  it("signed out: the prompt, no + button, still opens the app", () => {
-    const tree = TodayWidget({
-      model: buildTodayModel(null, NOW),
-      colors: lightColors,
-    });
-    expect(widgetTexts(tree)).toContain("Sign in to Dime");
-    expect(widgetTexts(tree)).not.toContain("+");
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home]);
-  });
-});
-
-describe("UpcomingWidget", () => {
-  const snapshot = { ...SNAPSHOT_FULL, version: 2 };
-
-  it("lists the next items and opens Budgets > Recurring", () => {
-    const model = buildUpcomingModel(snapshot, NOW);
-    const tree = UpcomingWidget({ model, colors: lightColors });
-    expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining(["Upcoming", "Netflix", "Today", model.rows[0]!.amount]),
-    );
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.budgetsRecurring]);
-    expect(tree.props.accessibilityLabel).toBe(model.accessibilityLabel);
-  });
-
-  it("colours income and expenses differently", () => {
-    const model = buildUpcomingModel(
+  it("flags a month over budget and a category over its cap", () => {
+    const model = buildDimeWidgetModel(
       {
-        ...snapshot,
-        recurring: [
-          { id: "i", kind: "income", name: "Salary", amount: 50000, nextDueDate: TODAY_KEY },
-          { id: "b", kind: "subscription", name: "Rent", amount: 15000, nextDueDate: TODAY_KEY },
+        ...SNAPSHOT,
+        spentThisMonth: 31000,
+        budgetLeft: 0,
+        topCategories: [
+          { id: "fun", name: "Fun", color: null, iconName: null, spent: 600, budget: 500 },
         ],
       },
       NOW,
     );
-    const tree = UpcomingWidget({ model, colors: lightColors });
-    const colourOf = (text: string) =>
-      (
-        flattenWidgetTree(tree).find((element) => element.props.text === text)?.props
-          .style as { color: string }
-      ).color;
-    expect(colourOf(model.rows[0]!.amount)).toBe(lightColors.success);
-    expect(colourOf(model.rows[1]!.amount)).toBe(lightColors.ink);
+    expect(model.overBudget).toBe(true);
+    expect(model.progressPercent).toBe(100);
+    expect(model.categories[0]).toMatchObject({ overBudget: true, percent: 100 });
   });
 
-  it("shows the empty message", () => {
-    const tree = UpcomingWidget({
-      model: buildUpcomingModel({ ...snapshot, recurring: [] }, NOW),
-      colors: lightColors,
+  it("keeps at most three categories", () => {
+    const topCategories = ["a", "b", "c", "d"].map((id) => ({
+      id,
+      name: id,
+      color: null,
+      iconName: null,
+      spent: 10,
+      budget: null,
+    }));
+    expect(buildDimeWidgetModel({ ...SNAPSHOT, topCategories }, NOW).categories).toHaveLength(3);
+  });
+
+  it("asks to sign in without a snapshot", () => {
+    const model = buildDimeWidgetModel(null, NOW);
+    expect(model).toMatchObject({ signedOut: true, amount: "Sign in to Dime", categories: [] });
+    expect(model.accessibilityLabel).toBe("Dime. Sign in to Dime. Opens the app.");
+  });
+
+  it("does not present last month's totals as this month", () => {
+    const model = buildDimeWidgetModel({ ...SNAPSHOT, monthKey: "2020-01" }, NOW);
+    expect(model).toMatchObject({
+      amount: "₹—",
+      budgetLine: null,
+      categories: [],
+      hint: "Open Dime to refresh",
     });
-    expect(widgetTexts(tree)).toContain("No recurring due in the next 30 days");
+  });
+
+  it("hides every amount, in the status line too, when asked", () => {
+    writeWidgetCaptureStatus({
+      kind: "added",
+      text: "Added ₹250 · Swiggy",
+      at: NOW.getTime(),
+      userId: "user-a",
+    });
+    const model = buildDimeWidgetModel(SNAPSHOT, NOW, true);
+    expect(model.amount).toBe(HIDDEN_AMOUNT);
+    expect(model.budgetLine).toBe(`${HIDDEN_AMOUNT} left of ${HIDDEN_AMOUNT}`);
+    expect(model.splitLine).toBe(`Recurring ${HIDDEN_AMOUNT} · Flexible ${HIDDEN_AMOUNT}`);
+    expect(model.categories.every((row) => row.amountText === HIDDEN_AMOUNT)).toBe(true);
+    expect(model.status?.text).toBe(`Added ${HIDDEN_AMOUNT} · Swiggy`);
+  });
+
+  describe("capture status", () => {
+    const status = { kind: "added" as const, text: "Added ₹250 · Swiggy", userId: "user-a" };
+
+    it("shows the last capture while it is under ten minutes old", () => {
+      writeWidgetCaptureStatus({ ...status, at: NOW.getTime() - 60_000 });
+      expect(buildDimeWidgetModel(SNAPSHOT, NOW).status).toEqual({
+        kind: "added",
+        text: "Added ₹250 · Swiggy",
+      });
+      expect(buildDimeWidgetModel(SNAPSHOT, NOW).accessibilityLabel).toContain(
+        "Added ₹250 · Swiggy.",
+      );
+    });
+
+    it("drops it after ten minutes, and when it belongs to another account", () => {
+      writeWidgetCaptureStatus({
+        ...status,
+        at: NOW.getTime() - WIDGET_CAPTURE_STATUS_TTL_MS - 1,
+      });
+      expect(buildDimeWidgetModel(SNAPSHOT, NOW).status).toBeNull();
+
+      writeWidgetCaptureStatus({ ...status, userId: "user-b", at: NOW.getTime() });
+      expect(buildDimeWidgetModel(SNAPSHOT, NOW).status).toBeNull();
+    });
   });
 });
 
-describe("CategoryBudgetsWidget", () => {
-  const snapshot = { ...SNAPSHOT_FULL, version: 2 };
-  const model = buildCategoryBudgetsModel(snapshot, NOW);
+describe("layout", () => {
+  it("is full when tall enough or of unknown height, compact when short", () => {
+    expect(dimeWidgetLayout(0)).toBe("full");
+    expect(dimeWidgetLayout(200)).toBe("full");
+    expect(dimeWidgetLayout(169)).toBe("compact");
+  });
 
-  it("draws a dot, name, amounts and a progress bar per category, and opens Budgets", () => {
-    const tree = CategoryBudgetsWidget({ model, colors: lightColors });
+  it("drops the categories column on a narrow widget", () => {
+    expect(dimeWidgetShowsCategories(0)).toBe(true);
+    expect(dimeWidgetShowsCategories(320)).toBe(true);
+    expect(dimeWidgetShowsCategories(250)).toBe(false);
+  });
+});
+
+describe("DimeWidget", () => {
+  const model = buildDimeWidgetModel(SNAPSHOT, NOW);
+  const draw = (overrides: Partial<Parameters<typeof DimeWidget>[0]> = {}) =>
+    DimeWidget({
+      model,
+      colors: lightColors,
+      layout: "full",
+      showCategories: true,
+      cardToken: TOKEN,
+      ...overrides,
+    });
+
+  it("shows the month, budget line, split line and the top categories", () => {
+    const tree = draw();
     expect(widgetTexts(tree)).toEqual(
-      expect.arrayContaining(["Top categories", "Food", "Fuel", model.rows[0]!.amountText]),
+      expect.arrayContaining([
+        "This month",
+        model.amount,
+        model.budgetLine,
+        model.splitLine,
+        "Food",
+        "Fuel",
+        inr(1535),
+        inr(800),
+      ]),
     );
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.budgets]);
+    expect(tree.props.accessibilityLabel).toBe(model.accessibilityLabel);
+  });
+
+  it("opens Home from the month area and has five action buttons in order", () => {
+    const tree = draw();
+    expect(widgetClickUris(tree)).toEqual([
+      deepLinkUrls.home,
+      deepLinkUrls.home,
+      cardLinkUrl("add", TOKEN),
+      cardLinkUrl("scan", TOKEN),
+      cardLinkUrl("gallery", TOKEN),
+      cardLinkUrl("voice", TOKEN),
+      deepLinkUrls.agent,
+    ]);
+    expect(widgetTexts(tree)).toEqual(
+      expect.arrayContaining(["Add", "Scan", "Gallery", "Voice", "Ask AI"]),
+    );
+  });
+
+  it("carries the card token on the four card links and none on Ask AI", () => {
+    const uris = widgetClickUris(draw()).slice(2);
+    expect(
+      uris.slice(0, 4).every((uri) => uri.startsWith("dimecard://") && uri.endsWith(`?t=${TOKEN}`)),
+    ).toBe(true);
+    expect(uris[4]).toBe(deepLinkUrls.agent);
+  });
+
+  it("renders in every state without a component returning null (the library crashes on that)", () => {
+    const models = [
+      buildDimeWidgetModel(SNAPSHOT, NOW),
+      buildDimeWidgetModel(null, NOW),
+      buildDimeWidgetModel({ ...SNAPSHOT, monthKey: "2020-01" }, NOW),
+      buildDimeWidgetModel(
+        { ...SNAPSHOT, topCategories: [], monthlyBudget: null, budgetLeft: null },
+        NOW,
+      ),
+      {
+        ...buildDimeWidgetModel(SNAPSHOT, NOW),
+        status: { kind: "reading" as const, text: "Reading receipt…" },
+      },
+    ];
+    for (const m of models) {
+      for (const layout of ["full", "compact"] as const) {
+        for (const showCategories of [true, false]) {
+          expect(() => flattenWidgetTree(draw({ model: m, layout, showCategories }))).not.toThrow();
+        }
+      }
+    }
+  });
+
+  it("labels every button for screen readers", () => {
+    const labels = flattenWidgetTree(draw())
+      .filter((element) => element.props.clickAction === "OPEN_URI")
+      .map((element) => element.props.accessibilityLabel);
+    expect(labels.slice(2)).toEqual(["Add", "Scan", "Gallery", "Voice", "Ask AI"]);
+  });
+
+  it("fills Add with the accent and draws one palette-coloured icon per button", () => {
+    const tree = draw();
     const styles = widgetStyles(tree);
-    // The first row's dot carries the category colour (no icons: there is no SVG mapping).
-    expect(styles.some((style) => style.backgroundColor === "#112233")).toBe(true);
-    // A row without a colour falls back to the accent.
-    expect(styles.some((style) => style.backgroundColor === lightColors.accent)).toBe(true);
-    const weights = styles
+    const buttons = styles.filter((style) => style.height === 52);
+    expect(buttons.map((style) => style.backgroundColor)).toEqual([
+      lightColors.accent,
+      lightColors.surfaceSunken,
+      lightColors.surfaceSunken,
+      lightColors.surfaceSunken,
+      lightColors.surfaceSunken,
+    ]);
+    const icons = flattenWidgetTree(tree).filter((element) => typeof element.props.svg === "string");
+    expect(icons).toHaveLength(5);
+    expect(icons[0]!.props.svg).toContain(`stroke="${lightColors.onAccent}"`);
+    expect(icons[1]!.props.svg).toContain(`stroke="${lightColors.ink}"`);
+  });
+
+  it("draws the budget bar as weighted segments that sum to 100", () => {
+    const weights = widgetStyles(draw())
       .map((style) => style.flex)
       .filter((flex): flex is number => typeof flex === "number" && flex > 1);
-    expect(weights).toEqual(expect.arrayContaining([31, 69]));
+    expect(weights).toEqual(expect.arrayContaining([model.progressPercent, 100 - model.progressPercent!]));
+  });
+
+  it("gives a category its own colour and falls back to the accent", () => {
+    const styles = widgetStyles(draw());
+    expect(styles.some((style) => style.backgroundColor === "#112233")).toBe(true);
+    expect(styles.some((style) => style.backgroundColor === lightColors.accent)).toBe(true);
   });
 
   it("uses the danger colour for a category over its cap", () => {
-    const over = buildCategoryBudgetsModel(
+    const over = buildDimeWidgetModel(
       {
-        ...snapshot,
+        ...SNAPSHOT,
         topCategories: [
           { id: "fun", name: "Fun", color: "#112233", iconName: null, spent: 600, budget: 500 },
         ],
       },
       NOW,
     );
-    const styles = widgetStyles(CategoryBudgetsWidget({ model: over, colors: lightColors }));
+    const styles = widgetStyles(draw({ model: over }));
     expect(styles.some((style) => style.backgroundColor === lightColors.danger)).toBe(true);
   });
 
-  it("signed out: the prompt that opens the app", () => {
-    const tree = CategoryBudgetsWidget({
-      model: buildCategoryBudgetsModel(null, NOW),
-      colors: lightColors,
-    });
+  it("drops the categories and the split line at smaller sizes, and keeps the buttons", () => {
+    const compact = draw({ layout: "compact" });
+    expect(widgetTexts(compact)).not.toContain("Food");
+    expect(widgetTexts(compact)).not.toContain(model.splitLine);
+    expect(widgetTexts(compact)).toEqual(expect.arrayContaining([model.amount, "Add", "Ask AI"]));
+
+    const narrow = draw({ showCategories: false });
+    expect(widgetTexts(narrow)).not.toContain("Food");
+    expect(widgetTexts(narrow)).toContain(model.splitLine);
+  });
+
+  it("shows the status line, coloured by what happened", () => {
+    const colourOf = (kind: "reading" | "added" | "failed") => {
+      const statusModel = {
+        ...model,
+        status: { kind, text: `status ${kind}` },
+      };
+      const tree = draw({ model: statusModel });
+      return (
+        flattenWidgetTree(tree).find((element) => element.props.text === `status ${kind}`)?.props
+          .style as { color: string }
+      ).color;
+    };
+    expect(colourOf("added")).toBe(lightColors.success);
+    expect(colourOf("failed")).toBe(lightColors.danger);
+    expect(colourOf("reading")).toBe(lightColors.inkSoft);
+    expect(widgetTexts(draw())).not.toContain("status added");
+  });
+
+  it("signed out: the prompt that opens the app, and no action buttons", () => {
+    const tree = draw({ model: buildDimeWidgetModel(null, NOW) });
     expect(widgetTexts(tree)).toContain("Sign in to Dime");
-    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home]);
+    expect(widgetTexts(tree)).not.toContain("Add");
+    expect(widgetClickUris(tree)).toEqual([deepLinkUrls.home, deepLinkUrls.home]);
+  });
+
+  it("uses the palette it is given", () => {
+    expect(widgetStyles(draw())[0]!.backgroundColor).toBe(lightColors.surface);
+    expect(widgetStyles(draw({ colors: darkColors }))[0]!.backgroundColor).toBe(darkColors.surface);
+  });
+});
+
+describe("widget tree helper", () => {
+  it("rejects a component that renders nothing, like the library does", () => {
+    const Empty = () => null;
+    expect(() => flattenWidgetTree(<Empty />)).toThrow("returned null");
   });
 });
 
 describe("renderKnownWidget", () => {
-  beforeEach(resetMockMmkv);
+  it("puts this install token in the card links", () => {
+    writeSnapshot();
+    const uris = widgetClickUris(lightOf(renderKnownWidget("Dime", SIZE)));
+    expect(uris[2]).toBe(cardLinkUrl("add", getWidgetCardToken()));
+  });
 
   it("follows the OS when the app theme is System default", () => {
     writeSnapshot();
-    const widget = renderKnownWidget("ThisMonth", 150);
+    const widget = renderKnownWidget("Dime", SIZE);
     expect(widget).toHaveProperty("light");
     expect(widget).toHaveProperty("dark");
   });
@@ -391,121 +401,73 @@ describe("renderKnownWidget", () => {
   it("renders a single variant when the app theme is forced", () => {
     writeSnapshot();
     setThemePreference("dark");
-    const widget = renderKnownWidget("QuickAdd", 70);
+    const widget = renderKnownWidget("Dime", SIZE);
     expect(widget).not.toHaveProperty("light");
     expect(widgetStyles(lightOf(widget))[0]!.backgroundColor).toBe(darkColors.surface);
 
     setThemePreference("light");
-    const light = renderKnownWidget("QuickAdd", 70);
-    expect(widgetStyles(lightOf(light))[0]!.backgroundColor).toBe(lightColors.surface);
+    expect(widgetStyles(lightOf(renderKnownWidget("Dime", SIZE)))[0]!.backgroundColor).toBe(
+      lightColors.surface,
+    );
   });
 
-  it("draws This month from the stored snapshot, and the sign-in prompt when there is none", () => {
+  it("draws the stored snapshot, and the sign-in prompt when there is none", () => {
     writeSnapshot();
-    const withData = renderKnownWidget("ThisMonth", 150);
-    expect(widgetTexts(lightOf(withData))).toContain("₹ 6,177");
-
-    resetMockMmkv();
-    const signedOut = renderKnownWidget("ThisMonth", 150);
-    expect(widgetTexts(lightOf(signedOut))).toContain("Sign in to Dime");
-  });
-
-  it("picks the compact layout for a short widget", () => {
-    writeSnapshot();
-    const compact = renderKnownWidget("ThisMonth", 70);
-    const full = renderKnownWidget("ThisMonth", 150);
-    expect(widgetStyles(lightOf(compact))[0]!.flexDirection).toBe("row");
-    expect(widgetStyles(lightOf(full))[0]!.flexDirection).toBe("column");
-  });
-
-  it("draws the other three widgets from the stored snapshot", () => {
-    writeSnapshot();
-    expect(widgetTexts(lightOf(renderKnownWidget("Today", 150)))).toContain("Chai");
-    expect(widgetTexts(lightOf(renderKnownWidget("Upcoming", 150)))).toContain("Netflix");
-    expect(widgetTexts(lightOf(renderKnownWidget("CategoryBudgets", 150)))).toContain("Food");
-  });
-
-  it("every widget has a root accessibility label", () => {
-    writeSnapshot();
-    for (const name of WIDGET_NAMES) {
-      const root = flattenWidgetTree(lightOf(renderKnownWidget(name, 150)))[0]!;
-      expect(root.props.accessibilityLabel).toEqual(expect.stringContaining("Dime"));
-    }
-  });
-
-  it("every widget shows the sign-in prompt without a snapshot", () => {
-    for (const name of WIDGET_NAMES) {
-      const texts = widgetTexts(lightOf(renderKnownWidget(name, 150)));
-      expect(texts).toContain("Sign in to Dime");
-    }
-  });
-
-  it("hides amounts on every widget when the preference is on", () => {
-    writeSnapshot();
-    writeWidgetPresets("user-a", [{ label: "Chai", amount: 20, categoryId: "c1" }]);
-    setHideWidgetAmounts(true);
-    for (const name of WIDGET_NAMES) {
-      const texts = widgetTexts(lightOf(renderKnownWidget(name, 150))).join(" | ");
-      expect(texts).toContain("₹ ••••");
-      expect(texts).not.toMatch(/\d,\d{3}|₹ \d/);
-    }
-  });
-
-  it("QuickAdd reads presets, the queue and the last action from storage", () => {
-    writeSnapshot();
-    writeWidgetPresets("user-a", [{ label: "Chai", amount: 20, categoryId: "c1" }]);
-    expect(widgetTexts(lightOf(renderKnownWidget("QuickAdd", 150)))).toContain("Chai ₹ 20");
-
-    writeWidgetOutbox([
-      {
-        key: "k",
-        userId: "user-a",
-        body: {} as never,
-        label: "Chai",
-        amount: 20,
-        createdAt: Date.now(),
-      },
-    ]);
-    expect(widgetTexts(lightOf(renderKnownWidget("QuickAdd", 150)))).toContain(
-      "Queued · adds when online",
+    expect(widgetTexts(lightOf(renderKnownWidget("Dime", SIZE)))).toEqual(
+      expect.arrayContaining([inr(6177), "Food"]),
     );
 
-    writeWidgetLastAction({
-      kind: "signedOut",
-      userId: "user-a",
-      label: "",
-      amount: 0,
-      at: Date.now(),
-      createdAt: Date.now(),
-    });
-    expect(widgetTexts(lightOf(renderKnownWidget("QuickAdd", 150)))).toContain("Sign in to Dime");
+    resetMockMmkv();
+    expect(widgetTexts(lightOf(renderKnownWidget("Dime", SIZE)))).toContain("Sign in to Dime");
   });
 
-  it("QuickAdd ignores a last action that belongs to another account", () => {
+  it("picks the layout from the widget size", () => {
     writeSnapshot();
-    writeWidgetLastAction({
-      kind: "added",
-      userId: "someone-else",
-      id: "tx-1",
-      label: "Chai",
-      amount: 20,
-      at: Date.now(),
-      createdAt: Date.now(),
-    });
-    const texts = widgetTexts(lightOf(renderKnownWidget("QuickAdd", 150)));
-    expect(texts.some((text) => text.startsWith("Added"))).toBe(false);
-    expect(texts).not.toContain("Undo");
+    const full = widgetTexts(lightOf(renderKnownWidget("Dime", SIZE)));
+    const short = widgetTexts(lightOf(renderKnownWidget("Dime", { widthDp: 320, heightDp: 120 })));
+    const narrow = widgetTexts(lightOf(renderKnownWidget("Dime", { widthDp: 250, heightDp: 200 })));
+    expect(full).toContain("Food");
+    expect(short).not.toContain("Food");
+    expect(narrow).not.toContain("Food");
   });
 
-  it("ignores widgets this build does not know", () => {
-    expect(
-      renderWidget({
-        widgetName: "Nope",
-        widgetId: 1,
-        height: 100,
-        width: 100,
-        screenInfo: { screenHeightDp: 0, screenWidthDp: 0, density: 1, densityDpi: 160 },
-      }),
-    ).toBeNull();
+  it("has a root accessibility label", () => {
+    writeSnapshot();
+    const root = flattenWidgetTree(lightOf(renderKnownWidget("Dime", SIZE)))[0]!;
+    expect(root.props.accessibilityLabel).toEqual(expect.stringContaining("Dime"));
+  });
+
+  it("hides amounts when the preference is on", () => {
+    writeSnapshot();
+    setHideWidgetAmounts(true);
+    const texts = widgetTexts(lightOf(renderKnownWidget("Dime", SIZE)));
+    expect(texts).toContain(HIDDEN_AMOUNT);
+    expect(texts).not.toContain(inr(6177));
+  });
+
+  it("shows the capture status from storage", () => {
+    writeSnapshot();
+    writeWidgetCaptureStatus({
+      kind: "reading",
+      text: "Reading receipt…",
+      at: Date.now(),
+      userId: "user-a",
+      jobId: "job-1",
+    });
+    expect(widgetTexts(lightOf(renderKnownWidget("Dime", SIZE)))).toContain("Reading receipt…");
+  });
+
+  it("ignores widgets this build does not know (the 1.1.0 names are gone)", () => {
+    const info = (widgetName: string): WidgetInfo => ({
+      widgetName,
+      widgetId: 1,
+      height: 200,
+      width: 320,
+      screenInfo: { screenHeightDp: 0, screenWidthDp: 0, density: 1, densityDpi: 160 },
+    });
+    expect(renderWidget(info("ThisMonth"))).toBeNull();
+    expect(renderWidget(info("QuickAdd"))).toBeNull();
+    expect(renderWidget(info("Dime"))).not.toBeNull();
+    expect(WIDGET_NAMES).toEqual(["Dime"]);
   });
 });

@@ -31,7 +31,7 @@ const RECURRING_SCOPE_BY_TYPE: Record<TransactionType, CategoryScope> = {
 
 /**
  * The category of a transaction posted by a recurring item (e.g. Salary, Subscriptions). Those live in
- * the recurring scopes, so the spend-scoped picker list never carries them. Built from the transaction's
+ * the recurring scopes, so the spend-scoped list never carries them; the edit screen shows it read-only. Built from the transaction's
  * own category fields; null when the category is in the list already or the row has none.
  */
 export function recurringCategoryOfTransaction(
@@ -65,27 +65,6 @@ export function isRecurringCategoryAllowedForTxType(
   return category.scope === RECURRING_SCOPE_BY_TYPE[txType];
 }
 
-/**
- * The recurring categories offered for a transaction type: expense -> recurring_expense, income ->
- * recurring_income. `own` is the row's own recurring category (edit screen), kept in the group even when
- * the lists have not loaded.
- */
-export function recurringOptionsForType(input: {
-  recurringCategories: readonly CategoryRow[];
-  txType: TransactionType;
-  own?: CategoryRow | null;
-}): CategoryRow[] {
-  const { recurringCategories, txType, own } = input;
-  const options = recurringCategories.filter((category) =>
-    isRecurringCategoryAllowedForTxType(category, txType),
-  );
-  return own &&
-    isRecurringCategoryAllowedForTxType(own, txType) &&
-    !options.some((category) => category.id === own.id)
-    ? [own, ...options]
-    : options;
-}
-
 export type EditCategoryReconcileAction =
   | { kind: "keep" }
   | { kind: "clear" }
@@ -98,17 +77,16 @@ export function reconcileEditCategory(input: {
   txType: TransactionType;
   /** The row's own recurring category (edit screen), if any. */
   recurringCategory: CategoryRow | null;
-  /** Every recurring category (both scopes), so a picked one is recognised as such. */
-  recurringCategories?: readonly CategoryRow[];
+  /** The type the row was saved with (edit screen): an id outside the list does not carry over to the other type. */
+  originalType?: TransactionType;
 }): EditCategoryReconcileAction {
-  const { categories, categoryId, txType, recurringCategory } = input;
+  const { categories, categoryId, txType, recurringCategory, originalType } = input;
+  const typeChanged = originalType !== undefined && originalType !== txType;
   if (categories.length === 0) {
     return { kind: "keep" };
   }
-  const selectedRecurring = categoryId
-    ? (input.recurringCategories?.find((category) => category.id === categoryId) ??
-      (recurringCategory?.id === categoryId ? recurringCategory : undefined))
-    : undefined;
+  const selectedRecurring =
+    categoryId && recurringCategory?.id === categoryId ? recurringCategory : undefined;
   const isRecurringSelected = selectedRecurring !== undefined;
   if (
     selectedRecurring &&
@@ -123,14 +101,15 @@ export function reconcileEditCategory(input: {
     if (current && isCategoryAllowedForTxType(current, "credit")) {
       return { kind: "keep" };
     }
-    // An id outside the list (a category just created) is kept; a recurring one of the wrong type is not.
-    if (categoryId && !current && !isRecurringSelected) {
+    // An id outside the list (a category just created) is kept; a recurring one of the wrong type, or any
+    // unknown one after the type was switched, is not.
+    if (categoryId && !current && !isRecurringSelected && !typeChanged) {
       return { kind: "keep" };
     }
     const income = findIncomeCategory(categories);
     return income ? { kind: "select", category: income } : { kind: "clear" };
   }
-  if (isRecurringSelected) {
+  if (isRecurringSelected || (categoryId && !current && typeChanged)) {
     return { kind: "clear" };
   }
   if (current && !isCategoryAllowedForTxType(current, "debit")) {
@@ -139,7 +118,7 @@ export function reconcileEditCategory(input: {
   return { kind: "keep" };
 }
 
-/** Main pills of the category picker: the type's spend categories (recurring ones are a separate group). */
+/** Pills of the category picker: the type's everyday (spend-scope) categories. Recurring categories are never offered. */
 export function visibleSpendCategories(
   categories: CategoryRow[],
   txType: TransactionType,

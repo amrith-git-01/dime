@@ -121,7 +121,7 @@ describe("shouldDehydrateQuery", () => {
 
   it("keeps non-month data and skips queries that are not successful", () => {
     const kept = [
-      categoriesQueryKeys.list(USER),
+      categoriesQueryKeys.list(USER, "spend"),
       budgetQueryKeys.current(USER),
       transactionsQueryKeys.home(USER, TZ),
     ];
@@ -212,20 +212,20 @@ describe("serializePersistedClient", () => {
       pages: [{ items: [{ id: "a", merchant: huge }], has_more: false }],
       pageParams: [0],
     });
-    queryClient.setQueryData(categoriesQueryKeys.list(USER), [{ id: "c1" }]);
+    queryClient.setQueryData(categoriesQueryKeys.list(USER, "spend"), [{ id: "c1" }]);
     queryClient.setQueryData(transactionsQueryKeys.home(USER, TZ), { spent_today: "1" });
 
     const serialized = serializePersistedClient(dehydrateAll(queryClient));
     expect(serialized.length).toBeLessThan(PERSISTED_CACHE_MAX_CHARS);
     const keys = persistedKeys(JSON.parse(serialized) as PersistedClient);
     expect(keys).toEqual([
-      categoriesQueryKeys.list(USER),
+      categoriesQueryKeys.list(USER, "spend"),
       transactionsQueryKeys.home(USER, TZ),
     ]);
   });
 
   it("leaves a cache under the budget untouched", () => {
-    queryClient.setQueryData(categoriesQueryKeys.list(USER), [{ id: "c1" }]);
+    queryClient.setQueryData(categoriesQueryKeys.list(USER, "spend"), [{ id: "c1" }]);
     queryClient.setQueryData(transactionsQueryKeys.monthPages(USER, 2026, 10, TZ), {
       pages: [page(["a"])],
       pageParams: [0],

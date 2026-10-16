@@ -49,8 +49,5 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
       });
       useAgentChatUiStore.getState().open();
       return;
-    case "settingsWidgets":
-      navigationRef.navigate("Main", { screen: "SettingsWidgets" });
-      return;
   }
 }

@@ -3,6 +3,8 @@ import { Appearance } from "react-native";
 import { clearPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
+import { setApplicationNightMode } from "../../../modules/dime-system";
+
 import {
   applyAppearanceOverride,
   getThemePreference,
@@ -12,6 +14,7 @@ import {
 } from "../themePreference";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
+jest.mock("../../../modules/dime-system", () => ({ setApplicationNightMode: jest.fn() }));
 
 describe("theme preference storage", () => {
   beforeEach(resetMockMmkv);
@@ -63,5 +66,13 @@ describe("applyAppearanceOverride", () => {
     applyAppearanceOverride("light");
     expect(spy.mock.calls).toEqual([[null], ["dark"], ["light"]]);
     spy.mockRestore();
+  });
+
+  it("also hands the choice to Android, which keeps it for the system splash screen", () => {
+    jest.spyOn(Appearance, "setColorScheme").mockImplementation();
+    jest.mocked(setApplicationNightMode).mockClear();
+    applyAppearanceOverride("dark");
+    applyAppearanceOverride("system");
+    expect(jest.mocked(setApplicationNightMode).mock.calls).toEqual([["dark"], ["system"]]);
   });
 });

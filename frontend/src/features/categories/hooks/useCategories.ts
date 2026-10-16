@@ -7,8 +7,8 @@ import { categoriesQueryKeys } from "../queryKeys";
 import type { CategoryScope } from "../types";
 import { sortCategories } from "../utils/sortCategories";
 
-/** React Query hook — sorted list of one scope (spend by default), MMKV-persisted via app-level persister. */
-export function useCategoriesQuery(scope: CategoryScope = "spend") {
+/** React Query hook — sorted list of one scope (required, so pickers never mix scopes), MMKV-persisted via app-level persister. */
+export function useCategoriesQuery(scope: CategoryScope) {
   const { userId } = useSessionUserId();
 
   return useQuery({
@@ -20,7 +20,7 @@ export function useCategoriesQuery(scope: CategoryScope = "spend") {
 }
 
 /** Screen-facing categories list with MMKV-friendly loading semantics. */
-export function useCategories(scope: CategoryScope = "spend") {
+export function useCategories(scope: CategoryScope) {
   const { data, isPending } = useCategoriesQuery(scope);
 
   return {

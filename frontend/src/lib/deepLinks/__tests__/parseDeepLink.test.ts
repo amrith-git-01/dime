@@ -1,10 +1,10 @@
-import { deepLinkUrls } from "../deepLinkUrls";
+import { cardLinkUrl, deepLinkUrls } from "../deepLinkUrls";
 import { parseDeepLink } from "../parseDeepLink";
 
 const NOW = new Date(2026, 9, 15, 18, 30);
 
 describe("parseDeepLink", () => {
-  it("parses every widget link", () => {
+  it("parses every app link", () => {
     expect(parseDeepLink(deepLinkUrls.home, NOW)).toEqual({ kind: "home" });
     expect(parseDeepLink(deepLinkUrls.scan, NOW)).toEqual({ kind: "scan" });
     expect(parseDeepLink(deepLinkUrls.voice, NOW)).toEqual({ kind: "voice" });
@@ -19,12 +19,16 @@ describe("parseDeepLink", () => {
     });
   });
 
-  it("parses the widgets settings link and no other settings page", () => {
-    expect(parseDeepLink(deepLinkUrls.settingsWidgets, NOW)).toEqual({
-      kind: "settingsWidgets",
-    });
+  it("has no settings links (the 1.1.0 widgets settings page is gone)", () => {
     expect(parseDeepLink("dime://settings", NOW)).toBeNull();
-    expect(parseDeepLink("dime://settings/account", NOW)).toBeNull();
+    expect(parseDeepLink("dime://settings/widgets", NOW)).toBeNull();
+  });
+
+  it("leaves the widget card links to the card activity", () => {
+    for (const mode of ["add", "scan", "gallery", "voice"] as const) {
+      const url = cardLinkUrl(mode, "abc");
+      expect(parseDeepLink(url, NOW)).toBeNull();
+    }
   });
 
   it("turns date=today into the local day", () => {

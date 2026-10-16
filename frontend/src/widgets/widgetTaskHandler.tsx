@@ -1,21 +1,19 @@
 import type { WidgetTaskHandlerProps } from "react-native-android-widget";
 
-import {
-  drainWidgetOutbox,
-  runWidgetPreset,
-  undoLastWidgetAction,
-} from "@/lib/widgets/widgetPresetActions";
+import { settlePendingCaptures } from "@/features/widgetActions/utils/settleCapture";
+import { getSession } from "@/lib/auth/session";
 import { reportError } from "@/lib/reportError";
 
-import { PRESET_CLICK_ACTION, UNDO_CLICK_ACTION } from "./QuickAddWidget";
-import { refreshWidgets } from "./refreshWidgets";
 import { renderWidget } from "./renderWidget";
 
+/** The launcher kills this task after 30 s; settling a capture gets a fraction of that. */
+const SETTLE_BUDGET_MS = 5_000;
+
 /**
- * Headless task: runs when the launcher adds, updates, resizes or taps a widget. Drawing comes
- * from the stored snapshot only. The network is touched only to send a queued or tapped preset
- * (and undo one): taps on every other control open the app through deep links, natively.
- * The library kills the task after 30 s; every request below has its own, shorter, timeout.
+ * Headless task: runs when the launcher adds, updates or resizes the widget. Drawing comes from the
+ * stored snapshot and capture status only. The network is touched once, on the periodic update, to
+ * settle a capture the card left unfinished ("Reading receipt…"). Taps on every button open the card
+ * or the app through links, natively.
  */
 export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
   const draw = () => {
@@ -24,11 +22,6 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
       props.renderWidget(widget);
     }
   };
-  // The tapped widget through the task, every widget through the launcher.
-  const redraw = () => {
-    draw();
-    refreshWidgets();
-  };
 
   switch (props.widgetAction) {
     case "WIDGET_ADDED":
@@ -36,27 +29,17 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
       draw();
       break;
     case "WIDGET_UPDATE":
-      // Draw first (instant, offline), then send anything still queued.
+      // Draw first (instant, offline), then ask once about captures still being read and draw again.
       draw();
-      await drainWidgetOutbox(redraw);
-      break;
-    case "WIDGET_CLICK":
       try {
-        if (props.clickAction === PRESET_CLICK_ACTION) {
-          const index = Number(props.clickActionData?.index);
-          if (Number.isInteger(index)) {
-            await runWidgetPreset(index, redraw);
-          }
-        } else if (props.clickAction === UNDO_CLICK_ACTION) {
-          await undoLastWidgetAction(redraw);
-        }
+        await settlePendingCaptures(getSession()?.user.id, SETTLE_BUDGET_MS);
       } catch (error) {
-        reportError(error, "widget click failed");
+        reportError(error, "widget capture settle failed");
       }
       draw();
       break;
     default:
-      // WIDGET_DELETED. OPEN_URI / OPEN_APP taps are handled natively.
+      // WIDGET_DELETED. OPEN_URI taps are handled natively.
       break;
   }
 }

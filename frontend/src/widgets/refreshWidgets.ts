@@ -7,7 +7,7 @@ import { renderKnownWidget } from "./renderWidget";
 import { WIDGET_NAMES } from "./widgetNames";
 
 /**
- * Redraws every widget on the home screen from the current snapshot. Fire and forget: Android
+ * Redraws the widget on the home screen from the current snapshot. Fire and forget: Android
  * only, and a failure (no widget added, launcher busy) is reported but never thrown.
  */
 export function refreshWidgets(): void {
@@ -17,7 +17,8 @@ export function refreshWidgets(): void {
   for (const widgetName of WIDGET_NAMES) {
     requestWidgetUpdate({
       widgetName,
-      renderWidget: (info) => renderKnownWidget(widgetName, info.height),
+      renderWidget: (info) =>
+        renderKnownWidget(widgetName, { widthDp: info.width, heightDp: info.height }),
     }).catch((error) => reportError(error, `refreshWidgets failed: ${widgetName}`));
   }
 }

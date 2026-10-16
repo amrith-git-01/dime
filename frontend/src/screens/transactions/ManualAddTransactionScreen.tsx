@@ -22,7 +22,6 @@ export default function ManualAddTransactionScreen() {
       onCounterpartyNameChange={model.setCounterpartyName}
       categoriesLoading={model.categoriesLoading}
       visibleCategories={model.visibleCategories}
-      recurringCategories={model.recurringCategories}
       categoryId={model.categoryId}
       onCategoryPress={model.handleCategoryPress}
       onAddCategory={model.openCreateCustomCategory}

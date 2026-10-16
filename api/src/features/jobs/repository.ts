@@ -77,6 +77,16 @@ async function getJob(db: Db, jobId: string): Promise<JobRow | null> {
   return row ? toJobRow(row) : null;
 }
 
+/** One of the user's own receipt / voice jobs; null for another user's job, a `manual_create` record or an unknown id. */
+export async function getCaptureJobForUser(db: Db, userId: string, jobId: string): Promise<JobRow | null> {
+  const row = await first<JobDbRow>(
+    db,
+    "SELECT * FROM jobs WHERE id = ? AND user_id = ? AND kind IN ('receipt', 'voice') LIMIT 1",
+    [jobId.toLowerCase(), userId],
+  );
+  return row ? toJobRow(row) : null;
+}
+
 export async function findByKeys(db: Db, userId: string, keys: string[]): Promise<JobRow[]> {
   if (keys.length === 0) return [];
   const out: JobRow[] = [];

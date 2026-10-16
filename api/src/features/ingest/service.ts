@@ -20,10 +20,10 @@ export interface IngestContext {
   limits: NeuronLimits;
 }
 
-/** True when a job with this `Idempotency-Key` already exists: a replay, answered without side effects. */
-export async function isReplay(db: Db, userId: string, key: string | null): Promise<boolean> {
-  if (!key) return false;
-  return (await jobs.findByKeys(db, userId, [key])).length > 0;
+/** The id of the job that already holds this `Idempotency-Key`: a replay, answered without side effects. Null for a new key. */
+export async function findReplayJobId(db: Db, userId: string, key: string | null): Promise<string | null> {
+  if (!key) return null;
+  return (await jobs.findByKeys(db, userId, [key]))[0]?.id ?? null;
 }
 
 export interface AcceptMediaInput {
@@ -41,9 +41,10 @@ const STORAGE_KIND: Record<AcceptMediaInput['kind'], UploadKind> = { receipt: 'r
 /**
  * Over the daily Workers AI cap or the user's daily limit answers 429 before anything is stored. Otherwise stores the raw media in R2, persist a `pending` job that holds only the object
  * path, then put its id on the queue. A lost idempotency race (unique violation) drops the duplicate
- * upload; any other insert failure also cleans up the object and propagates.
+ * upload; any other insert failure also cleans up the object and propagates. Returns the job id (the
+ * winner's, after a lost race), which the client polls on `GET /ingest/jobs/:id`.
  */
-export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): Promise<void> {
+export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): Promise<string | null> {
   // Counted here, atomically (concurrent uploads cannot pass the limit); given back below if no job results.
   await claimUpload(ctx.db, ctx.userId, input.kind, ctx.limits, estimateCaptureNeurons(input.kind, input.bytes.byteLength));
   const claimedAt = Date.now();
@@ -77,11 +78,12 @@ export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): 
   } catch (err) {
     await deleteMediaQuietly(ctx.storage, objectPath);
     await giveBack();
-    if (input.key && isUniqueViolation(err)) return;
+    if (input.key && isUniqueViolation(err)) return findReplayJobId(ctx.db, ctx.userId, input.key);
     throw err;
   }
   await enqueueJobs(
     ctx.queue,
     rows.map((row) => ({ job_id: row.id, kind: input.kind })),
   );
+  return rows[0]?.id ?? null;
 }

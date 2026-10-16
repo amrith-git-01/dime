@@ -14,16 +14,12 @@ const SNAPSHOT: Omit<WidgetSnapshot, "version"> = {
   userId: "user-a",
   updatedAt: 1,
   monthKey: "2026-10",
-  dayKey: "2026-10-15",
   spentThisMonth: 100,
   recurringSpent: 0,
   flexibleSpent: 100,
   monthlyBudget: 500,
   budgetLeft: 400,
-  spentToday: 10,
-  recentTransactions: [],
   topCategories: [],
-  recurring: [],
 };
 
 /** The schema version a fresh write is stamped with. */
@@ -57,13 +53,19 @@ describe("widget snapshot MMKV", () => {
     expect(store.contains(WIDGET_SNAPSHOT_MMKV_KEY)).toBe(false);
   });
 
-  it("tolerates a snapshot saved before the recurring list existed", () => {
-    const { recurring: _recurring, ...older } = SNAPSHOT;
+  it("still reads a snapshot written by the 1.1.0 widgets (extra fields are ignored)", () => {
     createMMKV({ id: "widget-snapshot" }).set(
       WIDGET_SNAPSHOT_MMKV_KEY,
-      JSON.stringify({ ...older, version: readWidgetSnapshotVersion() }),
+      JSON.stringify({
+        ...SNAPSHOT,
+        dayKey: "2026-10-15",
+        spentToday: 10,
+        recentTransactions: [],
+        recurring: [],
+        version: readWidgetSnapshotVersion(),
+      }),
     );
-    expect(readWidgetSnapshot()?.recurring).toEqual([]);
+    expect(readWidgetSnapshot()).toMatchObject(SNAPSHOT);
   });
 
   it("ignores garbage", () => {

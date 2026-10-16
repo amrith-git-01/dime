@@ -13,11 +13,7 @@ import type { ManualAddDateTimePickerMode } from "@/features/transactions/compon
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
-import { useRecurringCategories } from "@/features/transactions/hooks/useRecurringCategories";
-import {
-  recurringOptionsForType,
-  visibleSpendCategories,
-} from "@/features/transactions/utils/manualAddCategoryUtils";
+import { visibleSpendCategories } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
@@ -52,8 +48,7 @@ export function useManualAddTransactionScreenModel() {
     transactionAt,
     txType,
   } = form;
-  const { categories, isLoading: categoriesLoading } = useCategories();
-  const recurringCategories = useRecurringCategories();
+  const { categories, isLoading: categoriesLoading } = useCategories("spend");
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerMode, setIosPickerMode] =
@@ -83,7 +78,6 @@ export function useManualAddTransactionScreenModel() {
       txType,
     },
     categories,
-    recurringCategories,
     navigation,
     returnCategoryId: route.params?.createdCategoryId,
     returnCategoryName: route.params?.createdCategoryName,
@@ -99,10 +93,6 @@ export function useManualAddTransactionScreenModel() {
   const visibleCategories = useMemo(
     () => visibleSpendCategories(categories, txType),
     [categories, txType],
-  );
-  const recurringOptions = useMemo(
-    () => recurringOptionsForType({ recurringCategories, txType }),
-    [recurringCategories, txType],
   );
 
   const openCreateCustomCategory = useCallback(() => {
@@ -262,7 +252,6 @@ export function useManualAddTransactionScreenModel() {
     setCounterpartyName,
     categoriesLoading,
     visibleCategories,
-    recurringCategories: recurringOptions,
     categoryId,
     handleCategoryPress,
     openCreateCustomCategory,

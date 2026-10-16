@@ -1,96 +1,81 @@
-# Dime Android home-screen widgets — plan
+# Dime Android home-screen widget
 
-Status: built (2026-10-15), version **1.1.0**. Phases 0-5 are in code; a device check, the picker preview images and the release APK remain. Android only. Ships in a **new APK** (native code), not OTA.
+Status: built, version **1.2.0**. Android only. Ships in a **new APK** (native code), not OTA. Replaces the five 1.1.0 widgets and the one-tap presets with one master widget.
 
-## 1. What Android widgets can and can't do
+## 1. What a widget can and can't do
 
 | Can | Can't |
 |---|---|
-| Show text, numbers, icons, progress bars, images, lists | **Host a text field.** Widgets are `RemoteViews` drawn by the launcher; `EditText` is not supported, and the app can't read anything typed into a widget |
-| Run code when a button is tapped (headless JS task in the background, no app UI) | Animate freely or run React components live; the widget is a rendered snapshot that we push updates to |
-| Open the app on a specific screen (deep link) | Refresh more often than every ~30 min on their own (Android limit); faster updates come from the app pushing them |
-| Have several sizes, resizing, and a configuration screen when added | Use the app's in-memory state; data must come from storage the background task can read |
+| Show text, numbers, icons, progress bars | **Host a text field.** Widgets are `RemoteViews` drawn by the launcher; there is no `EditText` |
+| Open a URL when tapped (`OPEN_URI`) | Show UI from a click handler. A custom click only reaches the headless JS task, which has no window and a 30 s limit |
+| Be redrawn by the app (`requestWidgetUpdate`) | Refresh by itself more often than every ~30 min |
 
-**So: can you add a transaction from the widget itself?**
-- **Typing an amount inside the widget: no** (platform limit above).
-- **One-tap presets: yes.** Buttons like "☕ Chai ₹20" or "🛺 Auto ₹50" post a real transaction from a background task without opening the app, then the widget shows "Added ₹20 · Chai — Undo". Presets are chosen in the widget's setup screen (or learned from your most frequent small expenses).
-- **Anything else: one tap opens a focused screen** — a compact "quick add" screen with the amount keypad already focused, or straight into receipt scan / voice capture. This is how Google Tasks, Splitwise and most finance apps do it.
+So typing, the camera and the microphone cannot live in the widget. The buttons open a small **transparent card activity** over the home screen instead, which does the work and closes, without ever showing the full app.
 
-## 2. Widgets
+## 2. The widget (`Dime`, 4x3)
 
-| # | Widget | Sizes | Shows | Taps |
-|---|---|---|---|---|
-| 1 | **This month** | 2×2, 4×1 | Spent this month, budget bar ("₹6,177 left of ₹30,000"), Recurring · Flexible split | Opens Home |
-| 2 | **Quick add** | 4×1, 4×2 | `+ Add` · `Scan` · `Voice` buttons, plus up to 3 one-tap presets (4×2) | Add → quick-add screen; Scan → camera; Voice → recorder; preset → posts instantly |
-| 3 | **Today** | 2×2 | Today's spend, last 2 transactions, small `+` | Row → transaction; `+` → quick add dated today |
-| 4 | **Upcoming recurring** | 4×2 | Next 3 recurring items with due dates and amounts | Opens Budgets › Recurring |
-| 5 | **Category budgets** | 4×2 | Top 3 categories with progress bars, colours and icons | Opens Budgets |
-| later | Ask Dime | 4×1 | "Ask Dime anything…" bar | Opens agent chat focused |
+Top to bottom:
+- **This month** and the amount spent (tap: opens Home).
+- Budget bar and "₹X left of ₹Y" (just the spent amount without a budget).
+- "Recurring ₹15k · Flexible ₹3k".
+- Top 3 categories with a colour dot, amount and a thin bar (right column).
+- A status line (only when the last capture is under 10 minutes old): "Reading receipt…", "Added ₹250 · Swiggy", or what went wrong.
+- Five equal buttons, each an SVG icon and a label:
 
-All widgets: follow light/dark (soft dark palette), use the app's colours and icons, show **"Sign in to Dime"** when signed out, and offer a **"Hide amounts"** option (privacy on the home screen: shows ••••).
-
-## 3. Library choice
-
-| Option | Notes | Verdict |
+| Button | Link | Goes to |
 |---|---|---|
-| **react-native-android-widget** | Android-only. Widgets written in JSX with its primitives, rendered to RemoteViews. Handlers for add / update / resize / delete / **click**, configuration screens, `requestWidgetUpdate`. New Architecture supported; Expo guide. | **Recommended**: best fit for an Android-only Expo app, JS-only widget code, click handlers for one-tap presets |
-| Voltra (Callstack) | JSX → JSON → Jetpack Glance; iOS + Android. Android side newer (dynamic widgets experimental). | Revisit if iOS widgets are wanted later |
-| Custom Kotlin + Glance | Full control, a config plugin to inject Kotlin and receivers | Most work; only if the library blocks something |
-| expo-widgets | iOS only | Not applicable |
+| Add (accent filled) | `dimecard://add` | Quick-add card |
+| Scan | `dimecard://scan` | Camera, then the pill |
+| Gallery | `dimecard://gallery` | System photo picker, then the pill |
+| Voice | `dimecard://voice` | Listening pill |
+| Ask AI | `dime://agent` | The app's agent chat |
 
-Phase 0 is a spike to confirm the library on **Expo SDK 54 / RN 0.81 / New Architecture** with our local release build before committing.
+At smaller sizes the categories column (and the split line) goes first; the buttons always stay. Light/dark follows the app theme preference (or the OS for "System default"). "Hide amounts on widget" (Settings > Appearance, Android only) shows ₹ •••• everywhere, status line included. Signed out: "Sign in to Dime", no buttons, a tap opens the app. A snapshot from a past month shows ₹— and "Open Dime to refresh". The widget renders from MMKV only (no network, no session).
 
-## 4. Architecture
+Files: `frontend/src/widgets/` (`DimeWidget.tsx` layout, `dimeWidgetModel.ts` formatting, `widgetIcons.ts`, `renderWidget.tsx`, `widgetTaskHandler.tsx`). Every component file starts with `"use no memo"`: the library calls widget components as plain functions, which the React Compiler breaks.
 
-```
-App (JS)                                  Background (headless JS task)
- ├─ queries / mutations / realtime         ├─ WIDGET_UPDATE / ADDED / RESIZED
- │    └─ widgetSnapshot.write()  ──MMKV──► │    └─ read snapshot → render widget JSX
- │         + requestWidgetUpdate()         ├─ WIDGET_CLICK (preset)
- │                                         │    └─ POST /api/v1/transactions (session from encrypted MMKV,
- │                                         │       refresh token if needed) → update snapshot → re-render
- └─ deep links (dime://add, /scan, ...)    └─ periodic refresh (30 min): GET /transactions/home → snapshot
-```
+## 3. The capture card
 
-- **Snapshot** (`widgetSnapshot` in MMKV, per user, no tokens): month totals, recurring/flexible split, budget, today's spend, last transactions, next recurring, top categories, presets, `updatedAt`. Written by the app after relevant queries settle, after every create/edit/delete, and on realtime events. Cleared on sign-out (part of `wipeUserData`).
-- **Rendering** reads only the snapshot (fast, works offline). If it's older than a few hours, a background refresh calls the existing `GET /api/v1/transactions/home` + `GET /api/v1/recurring/month` with the stored session.
-- **One-tap presets** call the existing `POST /api/v1/transactions` with an `Idempotency-Key` (no duplicates on double tap). Offline → queued in MMKV and sent on next app open/refresh; the widget shows "Queued". Undo = `DELETE` within ~10 s.
-- **No new API endpoints** needed. Cost impact: a few extra Worker requests per user per day — negligible against the $5 plan.
-- **Deep links:** switch the URL scheme from the generic `frontend://` to **`dime://`** in this APK (`dime://add?date=today`, `dime://scan`, `dime://voice`, `dime://budgets/recurring`, `dime://agent`). New quick-add screen: amount-first, category chips, one Save.
+`WidgetActionsActivity` is a second `ReactActivity` (JS component `WidgetActions`, registered in `index.js`). `plugins/withWidgetActions.js` writes it at prebuild, with:
+- manifest entry: exported, `singleTask`, its own `taskAffinity`, `excludeFromRecents`, `adjustResize`, intent filter for scheme `dimecard`. A separate scheme because `OPEN_URI` is a bare `ACTION_VIEW` and MainActivity claims `dime://`;
+- theme `Theme.Dime.WidgetActions` (translucent, transparent window, dim on). The Kotlin class dims the home screen for Add only (`setDimAmount(0)` for the pill modes) and finishes on Back without asking JS (the JS runtime is shared with the app, whose back handlers must not answer for the card).
 
-## 5. Phases
+The card shares the JS runtime with the app but not its UI: `WidgetActionsRoot` mounts only `ThemeProvider` (no system-bar changes), a fresh non-persisted `QueryClient`, safe-area and keyboard providers. No navigation, notifications, realtime or snapshot writer. Code: `frontend/src/features/widgetActions/`.
 
-Built status: all phases below are implemented. The deliberate differences from the proposal: the Quick add widget is 4x1 with a 4x2 resize (presets and a status line appear from about 110dp tall); presets are managed in **Settings > Home screen widgets** (also `dime://settings/widgets`), not in a widget configuration screen; Undo lasts 2 minutes; a failed or offline tap is queued in an MMKV outbox (sent on the next widget update or app start, with its Idempotency-Key); `POST /api/v1/transactions` now also returns `id` and `created` (false for a duplicate, which Undo never deletes); category icons are not drawn (colour dots only); periodic widget refresh (every 30 minutes) re-renders from the snapshot and drains the outbox, nothing else.
+| Mode | What happens |
+|---|---|
+| Add | Bottom card: amount (autofocus), optional payee ("Paid to (optional)", empty uses the category name), everyday expense categories (none preselected). Save needs an amount and a category, posts a manual transaction dated now (one Idempotency-Key per card), shows "Added ₹X · Payee" for 1.2 s, then closes. Tap outside or Back closes |
+| Scan / Gallery | Opens the camera (same options as the app) or the system photo picker straight away; cancelling closes. Then prepares the photo, uploads it and shows a floating pill |
+| Voice | Pill "Listening… 0:04" with Stop and Cancel. Recording happens while the pill is on screen, so no foreground service is needed. Minimum 3 s (Stop earlier keeps recording and says so). Then uploads |
+| Signed out | "Sign in to Dime" with an "Open Dime" button |
 
-| Phase | Work | Done when |
-|---|---|---|
-| **0. Spike** (½ day) | Add the library, one static widget, local `build:apk` on SDK 54 + New Arch | Widget renders on emulator + phone from a release APK |
-| **1. Data layer** | `widgetSnapshot` builder + writer hooks, sign-out clearing, headless session access + refresh, `dime://` scheme | Snapshot always matches the app; unit tests for the builder |
-| **2. This month + Quick add** | Widgets 1 and 2 (buttons via deep links), quick-add screen, light/dark, hide amounts | Usable on device; tapping opens the right screen |
-| **3. One-tap presets** | Preset config screen, headless POST with idempotency, undo, offline queue | Preset adds a real transaction without opening the app; no duplicates |
-| **4. Today, Upcoming, Category budgets** | Widgets 3–5 | All five widgets on device |
-| **5. Polish & release** | Widget previews in the picker, resizing, a11y labels, periodic refresh tuning, docs; **version 1.1.0** (new runtime → new APK) | Release APK shared; OTA continues on 1.1.0 |
+After an upload the pill reads "Reading receipt…" (or "Reading voice note…") while the card polls `GET /api/v1/ingest/jobs/:id` every 2 s for up to 20 s, then shows "Added ₹X · Payee" for 1.5 s and closes. On timeout: "Still reading. We'll update the widget" and it closes. A 429 or a network error shows the server's message with "Try again" (same Idempotency-Key and file, so a retry cannot add it twice).
 
-Same working rules: three-tier subagents per phase, one review + one test run per batch, emulator end-to-end check before each PR.
+## 4. Data flow
 
-## 6. Testing
+- **Snapshot** (`lib/widgets/widgetSnapshotMmkv.ts`, no tokens): month totals, recurring/flexible split, budget, top 3 categories. Written by the app when the home overview or budgets change (`widgetSnapshotWriter.ts`), and by the card straight from the API after a capture (`refreshWidgetSnapshotFromApi.ts`, using the same `buildWidgetSnapshotFromData`). Cleared on sign-out.
+- **Capture status** (`lib/widgets/widgetCaptureMmkv.ts`): `{kind: reading|added|failed, text, at, userId, jobId?}` plus a list of pending job ids. Written by the card, read by the widget, cleared on sign-out.
+- **Headless task** (`widgetTaskHandler.tsx`): on `WIDGET_UPDATE` it draws, asks once (5 s budget) about captures still pending ("Reading receipt…") and settles them, then draws again. Taps never reach it: every button opens a link natively.
+- **API** (`api/src/features/ingest`): receipt and voice uploads return `202 {accepted: true, job_id}` (a replay with the same Idempotency-Key returns the same `job_id`). `GET /api/v1/ingest/jobs/:id` is user-scoped (404 for another user's job) and returns `{status, transaction?}`; the consumer already records `{transaction_id}` on the job, and a payment-hash duplicate counts as done with the existing transaction.
 
-- Jest: snapshot builder, widget render functions (pure JSX → tree), headless click handler (mocked API: success, 401→refresh, offline queue, idempotent retry).
-- Emulator (x86_64 release-like build): add each widget, sizes, light/dark, sign-out state, preset tap → transaction appears in the app and in the snapshot.
-- Phone: release APK install, widget survives reboot, battery/background limits on Xiaomi (MIUI kills background tasks aggressively — needs a check and possibly guidance to allow autostart).
+## 5. Also in 1.2.0 (native splash fixes)
 
-## 7. Risks
+- MainActivity handles `fontScale|density|locale|layoutDirection|smallestScreenSize` itself, so the activity is not recreated with the splash replayed.
+- The window background is night-aware (`values-night` `activityBackground`, the dark splash colour); the status bar is transparent; `splashGate.js` no longer repaints the window light.
+- The in-app theme choice is handed to Android (`UiModeManager.setApplicationNightMode`, API 31+, through the local Expo module `frontend/modules/dime-system`), so the system splash follows it after a restart.
 
-- **MIUI/Xiaomi background restrictions** can delay widget refreshes and headless tasks → app-pushed updates remain the main path; document "allow autostart" if needed.
-- **Library compatibility** with RN 0.81 New Architecture → Phase 0 spike before any other work.
-- **Runtime version bump** to 1.1.0: users on 1.0.0 keep getting OTA for 1.0.0 only until they install the widget APK.
-- **Privacy** of amounts on the home screen → "Hide amounts" option, default visible (user choice).
+## 6. Removed from 1.1.0
 
-## Sources
-- [react-native-android-widget](https://docsearch.algolia.com/mcp/docs/repo/saleksovski/react-native-android-widget)
-- [Home screen widgets and Live Activities in Expo](https://expo.dev/blog/home-screen-widgets-and-live-activities-in-expo)
-- [Voltra (Callstack)](https://callstack.com/blog/live-activities-and-widgets-with-react-say-hello-to-voltra)
-- [Expo widgets reference (iOS)](https://docs.expo.dev/versions/v56.0.0/sdk/widgets/)
-- [React Native Android widgets with Expo and Glance (2026)](https://reactnativerelay.com/article/react-native-android-widgets-expo-glance-2026)
-- [RemoteViews has no EditText (Kotlin Slack)](https://slack-chats.kotlinlang.org/t/8411622/haven-t-really-built-widgets-before-but-i-need-to-build-my-f)
-- [RemoteViews source: supported view classes](https://code.yawk.at/android/android-9.0.0_r35/android/widget/RemoteViews.java)
+One-tap presets, the queued-tap outbox and Undo (`widgetPreset*`, `widgetSnapshotBump`), Settings > Home screen widgets and `dime://settings/widgets`, and the This month / Quick add / Today / Upcoming recurring / Category budgets widgets. The old `widget-presets` MMKV store is deleted on first start. The snapshot no longer holds today's spend, recent transactions or recurring items.
+
+## 7. Testing
+
+- Jest: the widget model and render tree, the card link parser, the polling helper (done, failed, timeout, transient errors), the capture flow, the status store, the snapshot builder from plain data, the plugin's manifest/style/Kotlin output, removal of the preset wiring.
+- API (Vitest, real local D1): `job_id` in 202 and on replay, job status pending → done with the transaction, failed, deleted transaction, 404 for another user.
+- Device (not automated): add the widget on the emulator and a phone, each button, light/dark, sign-out state, a receipt end to end, widget survives a reboot. Xiaomi/MIUI may need Autostart for the background refresh.
+
+## 8. Risks
+
+- **Shared JS runtime.** The card and the app run in one runtime, so a handler registered by one hears events meant for the other. The card only reacts to `dimecard://` links, never uses `BackHandler`, and closes through a native call that does nothing unless the card is the current activity.
+- **Process death.** If the process is killed while the pill waits, the job stays pending and the widget settles it on its next update (at most ~30 min).
+- **MIUI/Xiaomi** may delay background refreshes.

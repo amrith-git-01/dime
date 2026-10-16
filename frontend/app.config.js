@@ -67,6 +67,7 @@ module.exports = ({ config }) => {
     plugins: [
       ...(config.plugins ?? []),
       "./plugins/withReleaseSigning",
+      "./plugins/withWidgetActions",
       ...(cleartext
         ? [["expo-build-properties", { android: { usesCleartextTraffic: true } }]]
         : []),

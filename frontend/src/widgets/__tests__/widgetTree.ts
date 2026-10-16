@@ -14,16 +14,22 @@ export function flattenWidgetTree(node: Node): ReactElement<Record<string, unkno
   if (Array.isArray(node)) {
     return node.flatMap(flattenWidgetTree);
   }
-  let element = node;
-  while (
-    typeof element.type === "function" &&
-    !(element.type as { __name__?: string }).__name__
+  if (
+    typeof node.type === "function" &&
+    !(node.type as { __name__?: string }).__name__
   ) {
-    element = (element.type as (props: unknown) => ReactElement<Record<string, unknown>>)(
-      element.props,
-    );
+    // A custom component: call it as the library does. The library cannot take a component that
+    // renders nothing (null/undefined/false): it would crash the whole widget, so fail here too.
+    const rendered = (node.type as (props: unknown) => Node)(node.props);
+    if (rendered === null || rendered === undefined || typeof rendered === "boolean") {
+      throw new Error(
+        `Widget component ${(node.type as { name?: string }).name ?? "(anonymous)"} returned ${String(rendered)}; ` +
+          "render the conditional in the parent instead (react-native-android-widget crashes on it).",
+      );
+    }
+    return flattenWidgetTree(rendered);
   }
-  return [element, ...flattenWidgetTree(element.props.children as Node)];
+  return [node, ...flattenWidgetTree(node.props.children as Node)];
 }
 
 export function widgetTexts(node: Node): string[] {

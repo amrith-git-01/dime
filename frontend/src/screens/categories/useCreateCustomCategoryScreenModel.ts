@@ -27,7 +27,7 @@ export function useCreateCustomCategoryScreenModel() {
   const { showToast } = useToast();
   const createMutation = useCreateCategoryMutation();
   const upsertBudgetMutation = useUpsertCategoryBudgetMutation();
-  const { categories } = useCategories();
+  const { categories } = useCategories("spend");
 
   const customCount = categories.filter(
     (category) => !category.is_system,

@@ -292,6 +292,7 @@ async function resolveCategory(
 }
 
 const SCOPE_MISMATCH = 'Choose a category that matches the transaction type.';
+const RECURRING_ONLY = 'Recurring categories can only be used by recurring items. Choose an everyday category.';
 
 /** A recurring-scope category fits only its own direction: recurring_expense <-> debit, recurring_income <-> credit. */
 const fitsType = (scope: CategoryScope, type: TransactionType): boolean =>
@@ -342,8 +343,8 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     resolveCategory(ctx, input, Boolean(input.recurringItemId)),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
   ]);
-  // A recurring category may be used by hand when its direction matches the type (the poster, which sets `recurringItemId`, is trusted).
-  if (resolved && !input.recurringItemId && !fitsType(resolved.scope, input.type)) throw new ValidationError(SCOPE_MISMATCH);
+  // Recurring-scope categories belong to recurring items: only the poster (which sets `recurringItemId`, and is trusted) may use one.
+  if (resolved && !input.recurringItemId && resolved.scope !== 'spend') throw new ValidationError(RECURRING_ONLY);
   const categoryId = resolved?.id ?? null;
 
   const row: NewTransactionRow = {
@@ -423,9 +424,16 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     repo.findByPaymentHash(ctx.db, ctx.userId, newHash),
   ]);
   if (!existing) throw new NotFoundError(NOT_FOUND);
-  // A recurring category fits only its own direction; a row keeps its current category when the client echoes it back unchanged.
-  if (resolved && !fitsType(resolved.scope, body.type) && resolved.id !== String(existing.category_id ?? '').toLowerCase()) {
-    throw new ValidationError(SCOPE_MISMATCH);
+  // A recurring-scope category may be set only on a row a recurring item posted, and then only in its own
+  // direction. A row keeps the category it already has when the client echoes it back unchanged, as long
+  // as it still fits the (possibly changed) type.
+  if (
+    resolved &&
+    resolved.scope !== 'spend' &&
+    (resolved.id !== String(existing.category_id ?? '').toLowerCase() || !fitsType(resolved.scope, body.type))
+  ) {
+    if (!existing.recurring_item_id) throw new ValidationError(RECURRING_ONLY);
+    if (!fitsType(resolved.scope, body.type)) throw new ValidationError(SCOPE_MISMATCH);
   }
   // A name never matches a recurring category (only recurring-posted rows carry one), so an echoed-back
   // name that doesn't resolve keeps such a row's category instead of silently clearing it.

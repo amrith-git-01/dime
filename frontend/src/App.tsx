@@ -1,13 +1,13 @@
 import { useBlurFocusedInputOnKeyboardHide } from "@/hooks/useBlurFocusedInputOnKeyboardHide";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
 import { persistQueryClientSubscribe } from "@tanstack/react-query-persist-client";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -36,10 +36,8 @@ import { useDeepLinkHandler } from "@/lib/deepLinks/useDeepLinkHandler";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
 import { appQueryPersistOptions } from "@/lib/queryPersister";
-import {
-  drainWidgetOutbox,
-  onWidgetTransactionsChanged,
-} from "@/lib/widgets/widgetPresetActions";
+import { removeLegacyWidgetPresets } from "@/lib/widgets/legacyWidgetData";
+import { onWidgetTransactionsChanged } from "@/lib/widgets/widgetCaptureEvents";
 import { subscribeWidgetSnapshotWriter } from "@/lib/widgets/widgetSnapshotWriter";
 import RootNavigator from "@/navigation/RootNavigator";
 import { navigationRef } from "@/navigation/navigationRef";
@@ -82,27 +80,41 @@ function AppSplashCoordinator({
   }, [splashRevealed, markSplashRevealed]);
 
   // The splash is the single loading cover: it goes once bootstrap AND the first screen's shell
-  // (header + tab bar, or the auth / onboarding route) are laid out. Otherwise the timeout
-  // releases it, so a shell that never reports, or a profile check on a bad connection, cannot
-  // hold it forever.
+  // (header + tab bar, or the auth / onboarding route) are laid out, and not before the minimum
+  // display time. Only the long safety cap releases it otherwise, so a broken start cannot hold
+  // it forever. The native fade starts on the frame after the ready signal, so it never overlaps
+  // a frame that has not been committed yet.
   useEffect(() => {
     if (!timerReady || splashRevealed) {
       return;
     }
 
+    const ready = bootstrapReady && shellReady;
     const delay = computeSplashRevealDelayMs({
       now: Date.now(),
       splashStartedAt: splashStartedAtRef.current,
-      ready: bootstrapReady && shellReady,
+      ready,
     });
 
+    let frame: number | undefined;
     const timer = setTimeout(() => {
-      splashRevealedLatch = true;
-      void SplashScreen.hideAsync();
-      setSplashRevealed(true);
+      // Offline, a slow start is expected (the profile check cannot finish): not worth reporting.
+      if (!ready && onlineManager.isOnline()) {
+        reportError(new Error("Splash safety cap reached"), "App splash");
+      }
+      frame = requestAnimationFrame(() => {
+        splashRevealedLatch = true;
+        void SplashScreen.hideAsync();
+        setSplashRevealed(true);
+      });
     }, delay);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
+    };
   }, [timerReady, bootstrapReady, shellReady, splashRevealed]);
 
   return (
@@ -159,26 +171,22 @@ function AppContent() {
   // Keeps the Android home-screen widgets' snapshot in step with the cache.
   useEffect(() => subscribeWidgetSnapshotWriter(queryClient), [queryClient]);
 
-  // One-tap widget presets that could not be sent (offline) go out as soon as the app opens and
-  // whenever it returns to the foreground; the session is already restored from the encrypted
-  // store at this point. Whatever the widgets add or delete is refetched here.
+  // The widget's capture card saves in this same JS runtime: refetch what it added. (Also keeps the
+  // snapshot writer above from overwriting the card's fresher numbers with stale cached ones.)
+  useEffect(
+    () =>
+      onWidgetTransactionsChanged(() => {
+        if (useAuthSessionStore.getState().userId) {
+          invalidateTransactionDerivedQueries(queryClient);
+        }
+      }),
+    [queryClient],
+  );
+
+  // 1.1.0 kept one-tap presets on disk; send any tap still queued there once, then delete the store.
   useEffect(() => {
-    const stopListening = onWidgetTransactionsChanged(() => {
-      if (useAuthSessionStore.getState().userId) {
-        invalidateTransactionDerivedQueries(queryClient);
-      }
-    });
-    void drainWidgetOutbox();
-    const appState = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        void drainWidgetOutbox();
-      }
-    });
-    return () => {
-      stopListening();
-      appState.remove();
-    };
-  }, [queryClient]);
+    void removeLegacyWidgetPresets();
+  }, []);
 
   useEffect(() => {
     return persistQueryClientSubscribe({

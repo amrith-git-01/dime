@@ -10,7 +10,7 @@ import { createTestQueryClient } from "@/test-utils/testQueryClient";
 import { refreshWidgets } from "@/widgets/refreshWidgets";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
-import { readWidgetSnapshot } from "../widgetSnapshotMmkv";
+import { readWidgetSnapshot, writeWidgetSnapshot } from "../widgetSnapshotMmkv";
 import {
   affectsWidgetSnapshot,
   subscribeWidgetSnapshotWriter,
@@ -47,9 +47,9 @@ describe("affectsWidgetSnapshot", () => {
       affectsWidgetSnapshot(transactionsQueryKeys.monthPages(USER, 2026, 10, "UTC")),
     ).toBe(false);
     expect(affectsWidgetSnapshot(["notifications", USER])).toBe(false);
-    // The recurring lists feed the Upcoming widget; the month view does not.
-    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "income"))).toBe(true);
-    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "subscription"))).toBe(true);
+    // The widget no longer lists recurring items, so their queries do not matter to it.
+    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "income"))).toBe(false);
+    expect(affectsWidgetSnapshot(recurringQueryKeys.list(USER, "subscription"))).toBe(false);
     expect(affectsWidgetSnapshot(recurringQueryKeys.month(USER, 2026, 9))).toBe(false);
   });
 });
@@ -71,6 +71,31 @@ describe("syncWidgetSnapshot", () => {
 
     syncWidgetSnapshot(queryClient);
     expect(refreshWidgets).toHaveBeenCalledTimes(1);
+  });
+
+  it("never replaces fresher numbers (stored by the capture card) with an older cache", () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(homeKey(), OVERVIEW, { updatedAt: 1_000 });
+    writeWidgetSnapshot({
+      userId: USER,
+      updatedAt: 2_000,
+      monthKey: "2026-10",
+      spentThisMonth: 750,
+      recurringSpent: 0,
+      flexibleSpent: 750,
+      monthlyBudget: null,
+      budgetLeft: null,
+      topCategories: [],
+    });
+
+    syncWidgetSnapshot(queryClient);
+    expect(readWidgetSnapshot()?.spentThisMonth).toBe(750);
+    expect(refreshWidgets).not.toHaveBeenCalled();
+
+    // Once the app refetches (newer than the stored one) it writes again.
+    queryClient.setQueryData(homeKey(), { ...OVERVIEW, spent_this_month: "800.00" }, { updatedAt: 3_000 });
+    syncWidgetSnapshot(queryClient);
+    expect(readWidgetSnapshot()?.spentThisMonth).toBe(800);
   });
 
   it("does nothing when signed out or before the overview is cached", () => {

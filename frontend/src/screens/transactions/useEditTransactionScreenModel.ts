@@ -11,12 +11,10 @@ import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
-import { useRecurringCategories } from "@/features/transactions/hooks/useRecurringCategories";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
 import {
   reconcileEditCategory,
   recurringCategoryOfTransaction,
-  recurringOptionsForType,
   visibleSpendCategories,
 } from "@/features/transactions/utils/manualAddCategoryUtils";
 import { transactionRowToFormState } from "@/features/transactions/utils/transactionRowToFormState";
@@ -34,8 +32,7 @@ export function useEditTransactionScreenModel() {
   const { userId } = useSessionUserId();
   const { showToast } = useToast();
   const transaction = route.params.transaction;
-  const { categories, isLoading: categoriesLoading } = useCategories();
-  const recurringCategories = useRecurringCategories();
+  const { categories, isLoading: categoriesLoading } = useCategories("spend");
 
   const baseline = useMemo(
     () => (transaction ? transactionRowToFormState(transaction) : undefined),
@@ -106,11 +103,20 @@ export function useEditTransactionScreenModel() {
     }
   }, [categories, selectCategory]);
 
-  // The category of a recurring-posted row is outside the spend list: offered in the Recurring group even before the lists load.
+  // A row whose category is outside the spend list (posted by a recurring item, or a legacy row, or one
+  // whose recurring item was deleted) carries a recurring-scope category. It is not pickable: the editor
+  // shows it read-only (until "Change" clears it) and the save sends it unchanged.
   const recurringCategory = useMemo(
-    () => recurringCategoryOfTransaction(transaction, categories),
+    () =>
+      categories.length > 0 && transaction?.category_scope !== "spend"
+        ? recurringCategoryOfTransaction(transaction, categories)
+        : null,
     [categories, transaction],
   );
+  const lockedCategory =
+    recurringCategory && categoryId === recurringCategory.id
+      ? recurringCategory
+      : null;
 
   useEffect(() => {
     const action = reconcileEditCategory({
@@ -118,7 +124,7 @@ export function useEditTransactionScreenModel() {
       categoryId,
       txType,
       recurringCategory,
-      recurringCategories,
+      originalType: transaction?.type,
     });
     if (action.kind === "select") {
       selectCategory(action.category.id, action.category.name);
@@ -129,9 +135,9 @@ export function useEditTransactionScreenModel() {
     categories,
     categoryId,
     clearCategory,
-    recurringCategories,
     recurringCategory,
     selectCategory,
+    transaction?.type,
     txType,
   ]);
 
@@ -143,15 +149,6 @@ export function useEditTransactionScreenModel() {
   const visibleCategories = useMemo(
     () => visibleSpendCategories(categories, txType),
     [categories, txType],
-  );
-  const recurringOptions = useMemo(
-    () =>
-      recurringOptionsForType({
-        recurringCategories,
-        txType,
-        own: recurringCategory,
-      }),
-    [recurringCategories, recurringCategory, txType],
   );
 
   const openCreateCustomCategory = useCallback(() => {
@@ -282,6 +279,12 @@ export function useEditTransactionScreenModel() {
     setTxType("credit");
   }, [setTxType]);
 
+  // Releasing the lock: the category is cleared, so the everyday picker shows (income falls back to Income).
+  const handleChangeLockedCategory = useCallback(() => {
+    void triggerHaptic();
+    clearCategory();
+  }, [clearCategory]);
+
   const handleCategoryPress = useCallback(
     (category: CategoryRow, selected: boolean) => {
       void triggerHaptic();
@@ -323,7 +326,8 @@ export function useEditTransactionScreenModel() {
     setCounterpartyName,
     categoriesLoading,
     visibleCategories,
-    recurringCategories: recurringOptions,
+    lockedCategory,
+    handleChangeLockedCategory,
     categoryId,
     handleCategoryPress,
     openCreateCustomCategory,
