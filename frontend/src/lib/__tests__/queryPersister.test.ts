@@ -17,7 +17,7 @@ import { createTestQueryClient } from "@/test-utils/testQueryClient";
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 jest.mock("@/lib/reportError", () => ({ reportError: jest.fn() }));
 
-const KEY = categoriesQueryKeys.list("user-a");
+const KEY = categoriesQueryKeys.list("user-a", "spend");
 
 function writeBlob(overrides: { buster?: string; timestamp?: number }): void {
   const source = createTestQueryClient();

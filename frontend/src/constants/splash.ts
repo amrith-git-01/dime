@@ -12,10 +12,11 @@ export const splashBackgroundColor = colors.pageBackground;
 export const SPLASH_MIN_DISPLAY_MS = 800;
 
 /**
- * Longest the splash stays up (ms), counted from the same JS start as the minimum: a slow profile
- * check or a shell that never reports cannot hold it past this.
+ * Safety cap (ms), counted from the same JS start as the minimum. The splash normally leaves only
+ * when the first screen is ready; this is just so a broken start cannot hang on it forever. It is
+ * deliberately long: releasing earlier shows the loader / half-built screen as a flash.
  */
-export const SPLASH_SHELL_TIMEOUT_MS = 2000;
+export const SPLASH_SHELL_TIMEOUT_MS = 8000;
 
 /**
  * Native splash `imageWidth` — keep in sync with `expo-splash-screen` in app.json.

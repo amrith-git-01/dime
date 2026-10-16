@@ -39,7 +39,7 @@ export function useEditCategoryScreenModel() {
   const { showToast } = useToast();
   const categoryId = route.params.categoryId;
 
-  const { categories } = useCategories();
+  const { categories } = useCategories("spend");
   const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
   const updateMutation = useUpdateCategoryMutation();
   const deleteMutation = useDeleteCategoryMutation();

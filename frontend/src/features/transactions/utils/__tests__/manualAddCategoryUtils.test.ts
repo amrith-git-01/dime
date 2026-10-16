@@ -4,7 +4,6 @@ import type { TransactionRow } from "../../types";
 import {
   reconcileEditCategory,
   recurringCategoryOfTransaction,
-  recurringOptionsForType,
   visibleSpendCategories,
 } from "../manualAddCategoryUtils";
 
@@ -98,33 +97,6 @@ describe("visibleSpendCategories", () => {
   });
 });
 
-describe("recurringOptionsForType", () => {
-  const rent = cat({ id: "rent", name: "Rent", scope: "recurring_expense" });
-  const pay = cat({ id: "pay", name: "Salary", scope: "recurring_income" });
-  const own = recurringCategoryOfTransaction(subs, SPEND);
-
-  it("offers the recurring categories that match the type", () => {
-    expect(
-      recurringOptionsForType({ recurringCategories: [rent, pay], txType: "debit" }).map((c) => c.id),
-    ).toEqual(["rent"]);
-    expect(
-      recurringOptionsForType({ recurringCategories: [rent, pay], txType: "credit" }).map((c) => c.id),
-    ).toEqual(["pay"]);
-  });
-
-  it("keeps the row's own recurring category when it fits and is not listed yet", () => {
-    expect(
-      recurringOptionsForType({ recurringCategories: [rent], txType: "debit", own }).map((c) => c.id),
-    ).toEqual(["subs", "rent"]);
-    expect(
-      recurringOptionsForType({ recurringCategories: [rent, own as CategoryRow], txType: "debit", own }).map(
-        (c) => c.id,
-      ),
-    ).toEqual(["rent", "subs"]);
-    expect(recurringOptionsForType({ recurringCategories: [], txType: "credit", own })).toEqual([]);
-  });
-});
-
 describe("reconcileEditCategory", () => {
   const expense = recurringCategoryOfTransaction(subs, SPEND);
   const income = recurringCategoryOfTransaction(salary, SPEND);
@@ -170,17 +142,20 @@ describe("reconcileEditCategory", () => {
     ).toEqual({ kind: "clear" });
   });
 
-  it("recognises a picked recurring category from the full list, and drops one of the other type", () => {
-    const rent = cat({ id: "rent", name: "Rent", scope: "recurring_expense" });
-    const pay = cat({ id: "pay", name: "Salary", scope: "recurring_income" });
-    const base = { categories: SPEND, recurringCategory: null, recurringCategories: [rent, pay] };
+  it("does not treat an id outside the row's own recurring category as recurring", () => {
+    const base = { categories: SPEND, recurringCategory: null };
     expect(reconcileEditCategory({ ...base, categoryId: "rent", txType: "debit" })).toEqual({ kind: "keep" });
-    expect(reconcileEditCategory({ ...base, categoryId: "pay", txType: "credit" })).toEqual({ kind: "keep" });
-    expect(reconcileEditCategory({ ...base, categoryId: "rent", txType: "credit" })).toEqual({
+    expect(reconcileEditCategory({ ...base, categoryId: "rent", txType: "credit" })).toEqual({ kind: "keep" });
+  });
+
+  it("drops an id outside the list once the row's type was switched", () => {
+    const base = { categories: SPEND, categoryId: "gone", recurringCategory: null };
+    expect(reconcileEditCategory({ ...base, txType: "debit", originalType: "credit" })).toEqual({ kind: "clear" });
+    expect(reconcileEditCategory({ ...base, txType: "credit", originalType: "debit" })).toEqual({
       kind: "select",
       category: INCOME,
     });
-    expect(reconcileEditCategory({ ...base, categoryId: "pay", txType: "debit" })).toEqual({ kind: "clear" });
+    expect(reconcileEditCategory({ ...base, txType: "debit", originalType: "debit" })).toEqual({ kind: "keep" });
   });
 
   it("keeps an unknown non-recurring id and a normal spend category", () => {

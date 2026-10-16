@@ -19,8 +19,6 @@ type FormControls = {
 type UseManualAddScreenLifecycleParams = {
   form: FormControls;
   categories: CategoryRow[];
-  /** Every recurring category, so a picked one is kept (or dropped) according to the type. */
-  recurringCategories: readonly CategoryRow[];
   navigation: NativeStackNavigationProp<MainStackParamList>;
   returnCategoryId?: string;
   returnCategoryName?: string;
@@ -31,7 +29,6 @@ type UseManualAddScreenLifecycleParams = {
 export function useManualAddScreenLifecycle({
   form,
   categories,
-  recurringCategories,
   navigation,
   returnCategoryId,
   returnCategoryName,
@@ -112,7 +109,6 @@ export function useManualAddScreenLifecycle({
       categoryId,
       txType,
       recurringCategory: null,
-      recurringCategories,
     });
     if (action.kind === "select") {
       selectCategory(action.category.id, action.category.name);
@@ -123,7 +119,6 @@ export function useManualAddScreenLifecycle({
     categories,
     categoryId,
     clearCategory,
-    recurringCategories,
     selectCategory,
     txType,
   ]);

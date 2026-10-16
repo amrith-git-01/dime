@@ -1,7 +1,7 @@
 import { useBlurFocusedInputOnKeyboardHide } from "@/hooks/useBlurFocusedInputOnKeyboardHide";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { NavigationContainer } from "@react-navigation/native";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
 import { persistQueryClientSubscribe } from "@tanstack/react-query-persist-client";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
@@ -82,27 +82,41 @@ function AppSplashCoordinator({
   }, [splashRevealed, markSplashRevealed]);
 
   // The splash is the single loading cover: it goes once bootstrap AND the first screen's shell
-  // (header + tab bar, or the auth / onboarding route) are laid out. Otherwise the timeout
-  // releases it, so a shell that never reports, or a profile check on a bad connection, cannot
-  // hold it forever.
+  // (header + tab bar, or the auth / onboarding route) are laid out, and not before the minimum
+  // display time. Only the long safety cap releases it otherwise, so a broken start cannot hold
+  // it forever. The native fade starts on the frame after the ready signal, so it never overlaps
+  // a frame that has not been committed yet.
   useEffect(() => {
     if (!timerReady || splashRevealed) {
       return;
     }
 
+    const ready = bootstrapReady && shellReady;
     const delay = computeSplashRevealDelayMs({
       now: Date.now(),
       splashStartedAt: splashStartedAtRef.current,
-      ready: bootstrapReady && shellReady,
+      ready,
     });
 
+    let frame: number | undefined;
     const timer = setTimeout(() => {
-      splashRevealedLatch = true;
-      void SplashScreen.hideAsync();
-      setSplashRevealed(true);
+      // Offline, a slow start is expected (the profile check cannot finish): not worth reporting.
+      if (!ready && onlineManager.isOnline()) {
+        reportError(new Error("Splash safety cap reached"), "App splash");
+      }
+      frame = requestAnimationFrame(() => {
+        splashRevealedLatch = true;
+        void SplashScreen.hideAsync();
+        setSplashRevealed(true);
+      });
     }, delay);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (frame !== undefined) {
+        cancelAnimationFrame(frame);
+      }
+    };
   }, [timerReady, bootstrapReady, shellReady, splashRevealed]);
 
   return (

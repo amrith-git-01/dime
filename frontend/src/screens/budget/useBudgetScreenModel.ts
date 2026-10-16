@@ -33,7 +33,7 @@ type BudgetScreenNavigation = CompositeNavigationProp<
 export function useBudgetScreenModel() {
   const stackNavigation = useNavigation<BudgetScreenNavigation>();
   const { showToast } = useToast();
-  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { categories, isLoading: categoriesLoading } = useCategories("spend");
 
   const {
     monthOptions,

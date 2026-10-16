@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { BentoEditorFooter } from "@/components/bento";
+import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { AppTextInput } from "@/components/ui";
 import { fontFamilies, radius, spacing } from "@/constants";
 import type { CategoryRow } from "@/features/categories/types";
@@ -36,8 +37,12 @@ export type ManualAddTransactionEditorProps = {
   onCounterpartyNameChange: (text: string) => void;
   categoriesLoading: boolean;
   visibleCategories: CategoryRow[];
-  /** Recurring categories that fit the type; shown as a collapsible group (income also gets the card). */
-  recurringCategories?: CategoryRow[];
+  /**
+   * The recurring-scope category of a row a recurring item posted (edit screen): shown read-only in
+   * place of the picker, with a "Change" link (`onChangeLockedCategory`) to swap it for an everyday one.
+   */
+  lockedCategory?: CategoryRow | null;
+  onChangeLockedCategory?: () => void;
   categoryId: string | null;
   onCategoryPress: (category: CategoryRow, selected: boolean) => void;
   onAddCategory: () => void;
@@ -91,7 +96,8 @@ export const ManualAddTransactionEditor = memo(
     onCounterpartyNameChange,
     categoriesLoading,
     visibleCategories,
-    recurringCategories,
+    lockedCategory,
+    onChangeLockedCategory,
     categoryId,
     onCategoryPress,
     onAddCategory,
@@ -135,22 +141,52 @@ export const ManualAddTransactionEditor = memo(
           />
         </View>
 
-        {/* Category card: expense always; income only to offer recurring income (Income is auto-assigned) */}
-        {txType === "debit" || (recurringCategories?.length ?? 0) > 0 ? (
+        {/* Category card: expense always (everyday categories only); income is auto-assigned, so it only
+            shows for a recurring-posted row's read-only category */}
+        {txType === "debit" || lockedCategory ? (
           <View style={[styles.card, styles.cardShadow]}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionLabel}>CATEGORY</Text>
-              {txType === "debit" ? requiredTag : optionalTag}
+              {lockedCategory ? null : requiredTag}
             </View>
-            <ManualAddCategorySection
-              categoriesLoading={categoriesLoading}
-              visibleCategories={visibleCategories}
-              categoryId={categoryId}
-              onCategoryPress={onCategoryPress}
-              onAddCategory={txType === "debit" ? onAddCategory : undefined}
-              addCategoryDisabled={addCategoryDisabled}
-              recurringCategories={recurringCategories}
-            />
+            {lockedCategory ? (
+              <View style={styles.lockedRow}>
+                <View
+                  style={styles.lockedChip}
+                  accessible
+                  accessibilityLabel={`Category ${lockedCategory.name}, recurring`}
+                >
+                  <CategoryLucideIcon
+                    iconName={lockedCategory.icon_name}
+                    color={lockedCategory.color}
+                    size={16}
+                    strokeWidth={1.5}
+                  />
+                  <Text style={styles.lockedLabel}>{lockedCategory.name}</Text>
+                </View>
+                <Text style={styles.lockedHint}>Recurring category</Text>
+                {onChangeLockedCategory ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Change category"
+                    hitSlop={8}
+                    onPress={onChangeLockedCategory}
+                    style={({ pressed }) => pressed && styles.chipPressed}
+                  >
+                    <Text style={styles.changeLink}>Change</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              <ManualAddCategorySection
+                categoriesLoading={categoriesLoading}
+                visibleCategories={visibleCategories}
+                categoryId={categoryId}
+                onCategoryPress={onCategoryPress}
+                onAddCategory={onAddCategory}
+                addCategoryDisabled={addCategoryDisabled}
+              />
+            )}
           </View>
         ) : null}
 
@@ -326,6 +362,42 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   chipLabelSelected: {
     fontFamily: fontFamilies.medium,
     color: colors.ink,
+  },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  lockedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+  },
+  lockedLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  changeLink: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.accentText,
+  },
+  lockedHint: {
+    flexShrink: 1,
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkFaint,
   },
   nameInput: {
     borderWidth: 1,

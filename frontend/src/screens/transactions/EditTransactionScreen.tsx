@@ -21,7 +21,8 @@ export default function EditTransactionScreen() {
       onCounterpartyNameChange={model.setCounterpartyName}
       categoriesLoading={model.categoriesLoading}
       visibleCategories={model.visibleCategories}
-      recurringCategories={model.recurringCategories}
+      lockedCategory={model.lockedCategory}
+      onChangeLockedCategory={model.handleChangeLockedCategory}
       categoryId={model.categoryId}
       onCategoryPress={model.handleCategoryPress}
       onAddCategory={model.openCreateCustomCategory}
