@@ -21,7 +21,7 @@ Two paths. **Native APK** (new native code, permissions, SDK upgrades) is built 
 ## Release a native APK
 
 1. Bump `version` in `frontend/app.json`. It is the **runtime version** (`runtimeVersion: { policy: "appVersion" }`): an APK only receives updates published for its own version, so old APKs never get incompatible JS.
-2. `cd frontend && npm run build:apk` (prebuild + `assembleRelease`, arm64-v8a + armeabi-v7a). It prints the APK path (`android/app/build/outputs/apk/release/app-release.apk`). Share it.
+2. `cd frontend && npm run build:apk` (prebuild + `assembleRelease`, arm64-v8a only, R8 minify + resource shrinking). It prints the APK path (`android/app/build/outputs/apk/release/app-release.apk`). Share it.
 
 ## Push an OTA fix
 
@@ -54,4 +54,4 @@ On Xiaomi/MIUI the widget's background refresh (it settles a receipt the card le
 - **Native splash changes don't need a version bump.** The dark splash (soft-dark background, white wordmark `assets/images/splash-wordmark-dark.png`) is native config only and doesn't change the JS↔native interface, so it stays on runtime 1.0.0: JS ships by OTA now, and the next APK picks up the dark splash. Bump `version` only when a native module or the JS↔native interface changes (new native dependency, Expo SDK upgrade).
 - **Backend:** deploys through CI on merge to `main` (`api/DEPLOY.md`); no app release needed.
 
-The server side is `api/src/features/updates` (R2 layout in `storage.ts`). Dev builds never check for updates, but with code signing on, the dev client asks Metro for a signed development manifest: start Metro with `npm run start:dev` (passes `--private-key-path ../keys/private-key.pem`); plain `expo start --dev-client` fails with "Must specify --private-key-path".
+The server side is `api/src/features/updates` (R2 layout in `storage.ts`). Debug builds never check for updates and load the bundle straight from Metro (`npm start`). There is no `expo-dev-client`: it shipped ~10 MB of dev tools (and an ML Kit scanner) in release APKs, and Expo's Gradle plugin cannot exclude it per build type. Use React Native's dev menu (`adb shell input keyevent 82`) to reload or change the bundler address.

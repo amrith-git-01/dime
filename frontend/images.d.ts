@@ -23,3 +23,10 @@ declare module "*.json" {
   const value: Record<string, unknown>;
   export default value;
 }
+
+declare module "*.webp" {
+  import type { ImageSourcePropType } from "react-native";
+
+  const value: ImageSourcePropType;
+  export default value;
+}

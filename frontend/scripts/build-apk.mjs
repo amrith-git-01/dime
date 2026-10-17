@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local release APK (no EAS): prebuild, then `gradlew assembleRelease` for arm64-v8a + armeabi-v7a.
+ * Local release APK (no EAS): prebuild, then `gradlew assembleRelease` for arm64-v8a only.
  * Signing comes from the DIME_UPLOAD_* settings (see plugins/withReleaseSigning.js and docs/RELEASE.md).
  */
 import { spawnSync } from "node:child_process";
@@ -44,7 +44,7 @@ if (process.platform === "win32") {
 }
 
 const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
-run(gradlew, ["assembleRelease", "-PreactNativeArchitectures=arm64-v8a,armeabi-v7a"], androidDir);
+run(gradlew, ["assembleRelease", "-PreactNativeArchitectures=arm64-v8a"], androidDir);
 
 const apk = path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk");
 console.log(fs.existsSync(apk) ? `\nAPK: ${apk}` : "\nBuild finished but app-release.apk was not found under android/app/build/outputs/apk/release.");

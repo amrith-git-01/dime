@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dime",
     "slug": "frontend",
-    "version": "1.2.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dime",
@@ -16,7 +16,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 5,
       "allowBackup": false,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
@@ -48,6 +48,15 @@
       "@react-native-google-signin/google-signin",
       "expo-system-ui",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
