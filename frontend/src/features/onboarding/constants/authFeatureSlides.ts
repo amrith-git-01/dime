@@ -1,10 +1,10 @@
 import type { ImageSourcePropType } from "react-native";
 
-import slide1Image from "@/assets/images/onboarding/slide-1.png";
-import slide2Image from "@/assets/images/onboarding/slide-2.png";
-import slide3Image from "@/assets/images/onboarding/slide-3.png";
-import slide4Image from "@/assets/images/onboarding/slide-4.png";
-import slide5Image from "@/assets/images/onboarding/slide-5.png";
+import slide1Image from "@/assets/images/onboarding/slide-1.webp";
+import slide2Image from "@/assets/images/onboarding/slide-2.webp";
+import slide3Image from "@/assets/images/onboarding/slide-3.webp";
+import slide4Image from "@/assets/images/onboarding/slide-4.webp";
+import slide5Image from "@/assets/images/onboarding/slide-5.webp";
 
 export interface AuthFeatureSlideData {
   id: string;

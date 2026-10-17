@@ -109,8 +109,10 @@ dimeApi.interceptors.request.use(async (config) => {
     config.headers.set("Authorization", auth.Authorization);
   }
 
+  // Without an explicit type axios defaults POST bodies to x-www-form-urlencoded, which Android's
+  // networking rejects for multipart parts. React Native appends the boundary itself.
   if (typeof FormData !== "undefined" && config.data instanceof FormData) {
-    config.headers.delete("Content-Type");
+    config.headers.set("Content-Type", "multipart/form-data");
   }
 
   return config;
