@@ -48,7 +48,11 @@ export default function AuthScreen() {
         </View>
 
         <View style={styles.copy}>
-          <Text accessibilityRole="header" style={styles.headline}>
+          <Text
+            accessibilityRole="header"
+            textBreakStrategy="balanced"
+            style={styles.headline}
+          >
             Know where every rupee goes
           </Text>
           <Text style={styles.subhead}>
@@ -59,13 +63,9 @@ export default function AuthScreen() {
         <View style={styles.reelRegion} onLayout={onReelLayout}>
           <FeatureReel
             availableWidth={reelRegion.width}
-            availableHeight={reelRegion.height - spacing.md}
+            availableHeight={reelRegion.height - spacing.xl}
             paused={model.busy}
           />
-        </View>
-
-        <View style={styles.trust}>
-          <WelcomeTrustLines />
         </View>
 
         <View
@@ -93,6 +93,8 @@ export default function AuthScreen() {
             }
             onPress={() => model.submitGoogle()}
           />
+
+          <WelcomeTrustLines />
         </View>
       </View>
     </StackScreenShell>
@@ -115,18 +117,18 @@ const useStyles = createThemedStyles(({ colors }) => ({
     paddingBottom: spacing.sm,
   },
   wordmark: {
-    width: 132,
-    height: 44,
+    width: 112,
+    height: 37,
   },
   copy: {
-    gap: spacing.md,
+    gap: spacing.sm,
     paddingTop: spacing.md,
   },
   headline: {
     fontFamily: fontFamilies.semiBold,
-    fontSize: 30,
-    lineHeight: 36,
-    letterSpacing: -0.5,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.6,
     color: colors.ink,
   },
   subhead: {
@@ -137,13 +139,10 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   reelRegion: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
     minHeight: 0,
-    paddingTop: spacing.md,
-  },
-  trust: {
-    paddingTop: spacing.md,
+    paddingTop: spacing.xl,
   },
   ctaRegion: {
     gap: spacing.md,

@@ -8,12 +8,13 @@ import { formatInrCompact } from "@/utils/currency";
 
 import { ReelText, type ReelSceneProps } from "../ReelParts";
 import { easeOut, seg } from "../reelMotion";
+import { MONTH_BUDGET, MONTH_RECURRING, MONTH_TOTAL } from "../reelStory";
 import { SCENE_HEIGHT, SCENE_WIDTH } from "../reelStyles";
 import { useClockValue } from "../useClockValue";
 
-const BUDGET = 30000;
-const SPENT = 18623;
-const RECURRING = 9200;
+const BUDGET = MONTH_BUDGET;
+const SPENT = MONTH_TOTAL;
+const RECURRING = MONTH_RECURRING;
 const FLEXIBLE = SPENT - RECURRING;
 const FINAL_PROGRESS = SPENT / BUDGET;
 const BAR_HEIGHT = 5;

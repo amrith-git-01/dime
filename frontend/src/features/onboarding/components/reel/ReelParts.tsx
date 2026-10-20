@@ -11,6 +11,7 @@ import {
 import { useTheme } from "@/theme";
 import { formatInrCompact } from "@/utils/currency";
 
+import { type ReelPayee } from "./reelStory";
 import { useReelStyles } from "./reelStyles";
 
 export type ReelSceneProps = {
@@ -83,3 +84,16 @@ export const ReelRow = memo(function ReelRow({
     </View>
   );
 });
+
+/** A `ReelRow` for one of the story's payees (title, category and amount from `reelStory`). */
+export function ReelPayeeRow({ payee }: { payee: ReelPayee }) {
+  const category = REEL_CATEGORIES[payee.category];
+  return (
+    <ReelRow
+      category={category}
+      title={payee.title}
+      meta={category.name}
+      amount={payee.amount}
+    />
+  );
+}

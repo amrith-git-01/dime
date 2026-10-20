@@ -4,9 +4,9 @@
  */
 
 export const REEL_SCENES = [
-  { id: "quickAdd", caption: "Add it in seconds" },
   { id: "voice", caption: "Just say it" },
   { id: "receipt", caption: "Snap the receipt" },
+  { id: "quickAdd", caption: "Add it in seconds" },
   { id: "budget", caption: "Know what's left" },
   { id: "insights", caption: "See where it went" },
   { id: "askAi", caption: "Ask anything" },
@@ -19,14 +19,17 @@ export const REEL_SCENE_COUNT = REEL_SCENES.length;
 /** One scene's timeline (ms): its animation plus a short hold, then the reel moves on. */
 export const REEL_SCENE_MS = 3500;
 
-/** The card every scene is drawn on (same footprint as the old welcome hero). */
+/**
+ * The design footprint every scene is drawn on (same as the old welcome hero). The card surface
+ * stretches to the column; this box is scaled to the card's height and centred inside it.
+ */
 export const REEL_CARD_WIDTH = 320;
 export const REEL_CARD_HEIGHT = 264;
 /**
- * Height under the card: gap (12) + segments (16) + gap (4) + one caption line. The caption
- * allows 1.2x font scaling, so its 20 dp line is reserved as 24.
+ * Height around the card: segments above (16) + gap (12) + gap below the card (12) + one caption
+ * line. The caption allows 1.2x font scaling, so its 24 dp line is reserved as 29.
  */
-export const REEL_CHROME_HEIGHT = 56;
+export const REEL_CHROME_HEIGHT = 69;
 /** Below this much room for the card the reel is dropped rather than squeezed unreadable. */
 export const REEL_MIN_CARD_HEIGHT = 120;
 export const REEL_MIN_SCALE = 0.55;
@@ -110,12 +113,15 @@ export type SegmentFill = "full" | "live" | "empty";
 
 /**
  * How a progress segment is drawn: past scenes full, the active one filling with the clock,
- * upcoming ones empty. With reduced motion there is no clock, so only the active one is filled.
+ * upcoming ones empty. While the scene is leaving ("exiting", clock stopped) the active segment
+ * completes at once instead of freezing part-filled. With reduced motion there is no clock, so
+ * only the active one is filled.
  */
 export function getSegmentFill(
   segmentIndex: number,
   activeIndex: number,
   reduceMotion: boolean,
+  phase: "playing" | "exiting",
 ): SegmentFill {
   if (reduceMotion) {
     return segmentIndex === activeIndex ? "full" : "empty";
@@ -123,7 +129,10 @@ export function getSegmentFill(
   if (segmentIndex < activeIndex) {
     return "full";
   }
-  return segmentIndex === activeIndex ? "live" : "empty";
+  if (segmentIndex === activeIndex) {
+    return phase === "exiting" ? "full" : "live";
+  }
+  return "empty";
 }
 
 export function reelAccessibilityLabel(
@@ -141,7 +150,10 @@ export type ReelLayout = {
   height: number;
 };
 
-/** Fits the card (and the chrome under it) into the room the screen can spare. */
+/**
+ * Fits the card (and the chrome around it) into the room the screen can spare. The card is as
+ * wide as the column; `scale` sizes the design box drawn inside it.
+ */
 export function computeReelLayout(
   availableWidth: number,
   availableHeight: number,
@@ -159,7 +171,7 @@ export function computeReelLayout(
   return {
     visible: true,
     scale,
-    width: REEL_CARD_WIDTH * scale,
+    width: availableWidth,
     height: REEL_CARD_HEIGHT * scale,
   };
 }

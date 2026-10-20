@@ -13,6 +13,7 @@ import {
   type ReelSceneProps,
 } from "../ReelParts";
 import { easeInOut, easeOut, seg } from "../reelMotion";
+import { REEL_PAYEES } from "../reelStory";
 import { ROW_HEIGHT, SCENE_HEIGHT, SCENE_WIDTH, useReelStyles } from "../reelStyles";
 
 const PAPER_WIDTH = 152;
@@ -48,7 +49,7 @@ const ROW_END = 3200;
 const NAME_FLIGHT = { x: -75, y: 177 } as const;
 const TOTAL_FLIGHT = { x: 80, y: 71 } as const;
 
-/** Scene 3: a scan line reads a receipt; the shop and total move into a row. */
+/** Scene 2: a scan line reads a receipt; the shop and total move into a row. */
 export function ReceiptScene({ clock }: ReelSceneProps) {
   const styles = useReelStyles();
   const local = useStyles();
@@ -128,10 +129,12 @@ export function ReceiptScene({ clock }: ReelSceneProps) {
       <Animated.View style={[local.row, styles.entry, rowStyle]}>
         <CategoryTile category={food} />
         <View style={styles.rowText}>
-          <ReelText style={styles.rowTitle}>Smoor</ReelText>
+          <ReelText style={styles.rowTitle}>{REEL_PAYEES.smoor.title}</ReelText>
           <ReelText style={styles.rowMeta}>{food.name}</ReelText>
         </View>
-        <ReelText style={styles.rowAmount}>{formatInrCompact(480)}</ReelText>
+        <ReelText style={styles.rowAmount}>
+          {formatInrCompact(REEL_PAYEES.smoor.amount)}
+        </ReelText>
       </Animated.View>
 
       <Animated.View style={[local.paper, paperStyle]}>
@@ -139,7 +142,7 @@ export function ReceiptScene({ clock }: ReelSceneProps) {
           <Animated.View style={[local.bar, local.nameBar, nameBarStyle]} />
           <Animated.View style={[local.chip, nameChipStyle]}>
             <Animated.View style={[local.chipHighlight, highlightStyle]} />
-            <ReelText style={local.chipText}>Smoor</ReelText>
+            <ReelText style={local.chipText}>{REEL_PAYEES.smoor.title}</ReelText>
           </Animated.View>
         </View>
 
@@ -160,7 +163,9 @@ export function ReceiptScene({ clock }: ReelSceneProps) {
             <Animated.View style={[local.bar, local.totalBar, totalBarStyle]} />
             <Animated.View style={[local.chip, local.totalChip, totalChipStyle]}>
               <Animated.View style={[local.chipHighlight, highlightStyle]} />
-              <ReelText style={local.chipText}>{formatInrCompact(480)}</ReelText>
+              <ReelText style={local.chipText}>
+                {formatInrCompact(REEL_PAYEES.smoor.amount)}
+              </ReelText>
             </Animated.View>
           </View>
         </View>

@@ -18,7 +18,7 @@ logged transaction. Measured with a SQL query on D1, so no analytics SDK is need
 | Tour | 10 "Next" steps (welcome, month card, +, FAB menu, Ask AI, day add, recurring, insights, settings, finale), confetti only at the end | **4 action steps** ending in a real first expense; spotlight glides between targets; small celebrations on real actions; one big confetti on the first expense |
 | Everything else | Taught inside the tour | **"Get started" checklist** on Home, **one-time tips** on first visit, **teaching empty states** |
 | Reduced motion | Partly respected | Full path: no particles, static check plus haptic, cross-fades, live setting listener, **Celebrations toggle** in Settings |
-| Video | None | Three 4–10 s silent loops (voice, scan, Ask AI), streamed from R2 (Phase 3) |
+| Video | None | Dropped: the code-drawn Welcome reel shows voice, scan and Ask AI instead |
 
 ---
 
@@ -154,7 +154,12 @@ logged transaction. Measured with a SQL query on D1, so no analytics SDK is need
 3. **Goal question:** one extra skippable screen in profile setup; stored per user on the device.
 4. Progress for items 1–4 and 6 comes from a new `GET /api/v1/me/onboarding-progress` (one query, works across devices); the widget item uses a device flag set by the widget task handler.
 
-## Phase 3: feature clips (native change, ships in build 1.6.0)
+## Phase 3: feature clips (dropped, 2026-10-20)
+
+**Dropped by the owner.** The Welcome feature reel (shipped in PR #38) already shows voice, scan and Ask AI, so clips in the
+first-use tips would repeat it at the cost of a native build, recordings, R2 hosting and an `expo-video` caching risk. If the tips
+ever need motion, reuse the reel scenes in `FirstUseTip`'s `media` prop (JavaScript only, OTA). The original plan is kept below for
+reference; the 1.7 recordings are no longer needed.
 
 - **Content:** you edit the three Phase 1.7 recordings in Canva into **4–10 s silent loops**: portrait (9:16 or the phone's shape), H.264 MP4, no audio track, about 0.3–1 MB each. Captions stay out of the video; the app draws them so they can be translated and read by screen readers.
 - **Hosting:** upload to R2 (served through the Worker, which caches them) under a versioned path, so a clip can be replaced without an app release.
@@ -180,7 +185,7 @@ logged transaction. Measured with a SQL query on D1, so no analytics SDK is need
 |---|---|---|---|
 | 1 | Welcome screen, contextual permissions, 4-step tour, spotlight motion, celebrations, reduced motion and accessibility, raw recordings | 1 large batch | OTA update to 1.5.0 |
 | 2 | Checklist, first-use tips, empty states, goal question | 1 medium batch | OTA update |
-| 3 | Feature clips with expo-video | small app change plus your Canva editing | Build 1.6.0 |
+| 3 | ~~Feature clips with expo-video~~ dropped (the Welcome reel covers it) | — | — |
 | 4 | Streaks, try-before-sign-in | later | Decide later |
 
 Each batch follows the project rule: explore, then implement in one pass, then test once at the end, then one review pass. No commits
