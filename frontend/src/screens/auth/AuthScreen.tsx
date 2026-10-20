@@ -1,12 +1,16 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Image, Text, View } from "react-native";
+import { useState } from "react";
+import { Image, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AuthHeroLottie } from "@/components/auth/AuthHeroLottie";
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
 import { Button } from "@/components/ui";
 import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import {
+  WelcomeHero,
+  WelcomeTrustLines,
+} from "@/features/onboarding/components";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 import { createThemedStyles, useTheme } from "@/theme";
@@ -18,6 +22,11 @@ export default function AuthScreen() {
   const styles = useStyles();
   const model = useAuthScreenModel();
   const insets = useSafeAreaInsets();
+  const [heroHeight, setHeroHeight] = useState(0);
+
+  const onHeroLayout = (event: LayoutChangeEvent) => {
+    setHeroHeight(event.nativeEvent.layout.height);
+  };
 
   return (
     <StackScreenShell
@@ -37,8 +46,18 @@ export default function AuthScreen() {
           />
         </View>
 
-        <View style={styles.heroRegion}>
-          <AuthHeroLottie />
+        <View style={styles.copy}>
+          <Text accessibilityRole="header" style={styles.headline}>
+            Know where every rupee goes
+          </Text>
+          <Text style={styles.subhead}>
+            Log what you spend in seconds and watch your month take shape.
+          </Text>
+          <WelcomeTrustLines />
+        </View>
+
+        <View style={styles.heroRegion} onLayout={onHeroLayout}>
+          <WelcomeHero availableHeight={heroHeight - spacing.md} />
         </View>
 
         <View
@@ -91,12 +110,29 @@ const useStyles = createThemedStyles(({ colors }) => ({
     width: 132,
     height: 44,
   },
+  copy: {
+    gap: spacing.md,
+    paddingTop: spacing.md,
+  },
+  headline: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: -0.5,
+    color: colors.ink,
+  },
+  subhead: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 16,
+    lineHeight: 23,
+    color: colors.inkSoft,
+  },
   heroRegion: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 0,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.md,
   },
   ctaRegion: {
     gap: spacing.md,

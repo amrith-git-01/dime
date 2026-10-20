@@ -1,10 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { useTransactionsHomeQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
-import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 import { isAppTourSeen, useAppTourStore } from "../store/appTourStore";
 import { getFocusedTourTab } from "../utils/tourNavigation";
@@ -16,7 +14,7 @@ const AUTO_START_DELAY_MS = 600;
 
 /**
  * Starts the app tour once for a signed-in user, when the app is calm: the main shell is laid
- * out, the splash is gone, the native permission dialogs are done and no modal flow is open.
+ * out, the splash is gone and no modal flow is open.
  * Call from the main tab navigator.
  */
 export function useAppTourAutoStart({
@@ -28,23 +26,18 @@ export function useAppTourAutoStart({
   /** The branded splash overlay is gone. */
   splashRevealed: boolean;
 }): void {
-  const queryClient = useQueryClient();
   const { userId } = useSessionUserId();
-  const permissionsBusy = usePermissionsPromptStore(
-    (s) => s.pendingAfterGoogleSignIn || s.prompting,
-  );
   const modalFlowOpen = useModalFlowOpen();
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const tourActive = useAppTourStore((s) => s.active);
   const startTour = useAppTourStore((s) => s.start);
-  // Wait for the real Home overview: the sample-data preview only latches once an empty account is known.
+  // Wait for the real Home overview, so the tour opens on the screen the user will actually see.
   const homeLoaded = useTransactionsHomeQuery().isSuccess;
 
   const calm =
     shellReady &&
     splashRevealed &&
     homeLoaded &&
-    !permissionsBusy &&
     !modalFlowOpen &&
     !fabOpen &&
     !tourActive;
@@ -57,8 +50,8 @@ export function useAppTourAutoStart({
       if (isAppTourSeen(userId) || getFocusedTourTab() === null) {
         return;
       }
-      startTour(queryClient);
+      startTour();
     }, AUTO_START_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [calm, userId, startTour, queryClient]);
+  }, [calm, userId, startTour]);
 }

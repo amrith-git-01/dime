@@ -7,14 +7,12 @@ import {
 function route(
   overrides: Partial<{
     signedIn: boolean;
-    welcomeTourCompleted: boolean;
     profile: ProfileKnowledge;
     me: MeRequestState;
   }>,
 ) {
   return resolveRootAppRoute({
     signedIn: true,
-    welcomeTourCompleted: true,
     profile: "unknown",
     me: "pending",
     ...overrides,
@@ -23,9 +21,8 @@ function route(
 
 describe("resolveRootAppRoute", () => {
   describe("signed out", () => {
-    it("shows the welcome tour until it was seen, then sign-in", () => {
-      expect(route({ signedIn: false, welcomeTourCompleted: false })).toBe("welcome");
-      expect(route({ signedIn: false, welcomeTourCompleted: true })).toBe("auth");
+    it("goes straight to sign-in (the welcome screen)", () => {
+      expect(route({ signedIn: false })).toBe("auth");
     });
 
     it("ignores anything the profile query says", () => {
@@ -79,7 +76,6 @@ describe("resolveRootAppRoute", () => {
       for (const profile of ["has-username", "no-username", "unknown"] as const) {
         for (const me of ["pending", "success", "failed"] as const) {
           expect(route({ profile, me })).not.toBe("auth");
-          expect(route({ profile, me })).not.toBe("welcome");
         }
       }
     });

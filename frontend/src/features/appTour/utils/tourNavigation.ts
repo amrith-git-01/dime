@@ -1,7 +1,12 @@
 import { navigationRef } from "@/navigation/navigationRef";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 
-import type { TourEnterAction, TourStep, TourTab } from "../constants/tourSteps";
+import type {
+  TourCardAction,
+  TourEnterAction,
+  TourStep,
+  TourTab,
+} from "../constants/tourSteps";
 
 const TAB_NAMES: readonly string[] = [
   "Home",
@@ -24,23 +29,8 @@ export function getFocusedTourTab(): TourTab | null {
 }
 
 /** Switches the main tab bar to `tab`, popping any screen stacked above it. */
-export function navigateToTourTab(
-  tab: TourTab,
-  budgetsRecurringKind?: "income" | "subscription",
-): void {
+export function navigateToTourTab(tab: TourTab): void {
   if (!navigationRef.isReady()) {
-    return;
-  }
-  if (tab === "Budgets") {
-    navigationRef.navigate("Main", {
-      screen: "MainTabs",
-      params: {
-        screen: "Budgets",
-        params: budgetsRecurringKind
-          ? { recurringKind: budgetsRecurringKind }
-          : undefined,
-      },
-    });
     return;
   }
   navigationRef.navigate("Main", {
@@ -49,26 +39,38 @@ export function navigateToTourTab(
   });
 }
 
-/** Opens the manual add form (the finale's call to action). */
+/** Opens the manual add form (what the add menu's pencil does). */
 export function openManualAddFromTour(): void {
   if (navigationRef.isReady()) {
     navigationRef.navigate("Main", { screen: "ManualAddTransaction" });
   }
 }
 
+/**
+ * What a step's card button does for the user: the same as tapping the glowing target (open the
+ * add menu, or the pencil: close the menu and open the manual add form).
+ */
+export function runTourCardAction(action: TourCardAction): void {
+  const fab = useAddTransactionFabStore.getState();
+  if (action === "openFab") {
+    fab.setFabOpen(true);
+    return;
+  }
+  fab.setFabOpen(false);
+  openManualAddFromTour();
+}
+
 const ENTER_ACTIONS: Record<TourEnterAction, () => void> = {
   closeFab: () => useAddTransactionFabStore.getState().setFabOpen(false),
   openFab: () => useAddTransactionFabStore.getState().setFabOpen(true),
-  scrollToRecurring: () => navigateToTourTab("Budgets", "subscription"),
 };
 
 /**
  * Puts the app in the state a step expects: the right tab, then the step's own actions
- * (open / close the add menu, scroll a list). Safe to run more than once.
+ * (open / close the add menu). Safe to run more than once.
  */
 export function runTourStepEnter(step: TourStep): void {
-  const hasScrollAction = step.enter?.includes("scrollToRecurring") ?? false;
-  if (step.tab && !hasScrollAction && getFocusedTourTab() !== step.tab) {
+  if (step.tab && getFocusedTourTab() !== step.tab) {
     navigateToTourTab(step.tab);
   }
   step.enter?.forEach((action) => ENTER_ACTIONS[action]());

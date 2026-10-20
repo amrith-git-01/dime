@@ -2,6 +2,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useRef } from "react";
 
+import { useAppTourStore } from "@/features/appTour/store/appTourStore";
 import type { CategoryRow } from "@/features/categories/types";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -40,6 +41,17 @@ export function useManualAddScreenLifecycle({
   const pendingReturnCategoryIdRef = useRef<string | null>(null);
   const consumedReturnCategoryRef = useRef(false);
   const hasFocusedOnceRef = useRef(false);
+
+  // The guided tour waits on a first saved expense; leaving the form without saving puts it
+  // back on the "+" step. A save raises its own event first (see useSubmitManualTransactionMutation).
+  // Assumes leaving is never blocked: if a "discard changes?" prompt is added, call this only once it is confirmed.
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", () => {
+        useAppTourStore.getState().onManualAddAbandoned();
+      }),
+    [navigation],
+  );
 
   const markNavigatedToCreateCategory = useCallback(() => {
     navigatedToCreateCategoryRef.current = true;

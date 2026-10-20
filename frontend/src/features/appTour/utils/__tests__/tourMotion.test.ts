@@ -1,57 +1,72 @@
+import { getTourMotion, TOUR_SPARKLE_TRAIL } from "../tourMotion";
 import {
-  buildConfettiParticles,
-  confettiOffset,
-} from "../confettiParticles";
-import { getTourMotion } from "../tourMotion";
+  buildTourSparkleSeeds,
+  sparkleTrailFrame,
+} from "../tourSparkleTrail";
 
 describe("getTourMotion", () => {
   it("allows every flourish by default", () => {
-    expect(getTourMotion(false)).toEqual({
+    expect(getTourMotion(false)).toMatchObject({
       spring: true,
       pulse: true,
-      confetti: true,
       sparkle: true,
-      fadeMs: expect.any(Number),
+      cardOutMs: 120,
+      cardInMs: 200,
+      textStaggerMs: 60,
     });
+    expect(getTourMotion(false).cardSlideDp).toBeGreaterThanOrEqual(8);
+    expect(getTourMotion(false).cardSlideDp).toBeLessThanOrEqual(12);
   });
 
-  it("with reduced motion drops springs, pulse, confetti and sparkle but keeps fades", () => {
+  it("with reduced motion drops springs, pulse, sparkles and the slide but keeps fades", () => {
     const motion = getTourMotion(true);
     expect(motion.spring).toBe(false);
     expect(motion.pulse).toBe(false);
-    expect(motion.confetti).toBe(false);
     expect(motion.sparkle).toBe(false);
+    expect(motion.cardSlideDp).toBe(0);
+    expect(motion.textStaggerMs).toBe(0);
     expect(motion.fadeMs).toBeGreaterThan(0);
+    expect(motion.cardInMs).toBeGreaterThan(0);
   });
 });
 
-describe("confetti particles", () => {
-  it("is deterministic for a seed and varies between seeds", () => {
-    expect(buildConfettiParticles(20, 6, 1)).toEqual(
-      buildConfettiParticles(20, 6, 1),
-    );
-    expect(buildConfettiParticles(20, 6, 1)).not.toEqual(
-      buildConfettiParticles(20, 6, 2),
-    );
-  });
+describe("sparkle trail", () => {
+  const from = { x: 0, y: 0 };
+  const to = { x: 300, y: 0 };
 
-  it("builds the requested count, all launched upwards, with valid palette indexes", () => {
-    const particles = buildConfettiParticles(40, 6);
-    expect(particles).toHaveLength(40);
-    for (const particle of particles) {
-      expect(particle.vy).toBeLessThan(0);
-      expect(particle.colorIndex).toBeGreaterThanOrEqual(0);
-      expect(particle.colorIndex).toBeLessThan(6);
+  it("makes the configured number of seeds, spread across the travel time", () => {
+    const seeds = buildTourSparkleSeeds();
+    expect(seeds).toHaveLength(TOUR_SPARKLE_TRAIL.count);
+    expect(TOUR_SPARKLE_TRAIL.count).toBeGreaterThanOrEqual(6);
+    expect(TOUR_SPARKLE_TRAIL.count).toBeLessThanOrEqual(10);
+    for (const seed of seeds) {
+      expect(seed.birth).toBeGreaterThan(0);
+      expect(seed.birth).toBeLessThan(1);
     }
+    expect(buildTourSparkleSeeds()).toEqual(seeds);
   });
 
-  it("starts at the origin, rises, and is pulled down by gravity", () => {
-    const [particle] = buildConfettiParticles(1, 1);
-    const atStart = confettiOffset(particle, 0);
-    expect(Math.abs(atStart.dx)).toBe(0);
-    expect(Math.abs(atStart.dy)).toBe(0);
-    expect(confettiOffset(particle, 0.25).dy).toBeLessThan(0);
-    // Without gravity the particle would end at exactly `vy`.
-    expect(confettiOffset(particle, 1).dy).toBeGreaterThan(particle.vy);
+  it("shows a sparkle only between its birth and its fade-out", () => {
+    const [seed] = buildTourSparkleSeeds();
+    const bornAt = seed.birth * TOUR_SPARKLE_TRAIL.travelMs;
+    expect(sparkleTrailFrame(seed, bornAt - 1, from, to).radius).toBe(0);
+    expect(sparkleTrailFrame(seed, bornAt + 10, from, to).radius).toBeGreaterThan(0);
+    expect(
+      sparkleTrailFrame(seed, bornAt + TOUR_SPARKLE_TRAIL.fadeMs + 1, from, to)
+        .radius,
+    ).toBe(0);
+  });
+
+  it("fades out within about half a second of the hole passing", () => {
+    expect(TOUR_SPARKLE_TRAIL.fadeMs).toBeLessThanOrEqual(500);
+  });
+
+  it("leaves sparkles along the way from the old target to the new one", () => {
+    for (const seed of buildTourSparkleSeeds()) {
+      const bornAt = seed.birth * TOUR_SPARKLE_TRAIL.travelMs;
+      const frame = sparkleTrailFrame(seed, bornAt + 1, from, to);
+      expect(frame.x).toBeGreaterThan(0);
+      expect(frame.x).toBeLessThan(to.x);
+    }
   });
 });

@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { askNotificationsInContext } from "@/features/onboarding/utils/askNotificationsInContext";
+
 import {
   deleteCategoryBudget,
   upsertCategoryBudget,
@@ -19,6 +21,10 @@ export function useUpsertCategoryBudgetMutation() {
     }) => upsertCategoryBudget(categoryId, monthlyAmount),
     onSuccess: () => {
       invalidateBudgetAlertQueries(qc);
+      void askNotificationsInContext(
+        "Get a heads-up when a category is close to its budget.",
+        qc,
+      );
       return qc.invalidateQueries({ queryKey: categoryBudgetsQueryKeys.all });
     },
   });

@@ -1,3 +1,2 @@
-export { AuthFeatureCarousel } from "./AuthFeatureCarousel";
-export { AuthFeatureSlide } from "./AuthFeatureSlide";
-export { AuthPostcardDots } from "./AuthPostcardDots";
+export { WelcomeHero } from "./WelcomeHero";
+export { WelcomeTrustLines } from "./WelcomeTrustLines";

@@ -11,6 +11,8 @@ import { useDerivedValue, type SharedValue } from "react-native-reanimated";
 
 import { useTheme } from "@/theme";
 
+import { TourSparkleTrail, type TourSparkleTrailProps } from "./TourSparkleTrail";
+
 export type TourScrimProps = {
   width: number;
   height: number;
@@ -24,6 +26,8 @@ export type TourScrimProps = {
   enter: SharedValue<number>;
   /** 0..1 breathing of the glow ring. */
   pulse: SharedValue<number>;
+  /** Sparkles left along the hole's path between targets; omit for none (reduced motion). */
+  trail?: Omit<TourSparkleTrailProps, "color">;
 };
 
 const RING_BASE_INSET = 3;
@@ -32,7 +36,8 @@ const RING_PULSE_TRAVEL = 4;
 /**
  * Full-screen dim layer drawn in Skia: one path (screen rectangle + hole, even-odd fill) so the
  * hole is truly empty and can morph smoothly, plus a soft accent ring that breathes around it.
- * Purely visual; touches are handled by the blocker views in `AppTourOverlay`.
+ * Purely visual (hidden from screen readers); touches are handled by the blocker views in
+ * `AppTourOverlay`.
  */
 export function TourScrim({
   width,
@@ -44,6 +49,7 @@ export function TourScrim({
   holeRadius,
   enter,
   pulse,
+  trail,
 }: TourScrimProps) {
   const { colors } = useTheme();
 
@@ -87,7 +93,12 @@ export function TourScrim({
   return (
     // The wrapper, not the Canvas, owns pointerEvents: a Skia Canvas on Android swallows touches
     // even with pointerEvents="none", which would block taps through the spotlight hole.
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+    >
       <Canvas style={StyleSheet.absoluteFill}>
         <Path
           path={scrimPath}
@@ -119,6 +130,7 @@ export function TourScrim({
             color={colors.accentText}
           />
         </Group>
+        {trail ? <TourSparkleTrail {...trail} color={colors.accentText} /> : null}
       </Canvas>
     </View>
   );

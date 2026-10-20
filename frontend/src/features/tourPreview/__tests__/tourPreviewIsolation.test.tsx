@@ -1,8 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactElement } from "react";
 
-import { useAppTourStore } from "@/features/appTour/store/appTourStore";
-import { TOUR_STEP_COUNT } from "@/features/appTour/constants/tourSteps";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
@@ -17,10 +15,18 @@ import {
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
 
-import { useTourPreviewStore } from "../store/tourPreviewStore";
+import {
+  endTourPreview,
+  startTourPreviewIfEmpty,
+  useTourPreviewStore,
+} from "../store/tourPreviewStore";
 import { TOUR_SAMPLE_ID_PREFIX } from "../utils/sampleIds";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
+// The budget hooks reach for notification permissions on save; native modules are not available here.
+jest.mock("@/features/onboarding/utils/askNotificationsInContext", () => ({
+  askNotificationsInContext: jest.fn(),
+}));
 
 const mockSession: { userId: string | undefined } = { userId: "user-a" };
 jest.mock("@/stores/authSessionStore", () => ({
@@ -162,7 +168,6 @@ describe("tour sample data stays out of the cache", () => {
   beforeEach(async () => {
     mockSession.userId = "user-a";
     useTourPreviewStore.setState({ active: false, userId: undefined, suspended: false });
-    useAppTourStore.setState({ active: false, stepIndex: 0, userId: undefined });
     latest = undefined;
     client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     await act(async () => {
@@ -187,12 +192,12 @@ describe("tour sample data stays out of the cache", () => {
     expect(cacheDump(client)).not.toContain(TOUR_SAMPLE_ID_PREFIX);
   });
 
-  it("serves sample data through the same hooks for the whole tour, and writes none of it", async () => {
+  it("serves sample data through the same hooks while it is on, and writes none of it", async () => {
     expect(client.getQueryData(transactionsQueryKeys.home("user-a", getDeviceIanaTimezone()))).toBeDefined();
     const before = cacheDump(client);
 
     act(() => {
-      useAppTourStore.getState().start(client);
+      startTourPreviewIfEmpty(client, "user-a");
     });
     await flush();
     expect(useTourPreviewStore.getState()).toMatchObject({ active: true, userId: "user-a" });
@@ -216,14 +221,11 @@ describe("tour sample data stays out of the cache", () => {
     expect(s.lastMonthRecurring.data?.items).toEqual([]);
     expect(s.filteredMonthList.data?.pages[0].items).toEqual([]);
 
-    // The tour walks to the end.
-    for (let i = 0; i < TOUR_STEP_COUNT; i += 1) {
-      act(() => {
-        useAppTourStore.getState().next();
-      });
-    }
+    // The preview ends.
+    act(() => {
+      endTourPreview();
+    });
     await flush();
-    expect(useAppTourStore.getState().active).toBe(false);
     expect(useTourPreviewStore.getState().active).toBe(false);
 
     // Back to the real data, and nothing sample-tagged ever reached the cache.
@@ -234,15 +236,15 @@ describe("tour sample data stays out of the cache", () => {
     expect(cacheDump(client)).toBe(before);
   });
 
-  it("skipping the tour also returns to the real data", async () => {
+  it("ending the preview returns to the real data", async () => {
     act(() => {
-      useAppTourStore.getState().start(client);
+      startTourPreviewIfEmpty(client, "user-a");
     });
     await flush();
     expect(screens().home.data?.recent_transactions).toHaveLength(5);
 
     act(() => {
-      useAppTourStore.getState().skip();
+      endTourPreview();
     });
     await flush();
     expect(screens().home.data?.recent_transactions).toEqual([]);
@@ -251,7 +253,7 @@ describe("tour sample data stays out of the cache", () => {
 
   it("shows real data while the tour is hidden, and sample data again when it returns", async () => {
     act(() => {
-      useAppTourStore.getState().start(client);
+      startTourPreviewIfEmpty(client, "user-a");
     });
     await flush();
     act(() => {
@@ -269,7 +271,7 @@ describe("tour sample data stays out of the cache", () => {
 
   it("never shows another account's preview", async () => {
     act(() => {
-      useAppTourStore.getState().start(client);
+      startTourPreviewIfEmpty(client, "user-a");
     });
     await flush();
     expect(screens().home.data?.recent_transactions).toHaveLength(5);
@@ -294,7 +296,7 @@ describe("tour sample data stays out of the cache", () => {
       recent_transactions: [],
     });
     act(() => {
-      useAppTourStore.getState().start(client);
+      startTourPreviewIfEmpty(client, "user-a");
     });
     await flush();
     expect(useTourPreviewStore.getState().active).toBe(false);

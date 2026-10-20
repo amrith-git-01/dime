@@ -7,7 +7,6 @@ import { clearSession, getSession, signOutRemote } from "@/lib/auth/session";
 import { cancelDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { reportError } from "@/lib/reportError";
 import { wipeUserData } from "@/lib/userDataWipe";
-import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 /** Server-side clean-up must never keep the user waiting; the session is already gone locally. */
 const REMOTE_CLEANUP_TIMEOUT_MS = 4_000;
@@ -25,7 +24,6 @@ export function useSignOut() {
       // Local data first, so the UI leaves the signed-in state immediately even when offline.
       clearSession();
       wipeUserData(queryClient);
-      usePermissionsPromptStore.getState().clearPendingAfterGoogleSignIn();
 
       // Fire and forget, each with a short timeout. Sign-out is this device only ('local').
       if (session) {

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { useAppTourStore } from "@/features/appTour/store/appTourStore";
 import { submitManualTransaction } from "@/features/transactions/api/submitTransactionApi";
 import type { CreateTransactionBody } from "@/features/transactions/api/transactionsApi";
 import { invalidateTransactionDerivedQueries } from "@/features/transactions/cache/invalidateTransactionQueries";
@@ -21,6 +22,8 @@ export function useSubmitManualTransactionMutation() {
     onSuccess: () => {
       idempotencyKeys.clear();
       invalidateTransactionDerivedQueries(qc);
+      // Store-level on purpose: the tour overlay is not mounted while the add form is open.
+      useAppTourStore.getState().onTransactionSaved();
     },
   });
 }

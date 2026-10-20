@@ -22,6 +22,40 @@ function isNotificationGranted(
   );
 }
 
+export type AppPermissionStatus = "granted" | "denied" | "undetermined";
+
+/** `status` is an enum in each module; comparing by its string value keeps this module-agnostic. */
+function toPermissionStatus(response: {
+  granted: boolean;
+  status: unknown;
+}): AppPermissionStatus {
+  if (response.granted) {
+    return "granted";
+  }
+  return String(response.status) === "undetermined" ? "undetermined" : "denied";
+}
+
+/** Whether the system dialog for `id` has never been answered (so asking now shows it). */
+export async function getAppPermissionStatus(
+  id: AppPermissionId,
+): Promise<AppPermissionStatus> {
+  switch (id) {
+    case "notifications": {
+      const status = await Notifications.getPermissionsAsync();
+      return toPermissionStatus({
+        granted: isNotificationGranted(status),
+        status: status.status,
+      });
+    }
+    case "camera":
+      return toPermissionStatus(await ImagePicker.getCameraPermissionsAsync());
+    case "microphone":
+      return toPermissionStatus(await getRecordingPermissionsAsync());
+    default:
+      return "denied";
+  }
+}
+
 export async function getAppPermissionState(
   id: AppPermissionId,
 ): Promise<AppPermissionState> {
@@ -73,28 +107,5 @@ export async function requestAppPermission(
     }
     default:
       return false;
-  }
-}
-
-export async function getAllAppPermissionStates(): Promise<
-  AppPermissionState[]
-> {
-  const ids: AppPermissionId[] = ["notifications", "camera", "microphone"];
-  return Promise.all(ids.map((id) => getAppPermissionState(id)));
-}
-
-const PERMISSION_REQUEST_ORDER: AppPermissionId[] = [
-  "notifications",
-  "camera",
-  "microphone",
-];
-
-/** Requests each native permission dialog in sequence (skips already granted). */
-export async function requestAllAppPermissionsSequentially(): Promise<void> {
-  for (const id of PERMISSION_REQUEST_ORDER) {
-    const state = await getAppPermissionState(id);
-    if (state.available && !state.granted) {
-      await requestAppPermission(id);
-    }
   }
 }

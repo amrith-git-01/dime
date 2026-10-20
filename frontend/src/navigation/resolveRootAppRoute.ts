@@ -1,4 +1,4 @@
-export type RootAppRoute = "welcome" | "auth" | "bootstrapping" | "setup" | "main";
+export type RootAppRoute = "auth" | "bootstrapping" | "setup" | "main";
 
 /** What the app knows about the signed-in user's profile, from `/me` or the copy kept on disk. */
 export type ProfileKnowledge = "has-username" | "no-username" | "unknown";
@@ -16,13 +16,12 @@ export type MeRequestState = "pending" | "success" | "failed";
  */
 export function resolveRootAppRoute(input: {
   signedIn: boolean;
-  welcomeTourCompleted: boolean;
   profile: ProfileKnowledge;
   me: MeRequestState;
 }): RootAppRoute {
-  const { signedIn, welcomeTourCompleted, profile, me } = input;
+  const { signedIn, profile, me } = input;
   if (!signedIn) {
-    return welcomeTourCompleted ? "auth" : "welcome";
+    return "auth";
   }
   if (profile === "has-username") {
     return "main";

@@ -1,3 +1,4 @@
+import { askNotificationsInContext } from "@/features/onboarding/utils/askNotificationsInContext";
 import { usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
@@ -28,6 +29,10 @@ export function useUpsertBudgetMutation() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: budgetQueryKeys.all });
       invalidateBudgetAlertQueries(qc);
+      void askNotificationsInContext(
+        "Get a heads-up when you're close to your monthly budget.",
+        qc,
+      );
     },
   });
 }

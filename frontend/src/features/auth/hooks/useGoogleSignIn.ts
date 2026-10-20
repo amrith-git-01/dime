@@ -9,7 +9,6 @@ import { useCallback, useState } from "react";
 
 import { signInWithGoogleIdToken } from "@/lib/auth/session";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
-import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 
 function isSignInCancelled(error: unknown): boolean {
   return isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED;
@@ -46,7 +45,6 @@ export function useGoogleSignIn() {
 
       // Throws with a user-facing message when the server rejects the token or is unreachable.
       await signInWithGoogleIdToken(idToken);
-      usePermissionsPromptStore.getState().markPendingAfterGoogleSignIn();
     } catch (e: unknown) {
       if (!isSignInCancelled(e)) {
         setError(googleSignInErrorMessage(e));

@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { askNotificationsInContext } from "@/features/onboarding/utils/askNotificationsInContext";
+
 import {
   createRecurring,
   deleteRecurring,
@@ -12,7 +14,13 @@ export function useCreateRecurringMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateRecurringBody) => createRecurring(body),
-    onSuccess: () => invalidateRecurringQueries(qc),
+    onSuccess: () => {
+      void askNotificationsInContext(
+        "Get a reminder before your recurring bills and income are due.",
+        qc,
+      );
+      return invalidateRecurringQueries(qc);
+    },
   });
 }
 

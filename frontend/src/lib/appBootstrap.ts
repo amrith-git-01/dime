@@ -210,9 +210,10 @@ export function prefetchSiblingTabQueries(
       });
 
       if (settings.deviceNotificationsEnabled) {
-        // Remote push registration must never block the local schedules below.
+        // Remote push registration must never block the local schedules below. Check-only: the
+        // permission dialog is asked for in context (see askNotificationsInContext), never at launch.
         try {
-          await syncExpoPushTokenForUser(true);
+          await syncExpoPushTokenForUser(true, { requestPermission: false });
         } catch (error) {
           // Declined notifications is the user's choice, not an error worth reporting.
           if (!(error instanceof PushPermissionDeniedError)) {
