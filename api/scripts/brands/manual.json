@@ -84,6 +84,13 @@
     { "slug": "coursera", "name": "Coursera", "domain": "coursera.org", "category": "Education" },
     { "slug": "cred", "wikidata": "Q106455641", "name": "CRED", "domain": "cred.club", "category": "Bills & Utilities", "aliases": ["Dreamplug Technologies"] },
     { "slug": "lic", "name": "LIC", "domain": "licindia.in", "category": "Other", "aliases": ["Life Insurance Corporation"] },
-    { "slug": "urban-company", "name": "Urban Company", "domain": "urbancompany.com", "category": "Other", "aliases": ["UrbanClap", "Urban Clap"] }
+    { "slug": "urban-company", "name": "Urban Company", "domain": "urbancompany.com", "category": "Other", "aliases": ["UrbanClap", "Urban Clap"] },
+    { "slug": "smoor", "name": "Smoor", "domain": "smoor.in", "category": "Food & Dining", "aliases": ["Smoor Chocolates", "Smoor Lounge"] },
+    { "slug": "eatclub", "name": "EatClub", "domain": "eatclub.in", "category": "Food & Dining", "aliases": ["Eat Club", "EatClub Brands", "Box8"] },
+    { "slug": "shree-anandhas", "name": "Shree Anandhas", "category": "Food & Dining", "aliases": ["Shree Anandhaas", "Sree Anandhas", "Sri Anandhas"] },
+    { "slug": "truliv", "name": "Truliv", "category": "Other", "aliases": ["Truliv Coliving", "Truliv Co-living", "Truliv Celia"] },
+    { "slug": "miraggio", "name": "Miraggio", "domain": "miraggio.in", "category": "Shopping" },
+    { "slug": "cloudflare", "name": "Cloudflare", "domain": "cloudflare.com", "category": "Bills & Utilities", "aliases": ["Cloudflare Inc"] },
+    { "slug": "google", "name": "Google", "domain": "google.com", "category": "Bills & Utilities", "aliases": ["Google One", "Google Workspace", "Google Cloud", "Google India"] }
   ]
 }
