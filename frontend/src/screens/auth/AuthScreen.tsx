@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import {
-  WelcomeHero,
+  FeatureReel,
   WelcomeTrustLines,
 } from "@/features/onboarding/components";
 
@@ -22,10 +22,11 @@ export default function AuthScreen() {
   const styles = useStyles();
   const model = useAuthScreenModel();
   const insets = useSafeAreaInsets();
-  const [heroHeight, setHeroHeight] = useState(0);
+  const [reelRegion, setReelRegion] = useState({ width: 0, height: 0 });
 
-  const onHeroLayout = (event: LayoutChangeEvent) => {
-    setHeroHeight(event.nativeEvent.layout.height);
+  const onReelLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setReelRegion({ width, height });
   };
 
   return (
@@ -53,11 +54,18 @@ export default function AuthScreen() {
           <Text style={styles.subhead}>
             Log what you spend in seconds and watch your month take shape.
           </Text>
-          <WelcomeTrustLines />
         </View>
 
-        <View style={styles.heroRegion} onLayout={onHeroLayout}>
-          <WelcomeHero availableHeight={heroHeight - spacing.md} />
+        <View style={styles.reelRegion} onLayout={onReelLayout}>
+          <FeatureReel
+            availableWidth={reelRegion.width}
+            availableHeight={reelRegion.height - spacing.md}
+            paused={model.busy}
+          />
+        </View>
+
+        <View style={styles.trust}>
+          <WelcomeTrustLines />
         </View>
 
         <View
@@ -127,11 +135,14 @@ const useStyles = createThemedStyles(({ colors }) => ({
     lineHeight: 23,
     color: colors.inkSoft,
   },
-  heroRegion: {
+  reelRegion: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 0,
+    paddingTop: spacing.md,
+  },
+  trust: {
     paddingTop: spacing.md,
   },
   ctaRegion: {
