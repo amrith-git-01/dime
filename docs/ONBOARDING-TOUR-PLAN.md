@@ -148,6 +148,12 @@ logged transaction. Measured with a SQL query on D1, so no analytics SDK is need
 
 ---
 
+### Phase 2 decisions (agreed)
+1. **Checklist audience:** accounts created after Phase 2 ships, plus anyone who hasn't finished it; existing users with everything done never see it. The API returns the account's creation date; the app compares it with a fixed cutoff.
+2. **Widget item:** kept, with a short how-to (Android can't add a widget for the user without the system prompt).
+3. **Goal question:** one extra skippable screen in profile setup; stored per user on the device.
+4. Progress for items 1–4 and 6 comes from a new `GET /api/v1/me/onboarding-progress` (one query, works across devices); the widget item uses a device flag set by the widget task handler.
+
 ## Phase 3: feature clips (native change, ships in build 1.6.0)
 
 - **Content:** you edit the three Phase 1.7 recordings in Canva into **4–10 s silent loops**: portrait (9:16 or the phone's shape), H.264 MP4, no audio track, about 0.3–1 MB each. Captions stay out of the video; the app draws them so they can be translated and read by screen readers.

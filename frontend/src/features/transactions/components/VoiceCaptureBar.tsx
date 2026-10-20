@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { FirstUseTip } from "@/features/onboarding/components";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 import { useVoiceCaptureSession } from "@/features/transactions/hooks/useVoiceCaptureSession";
@@ -47,6 +48,12 @@ export function VoiceCaptureBar() {
           style={[styles.barWrap, { paddingBottom: tabBarOffset + bottomGap }]}
           pointerEvents="box-none"
         >
+          <FirstUseTip
+            tipId="voice"
+            message="Say it naturally: “250 for lunch at Swiggy”"
+            seenOnUnmount
+            style={styles.tip}
+          />
           <View style={styles.card}>
             <Pressable
               accessibilityRole="button"
@@ -100,6 +107,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   barWrap: {
     paddingHorizontal: spacing.lg,
+  },
+  tip: {
+    marginBottom: spacing.sm,
   },
   card: {
     flexDirection: "row",

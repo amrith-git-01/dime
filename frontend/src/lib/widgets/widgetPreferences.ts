@@ -15,3 +15,14 @@ export function getHideWidgetAmounts(): boolean {
 export function setHideWidgetAmounts(hide: boolean): void {
   settingsMmkv.set(HIDE_AMOUNTS_KEY, hide ? "true" : "false");
 }
+
+const WIDGET_ADDED_KEY = "widget.added";
+
+/** True once the launcher has added a Dime widget on this device (set by the headless widget task). */
+export function getWidgetAdded(): boolean {
+  return settingsMmkv.getString(WIDGET_ADDED_KEY) === "true";
+}
+
+export function setWidgetAdded(): void {
+  settingsMmkv.set(WIDGET_ADDED_KEY, "true");
+}

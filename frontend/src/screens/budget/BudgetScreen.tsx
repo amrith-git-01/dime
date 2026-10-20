@@ -3,6 +3,7 @@ import {
   type FlashListRef,
   type ListRenderItem,
 } from "@shopify/flash-list";
+import { useIsFocused } from "@react-navigation/native";
 import { useRef } from "react";
 import { View } from "react-native";
 
@@ -23,6 +24,7 @@ import {
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
+import { FirstUseTip } from "@/features/onboarding/components";
 import { RecurringSection } from "@/features/recurring/components";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
@@ -64,8 +66,11 @@ export default function BudgetScreen() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
+    suggestedBudget,
     summaryLoading,
   } = useBudgetScreenModel();
+  // Tabs are preloaded behind the screen in view: tips wait until this one is.
+  const isFocused = useIsFocused();
   const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
   const recurring = useBudgetRecurringModel(listRef);
 
@@ -112,6 +117,14 @@ export default function BudgetScreen() {
               onEditBudget={handleEditBudget}
               onSetBudget={handleSetBudget}
               spentValue={monthSummary?.spentValue ?? 0}
+              suggestedBudget={suggestedBudget}
+            />
+
+            <FirstUseTip
+              tipId="budgets"
+              message="Your budget fills as you spend. Tap a category's icon to set its own limit."
+              enabled={isFocused}
+              style={styles.tip}
             />
 
             <TourTarget
@@ -124,6 +137,7 @@ export default function BudgetScreen() {
                 today={recurring.today}
                 onAdd={recurring.onAdd}
                 onItemPress={recurring.onItemPress}
+                tipEnabled={isFocused}
               />
             </TourTarget>
 
@@ -165,6 +179,10 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   content: {
     paddingBottom: spacing.xl * 4,
+  },
+  tip: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
   },
   sectionHeader: {
     paddingHorizontal: spacing.lg,

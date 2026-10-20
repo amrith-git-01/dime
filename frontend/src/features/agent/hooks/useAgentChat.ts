@@ -10,6 +10,7 @@ import {
 } from "@/features/agent/utils/agentChatState";
 import { getAgentErrorMessage } from "@/features/agent/utils/agentErrorMessage";
 import { createDeltaBatcher } from "@/features/agent/utils/createDeltaBatcher";
+import { invalidateOnboardingProgress } from "@/features/onboarding/cache/invalidateOnboardingProgress";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 
@@ -118,6 +119,8 @@ export function useAgentChat() {
         onFinal: (response) => {
           finish();
           invalidateLimitsQueries(queryClient);
+          // The server stamps "asked Dime AI" when a turn answers.
+          invalidateOnboardingProgress(queryClient);
           dispatch({ type: "final", requestId, response });
         },
         onError: ({ code, message, retryAfterSeconds }) => {

@@ -96,6 +96,16 @@ export async function recordUsage(db: Db, userId: string, nowMs: number, usage: 
   }
 }
 
+/** Remembers that the user got a real answer (the first time only), for the Home "Get started" checklist. Failures are logged, not thrown. */
+export async function markFirstAgentQuestion(db: Db, userId: string): Promise<void> {
+  try {
+    const now = nowIso();
+    await run(db, 'UPDATE users SET first_agent_question_at = COALESCE(first_agent_question_at, ?) WHERE id = ?', [now, userId]);
+  } catch (err) {
+    log.warn('agent_first_question_write_failed', { err: String(err) });
+  }
+}
+
 /** One rating per (user, turn): rating again replaces the previous one. */
 export async function saveFeedback(
   db: Db,

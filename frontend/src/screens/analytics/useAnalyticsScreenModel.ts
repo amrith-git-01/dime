@@ -23,7 +23,10 @@ import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsig
 import type { CompareMonthParam } from "@/features/analytics/utils/compareMonths";
 import { computeBurnRateMetrics } from "@/features/analytics/utils/computeBurnRateMetrics";
 import { fixedPlanFromOccurrences } from "@/features/analytics/utils/fixedPlan";
-import { buildEmptyBurnRateMetrics } from "@/features/analytics/utils/insightsEmptyState";
+import {
+  buildEmptyBurnRateMetrics,
+  isInsightsMonthEmpty,
+} from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import type { TransactionRow } from "@/features/transactions/types";
@@ -237,8 +240,11 @@ export function useAnalyticsScreenModel() {
   );
 
   const { chartsReady } = useDeferredHeavyCharts(Boolean(insightsData));
+  // A month with nothing logged shows one teaching card instead of empty charts.
+  const monthEmpty = chartsDataSettled && isInsightsMonthEmpty(insightsData);
 
   return {
+    monthEmpty,
     chartsReady,
     chartsDataSettled,
     monthOptions,

@@ -9,6 +9,7 @@ import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { budgetQueryKeys } from "@/features/budgets/queryKeys";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
+import { onboardingQueryKeys } from "@/features/onboarding/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { payeesQueryKeys } from "@/features/payees/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
@@ -92,6 +93,10 @@ describe("shouldDehydrateQuery", () => {
 
   it("never persists today's limits", () => {
     expect(persisted([limitsQueryKeys.current(USER)])).toEqual([]);
+  });
+
+  it("never persists the Get started progress", () => {
+    expect(persisted([onboardingQueryKeys.progress(USER)])).toEqual([]);
   });
 
   it("keeps the current and previous month of monthPages, monthSummary and insights", () => {

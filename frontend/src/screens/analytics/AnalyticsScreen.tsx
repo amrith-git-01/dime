@@ -1,3 +1,4 @@
+import { useIsFocused } from "@react-navigation/native";
 import { useRef } from "react";
 import { ScrollView } from "react-native";
 
@@ -10,6 +11,7 @@ import {
   InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
+  InsightsEmptyChartCard,
   InsightsFixedCostsCard,
   InsightsHeavyChartsPlaceholder,
   InsightsIncomeSourcesCard,
@@ -21,6 +23,7 @@ import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
+import { FirstUseTip } from "@/features/onboarding/components";
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 import { createThemedStyles } from "@/theme";
 
@@ -29,7 +32,9 @@ function AnalyticsInsightsScroll() {
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
+  const isFocused = useIsFocused();
   const {
+    monthEmpty,
     chartsReady,
     chartsDataSettled,
     monthOptions,
@@ -91,7 +96,15 @@ function AnalyticsInsightsScroll() {
         />
       </TourTarget>
 
-      {chartsReady ? (
+      <FirstUseTip
+        tipId="insights"
+        message="Use the arrows to change month. Tap a bar or a slice to see what is behind it."
+        enabled={isFocused}
+      />
+
+      {monthEmpty ? (
+        <InsightsEmptyChartCard onAddExpense={onManualAdd} />
+      ) : chartsReady ? (
         <>
           <InsightsBurnRateMetricCard
             metrics={burnRateMetrics}

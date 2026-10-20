@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
+import { GetStartedCard } from "@/features/onboarding/components";
 
 import { HeroMonthCard } from "./HeroMonthCard";
 import { HomeCategoriesSection } from "./HomeCategoriesSection";
@@ -16,7 +17,7 @@ const SECTION_GAP = spacing.xl;
 
 /**
  * Root composer for the Home screen.
- * Layout: HeroMonthCard → MonthStatRow → Upcoming → Categories → Recent
+ * Layout: HeroMonthCard → Get started (until done) → MonthStatRow → Upcoming → Categories → Recent
  */
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
@@ -39,6 +40,14 @@ export const HomeContent = memo(function HomeContent(
         splitLine={props.monthSplitLine}
         isLoading={isLoading}
         onAddBudget={props.onAddMonthlyBudget}
+      />
+
+      <GetStartedCard
+        onManualAdd={props.onManualAdd}
+        onVoice={props.onVoice}
+        onSetBudget={props.onAddMonthlyBudget}
+        onAddRecurring={props.onAddRecurring}
+        onAskAi={props.onAskAi}
       />
 
       <MonthStatRow
@@ -72,6 +81,7 @@ export const HomeContent = memo(function HomeContent(
         onViewAll={props.onNavigateTransactions}
         onTransactionPress={props.onTransactionPress}
         onManualAdd={props.onManualAdd}
+        onVoice={props.onVoice}
       />
     </View>
   );

@@ -2,6 +2,7 @@ import type { WidgetTaskHandlerProps } from "react-native-android-widget";
 
 import { settlePendingCaptures } from "@/features/widgetActions/utils/settleCapture";
 import { getSession } from "@/lib/auth/session";
+import { setWidgetAdded } from "@/lib/widgets/widgetPreferences";
 import { reportError } from "@/lib/reportError";
 
 import { renderWidget } from "./renderWidget";
@@ -25,6 +26,14 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
 
   switch (props.widgetAction) {
     case "WIDGET_ADDED":
+      // Remembered for the Home "Get started" checklist (MMKV only: this task can run with the app closed).
+      draw();
+      try {
+        setWidgetAdded();
+      } catch {
+        /* the checklist also asks the launcher (getWidgetInfo) when the app opens */
+      }
+      break;
     case "WIDGET_RESIZED":
       draw();
       break;

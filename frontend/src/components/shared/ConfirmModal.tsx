@@ -19,6 +19,8 @@ export type ConfirmModalProps = {
   title: string;
   message?: string | null;
   cancelLabel?: string;
+  /** False leaves only the confirm button (a how-to with a single "Done"). */
+  showCancel?: boolean;
   confirmLabel: string;
   /** Continuous-tense confirm label while busy ("Deleting"); derived from `confirmLabel` when omitted. */
   confirmBusyLabel?: string;
@@ -38,6 +40,7 @@ export const ConfirmModal = memo(function ConfirmModal({
   title,
   message,
   cancelLabel = "Cancel",
+  showCancel = true,
   confirmLabel,
   confirmBusyLabel,
   confirmTone = "primary",
@@ -120,14 +123,16 @@ export const ConfirmModal = memo(function ConfirmModal({
             ) : null}
 
             <View style={styles.footer}>
-              <View style={styles.cancelSlot}>
-                <Button
-                  title={cancelLabel}
-                  variant="secondary"
-                  onPress={onCancel}
-                  disabled={confirmLoading}
-                />
-              </View>
+              {showCancel ? (
+                <View style={styles.cancelSlot}>
+                  <Button
+                    title={cancelLabel}
+                    variant="secondary"
+                    onPress={onCancel}
+                    disabled={confirmLoading}
+                  />
+                </View>
+              ) : null}
               <View style={styles.confirmSlot}>
                 <Button
                   title={confirmLabel}
