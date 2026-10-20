@@ -9,6 +9,7 @@ export type ManualAddFormSnapshot = {
   txType: TransactionType;
   counterpartyName: string;
   counterpartyType: CounterpartyType;
+  brandId: string | null;
   category: string;
   categoryId: string | null;
   note: string;
@@ -35,6 +36,7 @@ export function transactionRowToFormState(
     txType: row.type === "credit" ? "credit" : "debit",
     counterpartyName: name.length > 0 ? name : row.merchant.trim(),
     counterpartyType: row.counterparty_type || DEFAULT_COUNTERPARTY_TYPE,
+    brandId: row.brand_id ?? null,
     category: (row.category ?? "").trim(),
     categoryId: row.category_id,
     note: (row.note ?? "").trim(),

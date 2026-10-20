@@ -8,6 +8,7 @@ import { notFound, onError } from './core/errors';
 import { requestId } from './core/request-id';
 import { agentRoutes } from './features/agent/routes';
 import { authRoutes } from './features/auth/routes';
+import { brandsRoutes, payeesRoutes } from './features/brands/routes';
 import { budgetRoutes } from './features/budgets/routes';
 import { categoriesRoutes } from './features/categories/routes';
 import { emailRoutes } from './features/email/routes';
@@ -55,6 +56,8 @@ export function createApp() {
   api.route('/me/push-token', pushTokenRoutes);
   api.route('/profile', profileAvatarRoutes);
   api.route('/categories', categoriesRoutes);
+  api.route('/brands', brandsRoutes); // catalogue search for the counterparty box
+  api.route('/payees', payeesRoutes); // the user's own payees (suggestions)
   api.route('/budget', budgetRoutes);
   api.route('/notifications', notificationsRoutes);
   api.route('/transactions', transactionRoutes);

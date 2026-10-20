@@ -2,6 +2,8 @@ import { ArrowLeftRight, ChartBar, House, Target } from "lucide-react-native";
 
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
+import { spacing } from "@/constants/spacing";
+
 export const TAB_ICON_SIZE = 22;
 export const ACTIVE_ICON_SIZE = 22;
 export const ACTIVE_BUBBLE_SIZE = 44;
@@ -11,6 +13,13 @@ export const OPTION_BUBBLE_SIZE = 44;
 export const LIQUID_PILL_WIDTH = 44;
 export const LIQUID_PILL_HEIGHT = 44;
 export const TOTAL_NAV_SLOTS = 5;
+
+/**
+ * Vertical center of the "+" FAB, measured from the top of the tab bar. The FAB is pulled up by half its size
+ * (DimeTabBarFab marginTop) and its slot is centered in the tabs row, so it sits at the same place whatever the
+ * system navigation inset below the bar is.
+ */
+export const FAB_CENTER_Y = (spacing.tabBarHeight - ACTION_BUBBLE_SIZE / 2) / 2;
 
 /** What the radial add-transaction menu shows for a limited option (receipt photo, voice). */
 export type FabCaptureOption = {

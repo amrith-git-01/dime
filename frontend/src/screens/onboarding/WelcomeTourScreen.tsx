@@ -54,7 +54,12 @@ export default function WelcomeTourScreen() {
       scrollEnabled={false}
       contentContainerStyle={styles.shellContent}
     >
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View
+        style={[
+          styles.screen,
+          { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+      >
         <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
@@ -123,7 +128,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
   screen: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
   },
   topBar: {
     flexDirection: "row",

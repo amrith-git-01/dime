@@ -26,6 +26,10 @@ export function useManualAddTransactionForm(
   const [counterpartyType, setCounterpartyType] = useState<CounterpartyType>(
     initial?.counterpartyType ?? DEFAULT_COUNTERPARTY_TYPE,
   );
+  // The catalogue brand picked in the counterparty search box; null for a name typed by hand.
+  const [brandId, setBrandId] = useState<string | null>(
+    initial?.brandId ?? null,
+  );
   const [category, setCategory] = useState(initial?.category ?? "");
   const [categoryId, setCategoryId] = useState<string | null>(
     initial?.categoryId ?? null,
@@ -40,6 +44,7 @@ export function useManualAddTransactionForm(
     setTxType(snap.txType);
     setCounterpartyName(snap.counterpartyName);
     setCounterpartyType(snap.counterpartyType);
+    setBrandId(snap.brandId);
     setCategory(snap.category);
     setCategoryId(snap.categoryId);
     setNote(snap.note);
@@ -52,12 +57,19 @@ export function useManualAddTransactionForm(
       txType: "debit",
       counterpartyName: "",
       counterpartyType: DEFAULT_COUNTERPARTY_TYPE,
+      brandId: null,
       category: "",
       categoryId: null,
       note: "",
       transactionAt: resolvePresetTransactionAt(presetDate),
     });
   }, [applySnapshot, presetDate]);
+
+  /** Typing changes the name, so a brand picked earlier no longer applies (the server re-matches the new name). */
+  const changeCounterpartyName = useCallback((text: string) => {
+    setCounterpartyName(text);
+    setBrandId(null);
+  }, []);
 
   const selectCategory = useCallback((id: string, name: string) => {
     setCategoryId(id);
@@ -83,6 +95,7 @@ export function useManualAddTransactionForm(
       type: txType,
       counterparty_name: name,
       counterparty_type: counterpartyType,
+      brand_id: brandId,
       category: category.trim() || null,
       category_id: categoryId,
       note: note.trim() || null,
@@ -90,6 +103,7 @@ export function useManualAddTransactionForm(
     };
   }, [
     amountText,
+    brandId,
     category,
     categoryId,
     counterpartyName,
@@ -106,8 +120,11 @@ export function useManualAddTransactionForm(
     setTxType,
     counterpartyName,
     setCounterpartyName,
+    changeCounterpartyName,
     counterpartyType,
     setCounterpartyType,
+    brandId,
+    setBrandId,
     category,
     setCategory,
     categoryId,

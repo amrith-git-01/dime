@@ -1,5 +1,8 @@
 import { submitManualTransaction } from "@/features/transactions/api/submitTransactionApi";
-import { DEFAULT_COUNTERPARTY_TYPE } from "@/features/transactions/counterpartyTypes";
+import {
+  DEFAULT_COUNTERPARTY_TYPE,
+  type CounterpartyType,
+} from "@/features/transactions/counterpartyTypes";
 import { paiseToAmountString } from "@/utils/paise";
 
 import { addedText } from "./captureText";
@@ -15,6 +18,10 @@ type AddExpenseInput = {
   /** Typed payee; empty falls back to the category's name. */
   payee: string;
   category: { id: string; name: string };
+  /** The catalogue brand picked as the payee, if any. */
+  brandId?: string | null;
+  /** Of the payee; a person picked from "your payees" stays a person. */
+  counterpartyType?: CounterpartyType;
   /** One per card session, so a retried Save cannot add the expense twice. */
   idempotencyKey: string;
   now?: Date;
@@ -35,6 +42,8 @@ export async function addExpense({
   amountPaise,
   payee,
   category,
+  brandId = null,
+  counterpartyType = DEFAULT_COUNTERPARTY_TYPE,
   idempotencyKey,
   now = new Date(),
 }: AddExpenseInput): Promise<string> {
@@ -44,7 +53,8 @@ export async function addExpense({
       amount: paiseToAmountString(amountPaise),
       type: "debit",
       counterparty_name: name,
-      counterparty_type: DEFAULT_COUNTERPARTY_TYPE,
+      counterparty_type: counterpartyType,
+      brand_id: brandId,
       category: category.name,
       category_id: category.id,
       note: null,

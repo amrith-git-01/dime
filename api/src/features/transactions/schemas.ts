@@ -114,6 +114,8 @@ const bodyShape = z.object({
   counterparty_type: counterpartyType,
   category: trimmedOrNull(120),
   category_id: uuidString.nullish(),
+  /** A catalogue brand the user picked; unknown ids are ignored and the brand is resolved from the name. */
+  brand_id: z.string().max(64).nullish(),
   note: trimmedOrNull(2000),
   transaction_at: datetimeInput,
 });
@@ -186,10 +188,12 @@ export interface TransactionRow {
   payment_hash?: string | null;
   /** The recurring item that posted this row; null for everything else. */
   recurring_item_id?: string | null;
+  /** Catalogue brand (`brands.id`); null for people, local shops and unmatched names. */
+  brand_id?: string | null;
 }
 
 export const LIST_COLUMNS =
-  'id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,category_id,note,detected_via,receipt_url,voice_url,transaction_at,created_at,updated_at,recurring_item_id';
+  'id,user_id,amount,type,counterparty_name,counterparty_type,counterparty_normalized,category_id,note,detected_via,receipt_url,voice_url,transaction_at,created_at,updated_at,recurring_item_id,brand_id';
 export const DETAIL_COLUMNS = `${LIST_COLUMNS},deleted_at,payment_hash`;
 
 export interface TransactionResponse {
@@ -209,6 +213,8 @@ export interface TransactionResponse {
   category_scope: CategoryScope | null;
   /** The recurring item that posted this row; null for everything else. */
   recurring_item_id: string | null;
+  /** Catalogue brand this was paid to / received from (`brands.id`), or null. */
+  brand_id: string | null;
   note: string | null;
   detected_via: string | null;
   transaction_at: string;

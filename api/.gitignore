@@ -7,3 +7,4 @@ dist
 coverage
 scripts/parity/.build
 evals/reports
+scripts/brands/out

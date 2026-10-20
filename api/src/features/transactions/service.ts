@@ -6,6 +6,7 @@ import type { Db } from '../../core/db';
 import { isoUtc, isoUtcOrNull } from '../../core/timestamps';
 import { addDays, dateKey, lastNDaysRange, localDate, monthRange, parseTimezone } from '../../core/timezone';
 import type { IsoRange } from '../../core/timezone';
+import { existingBrandId, resolveBrandId } from '../brands/service';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
 import type { CategoryScope } from '../categories/schemas';
@@ -116,6 +117,7 @@ function toResponse(row: TransactionRow, enrichment: Enrichment): TransactionRes
     category_color: typeof cat?.color === 'string' ? cat.color : null,
     category_scope: cat?.scope ?? null,
     recurring_item_id: row.recurring_item_id ?? null,
+    brand_id: row.brand_id ?? null,
     note: row.note ?? null,
     detected_via: normalizeDetectedVia(row.detected_via),
     transaction_at: isoUtc(row.transaction_at),
@@ -306,6 +308,8 @@ export interface NewTransactionInput {
   counterpartyType?: CounterpartyType | null | undefined;
   categoryId?: string | null | undefined;
   categoryName?: string | null | undefined;
+  /** A catalogue brand the user picked; unknown ids are ignored. Without one the brand is resolved from the name. */
+  brandId?: string | null | undefined;
   note?: string | null | undefined;
   transactionAt: Instant;
   /** Server-set only: `manual` for the public endpoint, capture sources for the R3 workers. */
@@ -316,6 +320,17 @@ export interface NewTransactionInput {
   paymentHash?: string | undefined;
   /** Server-set only: the recurring item that produced this row. */
   recurringItemId?: string | undefined;
+}
+
+/** People and own-account transfers are never linked to a brand by name. */
+const UNBRANDED_TYPES: ReadonlySet<string> = new Set(['person', 'self_transfer']);
+
+/** The picked brand when it exists in the catalogue, else the brand the payee name resolves to (null for people and unknown names). */
+async function pickBrand(db: Db, picked: string | null | undefined, name: string, counterpartyType: string | null | undefined): Promise<string | null> {
+  if (counterpartyType && UNBRANDED_TYPES.has(counterpartyType)) return null; // even a picked brand: a person is not a brand
+  const known = await existingBrandId(db, picked);
+  if (known) return known;
+  return resolveBrandId(db, name);
 }
 
 export type CreateResult =
@@ -339,9 +354,10 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
       counterpartyName: name,
       transactionAtMs: input.transactionAt.ms,
     }));
-  const [resolved, existing] = await Promise.all([
+  const [resolved, existing, brandId] = await Promise.all([
     resolveCategory(ctx, input, Boolean(input.recurringItemId)),
     repo.findByPaymentHash(ctx.db, ctx.userId, paymentHash),
+    pickBrand(ctx.db, input.brandId, name, input.counterpartyType),
   ]);
   // Recurring-scope categories belong to recurring items: only the poster (which sets `recurringItemId`, and is trusted) may use one.
   if (resolved && !input.recurringItemId && resolved.scope !== 'spend') throw new ValidationError(RECURRING_ONLY);
@@ -361,6 +377,7 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     counterparty_normalized: normalized,
     payment_hash: paymentHash,
     recurring_item_id: input.recurringItemId ?? null,
+    brand_id: brandId,
   };
   if (input.counterpartyType) row.counterparty_type = input.counterpartyType;
 
@@ -401,6 +418,7 @@ export function createManual(ctx: TxContext, body: TransactionWriteBody): Promis
     counterpartyType: body.counterparty_type,
     categoryId: body.category_id,
     categoryName: body.category,
+    brandId: body.brand_id,
     note: body.note,
     transactionAt: body.transaction_at,
     detectedVia: 'manual',
@@ -453,6 +471,14 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     counterparty_normalized: normalized,
   };
   if (body.counterparty_type) patch['counterparty_type'] = body.counterparty_type;
+
+  // A picked brand wins. Otherwise the brand follows the payee name: re-resolved whenever brand_id is sent (the app
+  // sends null for a typed name, which may still be a known brand) or the name or type changed; kept otherwise.
+  const payeeChanged =
+    name !== (existing.counterparty_name ?? '').trim() || Boolean(body.counterparty_type && body.counterparty_type !== existing.counterparty_type);
+  if (body.brand_id !== undefined || payeeChanged) {
+    patch['brand_id'] = await pickBrand(ctx.db, body.brand_id, name, body.counterparty_type ?? existing.counterparty_type);
+  }
 
   // Keep the duplicate-detection fingerprint in step with the editable fields.
   if (newHash !== existing.payment_hash) {

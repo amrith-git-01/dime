@@ -12,6 +12,8 @@ import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { AppTextInput } from "@/components/ui";
 import { fontFamilies, radius, spacing } from "@/constants";
 import type { CategoryRow } from "@/features/categories/types";
+import { CounterpartySearchField } from "@/features/payees/components/CounterpartySearchField";
+import type { CounterpartySelection } from "@/features/payees/types";
 import { type CounterpartyType } from "@/features/transactions/counterpartyTypes";
 import type { TransactionType } from "@/features/transactions/types";
 
@@ -35,6 +37,10 @@ export type ManualAddTransactionEditorProps = {
   onCounterpartyTypeChange: (value: CounterpartyType) => void;
   counterpartyName: string;
   onCounterpartyNameChange: (text: string) => void;
+  /** The catalogue brand picked for the name, if any. */
+  brandId: string | null;
+  /** A payee or brand was picked in the search box (fills name, brand, type and maybe the category). */
+  onCounterpartySelect: (selection: CounterpartySelection) => void;
   categoriesLoading: boolean;
   visibleCategories: CategoryRow[];
   /**
@@ -94,6 +100,8 @@ export const ManualAddTransactionEditor = memo(
     onCounterpartyTypeChange,
     counterpartyName,
     onCounterpartyNameChange,
+    brandId,
+    onCounterpartySelect,
     categoriesLoading,
     visibleCategories,
     lockedCategory,
@@ -115,7 +123,6 @@ export const ManualAddTransactionEditor = memo(
   }: ManualAddTransactionEditorProps) {
     const { colors } = useTheme();
     const styles = useStyles();
-    const [nameFocused, setNameFocused] = useState(false);
     const [noteFocused, setNoteFocused] = useState(false);
 
     const saveDisabled =
@@ -196,20 +203,16 @@ export const ManualAddTransactionEditor = memo(
             <Text style={styles.sectionLabel}>COUNTERPARTY NAME</Text>
             {requiredTag}
           </View>
-          <AppTextInput
-            style={[
-              styles.nameInput,
-              styles.nameInputFirst,
-              nameFocused && styles.nameInputFocused,
-            ]}
-            placeholder={NAME_PLACEHOLDER[counterpartyType]}
-            placeholderTextColor={colors.inkFaint}
-            value={counterpartyName}
-            onChangeText={onCounterpartyNameChange}
-            onFocus={() => setNameFocused(true)}
-            onBlur={() => setNameFocused(false)}
-            returnKeyType="next"
-          />
+          <View style={styles.nameField}>
+            <CounterpartySearchField
+              txType={txType}
+              value={counterpartyName}
+              onChangeText={onCounterpartyNameChange}
+              onSelect={onCounterpartySelect}
+              brandId={brandId}
+              placeholder={NAME_PLACEHOLDER[counterpartyType]}
+            />
+          </View>
           <View style={[styles.cardHeader, styles.cardHeaderSpaced]}>
             <Text style={styles.sectionLabel}>COUNTERPARTY TYPE</Text>
             {requiredTag}
@@ -410,7 +413,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     minHeight: 44,
     backgroundColor: colors.surface,
   },
-  nameInputFirst: {
+  nameField: {
     marginTop: spacing.sm,
   },
   nameInputFocused: {

@@ -104,6 +104,7 @@ describe('GET /transactions', () => {
       category_color: '#111111',
       category_scope: 'spend',
       recurring_item_id: null,
+      brand_id: null,
       note: null,
       detected_via: 'sms',
       transaction_at: '2026-10-04T10:00:00.000Z',
@@ -589,6 +590,7 @@ describe('POST /transactions', () => {
       payment_hash: await hashFor(),
       payee_key: 'acme corp',
       recurring_item_id: null,
+      brand_id: null,
     });
   });
 

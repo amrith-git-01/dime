@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { payeesQueryKeys } from "@/features/payees/queryKeys";
 import { recurringQueryKeys } from "@/features/recurring/queryKeys";
 
 import { transactionsQueryKeys } from "../queryKeys";
@@ -9,7 +10,7 @@ import { transactionsQueryKeys } from "../queryKeys";
 /**
  * Refreshes everything derived from the transactions table: list/home/month-summary/detail
  * queries, month insights, the recurring paid / upcoming month view (a cron post or a delete changes it),
- * and the notification badge (budget alerts are raised server-side).
+ * the user's own payee suggestions, and the notification badge (budget alerts are raised server-side).
  * Only active queries refetch now; inactive ones are marked stale and refetch when next used.
  */
 export function invalidateTransactionDerivedQueries(
@@ -18,6 +19,7 @@ export function invalidateTransactionDerivedQueries(
   void queryClient.invalidateQueries({ queryKey: transactionsQueryKeys.all });
   void queryClient.invalidateQueries({ queryKey: insightsQueryKeys.all });
   void queryClient.invalidateQueries({ queryKey: recurringQueryKeys.all });
+  void queryClient.invalidateQueries({ queryKey: payeesQueryKeys.suggestionsAll });
   void queryClient.invalidateQueries({
     queryKey: notificationQueryKeys.all,
   });

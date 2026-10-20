@@ -3,9 +3,15 @@ import { CheckCircle2 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
-import { Button, TextField } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { fontFamilies, spacing } from "@/constants";
 import { useCategories } from "@/features/categories/hooks/useCategories";
+import { CounterpartySearchField } from "@/features/payees/components/CounterpartySearchField";
+import { useCounterpartySelect } from "@/features/payees/hooks/useCounterpartySelect";
+import {
+  DEFAULT_COUNTERPARTY_TYPE,
+  type CounterpartyType,
+} from "@/features/transactions/counterpartyTypes";
 import {
   ManualAddAmountSection,
   ManualAddCategorySection,
@@ -39,6 +45,8 @@ export function QuickAddCard({ userId }: { userId: string }) {
 
   const [amountText, setAmountText] = useState("");
   const [payee, setPayee] = useState("");
+  const [payeeBrandId, setPayeeBrandId] = useState<string | null>(null);
+  const [payeeType, setPayeeType] = useState<CounterpartyType>(DEFAULT_COUNTERPARTY_TYPE);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +57,21 @@ export function QuickAddCard({ userId }: { userId: string }) {
   const amountPaise = parseAmountInputToPaise(amountText);
   const category = expenseCategories.find((row) => row.id === categoryId) ?? null;
   const canSave = amountPaise !== null && category !== null && !saving;
+
+  const onPayeeChange = (text: string) => {
+    setPayee(text);
+    setPayeeBrandId(null);
+    setPayeeType(DEFAULT_COUNTERPARTY_TYPE);
+  };
+  const onPayeeSelect = useCounterpartySelect({
+    txType: "debit",
+    categoryId,
+    categories: expenseCategories,
+    setCounterpartyName: setPayee,
+    setCounterpartyType: setPayeeType,
+    setBrandId: setPayeeBrandId,
+    selectCategory: setCategoryId,
+  });
 
   useEffect(() => {
     if (addedText === null) {
@@ -70,6 +93,8 @@ export function QuickAddCard({ userId }: { userId: string }) {
           userId,
           amountPaise,
           payee,
+          brandId: payeeBrandId,
+          counterpartyType: payeeType,
           category: { id: category.id, name: category.name },
           idempotencyKey: idempotencyKeyRef.current,
         }),
@@ -106,15 +131,14 @@ export function QuickAddCard({ userId }: { userId: string }) {
         autoFocus
       />
       <View style={styles.body}>
-        <TextField
-          label="Paid to"
-          hideLabel
-          placeholder="Paid to (optional)"
+        <CounterpartySearchField
+          compact
+          txType="debit"
           value={payee}
-          onChangeText={setPayee}
-          maxLength={200}
-          autoCapitalize="sentences"
-          returnKeyType="done"
+          onChangeText={onPayeeChange}
+          onSelect={onPayeeSelect}
+          brandId={payeeBrandId}
+          placeholder="Paid to (optional)"
           editable={!saving}
         />
         <ScrollView
