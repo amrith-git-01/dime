@@ -48,6 +48,7 @@ describe("addExpense", () => {
         type: "debit",
         counterparty_name: "Swiggy",
         counterparty_type: "merchant",
+        brand_id: null,
         category: "Food",
         category_id: "cat-food",
         note: null,
@@ -56,6 +57,24 @@ describe("addExpense", () => {
       "key-1",
     );
     expect(text).toBe(addedText(250.5, "Swiggy"));
+  });
+
+  it("passes a picked brand and the payee's type through", async () => {
+    await addExpense({
+      userId: "user-a",
+      amountPaise: 12000,
+      payee: "Swiggy",
+      brandId: "wd:swiggy",
+      counterpartyType: "person",
+      category: FOOD,
+      idempotencyKey: "key-brand",
+      now: NOW,
+    });
+    expect(jest.mocked(submitManualTransaction).mock.calls[0]![0]).toMatchObject({
+      counterparty_name: "Swiggy",
+      counterparty_type: "person",
+      brand_id: "wd:swiggy",
+    });
   });
 
   it("names the payee after the category when none is typed, and tells the widget", async () => {

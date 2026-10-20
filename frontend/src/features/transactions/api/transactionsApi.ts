@@ -20,6 +20,8 @@ export type CreateTransactionBody = {
   counterparty_type: CounterpartyType;
   category: string | null;
   category_id?: string | null;
+  /** A brand picked from the catalogue; null for a typed name (the server matches known names itself). */
+  brand_id?: string | null;
   note: string | null;
   /** ISO-8601 datetime string */
   transaction_at: string;

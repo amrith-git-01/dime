@@ -2,7 +2,7 @@ import { env as workerEnv } from 'cloudflare:workers';
 
 import { decimalToCents } from '../src/core/decimal';
 import { nowIso } from '../src/core/db';
-import { normalizedOrNull, payeeKey } from '../src/features/transactions/dedupe';
+import { normalizeCounterparty, normalizedOrNull, payeeKey } from '../src/features/transactions/dedupe';
 
 /** The local D1 the tests (and the app under test) share. */
 export const testDb = (): D1Database => workerEnv.DB;
@@ -27,6 +27,9 @@ const TABLES = [
   'budgets',
   'transactions',
   'recurring_items', // after transactions: they reference it
+  'brand_aliases',
+  'brands_fts', // virtual table: a plain DELETE empties it
+  'brands', // after transactions and aliases: both reference it
 ];
 
 /** Empty every table (system categories stay: they are seed data) and seed the default test user. */
@@ -72,6 +75,7 @@ export interface SeedTransaction {
   deleted_at?: string | null;
   payment_hash?: string | null;
   recurring_item_id?: string | null;
+  brand_id?: string | null;
 }
 
 export async function seedTransaction(over: SeedTransaction = {}): Promise<string> {
@@ -82,8 +86,8 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
   await testDb()
     .prepare(
       `INSERT INTO transactions (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, deleted_at,
-         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id, brand_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -105,9 +109,23 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
       over.payment_hash ?? null,
       payeeKey(normalized, name),
       over.recurring_item_id ?? null,
+      over.brand_id ?? null,
     )
     .run();
   return id;
+}
+
+/** A catalogue brand with its aliases (the brand's own normalised name is always one), indexed for search like the catalogue script does. */
+export async function seedBrand(over: { id: string; name: string; popularity?: number; domain?: string | null; category_id?: string | null; aliases?: string[] }) {
+  const db = testDb();
+  const aliases = [...new Set([normalizeCounterparty(over.name), ...(over.aliases ?? [])])];
+  await db.batch([
+    db
+      .prepare("INSERT INTO brands (id, name, domain, category_id, popularity, source) VALUES (?, ?, ?, ?, ?, 'manual')")
+      .bind(over.id, over.name, over.domain ?? null, over.category_id ?? null, over.popularity ?? 0),
+    ...aliases.map((a) => db.prepare('INSERT INTO brand_aliases (alias, brand_id) VALUES (?, ?)').bind(a, over.id)),
+    db.prepare('INSERT INTO brands_fts (brand_id, name, aliases) VALUES (?, ?, ?)').bind(over.id, over.name, (over.aliases ?? []).join(' ')),
+  ]);
 }
 
 export async function seedCategory(over: { id?: string; user_id?: string | null; name: string; icon_name?: string; color?: string; is_system?: boolean; scope?: string; created_at?: string }) {

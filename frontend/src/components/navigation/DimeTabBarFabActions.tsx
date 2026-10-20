@@ -17,11 +17,18 @@ import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 import {
-  ACTION_BUBBLE_SIZE,
+  FAB_CENTER_Y,
   OPTION_BUBBLE_SIZE,
   type FabCaptureOption,
 } from "./dimeTabBarConfig";
 import { createThemedStyles, useTheme } from "@/theme";
+
+// Open positions, measured from the center of the "+" FAB (dp).
+const SIDE_X = 52;
+const SIDE_Y = -43;
+const TOP_Y = -63;
+// Closed: tucked just below the FAB's center, so the bubbles grow out of the button.
+const START_Y = 7;
 
 /** Remaining-count badge on a limited option; the full caption lives in the a11y label. */
 function CaptureBadge({ option }: { option?: FabCaptureOption }) {
@@ -74,8 +81,8 @@ export function DimeTabBarFabActions({
   const manualActionStyle = useAnimatedStyle(() => ({
     opacity: actionsProgress.value,
     transform: [
-      { translateX: interpolate(actionsProgress.value, [0, 1], [0, -52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
+      { translateX: interpolate(actionsProgress.value, [0, 1], [0, -SIDE_X]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [START_Y, SIDE_Y]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -83,7 +90,7 @@ export function DimeTabBarFabActions({
   const photoActionStyle = useAnimatedStyle(() => ({
     opacity: actionsProgress.value,
     transform: [
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -58]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [START_Y, TOP_Y]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -91,8 +98,8 @@ export function DimeTabBarFabActions({
   const voiceActionStyle = useAnimatedStyle(() => ({
     opacity: actionsProgress.value,
     transform: [
-      { translateX: interpolate(actionsProgress.value, [0, 1], [0, 52]) },
-      { translateY: interpolate(actionsProgress.value, [0, 1], [12, -38]) },
+      { translateX: interpolate(actionsProgress.value, [0, 1], [0, SIDE_X]) },
+      { translateY: interpolate(actionsProgress.value, [0, 1], [START_Y, SIDE_Y]) },
       { scale: interpolate(actionsProgress.value, [0, 1], [0.92, 1]) },
     ],
   }));
@@ -189,9 +196,11 @@ export function DimeTabBarFabActions({
 }
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  // Centered on the FAB, measured from the top of the bar: a `bottom` offset would move with the system
+  // navigation inset (three-button nav is ~48dp taller than gestures) and drop the bubbles onto the bar.
   actionsRow: {
     position: "absolute",
-    bottom: ACTION_BUBBLE_SIZE - 14,
+    top: FAB_CENTER_Y - OPTION_BUBBLE_SIZE / 2,
     left: "50%",
     marginLeft: -(OPTION_BUBBLE_SIZE / 2),
     width: OPTION_BUBBLE_SIZE,
@@ -200,13 +209,13 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     justifyContent: "center",
     zIndex: 20,
   },
-  // Spans the three bubbles at rest-open: ±52px sideways, 58px up, plus the bubble radius.
+  // Spans the three bubbles at rest-open: SIDE_X sideways, TOP_Y up, plus the bubble size.
   fanBounds: {
     position: "absolute",
-    left: -52,
-    top: -58,
-    width: 148,
-    height: 74,
+    left: -SIDE_X,
+    top: TOP_Y,
+    width: SIDE_X * 2 + OPTION_BUBBLE_SIZE,
+    height: SIDE_Y - TOP_Y + OPTION_BUBBLE_SIZE,
   },
   actionBubble: {
     position: "absolute",

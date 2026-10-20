@@ -16,7 +16,8 @@
     "cf-typegen": "wrangler types --strict-vars=false",
     "evals": "tsx evals/run.ts",
     "evals:validate": "vitest run test/agent-evals.test.ts",
-    "evals:generate": "tsx evals/generate.ts"
+    "evals:generate": "tsx evals/generate.ts",
+    "brands:build": "tsx scripts/brands/build.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",

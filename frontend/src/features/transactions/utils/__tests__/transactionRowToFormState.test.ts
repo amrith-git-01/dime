@@ -39,6 +39,11 @@ describe("transactionRowToFormState", () => {
     expect(debit.transactionAt.toISOString()).toBe("2026-08-02T12:00:00.000Z");
   });
 
+  it("carries the catalogue brand, or null when the row has none", () => {
+    expect(transactionRowToFormState(row({ brand_id: "wd:swiggy" })).brandId).toBe("wd:swiggy");
+    expect(transactionRowToFormState(row({})).brandId).toBeNull();
+  });
+
   it("maps a credit row with fallbacks", () => {
     const credit = transactionRowToFormState(
       row({

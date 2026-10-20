@@ -8,6 +8,7 @@ import { Alert, Keyboard, Platform } from "react-native";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
+import { useCounterpartySelect } from "@/features/payees/hooks/useCounterpartySelect";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
@@ -31,8 +32,10 @@ export function useManualAddTransactionScreenModel() {
   const form = useManualAddTransactionForm(undefined, route.params?.presetDate);
   const {
     amountText,
+    brandId,
     buildPayload,
     categoryId,
+    changeCounterpartyName,
     clearCategory,
     counterpartyName,
     counterpartyType,
@@ -40,6 +43,7 @@ export function useManualAddTransactionScreenModel() {
     reset,
     selectCategory,
     setAmountText,
+    setBrandId,
     setCounterpartyName,
     setCounterpartyType,
     setNote,
@@ -49,6 +53,15 @@ export function useManualAddTransactionScreenModel() {
     txType,
   } = form;
   const { categories, isLoading: categoriesLoading } = useCategories("spend");
+  const selectCounterparty = useCounterpartySelect({
+    txType,
+    categoryId,
+    categories,
+    setCounterpartyName,
+    setCounterpartyType,
+    setBrandId,
+    selectCategory,
+  });
 
   const [amountFocused, setAmountFocused] = useState(false);
   const [iosPickerMode, setIosPickerMode] =
@@ -249,7 +262,9 @@ export function useManualAddTransactionScreenModel() {
     counterpartyType,
     setCounterpartyType,
     counterpartyName,
-    setCounterpartyName,
+    changeCounterpartyName,
+    brandId,
+    selectCounterparty,
     categoriesLoading,
     visibleCategories,
     categoryId,

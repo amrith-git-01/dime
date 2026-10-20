@@ -18,7 +18,9 @@ export default function EditTransactionScreen() {
       counterpartyType={model.counterpartyType}
       onCounterpartyTypeChange={model.setCounterpartyType}
       counterpartyName={model.counterpartyName}
-      onCounterpartyNameChange={model.setCounterpartyName}
+      onCounterpartyNameChange={model.changeCounterpartyName}
+      brandId={model.brandId}
+      onCounterpartySelect={model.selectCounterparty}
       categoriesLoading={model.categoriesLoading}
       visibleCategories={model.visibleCategories}
       lockedCategory={model.lockedCategory}

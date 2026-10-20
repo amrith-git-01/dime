@@ -10,6 +10,7 @@ import { budgetQueryKeys } from "@/features/budgets/queryKeys";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { payeesQueryKeys } from "@/features/payees/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 
 import {
@@ -78,6 +79,15 @@ describe("shouldDehydrateQuery", () => {
       notificationQueryKeys.unreadCount(USER),
     ];
     expect(persisted(excluded)).toEqual([]);
+  });
+
+  it("never persists payee and brand search results", () => {
+    expect(
+      persisted([
+        payeesQueryKeys.brandSearch(USER, "swi"),
+        payeesQueryKeys.suggestions(USER, "debit", "", 8),
+      ]),
+    ).toEqual([]);
   });
 
   it("never persists today's limits", () => {

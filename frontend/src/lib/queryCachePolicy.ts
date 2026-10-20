@@ -4,6 +4,7 @@ import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
+import { payeesQueryKeys } from "@/features/payees/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import { reportError } from "@/lib/reportError";
 
@@ -46,7 +47,7 @@ function isRecentMonth(
 
 /**
  * Which queries are written to disk. Lists with arbitrary ranges/filters, per-month history
- * beyond the previous month, detail rows, notifications (own snapshot) and daily limits stay in memory only.
+ * beyond the previous month, detail rows, notifications (own snapshot), daily limits and payee search stay in memory only.
  */
 export function shouldDehydrateQuery(
   query: Query,
@@ -57,6 +58,10 @@ export function shouldDehydrateQuery(
   }
   const [root, kind] = query.queryKey;
   if (root === notificationQueryKeys.all[0]) {
+    return false;
+  }
+  // Search results are cheap to refetch and change with every keystroke.
+  if (root === payeesQueryKeys.all[0]) {
     return false;
   }
   // Today's counters are only true for minutes; never restore yesterday's numbers on launch.

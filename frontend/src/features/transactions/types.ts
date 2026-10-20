@@ -24,6 +24,8 @@ export type TransactionRow = {
   category_scope?: CategoryScope | null;
   /** The recurring item that posted this row. */
   recurring_item_id?: string | null;
+  /** Catalogue brand this was paid to / received from; null for people and unmatched names. */
+  brand_id?: string | null;
   note: string | null;
   detected_via: string | null;
   transaction_at: string;

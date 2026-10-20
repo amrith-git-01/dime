@@ -8,6 +8,7 @@ import { Alert, Keyboard, Platform } from "react-native";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
+import { useCounterpartySelect } from "@/features/payees/hooks/useCounterpartySelect";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
@@ -42,14 +43,17 @@ export function useEditTransactionScreenModel() {
   const {
     amountText,
     applySnapshot,
+    brandId,
     buildPayload,
     categoryId,
+    changeCounterpartyName,
     clearCategory,
     counterpartyName,
     counterpartyType,
     note,
     selectCategory,
     setAmountText,
+    setBrandId,
     setCounterpartyName,
     setCounterpartyType,
     setNote,
@@ -58,6 +62,15 @@ export function useEditTransactionScreenModel() {
     transactionAt,
     txType,
   } = form;
+  const selectCounterparty = useCounterpartySelect({
+    txType,
+    categoryId,
+    categories,
+    setCounterpartyName,
+    setCounterpartyType,
+    setBrandId,
+    selectCategory,
+  });
   const updateMutation = useUpdateTransactionMutation();
   const pendingReturnCategoryIdRef = useRef<string | null>(null);
 
@@ -323,7 +336,9 @@ export function useEditTransactionScreenModel() {
     counterpartyType,
     setCounterpartyType,
     counterpartyName,
-    setCounterpartyName,
+    changeCounterpartyName,
+    brandId,
+    selectCounterparty,
     categoriesLoading,
     visibleCategories,
     lockedCategory,

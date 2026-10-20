@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "main": "index.js",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "scripts": {
     "start": "expo start",
     "prebuild:android": "expo prebuild --platform android",
