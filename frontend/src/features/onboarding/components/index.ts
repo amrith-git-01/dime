@@ -1,4 +1,4 @@
 export { FirstUseTip, type FirstUseTipProps } from "./FirstUseTip";
 export { GetStartedCard, type GetStartedCardActions } from "./GetStartedCard";
-export { WelcomeHero } from "./WelcomeHero";
+export { FeatureReel, type FeatureReelProps } from "./reel/FeatureReel";
 export { WelcomeTrustLines } from "./WelcomeTrustLines";
