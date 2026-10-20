@@ -9,18 +9,23 @@ import { formatInrCompact } from "@/utils/currency";
 
 import {
   REEL_CATEGORIES,
-  ReelRow,
+  ReelPayeeRow,
   ReelText,
   type ReelSceneProps,
 } from "../ReelParts";
 import { easeOut, easeOutBack, lerp, seg } from "../reelMotion";
+import {
+  MONTH_TOTAL,
+  MONTH_TOTAL_BEFORE_QUICK_ADD,
+  REEL_PAYEES,
+} from "../reelStory";
 import { ROW_HEIGHT, useReelStyles } from "../reelStyles";
 import { useClockValue } from "../useClockValue";
 
-const ENTRY_AMOUNT = 120;
+const ENTRY_AMOUNT = REEL_PAYEES.chai.amount;
 const ENTRY_DIGITS = String(ENTRY_AMOUNT);
-const START_TOTAL = 4740;
-const FINAL_TOTAL = START_TOTAL + ENTRY_AMOUNT;
+const START_TOTAL = MONTH_TOTAL_BEFORE_QUICK_ADD;
+const FINAL_TOTAL = MONTH_TOTAL;
 
 // "+" is pressed, the entry slides in and its amount is typed, the category lands, the total
 // counts up. Animations are done by ~3.3 s; the rest is the hold.
@@ -55,7 +60,7 @@ function readTypedDigits(ms: number): number {
   );
 }
 
-/** Scene 1: tap "+", type an amount, the entry lands in the list and the month total counts up. */
+/** Scene 3: tap "+", type an amount, the entry lands in the list and the month total counts up. */
 export function QuickAddScene({ clock, initialMs }: ReelSceneProps) {
   const styles = useReelStyles();
   const local = useStyles();
@@ -148,7 +153,7 @@ export function QuickAddScene({ clock, initialMs }: ReelSceneProps) {
             </View>
             <View style={styles.rowText}>
               <Animated.View style={titleStyle}>
-                <ReelText style={styles.rowTitle}>Chai</ReelText>
+                <ReelText style={styles.rowTitle}>{REEL_PAYEES.chai.title}</ReelText>
               </Animated.View>
               <Animated.View style={[styles.chip, chipStyle]}>
                 <ReelText style={styles.chipText}>{food.name}</ReelText>
@@ -158,19 +163,10 @@ export function QuickAddScene({ clock, initialMs }: ReelSceneProps) {
           </Animated.View>
         </Animated.View>
 
-        <ReelRow
-          category={REEL_CATEGORIES.shopping}
-          title="Groceries"
-          meta="Shopping"
-          amount={860}
-        />
-        <ReelRow
-          category={REEL_CATEGORIES.transport}
-          title="Metro"
-          meta="Transport"
-          amount={45}
-        />
-        <ReelRow category={food} title="Lunch" meta={food.name} amount={210} />
+        {/* Newest first: the rows the Voice and Receipt scenes added. */}
+        <ReelPayeeRow payee={REEL_PAYEES.smoor} />
+        <ReelPayeeRow payee={REEL_PAYEES.swiggy} />
+        <ReelPayeeRow payee={REEL_PAYEES.rapido} />
       </View>
     </View>
   );

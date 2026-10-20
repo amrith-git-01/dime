@@ -31,12 +31,23 @@ describe("scene list", () => {
   it("has six scenes with the agreed captions, in order", () => {
     expect(REEL_SCENE_COUNT).toBe(6);
     expect(REEL_SCENES.map((scene) => scene.caption)).toEqual([
-      "Add it in seconds",
       "Just say it",
       "Snap the receipt",
+      "Add it in seconds",
       "Know what's left",
       "See where it went",
       "Ask anything",
+    ]);
+  });
+
+  it("lists the scene ids in the agreed order, each once", () => {
+    expect(REEL_SCENES.map((scene) => scene.id)).toEqual([
+      "voice",
+      "receipt",
+      "quickAdd",
+      "budget",
+      "insights",
+      "askAi",
     ]);
   });
 });
@@ -134,23 +145,29 @@ describe("swipe resolution", () => {
 
 describe("segment fill", () => {
   it("fills past, runs the active one and empties the rest", () => {
-    expect(getSegmentFill(0, 2, false)).toBe("full");
-    expect(getSegmentFill(1, 2, false)).toBe("full");
-    expect(getSegmentFill(2, 2, false)).toBe("live");
-    expect(getSegmentFill(3, 2, false)).toBe("empty");
+    expect(getSegmentFill(0, 2, false, "playing")).toBe("full");
+    expect(getSegmentFill(1, 2, false, "playing")).toBe("full");
+    expect(getSegmentFill(2, 2, false, "playing")).toBe("live");
+    expect(getSegmentFill(3, 2, false, "playing")).toBe("empty");
+  });
+
+  it("completes the active segment while the scene is leaving", () => {
+    expect(getSegmentFill(1, 2, false, "exiting")).toBe("full");
+    expect(getSegmentFill(2, 2, false, "exiting")).toBe("full");
+    expect(getSegmentFill(3, 2, false, "exiting")).toBe("empty");
   });
 
   it("with reduced motion only the active segment is filled", () => {
-    expect(getSegmentFill(0, 2, true)).toBe("empty");
-    expect(getSegmentFill(2, 2, true)).toBe("full");
-    expect(getSegmentFill(5, 2, true)).toBe("empty");
+    expect(getSegmentFill(0, 2, true, "playing")).toBe("empty");
+    expect(getSegmentFill(2, 2, true, "playing")).toBe("full");
+    expect(getSegmentFill(5, 2, true, "playing")).toBe("empty");
   });
 });
 
 describe("accessibility label", () => {
   it("names the feature preview, its caption and the position", () => {
     expect(reelAccessibilityLabel(0)).toBe(
-      "Feature preview, Add it in seconds, 1 of 6",
+      "Feature preview, Just say it, 1 of 6",
     );
     expect(reelAccessibilityLabel(5)).toBe(
       "Feature preview, Ask anything, 6 of 6",
@@ -159,7 +176,7 @@ describe("accessibility label", () => {
 
   it("wraps an out-of-range index", () => {
     expect(reelAccessibilityLabel(6)).toBe(
-      "Feature preview, Add it in seconds, 1 of 6",
+      "Feature preview, Just say it, 1 of 6",
     );
   });
 });
@@ -169,8 +186,13 @@ describe("layout fitting", () => {
     const layout = computeReelLayout(328, REEL_CARD_HEIGHT + REEL_CHROME_HEIGHT + 80);
     expect(layout.visible).toBe(true);
     expect(layout.scale).toBe(1);
-    expect(layout.width).toBe(REEL_CARD_WIDTH);
+    expect(layout.width).toBe(328);
     expect(layout.height).toBe(REEL_CARD_HEIGHT);
+  });
+
+  it("makes the card as wide as the column, even wider than the design card", () => {
+    expect(computeReelLayout(400, 700).width).toBe(400);
+    expect(computeReelLayout(400, 700).scale).toBe(1);
   });
 
   it("scales the card down to the room left after the chrome", () => {
@@ -184,6 +206,8 @@ describe("layout fitting", () => {
   it("scales for narrow screens too", () => {
     const layout = computeReelLayout(288, 600);
     expect(layout.scale).toBeCloseTo(288 / REEL_CARD_WIDTH, 5);
+    expect(layout.width).toBe(288);
+    expect(layout.height).toBeCloseTo(REEL_CARD_HEIGHT * (288 / REEL_CARD_WIDTH), 5);
   });
 
   it("never goes below the minimum scale", () => {

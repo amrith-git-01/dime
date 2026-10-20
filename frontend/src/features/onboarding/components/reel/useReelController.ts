@@ -62,7 +62,7 @@ export function useReelController({ paused }: { paused: boolean }) {
   const shift = useSharedValue(0);
   /** 1 while the clock should advance. */
   const running = useSharedValue(0);
-  /** Generation of the scene the clock currently belongs to. */
+  /** Generation of the scene the clock currently belongs to (written after the clock reset). */
   const sceneGen = useSharedValue(-1);
 
   const runInputs = {
@@ -124,14 +124,15 @@ export function useReelController({ paused }: { paused: boolean }) {
       return () => clearTimeout(timer);
     }
 
+    // The clock is reset BEFORE the scene is announced: the progress fill only reads the clock
+    // once `sceneGen` matches its scene, so it can never show the previous scene's time.
+    clock.value = stateReduceMotion ? REEL_SCENE_MS : 0;
     sceneGen.value = gen;
     if (stateReduceMotion) {
-      clock.value = REEL_SCENE_MS;
       fade.value = 1;
       shift.value = 0;
       return;
     }
-    clock.value = 0;
     if (gen === 0) {
       fade.value = 1;
       shift.value = 0;
@@ -189,6 +190,8 @@ export function useReelController({ paused }: { paused: boolean }) {
   return {
     index: state.index,
     phase,
+    /** `gen` of the playing scene: what `sceneGen` must reach before the clock is its own. */
+    activeGen: state.activeGen,
     clock,
     fade,
     shift,

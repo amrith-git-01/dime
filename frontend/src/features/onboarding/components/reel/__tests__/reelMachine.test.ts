@@ -51,6 +51,42 @@ describe("a normal swap", () => {
   });
 });
 
+describe("active generation", () => {
+  it("starts on the first scene's generation", () => {
+    expect(INITIAL_REEL_STATE.activeGen).toBe(INITIAL_REEL_STATE.gen);
+  });
+
+  it("stays on the scene on screen while a swap is exiting", () => {
+    const first = run([{ type: "step", delta: 1 }]);
+    const second = reelReducer(first, { type: "step", delta: 1 });
+    expect(first.gen).toBeGreaterThan(INITIAL_REEL_STATE.gen);
+    expect(first.activeGen).toBe(INITIAL_REEL_STATE.activeGen);
+    expect(second.activeGen).toBe(INITIAL_REEL_STATE.activeGen);
+  });
+
+  it("moves to the new generation when the next scene starts playing", () => {
+    const swapping = run([{ type: "step", delta: 1 }]);
+    const landed = reelReducer(swapping, { type: "exitDone", gen: swapping.gen });
+    expect(landed.activeGen).toBe(landed.gen);
+    expect(landed.activeGen).not.toBe(swapping.activeGen);
+  });
+
+  it("follows the generation for every reduced-motion way of starting a scene", () => {
+    const reduced = reelReducer(INITIAL_REEL_STATE, {
+      type: "setReduceMotion",
+      value: true,
+    });
+    expect(reduced.activeGen).toBe(reduced.gen);
+    const next = reelReducer(reduced, { type: "step", delta: 1 });
+    expect(next.activeGen).toBe(next.gen);
+    const pending = run([{ type: "step", delta: 1 }]);
+    const landed = reelReducer(pending, { type: "setReduceMotion", value: true });
+    expect(landed.activeGen).toBe(landed.gen);
+    const replay = reelReducer(reduced, { type: "setReduceMotion", value: false });
+    expect(replay.activeGen).toBe(replay.gen);
+  });
+});
+
 describe("scene end", () => {
   it("is recorded once for the playing generation", () => {
     const state = run([{ type: "sceneEnd", gen: INITIAL_REEL_STATE.gen }]);

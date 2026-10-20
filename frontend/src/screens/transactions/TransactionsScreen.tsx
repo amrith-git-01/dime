@@ -66,6 +66,7 @@ export default function TransactionsScreen() {
     [flashListData],
   );
   const hasGhosts = ghostRows.length > 0;
+  const showEmptyDay = !isDayLoading && !hasActivity && !hasGhosts;
   const visibleRows = isDayLoading
     ? NO_ROWS
     : hasActivity
@@ -119,12 +120,13 @@ export default function TransactionsScreen() {
               dayNetTotal={dayNetTotal}
               hasActivity={hasActivity}
               isFetching={isFetching}
-              onAdd={onManualAddForDay}
+              // The empty-day message has its own "Add expense" button, so the header's is dropped then.
+              onAdd={showEmptyDay ? undefined : onManualAddForDay}
             />
           </View>
         }
         ListEmptyComponent={
-          isDayLoading || (!hasActivity && !hasGhosts) ? (
+          isDayLoading || showEmptyDay ? (
             <TransactionDayCardPlaceholder
               dayKey={selectedDayKey}
               isLoading={isDayLoading}

@@ -13,11 +13,12 @@ import { createThemedStyles, useTheme } from "@/theme";
 
 import { REEL_CATEGORIES, ReelText, type ReelSceneProps } from "../ReelParts";
 import { easeInOut, easeOut, seg } from "../reelMotion";
+import { CATEGORY_SPEND } from "../reelStory";
 import { SCENE_HEIGHT, SCENE_WIDTH } from "../reelStyles";
 
 const MONTHS = ["May", "Jun", "Jul", "Aug", "Sep", "Oct"] as const;
-/** Relative spend per month; the current month (last) is the accent bar. */
-const MONTH_SPEND = [0.52, 0.68, 0.45, 0.8, 0.6, 0.92] as const;
+/** Relative spend per month; the current month (last) is the accent bar, month-to-date. */
+const MONTH_SPEND = [0.52, 0.68, 0.45, 0.8, 0.92, 0.72] as const;
 const BAR_AREA_HEIGHT = 56;
 
 const DONUT_SIZE = 104;
@@ -44,11 +45,25 @@ type SliceSpec = {
   share: number;
 };
 
+const SPEND_TOTAL =
+  CATEGORY_SPEND.food +
+  CATEGORY_SPEND.shopping +
+  CATEGORY_SPEND.transport +
+  CATEGORY_SPEND.other;
+
 const SLICES: readonly SliceSpec[] = [
-  { key: "food", label: REEL_CATEGORIES.food.name, share: 0.38 },
-  { key: "shopping", label: REEL_CATEGORIES.shopping.name, share: 0.27 },
-  { key: "transport", label: REEL_CATEGORIES.transport.name, share: 0.19 },
-  { key: "other", label: "Other", share: 0.16 },
+  { key: "food", label: REEL_CATEGORIES.food.name, share: CATEGORY_SPEND.food / SPEND_TOTAL },
+  {
+    key: "shopping",
+    label: REEL_CATEGORIES.shopping.name,
+    share: CATEGORY_SPEND.shopping / SPEND_TOTAL,
+  },
+  {
+    key: "transport",
+    label: REEL_CATEGORIES.transport.name,
+    share: CATEGORY_SPEND.transport / SPEND_TOTAL,
+  },
+  { key: "other", label: "Other", share: CATEGORY_SPEND.other / SPEND_TOTAL },
 ];
 
 function MonthBar({

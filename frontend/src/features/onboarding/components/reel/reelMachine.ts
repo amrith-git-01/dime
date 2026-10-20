@@ -22,6 +22,8 @@ export type ReelState = {
   /** +1 slides the scene out to the left (next), -1 to the right (previous). */
   direction: 1 | -1;
   gen: number;
+  /** `gen` of the scene on screen: set whenever a scene starts playing, kept while a swap is `exiting`. */
+  activeGen: number;
   /** The playing scene's clock reached its end (only set while `playing`). */
   ended: boolean;
   reduceMotion: boolean;
@@ -40,6 +42,7 @@ export const INITIAL_REEL_STATE: ReelState = {
   target: null,
   direction: 1,
   gen: 0,
+  activeGen: 0,
   ended: false,
   reduceMotion: false,
 };
@@ -69,6 +72,7 @@ function requestScene(
       target: null,
       direction,
       gen: state.gen + 1,
+      activeGen: state.gen + 1,
       ended: false,
     };
   }
@@ -121,6 +125,7 @@ export function reelReducer(state: ReelState, action: ReelAction): ReelState {
         phase: "playing",
         target: null,
         gen: state.gen + 1,
+        activeGen: state.gen + 1,
         ended: false,
       };
 
@@ -147,6 +152,7 @@ export function reelReducer(state: ReelState, action: ReelAction): ReelState {
         target: null,
         reduceMotion: action.value,
         gen: state.gen + 1,
+        activeGen: state.gen + 1,
         ended: false,
       };
   }

@@ -10,7 +10,7 @@ const TRUST_LINES = [
   { label: "Your data is never sold", Icon: Lock },
 ] as const;
 
-/** The two promises on the welcome screen, each with its icon. */
+/** The two promises on the welcome screen, each with its icon, as one compact row under the CTA. */
 export function WelcomeTrustLines() {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -18,7 +18,7 @@ export function WelcomeTrustLines() {
     <View style={styles.list}>
       {TRUST_LINES.map(({ label, Icon }) => (
         <View key={label} style={styles.line}>
-          <Icon size={18} color={colors.accentText} strokeWidth={2} />
+          <Icon size={16} color={colors.accentText} strokeWidth={2} />
           <Text style={styles.label}>{label}</Text>
         </View>
       ))}
@@ -28,17 +28,21 @@ export function WelcomeTrustLines() {
 
 const useStyles = createThemedStyles(({ colors }) => ({
   list: {
-    gap: spacing.sm,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    columnGap: spacing.md,
+    rowGap: spacing.xs,
   },
   line: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   label: {
     fontFamily: fontFamilies.medium,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.inkSoft,
   },
 }));

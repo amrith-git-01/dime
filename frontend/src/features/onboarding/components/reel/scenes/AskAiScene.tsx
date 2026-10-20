@@ -7,14 +7,16 @@ import Animated, {
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { createThemedStyles } from "@/theme";
+import { formatInrCompact } from "@/utils/currency";
 
 import { ReelText, type ReelSceneProps } from "../ReelParts";
 import { easeOut, easeOutBack, seg } from "../reelMotion";
+import { CATEGORY_SPEND } from "../reelStory";
 import { SCENE_HEIGHT, SCENE_WIDTH } from "../reelStyles";
 
 const ANSWER_AREA_HEIGHT = 104;
 const COMPARE_BAR_HEIGHT = 6;
-/** This month's spend relative to last month's (₹4,320 is 18% less). */
+/** This month's spend relative to last month's (₹7,076 is 18% less than last month's ₹8,630). */
 const THIS_MONTH_SHARE = 0.82;
 
 // The question pops in, typing dots bounce, the answer replaces them and its bars grow.
@@ -117,7 +119,9 @@ export function AskAiScene({ clock }: ReelSceneProps) {
 
         <Animated.View style={[local.assistantBubble, local.answerBubble, answerStyle]}>
           <ReelText style={local.assistantText}>
-            <ReelText style={local.number}>₹4,320</ReelText>
+            <ReelText style={local.number}>
+              {formatInrCompact(CATEGORY_SPEND.food)}
+            </ReelText>
             {" — 18% less than last month"}
           </ReelText>
           <View style={local.compare}>

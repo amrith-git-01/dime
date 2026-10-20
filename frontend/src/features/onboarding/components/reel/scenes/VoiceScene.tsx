@@ -9,11 +9,12 @@ import { formatInrCompact } from "@/utils/currency";
 import {
   CategoryTile,
   REEL_CATEGORIES,
-  ReelRow,
+  ReelPayeeRow,
   ReelText,
   type ReelSceneProps,
 } from "../ReelParts";
 import { easeInOut, easeOut, easeOutBack, seg } from "../reelMotion";
+import { REEL_PAYEES } from "../reelStory";
 import { HEADER_HEIGHT, useReelStyles } from "../reelStyles";
 import { useClockValue } from "../useClockValue";
 
@@ -89,7 +90,7 @@ function WaveBar({
   return <Animated.View style={[local.bar, style]} />;
 }
 
-/** Scene 2: a mic pulses, "250 for lunch at Swiggy" writes itself, then it becomes a row. */
+/** Scene 1: a mic pulses, "250 for lunch at Swiggy" writes itself, then it becomes a row. */
 export function VoiceScene({ clock, initialMs }: ReelSceneProps) {
   const styles = useReelStyles();
   const local = useStyles();
@@ -140,25 +141,15 @@ export function VoiceScene({ clock, initialMs }: ReelSceneProps) {
           <Animated.View style={[styles.entryLayer, rowStyle]}>
             <CategoryTile category={food} />
             <View style={styles.rowText}>
-              <ReelText style={styles.rowTitle}>Swiggy</ReelText>
+              <ReelText style={styles.rowTitle}>{REEL_PAYEES.swiggy.title}</ReelText>
               <ReelText style={styles.rowMeta}>{food.name}</ReelText>
             </View>
-            <ReelText style={styles.rowAmount}>{formatInrCompact(250)}</ReelText>
+            <ReelText style={styles.rowAmount}>{formatInrCompact(REEL_PAYEES.swiggy.amount)}</ReelText>
           </Animated.View>
         </View>
 
-        <ReelRow
-          category={REEL_CATEGORIES.transport}
-          title="Metro"
-          meta="Transport"
-          amount={45}
-        />
-        <ReelRow
-          category={REEL_CATEGORIES.shopping}
-          title="Groceries"
-          meta="Shopping"
-          amount={860}
-        />
+        <ReelPayeeRow payee={REEL_PAYEES.rapido} />
+        <ReelPayeeRow payee={REEL_PAYEES.zepto} />
       </View>
     </View>
   );

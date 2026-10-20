@@ -145,6 +145,36 @@ describe("useReelController", () => {
     reel.unmount();
   });
 
+  it("resets the clock before announcing the new scene's generation (progress fill gate)", async () => {
+    const reel = await mount();
+    play(1000);
+    expect(controller.sceneGen.value).toBe(controller.activeGen);
+
+    // Record the clock at the moment `sceneGen` is written.
+    const gate = controller.sceneGen;
+    let current = gate.value;
+    const clockWhenAnnounced: number[] = [];
+    Object.defineProperty(gate, "value", {
+      configurable: true,
+      get: () => current,
+      set: (next: number) => {
+        clockWhenAnnounced.push(controller.clock.value);
+        current = next;
+      },
+    });
+
+    act(() => {
+      controller.goNext(false);
+    });
+    // Leaving: the playing scene keeps its generation.
+    expect(controller.activeGen).toBe(gate.value);
+    finishFade();
+
+    expect(clockWhenAnnounced).toEqual([0]);
+    expect(gate.value).toBe(controller.activeGen);
+    reel.unmount();
+  });
+
   it("a scene is never cut short: it only ends when its clock reaches the end", async () => {
     const reel = await mount();
     play(REEL_SCENE_MS - 200);

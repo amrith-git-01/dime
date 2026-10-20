@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type ComponentType } from "react";
 import {
   AccessibilityInfo,
   Platform,
+  StyleSheet,
   View,
   type AccessibilityActionEvent,
 } from "react-native";
@@ -30,17 +31,19 @@ import {
   REEL_SCENES,
   reelAccessibilityLabel,
   resolveSwipe,
+  type ReelSceneId,
 } from "./reelLogic";
 import { useReelController } from "./useReelController";
 
-const SCENE_COMPONENTS: readonly ComponentType<ReelSceneProps>[] = [
-  QuickAddScene,
-  VoiceScene,
-  ReceiptScene,
-  BudgetScene,
-  InsightsScene,
-  AskAiScene,
-];
+/** Keyed by scene id, so the order of the reel lives only in `REEL_SCENES`. */
+const SCENE_COMPONENTS: Record<ReelSceneId, ComponentType<ReelSceneProps>> = {
+  voice: VoiceScene,
+  receipt: ReceiptScene,
+  quickAdd: QuickAddScene,
+  budget: BudgetScene,
+  insights: InsightsScene,
+  askAi: AskAiScene,
+};
 
 const ACCESSIBILITY_ACTIONS = [
   { name: "increment", label: "Next feature" },
@@ -57,7 +60,7 @@ export type FeatureReelProps = {
 
 /**
  * The Welcome screen's looping feature reel: six code-drawn scenes on one card, a segmented
- * progress bar and a caption. Auto-advances, swipes, pauses on hold, taps to jump.
+ * progress bar above and a caption below. Auto-advances, swipes, pauses on hold, taps to jump.
  */
 export function FeatureReel({
   availableWidth,
@@ -68,7 +71,10 @@ export function FeatureReel({
   const layout = computeReelLayout(availableWidth, availableHeight);
   const {
     index,
+    phase,
+    activeGen,
     clock,
+    sceneGen,
     fade,
     shift,
     reduceMotion,
@@ -136,10 +142,23 @@ export function FeatureReel({
     return null;
   }
 
-  const Scene = SCENE_COMPONENTS[index];
+  const Scene = SCENE_COMPONENTS[REEL_SCENES[index].id];
 
   return (
     <View style={{ width: layout.width }}>
+      <View style={styles.progress}>
+        <ReelProgress
+          count={REEL_SCENE_COUNT}
+          activeIndex={index}
+          reduceMotion={reduceMotion}
+          phase={phase}
+          clock={clock}
+          sceneGen={sceneGen}
+          activeGen={activeGen}
+          onSelect={jumpTo}
+        />
+      </View>
+
       <GestureDetector gesture={gesture}>
         <View
           accessible
@@ -147,13 +166,13 @@ export function FeatureReel({
           accessibilityLabel={reelAccessibilityLabel(index)}
           accessibilityActions={ACCESSIBILITY_ACTIONS}
           onAccessibilityAction={onAccessibilityAction}
-          style={{ width: layout.width, height: layout.height }}
+          style={[styles.card, { width: layout.width, height: layout.height }]}
         >
           <View
             style={[
-              styles.card,
+              styles.design,
               {
-                left: -(REEL_CARD_WIDTH - layout.width) / 2,
+                left: (layout.width - REEL_CARD_WIDTH) / 2,
                 top: -(REEL_CARD_HEIGHT - layout.height) / 2,
                 transform: [{ scale: layout.scale }],
               },
@@ -174,16 +193,6 @@ export function FeatureReel({
         </View>
       </GestureDetector>
 
-      <View style={styles.progress}>
-        <ReelProgress
-          count={REEL_SCENE_COUNT}
-          activeIndex={index}
-          reduceMotion={reduceMotion}
-          clock={clock}
-          onSelect={jumpTo}
-        />
-      </View>
-
       <Animated.Text
         accessibilityLiveRegion="polite"
         maxFontSizeMultiplier={1.2}
@@ -197,24 +206,27 @@ export function FeatureReel({
 }
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  progress: {
+    marginBottom: spacing.md,
+  },
   card: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  design: {
     position: "absolute",
     width: REEL_CARD_WIDTH,
     height: REEL_CARD_HEIGHT,
     padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    ...shadows.card,
-  },
-  progress: {
-    marginTop: spacing.md,
   },
   caption: {
-    marginTop: spacing.xs,
-    textAlign: "center",
-    fontFamily: fontFamilies.medium,
-    fontSize: 15,
-    lineHeight: 20,
+    marginTop: spacing.md,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 17,
+    lineHeight: 24,
     color: colors.ink,
   },
 }));

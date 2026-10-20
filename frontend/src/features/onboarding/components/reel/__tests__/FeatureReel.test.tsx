@@ -113,7 +113,7 @@ describe("FeatureReel", () => {
     const tree = await renderReel();
     const node = reelNode(tree);
     expect(node?.props.accessibilityLabel).toBe(
-      "Feature preview, Add it in seconds, 1 of 6",
+      "Feature preview, Just say it, 1 of 6",
     );
     expect(node?.props.accessibilityActions).toEqual([
       { name: "increment", label: "Next feature" },
@@ -128,7 +128,7 @@ describe("FeatureReel", () => {
 
     fire(tree, "increment");
     expect(reelNode(tree)?.props.accessibilityLabel).toBe(
-      "Feature preview, Just say it, 2 of 6",
+      "Feature preview, Snap the receipt, 2 of 6",
     );
 
     fire(tree, "decrement");
@@ -139,7 +139,7 @@ describe("FeatureReel", () => {
 
     fire(tree, "increment");
     expect(reelNode(tree)?.props.accessibilityLabel).toBe(
-      "Feature preview, Add it in seconds, 1 of 6",
+      "Feature preview, Just say it, 1 of 6",
     );
     unmount(tree);
   });
