@@ -1,3 +1,4 @@
+import { confirmCapturePermissionReason } from "@/features/onboarding/utils/permissionReasonAlert";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -117,6 +118,16 @@ export function useVoiceCaptureSession() {
           "Sign in required",
           "Sign in to add a transaction by voice.",
         );
+        await hardClose();
+        return;
+      }
+
+      // First time only: say why before the system dialog.
+      const proceed = await confirmCapturePermissionReason("microphone");
+      if (sessionAbortRef.current || !alive) {
+        return;
+      }
+      if (!proceed) {
         await hardClose();
         return;
       }

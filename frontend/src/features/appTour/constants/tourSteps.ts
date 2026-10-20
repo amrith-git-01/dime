@@ -3,10 +3,17 @@ import { tourTargetIds, type TourTargetId } from "@/constants/tourTargetIds";
 export type TourTab = "Home" | "Transactions" | "Budgets" | "Insights";
 
 /** Side effects a step runs when it becomes the current one (see `runTourStepEnter`). */
-export type TourEnterAction = "closeFab" | "openFab" | "scrollToRecurring";
+export type TourEnterAction = "closeFab" | "openFab";
 
-/** What ends a step besides the Next button. */
-export type TourAdvanceOn = "fabOpened";
+/**
+ * What ends a step besides the Next button. `transactionSaved` is raised by the manual add
+ * screen's save (see `useAppTourStore.onTransactionSaved`), because the tour overlay is not
+ * mounted while that screen is open.
+ */
+export type TourAdvanceOn = "fabOpened" | "transactionSaved";
+
+/** What a step's card button does on the user's behalf, for people who cannot find the target. */
+export type TourCardAction = "openFab" | "openManualAdd";
 
 export type TourStepKind = "welcome" | "spotlight" | "finale";
 
@@ -42,6 +49,11 @@ export type TourStep = {
   holdFab?: boolean;
   enter?: readonly TourEnterAction[];
   advanceOn?: TourAdvanceOn;
+  /** A card button that performs the step's action (every `tapTarget` step has one). */
+  action?: TourCardAction;
+  actionLabel?: string;
+  /** Body shown instead of `body` after the user wandered off and came back to this step. */
+  retryBody?: string;
   /** Primary / secondary labels; the default primary is "Next". */
   primaryLabel?: string;
   skipLabel?: string;
@@ -53,35 +65,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
     kind: "welcome",
     tab: "Home",
     title: "Welcome to Dime",
-    body: "Let's take a 30-second tour of the few things worth knowing. You can skip it any time.",
+    body: "Let's log your first expense \u2014 about 20 seconds.",
     interaction: "next",
     placement: "auto",
     shape: "rounded",
     padding: 0,
     enter: ["closeFab"],
-    primaryLabel: "Start the tour",
+    primaryLabel: "Start",
     skipLabel: "Not now",
-  },
-  {
-    id: "monthCard",
-    kind: "spotlight",
-    targetId: tourTargetIds.homeMonthCard,
-    tab: "Home",
-    title: "Your month at a glance",
-    body: "What you've spent, what's left of your budget and how much you've used. It updates the moment you add something.",
-    interaction: "next",
-    placement: "below",
-    shape: "rounded",
-    radius: 32,
-    padding: 6,
   },
   {
     id: "addFab",
     kind: "spotlight",
     targetId: tourTargetIds.addFab,
     tab: "Home",
-    title: "Tap + to add an expense",
-    body: "Go on, tap the plus button to see the ways to add one.",
+    title: "Add what you spent",
+    body: "Tap + to add something you spent today.",
+    retryBody: "No worries \u2014 tap + whenever you're ready.",
     interaction: "tapTarget",
     placement: "above",
     shape: "circle",
@@ -89,99 +89,76 @@ export const TOUR_STEPS: readonly TourStep[] = [
     holdFab: true,
     enter: ["closeFab"],
     advanceOn: "fabOpened",
+    action: "openFab",
+    actionLabel: "Open the + menu",
   },
   {
-    id: "fabMenu",
+    id: "fabManual",
     kind: "spotlight",
-    targetId: tourTargetIds.fabMenu,
+    targetId: tourTargetIds.fabManual,
     tab: "Home",
-    title: "Three ways to log",
-    body: "Type it in, snap a photo of the receipt, or just say it out loud. Dime does the typing for you.",
-    interaction: "next",
-    placement: "above",
-    shape: "rounded",
-    radius: 36,
-    padding: 10,
-    holdFab: true,
-    enter: ["openFab"],
-  },
-  {
-    id: "agentFab",
-    kind: "spotlight",
-    targetId: tourTargetIds.agentFab,
-    tab: "Home",
-    title: "Ask Dime anything",
-    body: "Chat about your money in plain words: \"How much did I spend on food last week?\"",
-    interaction: "next",
+    title: "Add it by hand",
+    body: "Tap the pencil and type it in. The camera and mic bubbles scan receipts and take voice.",
+    interaction: "tapTarget",
     placement: "above",
     shape: "circle",
-    padding: 10,
-    enter: ["closeFab"],
-  },
-  {
-    id: "dayAdd",
-    kind: "spotlight",
-    targetId: tourTargetIds.transactionsDayAdd,
-    tab: "Transactions",
-    title: "Add to any past day",
-    body: "Forgot to log something? Pick a day on the calendar, then tap Add to date it correctly.",
-    interaction: "next",
-    placement: "below",
-    shape: "pill",
     padding: 8,
+    holdFab: true,
+    enter: ["openFab"],
+    advanceOn: "transactionSaved",
+    action: "openManualAdd",
+    actionLabel: "Add it by hand",
   },
   {
-    id: "recurring",
+    id: "homeRecent",
     kind: "spotlight",
-    targetId: tourTargetIds.budgetsRecurring,
-    tab: "Budgets",
-    title: "Budgets and recurring money",
-    body: "Set a monthly budget, then add your recurring income and expenses here so you always see what's coming up.",
+    // The month card, not the Recent list: it is always above the fold and shows the new total.
+    targetId: tourTargetIds.homeMonthCard,
+    tab: "Home",
+    title: "You've started tracking!",
+    body: "Done! Your month total and budget update instantly.",
     interaction: "next",
-    placement: "below",
+    placement: "auto",
     shape: "rounded",
     radius: 24,
     padding: 4,
-    enter: ["scrollToRecurring"],
-  },
-  {
-    id: "insights",
-    kind: "spotlight",
-    targetId: tourTargetIds.insightsSummary,
-    tab: "Insights",
-    title: "See where your money goes",
-    body: "Charts, top payees and month-to-month comparisons turn your history into answers.",
-    interaction: "next",
-    placement: "below",
-    shape: "rounded",
-    radius: 28,
-    padding: 6,
-  },
-  {
-    id: "settings",
-    kind: "spotlight",
-    targetId: tourTargetIds.headerSettings,
-    tab: "Home",
-    title: "Make Dime yours",
-    body: "Appearance, notifications and haptics live in Settings. You can replay this tour from there too.",
-    interaction: "next",
-    placement: "below",
-    shape: "circle",
-    padding: 8,
+    enter: ["closeFab"],
+    primaryLabel: "Got it",
   },
   {
     id: "finale",
     kind: "finale",
     tab: "Home",
-    title: "You're all set!",
-    body: "That's the tour. Log your first expense and watch your month come alive.",
+    title: "You're all set",
+    body: "Replay the tour anytime from Settings.",
     interaction: "next",
     placement: "auto",
     shape: "rounded",
     padding: 0,
-    primaryLabel: "Add my first expense",
-    skipLabel: "Done",
+    primaryLabel: "Finish",
   },
 ] as const;
 
 export const TOUR_STEP_COUNT = TOUR_STEPS.length;
+
+/** Index of the step with this id (-1 when there is none). */
+export function findTourStepIndex(id: string): number {
+  return TOUR_STEPS.findIndex((step) => step.id === id);
+}
+
+/** The steps the user acts on (everything except the welcome and finale cards). */
+export const TOUR_ACTION_STEP_COUNT = TOUR_STEPS.filter(
+  (step) => step.kind === "spotlight",
+).length;
+
+/** 1-based position among the action steps ("Step 2 of 3"); null for the welcome and finale cards. */
+export function getTourActionStepNumber(stepIndex: number): number | null {
+  const step = TOUR_STEPS[stepIndex];
+  if (!step || step.kind !== "spotlight") {
+    return null;
+  }
+  return (
+    TOUR_STEPS.slice(0, stepIndex + 1).filter((s) => s.kind === "spotlight")
+      .length
+  );
+}

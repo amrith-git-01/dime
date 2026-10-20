@@ -9,11 +9,9 @@ import { useNotificationsRealtimeSync } from "@/features/notifications/hooks/use
 import { useTransactionsRealtimeSync } from "@/features/transactions/hooks/useTransactionsRealtimeSync";
 import AuthScreen from "@/screens/auth/AuthScreen";
 import ProfileSetupScreen from "@/screens/onboarding/ProfileSetupScreen";
-import WelcomeTourScreen from "@/screens/onboarding/WelcomeTourScreen";
 import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { useGoogleAuthGate } from "@/stores/googleAuthGate";
-import { useWelcomeTourStore } from "@/stores/welcomeTourStore";
 
 import MainStackNavigator from "./MainStackNavigator";
 import type { RootStackParamList } from "./types";
@@ -51,7 +49,6 @@ export default function RootNavigator() {
   const signedIn = profileUserId !== undefined;
 
   const googleAuthPending = useGoogleAuthGate((s) => s.isPending);
-  const welcomeTourCompleted = useWelcomeTourStore((s) => s.completed);
 
   useCategoriesRealtimeSync(profileUserId ?? null);
   useTransactionsRealtimeSync(profileUserId ?? null);
@@ -76,8 +73,8 @@ export default function RootNavigator() {
     () =>
       googleAuthPending
         ? "auth"
-        : resolveRootAppRoute({ signedIn, welcomeTourCompleted, profile, me }),
-    [googleAuthPending, me, profile, signedIn, welcomeTourCompleted],
+        : resolveRootAppRoute({ signedIn, profile, me }),
+    [googleAuthPending, me, profile, signedIn],
   );
 
   useEffect(() => {
@@ -94,9 +91,7 @@ export default function RootNavigator() {
   return (
     <View style={styles.root}>
       <Stack.Navigator screenOptions={rootStackScreenOptions}>
-        {route === "welcome" ? (
-          <Stack.Screen name="WelcomeTour" component={WelcomeTourScreen} />
-        ) : route === "bootstrapping" ? (
+        {route === "bootstrapping" ? (
           <Stack.Screen name="Bootstrapping" component={BootstrapLoader} />
         ) : route === "auth" ? (
           <Stack.Screen name="Auth" component={AuthScreen} />

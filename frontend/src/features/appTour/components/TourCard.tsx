@@ -1,10 +1,14 @@
-import { useEffect, useRef } from "react";
-import { Pressable, Text, View, type LayoutChangeEvent } from "react-native";
+import { useEffect, useRef, type RefObject } from "react";
+import {
+  Pressable,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import Animated, {
-  FadeIn,
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
   withSpring,
   withTiming,
@@ -13,107 +17,128 @@ import Animated, {
 import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { springs } from "@/constants/motion";
+import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles } from "@/theme";
 
 import type { TourStep } from "../constants/tourSteps";
-import type { TourCardPlacement } from "../utils/tourPlacement";
 import type { TourMotion } from "../utils/tourMotion";
+import type { TourCardPlacement } from "../utils/tourPlacement";
 
+import { TourCheckMark } from "./TourCheckMark";
 import { TourDimeMark } from "./TourDimeMark";
-import { TourProgressDots } from "./TourProgressDots";
+import { TourProgressBar } from "./TourProgressBar";
 
 const ARROW_SIZE = 14;
+/** Minimum touch target (dp). */
+const MIN_TOUCH = 44;
+/** Small slide of the text blocks as they appear (dp). */
+const TEXT_SLIDE_DP = 4;
 
 export type TourCardProps = {
+  /** The step whose content the card shows (it lags the current step while the card is hidden). */
   step: TourStep;
-  index: number;
-  total: number;
+  /** Body to show, already resolved (the retry wording after a wrong turn). */
+  body: string;
+  /** "Step N of M" position among the action steps; null on the welcome and finish cards. */
+  actionNumber: number | null;
+  actionTotal: number;
   width: number;
   placement: TourCardPlacement;
   /**
-   * False while the step's target is still being located: the card keeps its previous position
-   * (instead of flashing at the screen center) and moves once the target is known.
+   * Shown or hidden. Hiding fades the card out (before the spotlight moves); showing places it
+   * at its current position and fades it in (after the spotlight settled).
    */
-  settled: boolean;
+  visible: boolean;
   motion: TourMotion;
-  /** The screens behind the card are showing sample data, not the user's own. */
-  showSampleBadge?: boolean;
   /** Bumped when the user taps the dimmed area, to nudge the card toward its buttons. */
   nudgeCount: number;
+  /** The title, so the overlay can move screen-reader focus to it. */
+  titleRef: RefObject<Text | null>;
   onMeasured: (height: number) => void;
+  /** Primary button of the steps that move on with a button (and the welcome / finish cards). */
   onNext: () => void;
-  onBack: () => void;
+  /** Primary button of the steps that wait for the user: does what the glowing target does. */
+  onAction: () => void;
   onSkip: () => void;
-  /** Finale call to action. */
-  onFinaleAction: () => void;
 };
 
-/** Marks the screens behind the card as sample data (an empty account's preview). */
-function SampleDataBadge() {
-  const styles = useStyles();
-  return (
-    <View style={styles.sampleBadge}>
-      <Text style={styles.sampleBadgeText}>Sample data</Text>
-    </View>
-  );
-}
-
-/** The tooltip card: springs in, glides to each target, and points at it with an arrow. */
+/** The tooltip card: fades in beside the target once the spotlight settled, then points at it. */
 export function TourCard({
   step,
-  index,
-  total,
+  body,
+  actionNumber,
+  actionTotal,
   width,
   placement,
-  settled,
+  visible,
   motion,
-  showSampleBadge = false,
   nudgeCount,
+  titleRef,
   onMeasured,
   onNext,
-  onBack,
+  onAction,
   onSkip,
-  onFinaleAction,
 }: TourCardProps) {
   const styles = useStyles();
   const measuredHeightRef = useRef(0);
+  const positionedRef = useRef(false);
 
   const left = useSharedValue(placement.left);
   const top = useSharedValue(placement.top);
   const arrowX = useSharedValue(placement.arrowX ?? 0);
   const arrowOpacity = useSharedValue(placement.arrowX === null ? 0 : 1);
-  const enter = useSharedValue(0);
+  const cardOpacity = useSharedValue(0);
+  const titleIn = useSharedValue(0);
+  const bodyIn = useSharedValue(0);
   const nudge = useSharedValue(1);
 
-  // Pop in once.
+  // Fade in (title, then the rest) when shown; fade out quickly when hidden.
   useEffect(() => {
-    enter.value = motion.spring
-      ? withSpring(1, springs.tourCard)
-      : withTiming(1, { duration: motion.fadeMs });
-  }, [enter, motion.spring, motion.fadeMs]);
-
-  // Glide to wherever the target now is.
-  useEffect(() => {
-    if (!settled) {
-      arrowOpacity.value = withTiming(0, { duration: motion.fadeMs });
+    if (visible) {
+      const inConfig = { duration: motion.cardInMs };
+      cardOpacity.value = withTiming(1, inConfig);
+      titleIn.value = withTiming(1, inConfig);
+      bodyIn.value = withDelay(motion.textStaggerMs, withTiming(1, inConfig));
       return;
     }
-    if (motion.spring) {
-      left.value = withSpring(placement.left, springs.tourCard);
-      top.value = withSpring(placement.top, springs.tourCard);
-      arrowX.value = withSpring(placement.arrowX ?? arrowX.value, springs.tourCard);
-    } else {
+    positionedRef.current = false;
+    const outConfig = { duration: motion.cardOutMs };
+    cardOpacity.value = withTiming(0, outConfig);
+    titleIn.value = withTiming(0, outConfig);
+    bodyIn.value = withTiming(0, outConfig);
+  }, [
+    visible,
+    motion.cardInMs,
+    motion.cardOutMs,
+    motion.textStaggerMs,
+    cardOpacity,
+    titleIn,
+    bodyIn,
+  ]);
+
+  // Placement: jump to the spot while hidden-to-visible (the card faded out where it was), then
+  // follow the target gently if it moves (scrolling, layout changes).
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const targetArrow = placement.arrowX ?? arrowX.value;
+    if (!positionedRef.current || !motion.spring) {
+      positionedRef.current = true;
       left.value = placement.left;
       top.value = placement.top;
-      arrowX.value = placement.arrowX ?? arrowX.value;
+      arrowX.value = targetArrow;
+    } else {
+      left.value = withSpring(placement.left, springs.tourCard);
+      top.value = withSpring(placement.top, springs.tourCard);
+      arrowX.value = withSpring(targetArrow, springs.tourCard);
     }
     arrowOpacity.value = withTiming(placement.arrowX === null ? 0 : 1, {
       duration: motion.fadeMs,
     });
   }, [
-    settled,
+    visible,
     placement.left,
     placement.top,
     placement.arrowX,
@@ -136,17 +161,38 @@ export function TourCard({
     );
   }, [nudgeCount, motion.spring, nudge]);
 
+  // Slides in from the side of the target (the card sits above it: rises from below).
+  const slideFrom =
+    (placement.side === "below" ? -1 : 1) * motion.cardSlideDp;
+
   const cardStyle = useAnimatedStyle(() => ({
     left: left.value,
     top: top.value,
-    opacity: enter.value,
+    opacity: cardOpacity.value,
     transform: [
-      { scale: (motion.spring ? 0.92 + enter.value * 0.08 : 1) * nudge.value },
+      { translateY: (1 - cardOpacity.value) * slideFrom },
+      { scale: nudge.value },
     ],
   }));
   const arrowStyle = useAnimatedStyle(() => ({
     left: arrowX.value - ARROW_SIZE / 2,
     opacity: arrowOpacity.value,
+  }));
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: titleIn.value,
+    transform: [
+      {
+        translateY: motion.cardSlideDp > 0 ? (1 - titleIn.value) * TEXT_SLIDE_DP : 0,
+      },
+    ],
+  }));
+  const bodyStyle = useAnimatedStyle(() => ({
+    opacity: bodyIn.value,
+    transform: [
+      {
+        translateY: motion.cardSlideDp > 0 ? (1 - bodyIn.value) * TEXT_SLIDE_DP : 0,
+      },
+    ],
   }));
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -158,16 +204,25 @@ export function TourCard({
   };
 
   const isHero = step.kind !== "spotlight";
-  const isFirst = index === 0;
-  const progressLabel = `Step ${index + 1} of ${total}`;
+  const isFinale = step.kind === "finale";
+  const progressLabel =
+    actionNumber === null ? null : `Step ${actionNumber} of ${actionTotal}`;
   const primaryLabel = step.primaryLabel ?? "Next";
   const arrowOnTop = placement.side === "below";
   const showArrow = placement.side === "above" || placement.side === "below";
+
+  const primary =
+    step.interaction === "tapTarget"
+      ? { label: step.actionLabel ?? primaryLabel, onPress: onAction }
+      : { label: primaryLabel, onPress: onNext };
 
   return (
     <Animated.View
       style={[styles.card, { width }, cardStyle]}
       onLayout={onLayout}
+      pointerEvents={visible ? "auto" : "none"}
+      importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
+      accessibilityElementsHidden={!visible}
       accessibilityViewIsModal
     >
       {showArrow ? (
@@ -181,52 +236,51 @@ export function TourCard({
         />
       ) : null}
 
-      <Animated.View
-        key={step.id}
-        entering={
-          motion.spring
-            ? FadeInDown.duration(240)
-            : FadeIn.duration(motion.fadeMs)
-        }
-        accessibilityLiveRegion="polite"
-      >
-        {isHero ? (
-          <View style={styles.heroMark}>
+      {isHero ? (
+        <View style={styles.heroMark}>
+          {isFinale ? (
+            <TourCheckMark play={visible} motion={motion} />
+          ) : (
             <TourDimeMark motion={motion} />
-          </View>
-        ) : (
+          )}
+        </View>
+      ) : (
+        <View>
           <View style={styles.headerRow}>
-            <View style={styles.eyebrowGroup}>
-              <Text style={styles.eyebrow}>{progressLabel}</Text>
-              {showSampleBadge ? <SampleDataBadge /> : null}
-            </View>
+            <Text style={styles.eyebrow}>{progressLabel}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Skip tour"
-              hitSlop={12}
+              hitSlop={8}
+              style={styles.skipTour}
               onPress={() => {
-              void triggerHaptic();
-              onSkip();
-            }}
+                void triggerHaptic();
+                onSkip();
+              }}
             >
-              <Text style={styles.skip}>Skip tour</Text>
+              <Text style={styles.skip}>{step.skipLabel ?? "Skip tour"}</Text>
             </Pressable>
           </View>
-        )}
+          <TourProgressBar
+            count={actionTotal}
+            current={actionNumber ?? 0}
+            motion={motion}
+          />
+        </View>
+      )}
 
-        {showSampleBadge && step.kind === "finale" ? (
-          <View style={styles.finaleBadge}>
-            <SampleDataBadge />
-          </View>
-        ) : null}
-
+      <Animated.View style={titleStyle}>
         <Text
+          ref={titleRef}
           accessibilityRole="header"
           style={[styles.title, isHero && styles.centered]}
         >
           {step.title}
         </Text>
-        <Text style={[styles.body, isHero && styles.centered]}>{step.body}</Text>
+      </Animated.View>
+
+      <Animated.View style={bodyStyle}>
+        <Text style={[styles.body, isHero && styles.centered]}>{body}</Text>
 
         {step.interaction === "tapTarget" ? (
           <View style={styles.hintChip}>
@@ -234,62 +288,32 @@ export function TourCard({
             <Text style={styles.hintText}>Try it: tap the glowing button</Text>
           </View>
         ) : null}
-      </Animated.View>
 
-      {!isHero ? (
-        <View style={styles.dotsRow}>
-          <TourProgressDots count={total} index={index} motion={motion} />
-        </View>
-      ) : null}
-
-      {step.kind === "welcome" ? (
-        <View style={styles.stackedActions}>
-          <Button title={primaryLabel} onPress={onNext} />
-          <Pressable
-            accessibilityRole="button"
-            onPress={onSkip}
-            hitSlop={8}
-            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
-          >
-            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Skip"}</Text>
-          </Pressable>
-        </View>
-      ) : step.kind === "finale" ? (
-        <View style={styles.stackedActions}>
-          <Button title={primaryLabel} onPress={onFinaleAction} />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void triggerHaptic();
-              onNext();
-            }}
-            hitSlop={8}
-            style={({ pressed }) => [styles.skipLink, pressed && styles.skipLinkPressed]}
-          >
-            <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Done"}</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.actionsRow}>
-          {!isFirst ? (
-            <View style={styles.backSlot}>
-              <Button
-                title="Back"
-                variant="secondary"
-                onPress={onBack}
-                accessibilityLabel={`Back to step ${index}`}
-              />
-            </View>
+        <View style={isHero ? styles.stackedActions : styles.actions}>
+          <Button
+            title={primary.label}
+            onPress={primary.onPress}
+            accessibilityLabel={
+              progressLabel
+                ? `${primary.label}, ${progressLabel}`
+                : primary.label
+            }
+          />
+          {step.kind === "welcome" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onSkip}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.skipLink,
+                pressed && styles.skipLinkPressed,
+              ]}
+            >
+              <Text style={styles.skipLinkLabel}>{step.skipLabel ?? "Not now"}</Text>
+            </Pressable>
           ) : null}
-          <View style={styles.nextSlot}>
-            <Button
-              title={primaryLabel}
-              onPress={onNext}
-              accessibilityLabel={`${primaryLabel}, ${progressLabel}`}
-            />
-          </View>
         </View>
-      )}
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -331,29 +355,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
-  eyebrowGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    flexShrink: 1,
-  },
-  sampleBadge: {
-    paddingVertical: 2,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.full,
-    backgroundColor: colors.accentTint,
-  },
-  sampleBadgeText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.accentText,
-  },
-  finaleBadge: {
-    alignItems: "center",
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   eyebrow: {
     fontFamily: fontFamilies.medium,
@@ -363,6 +365,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     textTransform: "uppercase",
     color: colors.accentText,
   },
+  skipTour: {
+    minHeight: MIN_TOUCH,
+    minWidth: MIN_TOUCH,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
   skip: {
     fontFamily: fontFamilies.medium,
     fontSize: 13,
@@ -370,6 +378,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     color: colors.inkSoft,
   },
   title: {
+    marginTop: spacing.sm,
     fontFamily: fontFamilies.semiBold,
     fontSize: 21,
     lineHeight: 27,
@@ -409,19 +418,8 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     lineHeight: 16,
     color: colors.accentText,
   },
-  dotsRow: {
-    marginTop: spacing.lg,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
+  actions: {
     marginTop: spacing.md,
-  },
-  backSlot: {
-    flex: 1,
-  },
-  nextSlot: {
-    flex: 2,
   },
   stackedActions: {
     gap: spacing.sm,
@@ -429,8 +427,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   skipLink: {
     alignSelf: "center",
+    minHeight: MIN_TOUCH,
+    justifyContent: "center",
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
   },
   skipLinkPressed: {
     opacity: 0.7,

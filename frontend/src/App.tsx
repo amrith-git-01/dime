@@ -20,6 +20,7 @@ import {
   SplashRevealProvider,
   useSplashReveal,
 } from "@/components/app/SplashRevealContext";
+import { CelebrationLayer } from "@/components/celebrations/CelebrationLayer";
 import { ToastHost } from "@/components/toast/ToastHost";
 import { loadableAppFonts } from "@/constants/fonts";
 import { AppTourOverlay } from "@/features/appTour/components";
@@ -153,6 +154,7 @@ function AppRoot() {
       </NavigationContainer>
       <ToastHost />
       <AppTourOverlay />
+      <CelebrationLayer />
     </>
   );
 }

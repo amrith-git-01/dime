@@ -1,18 +1,19 @@
-import { QueryClient } from "@tanstack/react-query";
 import { createMMKV } from "react-native-mmkv";
 
-import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
-import type { HomeOverview } from "@/features/transactions/types";
-import { useTourPreviewStore } from "@/features/tourPreview/store/tourPreviewStore";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
-import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+import { useCelebrationStore } from "@/stores/celebrationStore";
 
-import { TOUR_STEP_COUNT } from "../../constants/tourSteps";
+import { findTourStepIndex, TOUR_STEP_COUNT } from "../../constants/tourSteps";
 import { isAppTourSeen, useAppTourStore } from "../appTourStore";
 
 jest.mock("react-native-mmkv", () =>
   jest.requireActual("@/test-utils/mockMmkv"),
 );
+jest.mock("@/lib/haptics/nativeHaptics", () => ({
+  triggerConfirmHaptic: jest.fn(() => Promise.resolve()),
+  triggerTickHaptic: jest.fn(() => Promise.resolve()),
+  triggerHaptic: jest.fn(() => Promise.resolve()),
+}));
 
 let mockUserId: string | undefined = "user-a";
 type AuthListener = (state: { userId?: string }, prev: { userId?: string }) => void;
@@ -41,28 +42,34 @@ function switchUser(next: string | undefined): void {
 }
 
 const store = () => useAppTourStore.getState();
+const celebration = () => useCelebrationStore.getState();
 
-let client: QueryClient;
+const ADD_FAB = findTourStepIndex("addFab");
+const FAB_MANUAL = findTourStepIndex("fabManual");
+const HOME_RECENT = findTourStepIndex("homeRecent");
 
-/** Puts a Home overview in the cache the way a loaded account would have it. */
-function seedHome(userId: string, overrides: Partial<HomeOverview> = {}): void {
-  const home: HomeOverview = {
-    spent_today: "0",
-    spent_this_month: "0",
-    top_categories: [],
-    recent_transactions: [],
-    ...overrides,
-  };
-  client.setQueryData(transactionsQueryKeys.home(userId, getDeviceIanaTimezone()), home);
+/** Puts a running tour on a given step. */
+function runningOn(stepId: string, startedFrom: "auto" | "replay" = "auto"): void {
+  store().start(startedFrom);
+  useAppTourStore.setState({ stepIndex: findTourStepIndex(stepId) });
 }
 
 describe("app tour store", () => {
   beforeEach(() => {
     resetMockMmkv();
     mockUserId = "user-a";
-    useAppTourStore.setState({ active: false, stepIndex: 0, userId: undefined });
-    useTourPreviewStore.setState({ active: false, userId: undefined, suspended: false });
-    client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+    useAppTourStore.setState({
+      active: false,
+      stepIndex: 0,
+      userId: undefined,
+      startedFrom: "auto",
+      retry: false,
+    });
+    useCelebrationStore.setState({
+      event: null,
+      reduceMotion: false,
+      suppressed: false,
+    });
   });
 
   it("starts inactive", () => {
@@ -70,23 +77,26 @@ describe("app tour store", () => {
   });
 
   it("start activates the tour at the first step for the signed-in user", () => {
-    store().start(client);
+    store().start();
     expect(store()).toMatchObject({
       active: true,
       stepIndex: 0,
       userId: "user-a",
+      startedFrom: "auto",
+      retry: false,
     });
   });
 
   it("start is a no-op while a tour is running", () => {
-    store().start(client);
+    store().start();
     store().next();
-    store().start(client);
+    store().start("replay");
     expect(store().stepIndex).toBe(1);
+    expect(store().startedFrom).toBe("auto");
   });
 
   it("next and back move one step and clamp at the first step", () => {
-    store().start(client);
+    store().start();
     store().back();
     expect(store().stepIndex).toBe(0);
     store().next();
@@ -101,12 +111,15 @@ describe("app tour store", () => {
     store().back();
     store().skip();
     store().finish();
+    store().onTransactionSaved();
+    store().onManualAddAbandoned();
     expect(store()).toMatchObject({ active: false, stepIndex: 0 });
     expect(isAppTourSeen("user-a")).toBe(false);
+    expect(celebration().event).toBeNull();
   });
 
   it("skip ends the tour and remembers it for that user only", () => {
-    store().start(client);
+    store().start();
     store().next();
     store().skip();
     expect(store()).toMatchObject({ active: false, stepIndex: 0 });
@@ -115,7 +128,7 @@ describe("app tour store", () => {
   });
 
   it("next on the last step finishes the tour and remembers it", () => {
-    store().start(client);
+    store().start();
     for (let i = 0; i < TOUR_STEP_COUNT - 1; i += 1) {
       store().next();
     }
@@ -126,20 +139,28 @@ describe("app tour store", () => {
     expect(isAppTourSeen("user-a")).toBe(true);
   });
 
+  it("finish ends the tour and remembers it", () => {
+    runningOn("finale");
+    store().finish();
+    expect(store().active).toBe(false);
+    expect(isAppTourSeen("user-a")).toBe(true);
+  });
+
   it("can be replayed after it was seen, and records completion again", () => {
-    store().start(client);
+    store().start();
     store().skip();
     expect(isAppTourSeen("user-a")).toBe(true);
 
-    store().start(client);
+    store().start("replay");
     expect(store().active).toBe(true);
     expect(store().stepIndex).toBe(0);
+    expect(store().startedFrom).toBe("replay");
     store().skip();
     expect(isAppTourSeen("user-a")).toBe(true);
   });
 
   it("stores completion under a per-user, versioned key", () => {
-    store().start(client);
+    store().start();
     store().skip();
     const mmkv = createMMKV({ id: "dime-onboarding" });
     expect(mmkv.getString("app_tour.completed.v1:user-a")).toEqual(
@@ -154,14 +175,14 @@ describe("app tour store", () => {
 
   it("does not persist anything when there is no signed-in user", () => {
     mockUserId = undefined;
-    store().start(client);
+    store().start();
     store().skip();
     const mmkv = createMMKV({ id: "dime-onboarding" });
     expect(mmkv.getAllKeys()).toEqual([]);
   });
 
   it("a user change mid-tour ends the tour without marking either user as seen", () => {
-    store().start(client);
+    store().start();
     expect(store().active).toBe(true);
     switchUser("user-b");
     expect(store().active).toBe(false);
@@ -170,68 +191,99 @@ describe("app tour store", () => {
     expect(isAppTourSeen("user-b")).toBe(false);
   });
 
-  describe("sample data preview", () => {
-    const previewActive = () => useTourPreviewStore.getState().active;
-
-    it("starts when the account is known to be empty", () => {
-      seedHome("user-a");
-      store().start(client);
-      expect(useTourPreviewStore.getState()).toMatchObject({
-        active: true,
-        userId: "user-a",
+  describe("a transaction is saved from the manual add form", () => {
+    it("moves the pencil step on to the Home recap and asks for the big confetti", () => {
+      runningOn("fabManual");
+      store().onTransactionSaved();
+      expect(store().stepIndex).toBe(HOME_RECENT);
+      expect(store().active).toBe(true);
+      expect(celebration().event).toMatchObject({
+        kind: "confetti",
+        mode: "particles",
       });
     });
 
-    it("does not start when the Home overview is not loaded yet", () => {
-      store().start(client);
+    it.each(["welcome", "addFab", "homeRecent", "finale"])(
+      "is ignored on the %s step",
+      (stepId) => {
+        runningOn(stepId);
+        const index = store().stepIndex;
+        store().onTransactionSaved();
+        expect(store().stepIndex).toBe(index);
+        expect(celebration().event).toBeNull();
+      },
+    );
+
+    it("advances once, even if the event arrives twice", () => {
+      runningOn("fabManual");
+      store().onTransactionSaved();
+      store().onTransactionSaved();
+      expect(store().stepIndex).toBe(HOME_RECENT);
+    });
+
+    it("never celebrates a replayed tour, but still moves on", () => {
+      runningOn("fabManual", "replay");
+      store().onTransactionSaved();
+      expect(store().stepIndex).toBe(HOME_RECENT);
+      expect(celebration().event).toBeNull();
+    });
+  });
+
+  describe("the manual add form is closed without saving", () => {
+    it("goes back to the + step with the gentler wording", () => {
+      runningOn("fabManual");
+      store().onManualAddAbandoned();
+      expect(store().stepIndex).toBe(ADD_FAB);
+      expect(store().retry).toBe(true);
       expect(store().active).toBe(true);
-      expect(previewActive()).toBe(false);
     });
 
-    it("does not start for an account that has activity", () => {
-      seedHome("user-a", { spent_this_month: "120.00" });
-      store().start(client);
-      expect(previewActive()).toBe(false);
+    it("drops the gentler wording once the tour moves on again", () => {
+      runningOn("fabManual");
+      store().onManualAddAbandoned();
+      store().next();
+      expect(store().stepIndex).toBe(FAB_MANUAL);
+      expect(store().retry).toBe(false);
     });
 
-    it("only reads this user's Home overview", () => {
-      seedHome("user-b");
-      store().start(client);
-      expect(previewActive()).toBe(false);
+    it.each(["welcome", "addFab", "homeRecent", "finale"])(
+      "is ignored on the %s step",
+      (stepId) => {
+        runningOn(stepId);
+        const index = store().stepIndex;
+        store().onManualAddAbandoned();
+        expect(store().stepIndex).toBe(index);
+        expect(store().retry).toBe(false);
+      },
+    );
+
+    it("does not undo a save (the form closes right after it)", () => {
+      runningOn("fabManual");
+      store().onTransactionSaved();
+      store().onManualAddAbandoned();
+      expect(store().stepIndex).toBe(HOME_RECENT);
+    });
+  });
+
+  describe("celebrations follow the tour", () => {
+    it("are suppressed for a replay and allowed again once it ends", () => {
+      store().start("replay");
+      expect(celebration().suppressed).toBe(true);
+      store().skip();
+      expect(celebration().suppressed).toBe(false);
+
+      store().start("auto");
+      expect(celebration().suppressed).toBe(false);
     });
 
-    it("never writes anything to the query cache", () => {
-      seedHome("user-a");
-      const before = client.getQueryCache().getAll().length;
-      store().start(client);
-      expect(client.getQueryCache().getAll()).toHaveLength(before);
-    });
+    it("are allowed again after a replay is finished or interrupted by a user change", () => {
+      runningOn("finale", "replay");
+      store().finish();
+      expect(celebration().suppressed).toBe(false);
 
-    it.each([
-      ["skip", () => store().skip()],
-      ["finish", () => store().finish()],
-    ])("%s ends the preview", (_name, end) => {
-      seedHome("user-a");
-      store().start(client);
-      end();
-      expect(previewActive()).toBe(false);
-    });
-
-    it("running to the last step ends the preview", () => {
-      seedHome("user-a");
-      store().start(client);
-      for (let i = 0; i < TOUR_STEP_COUNT; i += 1) {
-        store().next();
-      }
-      expect(store().active).toBe(false);
-      expect(previewActive()).toBe(false);
-    });
-
-    it("a user change ends the preview", () => {
-      seedHome("user-a");
-      store().start(client);
+      store().start("replay");
       switchUser("user-b");
-      expect(previewActive()).toBe(false);
+      expect(celebration().suppressed).toBe(false);
     });
   });
 });

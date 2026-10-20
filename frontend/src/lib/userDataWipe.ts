@@ -11,7 +11,6 @@ import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 import { useCurrentUserStore } from "@/stores/currentUserStore";
 import { usePendingDeepLinkStore } from "@/stores/pendingDeepLinkStore";
-import { usePermissionsPromptStore } from "@/stores/permissionsPromptStore";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useToastUiStore } from "@/stores/toastUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
@@ -42,10 +41,6 @@ function resetUserScopedUiStores(): void {
   );
   useAddTransactionFabStore.setState(
     useAddTransactionFabStore.getInitialState(),
-    true,
-  );
-  usePermissionsPromptStore.setState(
-    usePermissionsPromptStore.getInitialState(),
     true,
   );
   useReceiptScanUiStore.setState(useReceiptScanUiStore.getInitialState(), true);

@@ -7,8 +7,10 @@ import { SettingsToggleRow } from "./SettingsToggleRow";
 
 export type SettingsHapticEditorProps = {
   hapticFeedbackEnabled: boolean;
+  celebrationsEnabled: boolean;
   togglesDisabled?: boolean;
   onHapticFeedbackChange: (enabled: boolean) => void;
+  onCelebrationsChange: (enabled: boolean) => void;
   onClear: () => void;
   onSave: () => void;
   saveLoading?: boolean;
@@ -18,8 +20,10 @@ export type SettingsHapticEditorProps = {
 
 export const SettingsHapticEditor = memo(function SettingsHapticEditor({
   hapticFeedbackEnabled,
+  celebrationsEnabled,
   togglesDisabled = false,
   onHapticFeedbackChange,
+  onCelebrationsChange,
   onClear,
   onSave,
   saveLoading = false,
@@ -36,6 +40,15 @@ export const SettingsHapticEditor = memo(function SettingsHapticEditor({
         subtitle="Turn off to disable all in-app haptic feedback on this device."
         value={hapticFeedbackEnabled}
         onValueChange={onHapticFeedbackChange}
+        showSeparator
+        disabled={togglesDisabled}
+        onAnimationBusyChange={onAnimationBusyChange}
+      />
+      <SettingsToggleRow
+        label="Celebrations"
+        subtitle="Confetti and bursts when you finish something."
+        value={celebrationsEnabled}
+        onValueChange={onCelebrationsChange}
         disabled={togglesDisabled}
         onAnimationBusyChange={onAnimationBusyChange}
       />

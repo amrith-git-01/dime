@@ -2,7 +2,10 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-import { requestAppPermission } from "@/features/onboarding/utils/appPermissions";
+import {
+  getAppPermissionState,
+  requestAppPermission,
+} from "@/features/onboarding/utils/appPermissions";
 
 import { deletePushToken, putPushToken } from "../api/pushTokenApi";
 import { reportError } from "@/lib/reportError";
@@ -57,9 +60,21 @@ async function getExpoPushToken(projectId: string): Promise<string> {
   return token;
 }
 
+export type SyncExpoPushTokenOptions = {
+  /** Sign-out clean-up: credentials captured before the session was cleared. */
+  authorization?: string;
+  timeoutMs?: number;
+  /**
+   * Enabling only. True (the default) shows the system permission dialog when needed; false
+   * registers the token only if notifications are already allowed and otherwise throws
+   * {@link PushPermissionDeniedError}, so background syncs never pop a dialog.
+   */
+  requestPermission?: boolean;
+};
+
 export async function syncExpoPushTokenForUser(
   enabled: boolean,
-  deleteOptions?: { authorization?: string; timeoutMs?: number },
+  options?: SyncExpoPushTokenOptions,
 ): Promise<void> {
   if (Platform.OS !== "android") {
     return;
@@ -84,7 +99,7 @@ export async function syncExpoPushTokenForUser(
       }
     }
 
-    await deletePushToken(token, deleteOptions);
+    await deletePushToken(token, options);
     return;
   }
 
@@ -93,7 +108,10 @@ export async function syncExpoPushTokenForUser(
     throw new Error("[syncExpoPushToken] Missing Expo projectId");
   }
 
-  const granted = await requestAppPermission("notifications");
+  const granted =
+    options?.requestPermission === false
+      ? (await getAppPermissionState("notifications")).granted
+      : await requestAppPermission("notifications");
   if (!granted) {
     throw new PushPermissionDeniedError();
   }

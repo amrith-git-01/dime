@@ -73,6 +73,7 @@ export function DimeTabBarFabActions({
   const openVoiceCapture = useVoiceCaptureUiStore((s) => s.open);
   const actionsProgress = useSharedValue(0);
   const fanTourTarget = useTourTarget(tourTargetIds.fabMenu);
+  const manualTourTarget = useTourTarget(tourTargetIds.fabManual);
 
   useEffect(() => {
     actionsProgress.value = withSpring(fabOpen ? 1 : 0, springs.fabActions);
@@ -111,6 +112,12 @@ export function DimeTabBarFabActions({
     >
       {/* Invisible box around the fully fanned-out bubbles, for the guided tour to spotlight. */}
       <View {...fanTourTarget} pointerEvents="none" style={styles.fanBounds} />
+      {/* Same for the pencil bubble alone, at its fully open position. */}
+      <View
+        {...manualTourTarget}
+        pointerEvents="none"
+        style={styles.manualBounds}
+      />
 
       <Animated.View style={[styles.actionBubble, manualActionStyle]}>
         <Pressable
@@ -216,6 +223,13 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     top: TOP_Y,
     width: SIDE_X * 2 + OPTION_BUBBLE_SIZE,
     height: SIDE_Y - TOP_Y + OPTION_BUBBLE_SIZE,
+  },
+  manualBounds: {
+    position: "absolute",
+    left: -SIDE_X,
+    top: SIDE_Y,
+    width: OPTION_BUBBLE_SIZE,
+    height: OPTION_BUBBLE_SIZE,
   },
   actionBubble: {
     position: "absolute",

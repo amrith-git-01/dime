@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
 
+import { confirmCapturePermissionReason } from "@/features/onboarding/utils/permissionReasonAlert";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -27,6 +28,11 @@ export function useReceiptCameraTransaction() {
         "Sign in required",
         "Sign in to add a transaction from a photo.",
       );
+      return;
+    }
+
+    // First time only: say why before the system dialog.
+    if (!(await confirmCapturePermissionReason("camera"))) {
       return;
     }
 

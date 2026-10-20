@@ -1,6 +1,6 @@
 import { createMMKV } from "react-native-mmkv";
 
-/** Same file as the pre-auth welcome carousel; keys are per user, so sign-out need not wipe it. */
+/** Device-level onboarding flags (the file the retired welcome carousel used); tour keys are per user, so sign-out need not wipe it. */
 const onboardingMmkv = createMMKV({ id: "dime-onboarding" });
 
 const completedKey = (userId: string) => `app_tour.completed.v1:${userId}`;

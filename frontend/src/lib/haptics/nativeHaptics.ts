@@ -1,4 +1,8 @@
-import { performHaptic } from "./hapticEngine";
+import {
+  performConfirmHaptic,
+  performHaptic,
+  performTickHaptic,
+} from "./hapticEngine";
 import { getHapticFeedbackEnabled } from "./hapticPreferencesStorage";
 
 /**
@@ -10,6 +14,22 @@ export async function triggerHaptic(): Promise<void> {
     return;
   }
   await performHaptic();
+}
+
+/** Success haptic for celebrations (Android Confirm); respects the haptic preference. */
+export async function triggerConfirmHaptic(): Promise<void> {
+  if (!getHapticFeedbackEnabled()) {
+    return;
+  }
+  await performConfirmHaptic();
+}
+
+/** Light tick for tour steps and bursts (Android Segment_Tick); respects the haptic preference. */
+export async function triggerTickHaptic(): Promise<void> {
+  if (!getHapticFeedbackEnabled()) {
+    return;
+  }
+  await performTickHaptic();
 }
 
 export { performHaptic } from "./hapticEngine";

@@ -3,7 +3,12 @@ import * as path from "path";
 
 import { tourTargetIds } from "@/constants/tourTargetIds";
 
-import { TOUR_STEPS } from "../tourSteps";
+import {
+  findTourStepIndex,
+  getTourActionStepNumber,
+  TOUR_ACTION_STEP_COUNT,
+  TOUR_STEPS,
+} from "../tourSteps";
 
 const SRC_ROOT = path.resolve(__dirname, "../../../..");
 
@@ -53,6 +58,63 @@ describe("tour steps", () => {
         expect(step.advanceOn).toBeDefined();
       }
     }
+  });
+
+  it("give every tapTarget step a card button that does the action (TalkBack, hard-to-find targets)", () => {
+    for (const step of TOUR_STEPS) {
+      if (step.interaction === "tapTarget") {
+        expect(step.action).toBeDefined();
+        expect((step.actionLabel ?? "").trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("let the user leave on every step except the finale", () => {
+    const welcome = TOUR_STEPS[0];
+    expect(welcome.skipLabel).toBe("Not now");
+    // Spotlight steps show "Skip tour" in their header; the finale has no skip.
+    expect(TOUR_STEPS[TOUR_STEPS.length - 1].skipLabel).toBeUndefined();
+  });
+});
+
+describe("the first-expense flow", () => {
+  it("is welcome, +, pencil, recap, finish", () => {
+    expect(TOUR_STEPS.map((step) => step.id)).toEqual([
+      "welcome",
+      "addFab",
+      "fabManual",
+      "homeRecent",
+      "finale",
+    ]);
+  });
+
+  it("waits for the + menu to open, then for a saved transaction", () => {
+    expect(TOUR_STEPS[findTourStepIndex("addFab")].advanceOn).toBe("fabOpened");
+    expect(TOUR_STEPS[findTourStepIndex("fabManual")].advanceOn).toBe(
+      "transactionSaved",
+    );
+  });
+
+  it("keeps the + menu open while it points at the pencil", () => {
+    const step = TOUR_STEPS[findTourStepIndex("fabManual")];
+    expect(step.holdFab).toBe(true);
+    expect(step.enter).toContain("openFab");
+  });
+
+  it("has gentler wording for coming back to the + step", () => {
+    expect(TOUR_STEPS[findTourStepIndex("addFab")].retryBody).toMatch(/no worries/i);
+  });
+
+  it("counts only the action steps in the progress", () => {
+    expect(TOUR_ACTION_STEP_COUNT).toBe(3);
+    expect(TOUR_STEPS.map((_, i) => getTourActionStepNumber(i))).toEqual([
+      null,
+      1,
+      2,
+      3,
+      null,
+    ]);
+    expect(getTourActionStepNumber(99)).toBeNull();
   });
 });
 
