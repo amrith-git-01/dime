@@ -1,1 +1,1 @@
-export { ProfileSetupEditor } from "./bento";
+export { ProfileGoalStep, ProfileSetupEditor } from "./bento";

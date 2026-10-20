@@ -347,6 +347,49 @@ describe('kill switch and daily budget', () => {
   });
 });
 
+describe('first_agent_question_at (Home "Get started" checklist)', () => {
+  const firstAt = async () => (await oneRow<{ first_agent_question_at: string | null }>('users', 'id = ?', USER_ID))?.first_agent_question_at ?? null;
+
+  it('is set when a JSON turn answers and keeps its first value', async () => {
+    deepseek([{ content: 'Hello!' }]);
+    expect(await firstAt()).toBeNull();
+    const first = makeCtx();
+    expect((await chat('hi', { db: null, ctx: first.ctx })).status).toBe(200);
+    await first.flush();
+    expect(await firstAt()).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    await testDb().prepare("UPDATE users SET first_agent_question_at = '2026-01-01T00:00:00.000Z' WHERE id = ?").bind(USER_ID).run();
+    const second = makeCtx();
+    await chat('hi again', { db: null, ctx: second.ctx });
+    await second.flush();
+    expect(await firstAt()).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('is set by a streamed turn too', async () => {
+    deepseek([{ content: 'Hello!' }]);
+    const { ctx, flush } = makeCtx();
+    const events = await sseEvents(await chat('hi', { db: null, ctx, accept: 'text/event-stream' }));
+    await flush();
+    expect(events.map((e) => e.event)).toContain('final');
+    expect(await firstAt()).not.toBeNull();
+  });
+
+  it('stays empty when the turn failed (refunded) or was refused', async () => {
+    stub.on('POST', '/chat/completions', () => json({ error: 'overloaded' }, { status: 503 }));
+    const failed = makeCtx();
+    expect(await (await chat('hi', { db: null, ctx: failed.ctx })).json()).toMatchObject({ error: { code: 'assistant_busy' } });
+    await failed.flush();
+    const streamed = makeCtx();
+    const events = await sseEvents(await chat('hi', { db: null, ctx: streamed.ctx, accept: 'text/event-stream' }));
+    await streamed.flush();
+    expect(events.map((e) => e.event)).toEqual(['error']);
+    const refused = makeCtx();
+    await chat('hi', { db: null, ctx: refused.ctx, env: envWith({ AGENT_ENABLED: 'false' }) });
+    await refused.flush();
+    expect(await firstAt()).toBeNull();
+  });
+});
+
 describe('POST /agent/feedback', () => {
   const turn_id = '3f2a9c1e-7b64-4d1a-9f0e-2b8c5d6e7a10';
 

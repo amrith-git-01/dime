@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { EmptyState, ScreenSectionHeader } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
+import { FirstUseTip } from "@/features/onboarding/components";
 import { fontFamilies, radius, spacing } from "@/constants";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrAmount } from "@/utils/currency";
@@ -29,6 +30,8 @@ export type RecurringSectionProps = {
   today: Date;
   onAdd: (kind: RecurringKind) => void;
   onItemPress: (item: RecurringItem) => void;
+  /** The first-use tip may show (the hosting screen is in view). */
+  tipEnabled?: boolean;
 };
 
 const SKELETON_ROWS = 2;
@@ -40,11 +43,19 @@ export const RecurringSection = memo(function RecurringSection({
   today,
   onAdd,
   onItemPress,
+  tipEnabled = true,
 }: RecurringSectionProps) {
   const styles = useStyles();
   return (
     <View style={styles.root}>
       <ScreenSectionHeader title="Recurring" />
+      <FirstUseTip
+        tipId="recurring"
+        message="Add rent, SIPs and subscriptions once. Dime logs them every month."
+        enabled={tipEnabled}
+        after="budgets"
+        style={styles.tip}
+      />
       <View style={styles.cards}>
         <RecurringKindCard
           kind="income"
@@ -173,6 +184,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   root: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
+  },
+  tip: {
+    marginBottom: spacing.md,
   },
   cards: {
     gap: spacing.lg,

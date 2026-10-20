@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import { isSampleMonth, usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { keepPreviousDataForUser } from "@/lib/keepPreviousDataForUser";
 import { TRANSACTIONS_QUERY_STALE_MS } from "@/lib/queryDefaults";
@@ -21,14 +20,13 @@ export function useTransactionsHomeQuery(options?: { enabled?: boolean }) {
   const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
 
-  const query = useQuery({
+  return useQuery({
     queryKey: transactionsQueryKeys.home(userId, timezone),
     queryFn: () => fetchHomeOverview(timezone),
     enabled: (options?.enabled ?? true) && Boolean(userId),
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
-  return usePreviewable(query, (sample) => sample.homeOverview);
 }
 
 export function useMonthSummaryQuery(
@@ -40,7 +38,7 @@ export function useMonthSummaryQuery(
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
-  const query = useQuery({
+  return useQuery({
     queryKey: transactionsQueryKeys.monthSummary(
       userId,
       year,
@@ -52,9 +50,6 @@ export function useMonthSummaryQuery(
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
-  return usePreviewable(query, (sample) =>
-    isSampleMonth(sample, year, monthIndex0) ? sample.monthSummary : undefined,
-  );
 }
 
 /** Debit spend in the chosen calendar month, keyed by category id (or `__uncategorized__`). */
@@ -67,7 +62,7 @@ export function useMonthDebitTotalsByCategoryQuery(
   const timezone = getDeviceIanaTimezone();
   const calendarMonth = monthIndex0 + 1;
 
-  const query = useQuery({
+  return useQuery({
     queryKey: transactionsQueryKeys.monthSummary(
       userId,
       year,
@@ -80,11 +75,6 @@ export function useMonthDebitTotalsByCategoryQuery(
     staleTime: TRANSACTIONS_QUERY_STALE_MS,
     placeholderData: keepPreviousDataForUser(userId),
   });
-  return usePreviewable(query, (sample) =>
-    isSampleMonth(sample, year, monthIndex0)
-      ? sample.debitTotalsByCategory
-      : undefined,
-  );
 }
 
 export function useTransactionsMonthInfiniteQuery(
@@ -95,7 +85,7 @@ export function useTransactionsMonthInfiniteQuery(
   const { userId } = useSessionUserId();
   const timezone = getDeviceIanaTimezone();
 
-  const query = useInfiniteQuery({
+  return useInfiniteQuery({
     ...transactionsMonthPagesQueryOptions({
       userId,
       year,
@@ -105,13 +95,6 @@ export function useTransactionsMonthInfiniteQuery(
     }),
     enabled: (options?.enabled ?? true) && Boolean(userId),
   });
-  // A filtered list is a different slice of the month; only the plain month list is sampled.
-  const filtered = hasListFilters(options?.filters);
-  return usePreviewable(query, (sample) =>
-    !filtered && isSampleMonth(sample, year, monthIndex0)
-      ? sample.monthPages
-      : undefined,
-  );
 }
 
 export function useTransactionsRangeInfiniteQuery(

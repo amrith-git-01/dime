@@ -14,6 +14,7 @@ import {
   useBudgetQuery,
   useUpsertBudgetMutation,
 } from "@/features/budgets/hooks/useBudget";
+import { useSuggestedMonthlyBudget } from "@/features/onboarding/hooks/useSuggestedMonthlyBudget";
 import { useToast } from "@/features/toast/useToast";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -38,10 +39,14 @@ export function useEditMonthlyBudgetScreenModel() {
     Number.isFinite(existingMonthly) && existingMonthly > 0;
   const isEditMode = route.params?.mode === "edit" || hasMonthlyBudget;
 
+  // A new budget starts at the amount typed in profile setup (if any); it still has to be saved.
+  const storedSuggestion = useSuggestedMonthlyBudget();
+  const suggested =
+    !isBudgetLoading && !hasMonthlyBudget ? (storedSuggestion ?? 0) : 0;
   const monthlyControl = useBudgetLimitStepControl(
     MONTHLY_BUDGET_PRESETS,
-    existingMonthly,
-    hasMonthlyBudget,
+    hasMonthlyBudget ? existingMonthly : suggested,
+    hasMonthlyBudget || suggested > 0,
   );
   const { resetToUnset: resetMonthlyBudget } = monthlyControl;
 

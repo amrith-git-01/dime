@@ -9,6 +9,7 @@ import type { CategorySpendRowData } from "@/components/categories/CategorySpend
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { useSuggestedMonthlyBudget } from "@/features/onboarding/hooks/useSuggestedMonthlyBudget";
 import { buildBudgetCategoryRows } from "./buildBudgetCategoryRows";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
@@ -87,6 +88,9 @@ export function useBudgetScreenModel() {
   const hasMonthlyBudget =
     Number.isFinite(existingBudget) && existingBudget > 0;
   const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
+  // The amount typed in profile setup is offered only while no budget is set.
+  const storedBudgetSuggestion = useSuggestedMonthlyBudget();
+  const suggestedBudget = hasMonthlyBudget ? undefined : storedBudgetSuggestion;
 
   // Posted subscriptions and bills keep their recurring category, which the spend list does not carry.
   const spentCategoryMetaById = useMemo(
@@ -284,6 +288,7 @@ export function useBudgetScreenModel() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
+    suggestedBudget,
     summaryLoading,
   };
 }

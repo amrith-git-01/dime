@@ -21,6 +21,7 @@ type HomeRecentSectionProps = {
   onViewAll: () => void;
   onTransactionPress: (tx: TransactionRowData) => void;
   onManualAdd: () => void;
+  onVoice: () => void;
 };
 
 export const HomeRecentSection = memo(function HomeRecentSection({
@@ -30,6 +31,7 @@ export const HomeRecentSection = memo(function HomeRecentSection({
   onViewAll,
   onTransactionPress,
   onManualAdd,
+  onVoice,
 }: HomeRecentSectionProps) {
   const styles = useStyles();
   const visible = transactions.slice(0, HOME_MAX_RECENT);
@@ -60,6 +62,8 @@ export const HomeRecentSection = memo(function HomeRecentSection({
             subtext={emptyStateCopy.homeRecent.subtext}
             actionLabel={emptyStateCopy.homeRecent.actionLabel}
             onAction={onManualAdd}
+            secondaryActionLabel={emptyStateCopy.homeRecent.secondaryActionLabel}
+            onSecondaryAction={onVoice}
           />
         ) : (
           visible.map((tx, index) => (

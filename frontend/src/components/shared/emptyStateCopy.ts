@@ -5,10 +5,11 @@ export const emptyStateCopy = {
     subtext: "Categories will show up here once you log an expense.",
   },
   homeRecent: {
-    headline: "Nothing here yet",
+    headline: "Tap + or just say it",
     subtext:
-      "Your transactions will appear here automatically, or add one yourself.",
+      "Add what you spent by hand, or tap the mic and say “250 for lunch”.",
     actionLabel: "Add expense",
+    secondaryActionLabel: "Say it",
   },
   transactionsDay: {
     headline: "Nothing on this day",

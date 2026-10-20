@@ -1,9 +1,17 @@
 import { formatInrCompact } from "@/utils/currency";
+import type { MonthInsights } from "../types";
 import type { InsightsMonthSummary } from "../components/InsightsMonthSummaryCard";
 import type { InsightsBurnRateMetrics } from "./computeBurnRateMetrics";
 
 const EM_DASH = "\u2014";
 const ZERO = formatInrCompact(0);
+
+/** The month loaded and holds no transactions at all (not while loading, and not for a failed load). */
+export function isInsightsMonthEmpty(
+  insights: Pick<MonthInsights, "summary"> | undefined,
+): boolean {
+  return insights !== undefined && insights.summary.transaction_count === 0;
+}
 
 export function buildEmptyInsightsMonthSummary(
   hasMonthlyBudget: boolean,

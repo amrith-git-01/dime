@@ -27,6 +27,8 @@ type BudgetSummaryCardProps = {
   onEditBudget: () => void;
   onSetBudget: () => void;
   spentValue?: number;
+  /** Amount from the goal step of profile setup; offered in the set-budget button while no budget is set. */
+  suggestedBudget?: number;
 };
 
 /** "Recurring ₹X · Flexible ₹Y" plus "₹Z recurring still to come", under the month's totals. */
@@ -70,6 +72,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   onEditBudget,
   onSetBudget,
   spentValue = 0,
+  suggestedBudget,
 }: BudgetSummaryCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -77,6 +80,9 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   const heroColor = isOverBudget ? colors.danger : colors.accentText;
   const usagePct = summary?.usagePct ?? 0;
   const usagePercentUsed = summary?.usagePercentUsed ?? 0;
+  const setBudgetTitle = suggestedBudget
+    ? `Set ${formatInrCompact(suggestedBudget)} as your monthly budget`
+    : "Set monthly budget";
 
   const pillBg = isOverBudget
     ? colors.dangerTint
@@ -209,9 +215,9 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           </Text>
           <SplitLines summary={summary} centered />
           <Button
-            title="Set monthly budget"
+            title={setBudgetTitle}
             onPress={onSetBudget}
-            accessibilityLabel="Set monthly budget"
+            accessibilityLabel={setBudgetTitle}
           />
         </>
       )}

@@ -20,7 +20,7 @@ import type { AgentErrorBody } from './schemas';
 import { runAgentTurn, TurnTimeoutError } from './service';
 import type { AgentDeps, AgentEvent, TurnResult } from './service';
 import type { AgentQueries } from './queries';
-import { claimQuestion, recordUsage, refundQuestion, saveFeedback, secondsToUtcMidnight, tokensUsedToday } from './usage';
+import { claimQuestion, markFirstAgentQuestion, recordUsage, refundQuestion, saveFeedback, secondsToUtcMidnight, tokensUsedToday } from './usage';
 
 /** Seams for tests; production uses the defaults. */
 export interface AgentRouteDeps {
@@ -104,6 +104,7 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
     if (!wantsStream) {
       try {
         const result = await runAgentTurn(deps, { userId: user.id, body, signal: c.req.raw.signal, usage });
+        defer(c, markFirstAgentQuestion(getDb(c), user.id), 'agent-first-question');
         return c.json(payload(result));
       } catch (err) {
         refund();
@@ -126,6 +127,7 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
       const emit = (e: AgentEvent) => send(e.type, e.type === 'step' ? { tool: e.tool, label: e.label } : { text: e.text });
       try {
         const result = await runAgentTurn(deps, { userId: user.id, body, signal: controller.signal, emit, usage });
+        defer(c, markFirstAgentQuestion(getDb(c), user.id), 'agent-first-question');
         send('final', payload(result));
       } catch (err) {
         refund();

@@ -29,6 +29,7 @@ import {
   useAgentChat,
   useAgentDailyLimitReached,
 } from "@/features/agent/hooks/useAgentChat";
+import { FirstUseTip } from "@/features/onboarding/components";
 import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
 import { getAgentAvailability } from "@/features/limits/utils/limitsFormat";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -44,6 +45,9 @@ import { AgentChatHeader } from "./AgentChatHeader";
 import { AgentMessageRenderer } from "./AgentMessageRenderer";
 import { AgentSuggestionsHeader } from "./AgentSuggestionsHeader";
 import { createThemedStyles, useTheme } from "@/theme";
+
+/** The question the first-use tip offers; it is one of the suggested prompts. */
+const ASK_AI_TIP_PROMPT = "How much did I spend on food this month?";
 
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
 const MODAL_WIDTH_RATIO = 0.92;
@@ -384,9 +388,20 @@ export function AgentChatOverlay({
                   initialNumToRender={10}
                   ListHeaderComponent={
                     showSuggestions ? (
-                      <AgentSuggestionsHeader
-                        onSelectPrompt={handleSuggestedPrompt}
-                      />
+                      <>
+                        <FirstUseTip
+                          tipId="askAi"
+                          message={`Try “${ASK_AI_TIP_PROMPT}”`}
+                          actionLabel="Try it"
+                          onAction={() => handleSuggestedPrompt(ASK_AI_TIP_PROMPT)}
+                          enabled={visible}
+                          seenOnUnmount
+                          style={styles.tip}
+                        />
+                        <AgentSuggestionsHeader
+                          onSelectPrompt={handleSuggestedPrompt}
+                        />
+                      </>
                     ) : null
                   }
                 />
@@ -408,6 +423,9 @@ export function AgentChatOverlay({
 }
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
+  tip: {
+    marginBottom: spacing.md,
+  },
   fab: {
     position: "absolute",
     zIndex: 40,

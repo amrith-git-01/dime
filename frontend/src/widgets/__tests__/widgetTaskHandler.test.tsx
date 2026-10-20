@@ -2,6 +2,7 @@ import type { WidgetTaskHandlerProps } from "react-native-android-widget";
 
 import { settlePendingCaptures } from "@/features/widgetActions/utils/settleCapture";
 import { getSession } from "@/lib/auth/session";
+import { getWidgetAdded } from "@/lib/widgets/widgetPreferences";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
 import { widgetTaskHandler } from "../widgetTaskHandler";
@@ -51,6 +52,14 @@ describe("widgetTaskHandler", () => {
     await widgetTaskHandler(props({ widgetAction: "WIDGET_RESIZED" }));
     expect(renderWidget).toHaveBeenCalledTimes(2);
     expect(settlePendingCaptures).not.toHaveBeenCalled();
+  });
+
+  it("remembers that a widget was added, for the Get started checklist", async () => {
+    expect(getWidgetAdded()).toBe(false);
+    await widgetTaskHandler(props({ widgetAction: "WIDGET_RESIZED" }));
+    expect(getWidgetAdded()).toBe(false);
+    await widgetTaskHandler(props({ widgetAction: "WIDGET_ADDED" }));
+    expect(getWidgetAdded()).toBe(true);
   });
 
   it("on a periodic update draws first, settles waiting captures within 5 s, then draws again", async () => {

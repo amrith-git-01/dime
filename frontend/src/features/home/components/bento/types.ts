@@ -50,6 +50,9 @@ export type HomeBentoContentProps = {
   onManualAdd: () => void;
   onReceipt: () => void;
   onVoice: () => void;
+  /** "Get started" checklist rows that open a feature Home has no other button for. */
+  onAddRecurring: () => void;
+  onAskAi: () => void;
 
   // Unused in new design (kept for compat during migration)
   last7DaysSpend: { date: string; total: number }[];

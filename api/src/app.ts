@@ -17,6 +17,7 @@ import { ingestJobRoutes, ingestRoutes } from './features/ingest/routes';
 import { limitsRoutes } from './features/limits/routes';
 import { mediaRoutes } from './features/media/routes';
 import { notificationsRoutes } from './features/notifications/routes';
+import { onboardingRoutes } from './features/onboarding/routes';
 import { profileAvatarRoutes } from './features/profile-avatar/routes';
 import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
@@ -54,6 +55,7 @@ export function createApp() {
   api.route('/me', userProfileRoutes);
   api.route('/me/settings', userSettingsRoutes);
   api.route('/me/push-token', pushTokenRoutes);
+  api.route('/me/onboarding-progress', onboardingRoutes); // Home "Get started" checklist
   api.route('/profile', profileAvatarRoutes);
   api.route('/categories', categoriesRoutes);
   api.route('/brands', brandsRoutes); // catalogue search for the counterparty box

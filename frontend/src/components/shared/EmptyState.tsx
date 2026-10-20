@@ -12,6 +12,9 @@ export type EmptyStateProps = {
   subtext: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** A second, quieter button beside the main one (Home: "Say it" next to "Add expense"). */
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
   /**
    * `inset` — inside an existing parent card (Home sections, Insights cards).
    * `card` — standalone shadowed card on the page background.
@@ -27,6 +30,8 @@ export const EmptyState = memo(function EmptyState({
   subtext,
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
   layout = "inset",
   compact = false,
 }: EmptyStateProps) {
@@ -58,6 +63,14 @@ export const EmptyState = memo(function EmptyState({
             size="compact"
             onPress={onAction}
           />
+          {secondaryActionLabel && onSecondaryAction ? (
+            <Button
+              title={secondaryActionLabel}
+              variant="secondary"
+              size="compact"
+              onPress={onSecondaryAction}
+            />
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -117,5 +130,8 @@ const useStyles = createThemedStyles(({ colors, typography }) => ({
   },
   action: {
     marginTop: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
 }));

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 
 import { fetchRecurring } from "../api/recurringApi";
@@ -14,12 +13,9 @@ export function useRecurringQuery(
 ) {
   const { userId } = useSessionUserId();
 
-  const query = useQuery({
+  return useQuery({
     queryKey: recurringQueryKeys.list(userId, kind),
     queryFn: () => fetchRecurring(kind),
     enabled: Boolean(userId) && (options?.enabled ?? true),
   });
-  return usePreviewable(query, (sample) =>
-    kind === "income" ? sample.recurringIncome : sample.recurringSubscriptions,
-  );
 }

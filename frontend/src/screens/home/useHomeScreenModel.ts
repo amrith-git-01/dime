@@ -28,6 +28,7 @@ import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
+import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -192,6 +193,11 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     navigation.navigate("Transactions");
   }, [navigation]);
 
+  const onAddRecurring = useCallback(() => {
+    navigation.navigate("Budgets", { recurringKind: "subscription" });
+  }, [navigation]);
+  const openAgentChat = useAgentChatUiStore((s) => s.open);
+
   const onUpcomingPress = useCallback(
     (item: RecurringItem) => {
       navigation.navigate("Budgets", { recurringKind: item.kind });
@@ -237,6 +243,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     netDisplay,
     netValue,
     onAddMonthlyBudget,
+    onAddRecurring,
+    onAskAi: openAgentChat,
     onCategoryPress,
     onManualAdd,
     onNavigateBudgets,
