@@ -2,7 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback } from "react";
 
-import { replayAppTour } from "@/features/appTour/utils/replayAppTour";
+import { toursProgressLabel, useTourProgress } from "@/features/appTour";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
 import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -17,6 +17,7 @@ type SettingsHubDestination =
   | "SettingsEmail"
   | "SettingsGlossary"
   | "SettingsPermissions"
+  | "SettingsTours"
   | "SettingsFeedback";
 
 export function useSettingsScreenModel() {
@@ -34,7 +35,8 @@ export function useSettingsScreenModel() {
     [navigation],
   );
 
-  const onShowAppTour = useCallback(() => replayAppTour(), []);
+  const { seenCount, total } = useTourProgress();
+  const toursSubtitle = `${toursProgressLabel(seenCount, total)}. Quick walkthroughs of every screen`;
 
   return {
     displayName,
@@ -45,7 +47,7 @@ export function useSettingsScreenModel() {
     signOutConfirmModalProps,
     refreshLoading,
     openDestination,
-    onShowAppTour,
+    toursSubtitle,
     onSignOut: confirmSignOut,
     onRefreshPress: confirmRefreshAppData,
   };

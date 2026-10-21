@@ -100,9 +100,9 @@ export default function SettingsScreen() {
           />
           <SettingsNavRow
             icon={Compass}
-            label="Show app tour"
-            subtitle="A 30-second walk through the main features"
-            onPress={model.onShowAppTour}
+            label="Tours"
+            subtitle={model.toursSubtitle}
+            onPress={() => openDestination("SettingsTours")}
           />
         </View>
       </SettingsSection>

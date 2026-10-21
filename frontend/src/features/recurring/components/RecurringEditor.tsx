@@ -11,6 +11,8 @@ import {
   TextField,
 } from "@/components/ui";
 import { fontFamilies, radius, spacing } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { SettingsToggleRow } from "@/features/settings/components";
 import { ManualAddAmountSection } from "@/features/transactions/components/bento";
 
@@ -49,6 +51,7 @@ export const RecurringEditor = memo(function RecurringEditor({
   onDone,
 }: RecurringEditorProps) {
   const styles = useStyles();
+  const formTourTarget = useTourTarget(tourTargetIds.recurringEditorForm);
   const model = useRecurringSheetModel({ kind: initialKind, item, onClose: onDone });
   const { form, errors, update, copy, isEditing, kind } = model;
   const isYearly = form.cadence === "yearly";
@@ -68,7 +71,7 @@ export const RecurringEditor = memo(function RecurringEditor({
         onConfirm={model.onDeleteConfirm}
       />
 
-      <View style={[styles.amountCard, styles.cardShadow]}>
+      <View {...formTourTarget} style={[styles.amountCard, styles.cardShadow]}>
         <ManualAddAmountSection
           amountText={form.amountText}
           amountFocused={false}

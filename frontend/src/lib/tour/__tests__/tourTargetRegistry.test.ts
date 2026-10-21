@@ -87,3 +87,20 @@ describe("tour target registry", () => {
     second();
   });
 });
+
+describe("measureTourTarget on a view that never answers", () => {
+  it("gives up instead of stalling the tour", async () => {
+    jest.useFakeTimers();
+    try {
+      const unregister = registerTourTarget("test.silent", {
+        current: { measureInWindow: () => undefined },
+      } as never);
+      const result = measureTourTarget("test.silent");
+      jest.advanceTimersByTime(400);
+      await expect(result).resolves.toBeNull();
+      unregister();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

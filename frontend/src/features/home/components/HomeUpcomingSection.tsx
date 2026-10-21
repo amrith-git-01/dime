@@ -4,6 +4,8 @@ import { StyleSheet, View } from "react-native";
 import { ScreenSectionHeader } from "@/components/shared";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { RecurringListRow } from "@/features/recurring/components";
 import type { RecurringItem } from "@/features/recurring/types";
 import { createThemedStyles } from "@/theme";
@@ -22,12 +24,13 @@ export const HomeUpcomingSection = memo(function HomeUpcomingSection({
   onItemPress,
 }: HomeUpcomingSectionProps) {
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.homeUpcoming);
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <View>
+    <View {...tourTarget}>
       <ScreenSectionHeader title="Upcoming" />
       <View style={styles.card}>
         {items.map((item, index) => (

@@ -5,12 +5,15 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import {
   EmptyState,
   emptyStateCopy,
+  OptionalTourTarget,
   SurfaceCardSegment,
 } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds, type TourTargetId } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { RecurringOccurrenceRow } from "@/features/recurring/components";
 import type { RecurringOccurrence } from "@/features/recurring/types";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
@@ -54,6 +57,7 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
 }: TransactionDayCardHeaderProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const dayHeaderTourTarget = useTourTarget(tourTargetIds.transactionsDayHeader);
   const netToneStyle =
     dayNetTotal > 0
       ? styles.netPositive
@@ -63,7 +67,7 @@ export const TransactionDayCardHeader = memo(function TransactionDayCardHeader({
 
   return (
     <SurfaceCardSegment isFirst isLast={false}>
-      <View style={styles.header}>
+      <View {...dayHeaderTourTarget} style={styles.header}>
         <View style={styles.headerLeading}>
           <Text style={styles.dayLabel} numberOfLines={1}>
             {formatDayLabel(dayKey)}
@@ -92,18 +96,23 @@ export type TransactionDayCardRowProps = {
   /** False for the first row, which sits directly under the header divider. */
   showDivider: boolean;
   onPress: (tx: TransactionRowData) => void;
+  /** Makes the row a guided-tour target (the first row of the day, which the tour asks to open). */
+  tourTargetId?: TourTargetId;
 };
 
 export const TransactionDayCardRow = memo(function TransactionDayCardRow({
   transaction,
   showDivider,
   onPress,
+  tourTargetId,
 }: TransactionDayCardRowProps) {
   const styles = useStyles();
   return (
     <SurfaceCardSegment isFirst={false} isLast={false}>
       {showDivider ? <View style={styles.rowDivider} /> : null}
-      <TransactionRow transaction={transaction} onPress={onPress} />
+      <OptionalTourTarget id={tourTargetId}>
+        <TransactionRow transaction={transaction} onPress={onPress} />
+      </OptionalTourTarget>
     </SurfaceCardSegment>
   );
 });

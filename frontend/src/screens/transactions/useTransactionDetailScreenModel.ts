@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useState } from "react";
 
 import { useToast } from "@/features/toast/useToast";
+import { isTourSampleId } from "@/features/tourPreview";
 import { useTransactionDetailQuery } from "@/features/transactions/hooks/useTransactionDetailQuery";
 import { useDeleteTransactionMutation } from "@/features/transactions/hooks/useDeleteTransactionMutation";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -26,6 +27,8 @@ export function useTransactionDetailScreenModel() {
   const { showToast } = useToast();
   const deleteMutation = useDeleteTransactionMutation();
   const [confirmVisible, setConfirmVisible] = useState(false);
+  // A row from the guided tour's sample data: shown, never edited or deleted.
+  const isSample = isTourSampleId(transaction.id);
 
   const handleDismiss = useCallback(() => {
     void triggerHaptic();
@@ -33,20 +36,30 @@ export function useTransactionDetailScreenModel() {
   }, [navigation]);
 
   const handleEdit = useCallback(() => {
+    if (isSample) {
+      return;
+    }
     void triggerHaptic();
     navigation.replace("EditTransaction", { transaction });
-  }, [navigation, transaction]);
+  }, [isSample, navigation, transaction]);
 
   const handleDeletePress = useCallback(() => {
+    if (isSample) {
+      return;
+    }
     void triggerHaptic();
     setConfirmVisible(true);
-  }, []);
+  }, [isSample]);
 
   const handleCancelDelete = useCallback(() => {
     setConfirmVisible(false);
   }, []);
 
   const handleConfirmDelete = useCallback(() => {
+    if (isSample) {
+      setConfirmVisible(false);
+      return;
+    }
     void deleteMutation
       .mutateAsync(transaction.id)
       .then(() => {
@@ -69,10 +82,11 @@ export function useTransactionDetailScreenModel() {
           message: "Could not delete transaction",
         });
       });
-  }, [deleteMutation, navigation, showToast, transaction.id]);
+  }, [deleteMutation, isSample, navigation, showToast, transaction.id]);
 
   return {
     transaction,
+    isSample,
     confirmVisible,
     deleteLoading: deleteMutation.isPending,
     handleDismiss,

@@ -1,6 +1,6 @@
 import type { TourRect } from "@/lib/tour/tourTargetRegistry";
 
-import type { TourPlacementPreference } from "../constants/tourSteps";
+import type { TourPlacementPreference } from "../constants/tourTypes";
 
 export type TourInsets = {
   top: number;

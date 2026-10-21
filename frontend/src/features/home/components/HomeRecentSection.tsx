@@ -1,10 +1,11 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { EmptyState, emptyStateCopy } from "@/components/shared";
+import { EmptyState, emptyStateCopy, OptionalTourTarget } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import { TransactionRow } from "@/features/transactions/components/TransactionRow";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 
@@ -69,7 +70,11 @@ export const HomeRecentSection = memo(function HomeRecentSection({
           visible.map((tx, index) => (
             <View key={tx.id}>
               {index > 0 && <View style={styles.divider} />}
-              <TransactionRow transaction={tx} onPress={onTransactionPress} />
+              <OptionalTourTarget
+                id={index === 0 ? tourTargetIds.homeFirstTransaction : undefined}
+              >
+                <TransactionRow transaction={tx} onPress={onTransactionPress} />
+              </OptionalTourTarget>
             </View>
           ))
         )}

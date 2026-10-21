@@ -10,6 +10,7 @@ import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useCounterpartySelect } from "@/features/payees/hooks/useCounterpartySelect";
 import { useToast } from "@/features/toast/useToast";
+import { isTourSampleId } from "@/features/tourPreview";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
@@ -234,6 +235,10 @@ export function useEditTransactionScreenModel() {
   }, [openAndroidTimePicker]);
 
   const onSave = useCallback(async () => {
+    if (transaction && isTourSampleId(transaction.id)) {
+      navigation.goBack();
+      return;
+    }
     if (!userId) {
       Alert.alert("Sign in required", "Sign in to save this transaction.");
       return;

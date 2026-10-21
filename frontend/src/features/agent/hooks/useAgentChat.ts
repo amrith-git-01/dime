@@ -2,14 +2,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import { postAgentFeedback, streamAgentChat } from "@/features/agent/api/agentApi";
+import { useScriptedChatActive, isScriptedChatActive } from "@/features/appTour";
 import type { AgentFeedbackRating, ChatMessage } from "@/features/agent/types";
 import {
   agentChatReducer,
   buildAgentHistory,
   initialAgentChatState,
+  type AgentChatState,
 } from "@/features/agent/utils/agentChatState";
 import { getAgentErrorMessage } from "@/features/agent/utils/agentErrorMessage";
 import { createDeltaBatcher } from "@/features/agent/utils/createDeltaBatcher";
+import {
+  buildScriptedTourAnswerForToday,
+  SCRIPTED_TOUR_ANSWER_MS,
+  SCRIPTED_TOUR_STEPS,
+} from "@/features/agent/utils/scriptedTourChat";
 import { invalidateOnboardingProgress } from "@/features/onboarding/cache/invalidateOnboardingProgress";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
@@ -44,6 +51,11 @@ export function useAgentChat() {
   // Identifies the in-flight request so late events from an older one are ignored.
   const requestIdRef = useRef(0);
   const batcherRef = useRef<ReturnType<typeof createDeltaBatcher> | null>(null);
+  // Timers of the guided tour's scripted answer (it never calls the model).
+  const scriptedTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // The user's own conversation, put away while the tour's sample chat is on screen.
+  const stashedRef = useRef<AgentChatState | null>(null);
+  const scriptedActive = useScriptedChatActive();
 
   useEffect(() => {
     stateRef.current = state;
@@ -55,6 +67,8 @@ export function useAgentChat() {
     abortRef.current = null;
     batcherRef.current?.cancel();
     batcherRef.current = null;
+    scriptedTimersRef.current.forEach(clearTimeout);
+    scriptedTimersRef.current = [];
     isPendingRef.current = false;
   }, []);
 
@@ -65,9 +79,77 @@ export function useAgentChat() {
     dispatch({ type: "reset" });
   }, [cancelInFlight]);
 
+  // The Ask AI tour starts from a clean chat and puts the user's own conversation back afterwards.
+  // A real question still being answered is never aborted: the tour's chat waits for its turn to end.
+  const activeRequestId = state.activeRequestId;
+  useEffect(() => {
+    if (scriptedActive) {
+      if (stashedRef.current !== null || activeRequestId !== null) {
+        return;
+      }
+      stashedRef.current = stateRef.current;
+      dispatch({ type: "reset" });
+      return;
+    }
+    const stashed = stashedRef.current;
+    if (stashed) {
+      stashedRef.current = null;
+      cancelInFlight();
+      dispatch({
+        type: "restore",
+        state: {
+          ...stashed,
+          messages: stashed.messages.filter((message) => !message.isPending),
+          activeRequestId: null,
+          activeAssistantId: null,
+        },
+      });
+    }
+  }, [scriptedActive, activeRequestId, cancelInFlight]);
+
+  /** The tour's sample exchange: a question, a short "thinking", a scripted answer. No network, no usage. */
+  const sendScriptedMessage = useCallback((content: string) => {
+    const requestId = ++requestIdRef.current;
+    isPendingRef.current = true;
+    dispatch({
+      type: "send",
+      requestId,
+      userMessage: {
+        id: newLocalId(),
+        role: "user",
+        content,
+        blocks: [],
+        deepLink: null,
+      },
+      assistantMessage: {
+        id: newLocalId(),
+        role: "assistant",
+        content: "",
+        blocks: [],
+        deepLink: null,
+        isPending: true,
+      },
+    });
+    scriptedTimersRef.current = [
+      ...SCRIPTED_TOUR_STEPS.map(({ label, atMs }) =>
+        setTimeout(() => dispatch({ type: "step", requestId, label }), atMs),
+      ),
+      setTimeout(() => {
+        if (requestIdRef.current === requestId) {
+          isPendingRef.current = false;
+        }
+        dispatch({ type: "final", requestId, response: buildScriptedTourAnswerForToday() });
+      }, SCRIPTED_TOUR_ANSWER_MS),
+    ];
+  }, []);
+
   const sendMessage = useCallback(async (rawContent: string) => {
     const content = rawContent.trim();
     if (!content || isPendingRef.current) {
+      return;
+    }
+    if (isScriptedChatActive()) {
+      sendScriptedMessage(content);
       return;
     }
 
@@ -146,7 +228,7 @@ export function useAgentChat() {
     if (controller.signal.aborted) {
       dispatch({ type: "abort", requestId });
     }
-  }, [queryClient]);
+  }, [queryClient, sendScriptedMessage]);
 
   const submitFeedback = useCallback(
     (messageId: string, rating: AgentFeedbackRating) => {

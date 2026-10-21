@@ -18,6 +18,8 @@ import {
 import { Button } from "@/components/ui";
 import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { DayAddButton, TransactionRow } from "@/features/transactions/components";
 import type { TransactionRow as TransactionRowType } from "@/features/transactions/types";
 import type {
@@ -131,6 +133,7 @@ export default function TransactionsListScreen() {
     monthLabel,
   } = useTransactionsListScreenModel();
   const insets = useSafeAreaInsets();
+  const listTourTarget = useTourTarget(tourTargetIds.transactionsListHeader);
 
   const renderItem: ListRenderItem<TransactionListItem> = ({ item }) =>
     item.kind === "header" ? (
@@ -177,53 +180,57 @@ export default function TransactionsListScreen() {
   }
 
   return (
-    <FlashList
-      style={styles.fill}
-      data={listItems}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      getItemType={getItemType}
-      stickyHeaderIndices={stickyHeaderIndices}
-      onEndReached={loadMore}
-      onEndReachedThreshold={0.5}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        backgroundColor: colors.paper,
-        paddingHorizontal: spacing.lg + spacing.md,
-        paddingTop: spacing.lg + spacing.md,
-        paddingBottom: spacing.xl * 3 + insets.bottom,
-      }}
-      ListHeaderComponent={
-        <View style={styles.subtitleRow}>
-          <Text style={styles.subtitle}>
-            {`${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""} · ${monthLabel}`}
-          </Text>
-        </View>
-      }
-      ListFooterComponent={
-        isError ? (
-          <View style={styles.loadingMore}>
-            <Text style={styles.footerError}>
-              {emptyStateCopy.transactionsListError.headline}
+    <View style={styles.fill}>
+      <FlashList
+        style={styles.fill}
+        data={listItems}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        getItemType={getItemType}
+        stickyHeaderIndices={stickyHeaderIndices}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          backgroundColor: colors.paper,
+          paddingHorizontal: spacing.lg + spacing.md,
+          paddingTop: spacing.lg + spacing.md,
+          paddingBottom: spacing.xl * 3 + insets.bottom,
+        }}
+        ListHeaderComponent={
+          <View style={styles.subtitleRow}>
+            <Text style={styles.subtitle}>
+              {`${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""} · ${monthLabel}`}
             </Text>
-            <View style={styles.retrySlot}>
-              <Button
-                title="Retry"
-                variant="ghost"
-                size="compact"
-                onPress={retry}
-                loading={isRetrying}
-                accessibilityLabel="Retry loading transactions"
-              />
+          </View>
+        }
+        ListFooterComponent={
+          isError ? (
+            <View style={styles.loadingMore}>
+              <Text style={styles.footerError}>
+                {emptyStateCopy.transactionsListError.headline}
+              </Text>
+              <View style={styles.retrySlot}>
+                <Button
+                  title="Retry"
+                  variant="ghost"
+                  size="compact"
+                  onPress={retry}
+                  loading={isRetrying}
+                  accessibilityLabel="Retry loading transactions"
+                />
+              </View>
             </View>
-          </View>
-        ) : showLoadingMore ? (
-          <View style={styles.loadingMore}>
-            <ActivityIndicator color={colors.accentText} />
-          </View>
-        ) : null
-      }
-    />
+          ) : showLoadingMore ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator color={colors.accentText} />
+            </View>
+          ) : null
+        }
+      />
+    {/* Invisible box over the top of the list (its count, the first day and its rows), for the guided tour to spotlight. */}
+    <View {...listTourTarget} pointerEvents="none" style={styles.tourBox} />
+    </View>
   );
 }
 
@@ -231,6 +238,13 @@ const useStyles = createThemedStyles(({ colors }) => ({
   fill: {
     flex: 1,
     backgroundColor: colors.paper,
+  },
+  tourBox: {
+    position: "absolute",
+    top: spacing.lg + spacing.md,
+    left: spacing.lg + spacing.md,
+    right: spacing.lg + spacing.md,
+    height: 280,
   },
   subtitleRow: {
     paddingBottom: spacing.xl,

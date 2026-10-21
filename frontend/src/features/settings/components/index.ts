@@ -15,4 +15,9 @@ export { SettingsNotificationsEditor } from "./SettingsNotificationsEditor";
 export { SettingsOptionRow } from "./SettingsOptionRow";
 export { SettingsSection } from "./SettingsSection";
 export { SettingsSurfaceCard } from "./SettingsSurfaceCard";
+export {
+  SettingsToursEditor,
+  type SettingsTourRowData,
+  type SettingsToursEditorProps,
+} from "./SettingsToursEditor";
 export { SettingsToggleRow } from "./SettingsToggleRow";

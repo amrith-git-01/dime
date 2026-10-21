@@ -5,7 +5,6 @@ import { useCallback } from "react";
 import { Alert, InteractionManager } from "react-native";
 
 import { confirmCapturePermissionReason } from "@/features/onboarding/utils/permissionReasonAlert";
-import { SCAN_TIP_TOAST_MS, takeScanTip } from "@/features/onboarding/utils/scanTip";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -92,12 +91,9 @@ export function useReceiptCameraTransaction() {
         mimeType: "image/jpeg",
         idempotencyKey,
       });
-      // The first upload on this device explains what happens next (the scan tip).
-      const scanTip = takeScanTip();
       showToast({
         variant: "success",
-        message: scanTip ?? "Receipt added for processing",
-        ...(scanTip ? { durationMs: SCAN_TIP_TOAST_MS } : {}),
+        message: "Receipt added for processing",
       });
       invalidateTransactionDerivedQueries(qc);
     } catch (e) {

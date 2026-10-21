@@ -10,7 +10,13 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
+import {
+  launchTour,
+  tourIdForTab,
+  useFocusedTourTab,
+} from "@/features/appTour";
 import { useAppTourAutoStart } from "@/features/appTour/hooks/useAppTourAutoStart";
+import { notifyTourTabFocused } from "@/features/appTour/hooks/useTourPaused";
 import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
 import { getCaptureAvailability } from "@/features/limits/utils/limitsFormat";
 import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
@@ -62,6 +68,14 @@ export default function MainTabNavigator() {
     void triggerHaptic();
     stackNavigation.navigate("Settings");
   }, [stackNavigation]);
+  // The header's "?" opens the guided tour of whichever tab is on screen.
+  const focusedTab = useFocusedTourTab();
+  const onHelpPress = useCallback(() => {
+    void triggerHaptic();
+    if (focusedTab) {
+      launchTour(tourIdForTab(focusedTab));
+    }
+  }, [focusedTab]);
 
   const onManualAddPress = useCallback(() => {
     stackNavigation.navigate("ManualAddTransaction");
@@ -116,6 +130,7 @@ export default function MainTabNavigator() {
         <AppHeader
           onNotificationsPress={onNotificationsPress}
           onSettingsPress={onSettingsPress}
+          onHelpPress={onHelpPress}
           onHeaderReady={() => setHeaderReady(true)}
           showUnreadNotificationDot={showUnreadNotificationDot}
         />
@@ -137,6 +152,8 @@ export default function MainTabNavigator() {
             tabPress: () => {
               void triggerHaptic();
             },
+            // Also fires for the first tab on mount, which the tour's route tracking otherwise misses.
+            focus: notifyTourTabFocused,
           }}
           screenOptions={{
             headerShown: false,

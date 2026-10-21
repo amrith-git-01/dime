@@ -2,10 +2,14 @@ import { Plus } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { EmptyState, ScreenSectionHeader } from "@/components/shared";
+import {
+  EmptyState,
+  OptionalTourTarget,
+  ScreenSectionHeader,
+} from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
-import { FirstUseTip } from "@/features/onboarding/components";
 import { fontFamilies, radius, spacing } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { formatInrAmount } from "@/utils/currency";
 
@@ -30,8 +34,6 @@ export type RecurringSectionProps = {
   today: Date;
   onAdd: (kind: RecurringKind) => void;
   onItemPress: (item: RecurringItem) => void;
-  /** The first-use tip may show (the hosting screen is in view). */
-  tipEnabled?: boolean;
 };
 
 const SKELETON_ROWS = 2;
@@ -43,19 +45,14 @@ export const RecurringSection = memo(function RecurringSection({
   today,
   onAdd,
   onItemPress,
-  tipEnabled = true,
 }: RecurringSectionProps) {
   const styles = useStyles();
+  // The guided tour points at the first recurring row of whichever card has rows first.
+  const firstItemKind: RecurringKind =
+    income.items.length > 0 ? "income" : "subscription";
   return (
     <View style={styles.root}>
       <ScreenSectionHeader title="Recurring" />
-      <FirstUseTip
-        tipId="recurring"
-        message="Add rent, SIPs and subscriptions once. Dime logs them every month."
-        enabled={tipEnabled}
-        after="budgets"
-        style={styles.tip}
-      />
       <View style={styles.cards}>
         <RecurringKindCard
           kind="income"
@@ -63,6 +60,7 @@ export const RecurringSection = memo(function RecurringSection({
           today={today}
           onAdd={onAdd}
           onItemPress={onItemPress}
+          firstItemIsTourTarget={firstItemKind === "income"}
         />
         <RecurringKindCard
           kind="subscription"
@@ -70,6 +68,7 @@ export const RecurringSection = memo(function RecurringSection({
           today={today}
           onAdd={onAdd}
           onItemPress={onItemPress}
+          firstItemIsTourTarget={firstItemKind === "subscription"}
         />
       </View>
     </View>
@@ -82,6 +81,7 @@ type RecurringKindCardProps = {
   today: Date;
   onAdd: (kind: RecurringKind) => void;
   onItemPress: (item: RecurringItem) => void;
+  firstItemIsTourTarget: boolean;
 };
 
 function RecurringKindCard({
@@ -90,6 +90,7 @@ function RecurringKindCard({
   today,
   onAdd,
   onItemPress,
+  firstItemIsTourTarget,
 }: RecurringKindCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -169,10 +170,18 @@ function RecurringKindCard({
           </View>
         ))
       ) : (
-        items.map((item) => (
+        items.map((item, index) => (
           <View key={item.id}>
             <View style={styles.divider} />
-            <RecurringListRow item={item} today={today} onPress={onItemPress} />
+            <OptionalTourTarget
+              id={
+                firstItemIsTourTarget && index === 0
+                  ? tourTargetIds.budgetsRecurringItem
+                  : undefined
+              }
+            >
+              <RecurringListRow item={item} today={today} onPress={onItemPress} />
+            </OptionalTourTarget>
           </View>
         ))
       )}
@@ -184,9 +193,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   root: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
-  },
-  tip: {
-    marginBottom: spacing.md,
   },
   cards: {
     gap: spacing.lg,

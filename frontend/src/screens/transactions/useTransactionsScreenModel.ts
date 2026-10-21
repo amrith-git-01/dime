@@ -24,8 +24,11 @@ import {
 import { resolveDaySummary } from "@/features/transactions/utils/daySummaries";
 import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
+import { useTourCommand } from "@/hooks/useTourCommand";
+import { useTourRestorable } from "@/hooks/useTourRestorable";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -233,6 +236,7 @@ export function useTransactionsScreenModel() {
     (transaction: TransactionRow) => {
       void triggerHaptic();
       navigation.navigate("TransactionDetail", { transaction });
+      emitTourEvent(tourEventNames.transactionOpened);
     },
     [navigation],
   );
@@ -245,6 +249,7 @@ export function useTransactionsScreenModel() {
     (dayKey: string) => {
       void triggerHaptic();
       calendarSelectDay(dayKey);
+      emitTourEvent(tourEventNames.daySelected);
     },
     [calendarSelectDay],
   );
@@ -260,12 +265,14 @@ export function useTransactionsScreenModel() {
     if (!canGoPrevMonth) return;
     void triggerHaptic();
     calendarGoPrevMonth();
+    emitTourEvent(tourEventNames.monthChanged);
   }, [calendarGoPrevMonth, canGoPrevMonth]);
 
   const goNextMonth = useCallback(() => {
     if (!canGoNextMonth) return;
     void triggerHaptic();
     calendarGoNextMonth();
+    emitTourEvent(tourEventNames.monthChanged);
   }, [calendarGoNextMonth, canGoNextMonth]);
 
   const goPrevDay = useCallback(() => {
@@ -279,6 +286,36 @@ export function useTransactionsScreenModel() {
     void triggerHaptic();
     calendarGoNextDay();
   }, [calendarGoNextDay, canGoNextDay]);
+
+  // The tour changes the month and the day; it puts them back when it ends.
+  useTourRestorable("transactions.calendar", {
+    snapshot: () => ({ monthIndex: selectedMonthIndex, dayKey: selectedDayKey }),
+    restore: (snapshot) => {
+      const { monthIndex, dayKey } = snapshot as { monthIndex: number; dayKey: string };
+      calendarSelectMonth(monthIndex);
+      calendarSelectDay(dayKey);
+    },
+  });
+
+  // "Do it for me" on the Transactions tour's steps: pick another day that has spending, open the
+  // day's first payment, move one month.
+  useTourCommand("txPickDay", () => {
+    const withSpend = Object.keys(spendByDay).sort().reverse();
+    selectDay(withSpend.find((key) => key !== selectedDayKey) ?? selectedDayKey);
+  });
+  useTourCommand("txOpenTransaction", () => {
+    const first = dayTransactions[0];
+    if (first) {
+      openTransactionDetail(first);
+    }
+  });
+  useTourCommand("txSwitchMonth", () => {
+    if (canGoPrevMonth) {
+      goPrevMonth();
+    } else {
+      goNextMonth();
+    }
+  });
 
   const waitingForOlderPages =
     selectedDayTransactionCount > 0 &&

@@ -31,6 +31,7 @@ describe("celebration store", () => {
       event: null,
       reduceMotion: false,
       suppressed: false,
+      primed: false,
     });
   });
 
@@ -157,6 +158,70 @@ describe("celebration store", () => {
       store().celebrate({ kind: "burst" });
       store().celebrate({ kind: "burst" });
       expect(store().event).toMatchObject({ kind: "burst", mode: "particles" });
+    });
+  });
+  describe("the lighter confetti (a tour finished again, or after the day's big one)", () => {
+    it("plays particles and confirms with a haptic", () => {
+      store().celebrate({ kind: "confettiMedium" });
+      expect(store().event).toMatchObject({ kind: "confettiMedium", mode: "particles" });
+      expect(triggerConfirmHaptic).toHaveBeenCalledTimes(1);
+    });
+
+    it("never uses up the day's big confetti, and is not limited by it", () => {
+      store().celebrate({ kind: "confettiMedium" });
+      store().celebrate({ kind: "confettiMedium" });
+      store().celebrate({ kind: "confetti" });
+      expect(store().event).toMatchObject({ kind: "confetti", mode: "particles" });
+
+      store().celebrate({ kind: "confettiMedium" });
+      expect(store().event).toMatchObject({ kind: "confettiMedium", mode: "particles" });
+    });
+
+    it("is a static check with the haptic under reduced motion or with Celebrations off", () => {
+      store().setReduceMotion(true);
+      store().celebrate({ kind: "confettiMedium" });
+      expect(store().event).toMatchObject({ mode: "check" });
+      store().setReduceMotion(false);
+
+      setCelebrationsEnabled(false);
+      store().celebrate({ kind: "confettiMedium" });
+      expect(store().event).toMatchObject({ mode: "check" });
+    });
+
+    it("is suppressed for a replayed first-run tour like everything else", () => {
+      store().setSuppressed(true);
+      store().celebrate({ kind: "confettiMedium" });
+      expect(store().event).toBeNull();
+    });
+  });
+
+  describe("when today's big confetti is used up", () => {
+    it("can fall back to the lighter confetti instead of the static check", () => {
+      store().celebrate({ kind: "confetti" });
+      store().celebrate({ kind: "confetti", capFallback: "medium" });
+      expect(store().event).toMatchObject({ kind: "confettiMedium", mode: "particles" });
+    });
+
+    it("the first one of the day is still the big one", () => {
+      store().celebrate({ kind: "confetti", capFallback: "medium" });
+      expect(store().event).toMatchObject({ kind: "confetti", mode: "particles" });
+    });
+
+    it("can be told to play regardless (the all-tours-done moment)", () => {
+      store().celebrate({ kind: "confetti" });
+      store().celebrate({ kind: "confetti", ignoreDailyCap: true });
+      expect(store().event).toMatchObject({ kind: "confetti", mode: "particles" });
+    });
+  });
+
+  describe("the particle canvas", () => {
+    it("is asked for ahead of time (a tour starting), and stays asked for", () => {
+      expect(store().primed).toBe(false);
+      store().prime();
+      expect(store().primed).toBe(true);
+      store().celebrate({ kind: "burst" });
+      store().clear(store().event!.id);
+      expect(store().primed).toBe(true);
     });
   });
 });

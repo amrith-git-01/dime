@@ -172,6 +172,32 @@ reference; the 1.7 recordings are no longer needed.
 
 ---
 
+## Phase 5: tours for each tab (JavaScript only, OTA; agreed 2026-10-21)
+
+On-demand, short, interactive tours of one tab at a time, including the screens behind it. The first-expense tour (Phase 1)
+stays as the onboarding moment; its finish card points to "?".
+
+- **Entry points:**
+  - a small **"?" button** floating above the Ask AI button on each tab, with a dot, shown until that tab's tour has been watched
+    (or skipped), then it goes away;
+  - a **"?" in each tab's header**, always there, for replays;
+  - **Settings → Tours**: one row per tab with a ✓ once seen, the length ("~25 s") and Play.
+- **Tours** (4–7 stops each, roughly 20–30 s): Home, Transactions, Budgets, Insights, Ask AI, plus the + menu (manual, voice, scan).
+  Tours walk into sub-screens (for example Transactions: calendar → day card → transaction detail → edit → back); the engine
+  navigates and scrolls each target into view.
+- **Interaction:** "Do" steps for safe actions (tap a day, open a transaction, switch month), which wait for the real tap;
+  "Watch" steps with Next for everything else. A tour never saves, edits or deletes anything. Skip and Step N of M on every stop;
+  leaving mid-tour saves nothing.
+- **Sample data:** restored from the removed `features/tourPreview` (commits c364452, 808cb4b): only for screens that are empty,
+  a "Sample data" banner while it shows, read-only (edit and delete disabled on sample rows; steps that would need a save become
+  Watch steps), never written to the query cache. The sample month reuses the Welcome reel's October story (`reelStory.ts`).
+  Ask AI uses a scripted sample answer, never a real model call.
+- **Motion:** the Phase 1 tour engine and tokens (spotlight morph, card choreography, progress bar, reduced-motion path); a ✓
+  check on finishing, no confetti.
+- **First-use tip cards retired** (voice, budgets, recurring, insights, Ask AI, the first-scan toast text); "?" replaces them.
+  The checklist's "Replay the tour" becomes "Take a tour".
+- Seen state per user on the device (MMKV).
+
 ## Phase 4: later (each its own decision)
 
 - **Forgiving weekly logging streak** with freeze days; milestone celebrations only, no loss-framed notifications.

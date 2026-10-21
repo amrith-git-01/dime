@@ -1,7 +1,8 @@
-import { RotateCcw, Sparkles, X } from "lucide-react-native";
+import { CircleQuestionMark, RotateCcw, X } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
+import { DimeMark } from "@/components/brand/DimeMark";
 import { spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { createThemedStyles, useTheme } from "@/theme";
@@ -9,22 +10,42 @@ import { createThemedStyles, useTheme } from "@/theme";
 type AgentChatHeaderProps = {
   onReset: () => void;
   onClose: () => void;
+  /** Opens the Ask AI tour. */
+  onHelp: () => void;
+  /** A question is being answered; the tour waits until it is done. */
+  helpDisabled?: boolean;
 };
 
 /** Title row of the agent panel with the clear-chat and close actions. */
 export const AgentChatHeader = memo(function AgentChatHeader({
   onReset,
   onClose,
+  onHelp,
+  helpDisabled = false,
 }: AgentChatHeaderProps) {
   const { colors } = useTheme();
   const styles = useStyles();
   return (
     <View style={styles.header}>
       <View style={styles.titleRow}>
-        <Sparkles size={20} color={colors.accentText} strokeWidth={2} />
+        <DimeMark size={24} color={colors.accentText} />
         <Text style={styles.title}>Dime Agent</Text>
       </View>
       <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Take a tour of Ask AI"
+          accessibilityState={{ disabled: helpDisabled }}
+          disabled={helpDisabled}
+          onPress={onHelp}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.iconButton,
+            (pressed || helpDisabled) && styles.iconButtonPressed,
+          ]}
+        >
+          <CircleQuestionMark size={20} color={colors.inkSoft} strokeWidth={2} />
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Clear chat"

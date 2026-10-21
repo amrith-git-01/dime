@@ -69,14 +69,19 @@ export function tourRectsEqual(
   );
 }
 
-/** Measures a registered target in window coordinates; null when not mounted or not laid out. */
+/** A view that never answers a measure (detached from the window) must not stall the tour. */
+const MEASURE_TIMEOUT_MS = 350;
+
+/** Measures a registered target in window coordinates; null when not mounted, not laid out, or not answering. */
 export function measureTourTarget(id: string): Promise<TourRect | null> {
   const node = targets.get(id)?.current;
   if (!node) {
     return Promise.resolve(null);
   }
   return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), MEASURE_TIMEOUT_MS);
     node.measureInWindow((x, y, width, height) => {
+      clearTimeout(timer);
       resolve({ x, y, width, height });
     });
   });

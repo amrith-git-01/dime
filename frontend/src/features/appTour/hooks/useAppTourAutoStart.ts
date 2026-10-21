@@ -30,6 +30,7 @@ export function useAppTourAutoStart({
   const modalFlowOpen = useModalFlowOpen();
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const tourActive = useAppTourStore((s) => s.active);
+  const suppressed = useAppTourStore((s) => s.autoStartSuppressed);
   const startTour = useAppTourStore((s) => s.start);
   // Wait for the real Home overview, so the tour opens on the screen the user will actually see.
   const homeLoaded = useTransactionsHomeQuery().isSuccess;
@@ -40,7 +41,8 @@ export function useAppTourAutoStart({
     homeLoaded &&
     !modalFlowOpen &&
     !fabOpen &&
-    !tourActive;
+    !tourActive &&
+    !suppressed;
 
   useEffect(() => {
     if (!calm || userId === undefined) {

@@ -1,13 +1,15 @@
-import { Canvas, Circle, Group, Path, Skia } from "@shopify/react-native-skia";
-import { memo, useEffect, useMemo } from "react";
-import {
+import { memo, useEffect } from "react";
+import { View } from "react-native";
+import Animated, {
   Easing,
-  useDerivedValue,
+  useAnimatedProps,
+  useAnimatedStyle,
   useSharedValue,
   withDelay,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { springs } from "@/constants/motion";
 import { useTheme } from "@/theme";
@@ -17,6 +19,10 @@ import type { TourMotion } from "../utils/tourMotion";
 const SIZE = 72;
 const CENTER = SIZE / 2;
 const RADIUS = 30;
+/** Length of the check's two strokes (a little over, so the dash always covers it). */
+const CHECK_LENGTH = 40;
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export type TourCheckMarkProps = {
   /** Starts the draw-in (the finish card became visible). */
@@ -24,7 +30,10 @@ export type TourCheckMarkProps = {
   motion: TourMotion;
 };
 
-/** The finish card's mark: a badge pops in and its check is drawn stroke by stroke. */
+/**
+ * The finish card's mark: a badge pops in and its check is drawn stroke by stroke. Drawn with SVG
+ * and Reanimated (a Skia canvas here would be one more GL surface to create on the UI thread).
+ */
 export const TourCheckMark = memo(function TourCheckMark({
   play,
   motion,
@@ -49,44 +58,34 @@ export const TourCheckMark = memo(function TourCheckMark({
     );
   }, [play, motion.spring, badge, draw]);
 
-  const check = useMemo(() => {
-    const path = Skia.Path.Make();
-    path.moveTo(CENTER - 11, CENTER + 1);
-    path.lineTo(CENTER - 3, CENTER + 10);
-    path.lineTo(CENTER + 12, CENTER - 9);
-    return path;
-  }, []);
-
-  const badgeTransform = useDerivedValue(() => [
-    { scale: 0.6 + badge.value * 0.4 },
-  ]);
-  const badgeOpacity = useDerivedValue(() => Math.min(1, badge.value * 1.5));
+  const badgeStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, badge.value * 1.5),
+    transform: [{ scale: 0.6 + badge.value * 0.4 }],
+  }));
+  const checkProps = useAnimatedProps(() => ({
+    strokeDashoffset: CHECK_LENGTH * (1 - draw.value),
+  }));
 
   return (
-    <Canvas style={{ width: SIZE, height: SIZE }}>
-      <Group
-        transform={badgeTransform}
-        origin={{ x: CENTER, y: CENTER }}
-        opacity={badgeOpacity}
-      >
-        <Circle
-          cx={CENTER}
-          cy={CENTER}
-          r={RADIUS + 5}
-          color={colors.accentTint}
+    <View style={{ width: SIZE, height: SIZE }}>
+      <Animated.View style={[{ position: "absolute", width: SIZE, height: SIZE }, badgeStyle]}>
+        <Svg width={SIZE} height={SIZE}>
+          <Circle cx={CENTER} cy={CENTER} r={RADIUS + 5} fill={colors.accentTint} />
+          <Circle cx={CENTER} cy={CENTER} r={RADIUS} fill={colors.accent} />
+        </Svg>
+      </Animated.View>
+      <Svg width={SIZE} height={SIZE} style={{ position: "absolute" }}>
+        <AnimatedPath
+          d={`M${CENTER - 11} ${CENTER + 1} L${CENTER - 3} ${CENTER + 10} L${CENTER + 12} ${CENTER - 9}`}
+          stroke={colors.onAccent}
+          strokeWidth={5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+          strokeDasharray={CHECK_LENGTH}
+          animatedProps={checkProps}
         />
-        <Circle cx={CENTER} cy={CENTER} r={RADIUS} color={colors.accent} />
-      </Group>
-      <Path
-        path={check}
-        style="stroke"
-        strokeWidth={5}
-        strokeCap="round"
-        strokeJoin="round"
-        color={colors.onAccent}
-        start={0}
-        end={draw}
-      />
-    </Canvas>
+      </Svg>
+    </View>
   );
 });

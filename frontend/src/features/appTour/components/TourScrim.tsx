@@ -11,7 +11,13 @@ import { useDerivedValue, type SharedValue } from "react-native-reanimated";
 
 import { useTheme } from "@/theme";
 
+import { TOUR_RIPPLE } from "../utils/tourMotion";
+
+import { TourRing, type TourRingProps } from "./TourRing";
 import { TourSparkleTrail, type TourSparkleTrailProps } from "./TourSparkleTrail";
+
+/** What the scrim needs to draw a ring from a point (the shared values come from the overlay). */
+export type TourScrimRing = Pick<TourRingProps, "x" | "y" | "clock">;
 
 export type TourScrimProps = {
   width: number;
@@ -26,12 +32,18 @@ export type TourScrimProps = {
   enter: SharedValue<number>;
   /** 0..1 breathing of the glow ring. */
   pulse: SharedValue<number>;
+  /** 0.4..1: how strongly the ring glows (a "Do" step glows fully, a "Watch" step softly). */
+  emphasis: SharedValue<number>;
   /** Sparkles left along the hole's path between targets; omit for none (reduced motion). */
   trail?: Omit<TourSparkleTrailProps, "color">;
+  /** A small ring at the target when a "Do" step succeeds; omit for none (reduced motion). */
+  ripple?: TourScrimRing;
+  /** A wide ring when the tour zooms through to another screen; omit for none. */
+  warp?: TourScrimRing;
 };
 
 const RING_BASE_INSET = 3;
-const RING_PULSE_TRAVEL = 4;
+const RING_PULSE_TRAVEL = 5;
 
 /**
  * Full-screen dim layer drawn in Skia: one path (screen rectangle + hole, even-odd fill) so the
@@ -49,7 +61,10 @@ export function TourScrim({
   holeRadius,
   enter,
   pulse,
+  emphasis,
   trail,
+  ripple,
+  warp,
 }: TourScrimProps) {
   const { colors } = useTheme();
 
@@ -74,7 +89,7 @@ export function TourScrim({
   });
 
   const ringInset = useDerivedValue(
-    () => RING_BASE_INSET + pulse.value * RING_PULSE_TRAVEL,
+    () => RING_BASE_INSET + pulse.value * RING_PULSE_TRAVEL * emphasis.value,
   );
   const ringX = useDerivedValue(() => holeX.value - ringInset.value);
   const ringY = useDerivedValue(() => holeY.value - ringInset.value);
@@ -87,7 +102,7 @@ export function TourScrim({
   const ringRadius = useDerivedValue(() => holeRadius.value + ringInset.value);
   const ringOpacity = useDerivedValue(() => {
     const hasHole = holeWidth.value > 0.5 && holeHeight.value > 0.5 ? 1 : 0;
-    return enter.value * hasHole * (0.5 + pulse.value * 0.5);
+    return enter.value * hasHole * (0.45 + pulse.value * 0.55 * emphasis.value);
   });
 
   return (
@@ -131,6 +146,28 @@ export function TourScrim({
           />
         </Group>
         {trail ? <TourSparkleTrail {...trail} color={colors.accentText} /> : null}
+        {ripple ? (
+          <TourRing
+            {...ripple}
+            durationMs={TOUR_RIPPLE.doneMs}
+            fromRadius={10}
+            toRadius={64}
+            strokeWidth={3}
+            opacity={0.85}
+            color={colors.accentText}
+          />
+        ) : null}
+        {warp ? (
+          <TourRing
+            {...warp}
+            durationMs={TOUR_RIPPLE.warpMs}
+            fromRadius={24}
+            toRadius={Math.hypot(width, height)}
+            strokeWidth={10}
+            opacity={0.35}
+            color={colors.accentText}
+          />
+        ) : null}
       </Canvas>
     </View>
   );

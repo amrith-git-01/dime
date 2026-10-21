@@ -1,11 +1,10 @@
-import { useIsFocused } from "@react-navigation/native";
 import { useRef } from "react";
 import { ScrollView } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { TourTarget } from "@/components/shared";
-import { layout } from "@/constants";
+import { FLOATING_BUTTONS_CLEARANCE, layout } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   InsightsBurnRateMetricCard,
@@ -23,7 +22,8 @@ import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
-import { FirstUseTip } from "@/features/onboarding/components";
+import { useTourScroller } from "@/hooks/useTourScroller";
+
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
 import { createThemedStyles } from "@/theme";
 
@@ -32,7 +32,11 @@ function AnalyticsInsightsScroll() {
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
-  const isFocused = useIsFocused();
+  const scrollRef = useRef<ScrollView>(null);
+  // Lets the guided tour scroll Insights so each spotlighted card is in view.
+  const { onScroll: onTourScroll } = useTourScroller("insights", (y, animated) =>
+    scrollRef.current?.scrollTo({ y, animated }),
+  );
   const {
     monthEmpty,
     chartsReady,
@@ -70,11 +74,15 @@ function AnalyticsInsightsScroll() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
       scrollEventThrottle={16}
-      onScroll={reportScroll}
+      onScroll={(event) => {
+        onTourScroll(event);
+        reportScroll();
+      }}
       onScrollBeginDrag={() => {
         cashflowTooltipDismissRef.current?.();
         payeeTooltipDismissRef.current?.();
@@ -96,46 +104,46 @@ function AnalyticsInsightsScroll() {
         />
       </TourTarget>
 
-      <FirstUseTip
-        tipId="insights"
-        message="Use the arrows to change month. Tap a bar or a slice to see what is behind it."
-        enabled={isFocused}
-      />
-
       {monthEmpty ? (
         <InsightsEmptyChartCard onAddExpense={onManualAdd} />
       ) : chartsReady ? (
         <>
-          <InsightsBurnRateMetricCard
-            metrics={burnRateMetrics}
-            loading={paceLoading}
-            year={chartYear}
-            monthIndex0={chartMonthIndex0}
-            today={burnRateToday}
-          />
+          <TourTarget id={tourTargetIds.insightsPace}>
+            <InsightsBurnRateMetricCard
+              metrics={burnRateMetrics}
+              loading={paceLoading}
+              year={chartYear}
+              monthIndex0={chartMonthIndex0}
+              today={burnRateToday}
+            />
+          </TourTarget>
           <InsightsFixedCostsCard
             data={fixedCostsMonth}
             loading={fixedCostsLoading}
             today={currentDay}
           />
-          <InsightsDailyCashflowChart
-            dailyCashflow={dailyCashflow}
-            year={chartYear}
-            monthIndex0={chartMonthIndex0}
-            chartsDataSettled={chartsDataSettled}
-            chartLoading={chartLoading}
-            tooltipDismissRef={cashflowTooltipDismissRef}
-            onViewDayPress={openTransactionsListForDay}
-          />
-          <InsightsCounterpartyDonutCard
-            counterpartySpend={counterpartySpend}
-            chartYear={chartYear}
-            chartMonthIndex0={chartMonthIndex0}
-            chartsDataSettled={chartsDataSettled}
-            chartLoading={chartLoading}
-            tooltipDismissRef={payeeTooltipDismissRef}
-            onViewPayeePress={openTransactionsListForPayee}
-          />
+          <TourTarget id={tourTargetIds.insightsCashflow}>
+            <InsightsDailyCashflowChart
+              dailyCashflow={dailyCashflow}
+              year={chartYear}
+              monthIndex0={chartMonthIndex0}
+              chartsDataSettled={chartsDataSettled}
+              chartLoading={chartLoading}
+              tooltipDismissRef={cashflowTooltipDismissRef}
+              onViewDayPress={openTransactionsListForDay}
+            />
+          </TourTarget>
+          <TourTarget id={tourTargetIds.insightsPayees}>
+            <InsightsCounterpartyDonutCard
+              counterpartySpend={counterpartySpend}
+              chartYear={chartYear}
+              chartMonthIndex0={chartMonthIndex0}
+              chartsDataSettled={chartsDataSettled}
+              chartLoading={chartLoading}
+              tooltipDismissRef={payeeTooltipDismissRef}
+              onViewPayeePress={openTransactionsListForPayee}
+            />
+          </TourTarget>
           <InsightsIncomeSourcesCard
             counterpartyIncome={counterpartyIncome}
             loading={chartLoading}
@@ -150,11 +158,13 @@ function AnalyticsInsightsScroll() {
       ) : (
         <InsightsHeavyChartsPlaceholder />
       )}
-      <InsightsMonthCompareLauncherCard
-        monthOptions={monthOptions}
-        insightsSelectedMonthIndex={selectedMonthIndex}
-        onCompare={openInsightsMonthCompare}
-      />
+      <TourTarget id={tourTargetIds.insightsCompare}>
+        <InsightsMonthCompareLauncherCard
+          monthOptions={monthOptions}
+          insightsSelectedMonthIndex={selectedMonthIndex}
+          onCompare={openInsightsMonthCompare}
+        />
+      </TourTarget>
     </ScrollView>
   );
 }
@@ -176,6 +186,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   scrollContent: {
     ...layout.screenContent,
+    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
     gap: BENTO_SECTION_GAP,
   },
 }));

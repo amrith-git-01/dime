@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { Bell, Settings } from "lucide-react-native";
+import { Bell, CircleQuestionMark, Settings } from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +22,8 @@ import { createThemedStyles, useTheme } from "@/theme";
 export type AppHeaderProps = {
   onNotificationsPress: () => void;
   onSettingsPress?: () => void;
+  /** The "?" before Settings: opens the guided tour of the tab on screen. */
+  onHelpPress?: () => void;
   onHeaderReady?: () => void;
   showUnreadNotificationDot?: boolean;
 };
@@ -40,6 +42,7 @@ function greeting(): string {
 export function AppHeader({
   onNotificationsPress,
   onSettingsPress,
+  onHelpPress,
   onHeaderReady,
   showUnreadNotificationDot = false,
 }: AppHeaderProps) {
@@ -51,6 +54,8 @@ export function AppHeader({
   const [imgError, setImgError] = useState(false);
   const notifiedRef = useRef(false);
   const settingsTourTarget = useTourTarget(tourTargetIds.headerSettings);
+  // The guided tours measure the header to know where the scrollable area starts.
+  const headerTourTarget = useTourTarget(tourTargetIds.appHeader);
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -65,6 +70,7 @@ export function AppHeader({
 
   return (
     <View
+      {...headerTourTarget}
       style={[styles.header, { paddingTop: insets.top + spacing.sm }]}
       onLayout={onLayout}
     >
@@ -118,6 +124,21 @@ export function AppHeader({
         </View>
 
         {/* Icon buttons */}
+        {onHelpPress && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Take a tour of this screen"
+            hitSlop={spacing.sm}
+            onPress={onHelpPress}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              styles.iconGap,
+              pressed && styles.iconBtnPressed,
+            ]}
+          >
+            <CircleQuestionMark size={ICON_SIZE} color={colors.inkSoft} strokeWidth={1.5} />
+          </Pressable>
+        )}
         {onSettingsPress && (
           <Pressable
             {...settingsTourTarget}

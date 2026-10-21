@@ -1,4 +1,4 @@
-import { getTourMotion, TOUR_SPARKLE_TRAIL } from "../tourMotion";
+import { getTourMotion, TOUR_RIPPLE, TOUR_SPARKLE_TRAIL } from "../tourMotion";
 import {
   buildTourSparkleSeeds,
   sparkleTrailFrame,
@@ -27,6 +27,22 @@ describe("getTourMotion", () => {
     expect(motion.textStaggerMs).toBe(0);
     expect(motion.fadeMs).toBeGreaterThan(0);
     expect(motion.cardInMs).toBeGreaterThan(0);
+  });
+
+  it("allows the ripples, the word-by-word title and the Nice! hold by default", () => {
+    expect(getTourMotion(false)).toMatchObject({ ripple: true, wordFade: true });
+    expect(getTourMotion(false).wordStaggerMs).toBeGreaterThan(0);
+    expect(getTourMotion(false).niceHoldMs).toBeGreaterThanOrEqual(500);
+    expect(TOUR_RIPPLE.doneMs).toBeLessThanOrEqual(700);
+    expect(TOUR_RIPPLE.warpMs).toBeLessThanOrEqual(500);
+  });
+
+  it("with reduced motion has no ripples and no word-by-word title, but still holds the Nice! check", () => {
+    const motion = getTourMotion(true);
+    expect(motion.ripple).toBe(false);
+    expect(motion.wordFade).toBe(false);
+    expect(motion.wordStaggerMs).toBe(0);
+    expect(motion.niceHoldMs).toBeGreaterThan(0);
   });
 });
 

@@ -7,6 +7,8 @@ import { EmptyState, emptyStateCopy } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 
 import { HomeSectionHeader } from "./HomeSectionHeader";
 import { createThemedStyles } from "@/theme";
@@ -31,8 +33,9 @@ export const HomeCategoriesSection = memo(function HomeCategoriesSection({
   onCategoryPress,
 }: HomeCategoriesSectionProps) {
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.homeCategories);
   return (
-    <View>
+    <View {...tourTarget}>
       <HomeSectionHeader title="Top categories" onViewAll={onViewAll} />
 
       <View style={styles.card}>

@@ -17,9 +17,25 @@ export type TourMotion = {
   textStaggerMs: number;
   /** How long (ms) the hole needs to land before the card appears. */
   holeSettleMs: number;
+  /** Ripples at the target when a "Do" step succeeds, and the zoom-through when the tour changes screen. */
+  ripple: boolean;
+  /** The step title appears word by word. */
+  wordFade: boolean;
+  /** Delay (ms) between one title word and the next. */
+  wordStaggerMs: number;
+  /** How long (ms) the "Nice!" check holds before the next step's card appears. */
+  niceHoldMs: number;
 };
 
 const FADE_MS = 180;
+
+/** Timings of the ripple that marks a completed "Do" step and the larger one on a screen change. */
+export const TOUR_RIPPLE = {
+  /** The small ripple at the target (ms). */
+  doneMs: 560,
+  /** The wide zoom-through ring when the tour moves to another screen (ms). */
+  warpMs: 440,
+} as const;
 
 /** Timings of the sparkle trail that follows the hole between targets. */
 export const TOUR_SPARKLE_TRAIL = {
@@ -45,6 +61,10 @@ export function getTourMotion(reduceMotion: boolean): TourMotion {
       cardSlideDp: 0,
       textStaggerMs: 0,
       holeSettleMs: FADE_MS,
+      ripple: false,
+      wordFade: false,
+      wordStaggerMs: 0,
+      niceHoldMs: 520,
     };
   }
   return {
@@ -57,5 +77,9 @@ export function getTourMotion(reduceMotion: boolean): TourMotion {
     cardSlideDp: 10,
     textStaggerMs: 60,
     holeSettleMs: 340,
+    ripple: true,
+    wordFade: true,
+    wordStaggerMs: 55,
+    niceHoldMs: 640,
   };
 }

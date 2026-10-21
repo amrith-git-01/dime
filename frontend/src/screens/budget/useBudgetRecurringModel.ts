@@ -15,6 +15,7 @@ import type { RecurringKindData } from "@/features/recurring/components";
 import { useRecurringQuery } from "@/features/recurring/hooks/useRecurringQuery";
 import type { RecurringItem, RecurringKind } from "@/features/recurring/types";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 
 type ScrollableList = {
@@ -69,8 +70,10 @@ export function useBudgetRecurringModel(
     [navigation],
   );
   const onItemPress = useCallback(
-    (item: RecurringItem) =>
-      navigation.navigate("RecurringEditor", { kind: item.kind, item }),
+    (item: RecurringItem) => {
+      navigation.navigate("RecurringEditor", { kind: item.kind, item });
+      emitTourEvent(tourEventNames.recurringOpened);
+    },
     [navigation],
   );
 

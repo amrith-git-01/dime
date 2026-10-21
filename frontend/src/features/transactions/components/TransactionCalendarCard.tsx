@@ -7,6 +7,8 @@ import { SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import {
   computeMonthSpendIntensities,
   type SpendIntensity,
@@ -56,6 +58,8 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
 }: TransactionCalendarCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const calendarTourTarget = useTourTarget(tourTargetIds.transactionsCalendar);
+  const monthNavTourTarget = useTourTarget(tourTargetIds.transactionsMonthNav);
   const monthLabel = format(new Date(year, monthIndex0, 1), "MMMM yyyy");
   const daysInMonth = getDaysInMonth(new Date(year, monthIndex0, 1));
   const firstDayCol = toMondayFirst(getDay(new Date(year, monthIndex0, 1)));
@@ -84,10 +88,10 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
   );
 
   return (
-    <View style={styles.cardShadow}>
+    <View {...calendarTourTarget} style={styles.cardShadow}>
       <View style={styles.card}>
         {/* Month navigation header */}
-        <View style={styles.monthNav}>
+        <View {...monthNavTourTarget} style={styles.monthNav}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Previous month"

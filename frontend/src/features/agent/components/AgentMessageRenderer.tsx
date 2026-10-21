@@ -2,9 +2,10 @@ import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { BENTO_GAP } from "@/components/bento";
-import { BentoStatCell } from "@/components/shared";
+import { BentoStatCell, OptionalTourTarget } from "@/components/shared";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 
 import type {
   AgentBlock,
@@ -150,53 +151,57 @@ export const AgentMessageRenderer = memo(function AgentMessageRenderer({
   }
 
   return (
-    <View
-      style={[
-        styles.bubbleWrap,
-        isUser ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
-      ]}
+    <OptionalTourTarget
+      id={!isUser && !isError ? tourTargetIds.agentAnswer : undefined}
     >
       <View
         style={[
-          styles.bubble,
-          isUser ? styles.bubbleUser : styles.bubbleAssistant,
+          styles.bubbleWrap,
+          isUser ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
         ]}
       >
-        {blocks.length > 0 ? (
-          <View style={styles.blocks}>
-            {blocks.map((block, index) => (
-              <BlockView key={`${block.type}-${index}`} block={block} />
-            ))}
-          </View>
-        ) : null}
-        {content.length > 0 ? (
-          <AgentMessageProse
-            content={content}
-            variant={isUser ? "user" : "assistant"}
-          />
-        ) : null}
+        <View
+          style={[
+            styles.bubble,
+            isUser ? styles.bubbleUser : styles.bubbleAssistant,
+          ]}
+        >
+          {blocks.length > 0 ? (
+            <View style={styles.blocks}>
+              {blocks.map((block, index) => (
+                <BlockView key={`${block.type}-${index}`} block={block} />
+              ))}
+            </View>
+          ) : null}
+          {content.length > 0 ? (
+            <AgentMessageProse
+              content={content}
+              variant={isUser ? "user" : "assistant"}
+            />
+          ) : null}
 
-        {deepLink?.screen ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onDeepLinkPress?.(deepLink)}
-            style={styles.deepLink}
-          >
-            <Text style={styles.deepLinkText}>
-              {deepLink.label ?? "View details →"}
-            </Text>
-          </Pressable>
-        ) : null}
+          {deepLink?.screen ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => onDeepLinkPress?.(deepLink)}
+              style={styles.deepLink}
+            >
+              <Text style={styles.deepLinkText}>
+                {deepLink.label ?? "View details →"}
+              </Text>
+            </Pressable>
+          ) : null}
 
-        {!isUser && !isPending && !isError && turnId && onFeedback ? (
-          <AgentFeedbackButtons
-            messageId={id}
-            feedback={feedback ?? null}
-            onFeedback={onFeedback}
-          />
-        ) : null}
+          {!isUser && !isPending && !isError && turnId && onFeedback ? (
+            <AgentFeedbackButtons
+              messageId={id}
+              feedback={feedback ?? null}
+              onFeedback={onFeedback}
+            />
+          ) : null}
+        </View>
       </View>
-    </View>
+    </OptionalTourTarget>
   );
 });
 
