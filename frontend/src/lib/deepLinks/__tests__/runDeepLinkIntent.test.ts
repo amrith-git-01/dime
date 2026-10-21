@@ -24,6 +24,7 @@ describe("runDeepLinkIntent", () => {
     expect(navigationRef.navigate).toHaveBeenCalledWith("Main", {
       screen: "MainTabs",
       params: { screen: "Home" },
+      pop: true,
     });
   });
 
@@ -55,6 +56,12 @@ describe("runDeepLinkIntent", () => {
     expect(useVoiceCaptureUiStore.getState().visible).toBe(true);
     runDeepLinkIntent({ kind: "agent" });
     expect(useAgentChatUiStore.getState().visible).toBe(true);
+    // Back to the tabs that are already there (the chat lives in them), never a second copy.
+    expect(navigationRef.navigate).toHaveBeenLastCalledWith("Main", {
+      screen: "MainTabs",
+      params: { screen: "Home" },
+      pop: true,
+    });
   });
 
   it("opens Budgets, scrolling to Recurring for the recurring link", () => {
@@ -62,11 +69,13 @@ describe("runDeepLinkIntent", () => {
     expect(navigationRef.navigate).toHaveBeenLastCalledWith("Main", {
       screen: "MainTabs",
       params: { screen: "Budgets", params: undefined },
+      pop: true,
     });
     runDeepLinkIntent({ kind: "budgets", recurring: true });
     expect(navigationRef.navigate).toHaveBeenLastCalledWith("Main", {
       screen: "MainTabs",
       params: { screen: "Budgets", params: { recurringKind: "subscription" } },
+      pop: true,
     });
   });
 });
