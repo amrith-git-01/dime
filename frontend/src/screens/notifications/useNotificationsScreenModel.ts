@@ -53,7 +53,7 @@ export function useNotificationsScreenModel() {
               variant: "info",
               message: "Open Transactions to view this entry",
             });
-            navigation.navigate("MainTabs", { screen: "Transactions" });
+            navigation.navigate("MainTabs", { screen: "Transactions", pop: true });
           }
           break;
         }

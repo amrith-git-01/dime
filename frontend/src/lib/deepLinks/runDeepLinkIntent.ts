@@ -7,13 +7,17 @@ import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
 
 import type { DeepLinkIntent } from "./parseDeepLink";
 
-/** Performs a parsed link. Call only when `canNavigateToMain()` is true. */
+/**
+ * Performs a parsed link. Call only when `canNavigateToMain()` is true. Tab links pass `pop: true`:
+ * from a screen pushed above the tabs, a plain navigate would push a second copy of them.
+ */
 export function runDeepLinkIntent(intent: DeepLinkIntent): void {
   switch (intent.kind) {
     case "home":
       navigationRef.navigate("Main", {
         screen: "MainTabs",
         params: { screen: "Home" },
+        pop: true,
       });
       return;
     case "add":
@@ -39,6 +43,7 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
           screen: "Budgets",
           params: intent.recurring ? { recurringKind: "subscription" } : undefined,
         },
+        pop: true,
       });
       return;
     case "agent":
@@ -46,6 +51,7 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
       navigationRef.navigate("Main", {
         screen: "MainTabs",
         params: { screen: "Home" },
+        pop: true,
       });
       useAgentChatUiStore.getState().open();
       return;
