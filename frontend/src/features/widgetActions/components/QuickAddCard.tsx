@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
+import { OverlayHost } from "@/components/layout/OverlayHost";
 import { Button } from "@/components/ui";
 import { fontFamilies, spacing } from "@/constants";
 import { useCategories } from "@/features/categories/hooks/useCategories";
@@ -131,34 +132,36 @@ export function QuickAddCard({ userId }: { userId: string }) {
         autoFocus
       />
       <View style={styles.body}>
-        <CounterpartySearchField
-          compact
-          txType="debit"
-          value={payee}
-          onChangeText={onPayeeChange}
-          onSelect={onPayeeSelect}
-          brandId={payeeBrandId}
-          placeholder="Paid to (optional)"
-          editable={!saving}
-        />
-        <ScrollView
-          style={styles.categories}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <ManualAddCategorySection
-            categoriesLoading={isLoading}
-            visibleCategories={expenseCategories}
-            categoryId={categoryId}
-            onCategoryPress={(row) => setCategoryId(row.id)}
+        <OverlayHost>
+          <CounterpartySearchField
+            compact
+            txType="debit"
+            value={payee}
+            onChangeText={onPayeeChange}
+            onSelect={onPayeeSelect}
+            brandId={payeeBrandId}
+            placeholder="Paid to (optional)"
+            editable={!saving}
           />
-        </ScrollView>
-        {error ? (
-          <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
-            {error}
-          </Text>
-        ) : null}
-        <Button title="Save" loading={saving} disabled={!canSave} onPress={() => void onSave()} />
+          <ScrollView
+            style={styles.categories}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <ManualAddCategorySection
+              categoriesLoading={isLoading}
+              visibleCategories={expenseCategories}
+              categoryId={categoryId}
+              onCategoryPress={(row) => setCategoryId(row.id)}
+            />
+          </ScrollView>
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          ) : null}
+          <Button title="Save" loading={saving} disabled={!canSave} onPress={() => void onSave()} />
+        </OverlayHost>
       </View>
     </CardFrame>
   );

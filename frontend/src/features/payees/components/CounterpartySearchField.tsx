@@ -1,16 +1,18 @@
 import { Plus, Store, User } from "lucide-react-native";
 import type { ReactNode } from "react";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   Keyboard,
   Pressable,
   ScrollView,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { useOverlayHost } from "@/components/layout/OverlayHost";
+import { useKeyboardRoom } from "@/components/layout/StackScreenShell";
 import { AppTextInput, TextField } from "@/components/ui";
 import { fontFamilies, radius, spacing } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
@@ -36,7 +38,7 @@ export type CounterpartySearchFieldProps = {
   /** The catalogue brand currently picked, if any: its name is not searched again on focus. */
   brandId?: string | null;
   placeholder: string;
-  /** The home-screen widget card: a lighter input, 4 chips / results and no section captions. */
+  /** The home-screen widget card: a lighter input, 4 results and no section captions. */
   compact?: boolean;
   editable?: boolean;
 };
@@ -44,8 +46,10 @@ export type CounterpartySearchFieldProps = {
 const ATTRIBUTION = "Brand data © OpenStreetMap contributors, Wikidata";
 const BLUR_CLOSE_MS = 150;
 const DROPDOWN_MAX_HEIGHT = 300;
-const CHIP_LIMIT = 8;
-const COMPACT_CHIP_LIMIT = 4;
+/** Share of the window the dropdown may take, so the input still fits above it on short screens. */
+const DROPDOWN_WINDOW_SHARE = 0.25;
+const PAYEE_LIMIT = 8;
+const COMPACT_PAYEE_LIMIT = 4;
 const COMPACT_CAPS = { maxYours: 4, maxBrands: 4, maxTotal: 4 };
 
 type RowProps = {
@@ -126,13 +130,27 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
   const styles = useStyles();
   const [focused, setFocused] = useState(false);
   const [open, setOpen] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const dropdownMaxHeight = Math.min(
+    DROPDOWN_MAX_HEIGHT,
+    Math.round(windowHeight * DROPDOWN_WINDOW_SHARE),
+  );
+  const setKeyboardRoom = useKeyboardRoom();
+  const overlayHost = useOverlayHost();
   const rootRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   const typed = value.trim();
-  const chipLimit = compact ? COMPACT_CHIP_LIMIT : CHIP_LIMIT;
-  const yoursQuery = usePayeeSuggestions(txType, value, chipLimit);
+  const yoursQuery = usePayeeSuggestions(
+    txType,
+    value,
+    compact ? COMPACT_PAYEE_LIMIT : PAYEE_LIMIT,
+  );
   const brandQuery = useBrandSearch(value);
 
   useEffect(
@@ -144,26 +162,12 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     [],
   );
 
-  // Opens upward when the keyboard leaves too little room below the input.
+  // While focused, the screen keeps room for the dropdown between the input and the keyboard.
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const measure = () =>
-      rootRef.current?.measureInWindow((_x, y, _w, height) => {
-        const visibleBottom =
-          Keyboard.metrics()?.screenY ?? Dimensions.get("window").height;
-        const below = visibleBottom - (y + height);
-        setDropUp(below < DROPDOWN_MAX_HEIGHT && y > below);
-      });
-    measure();
-    const shown = Keyboard.addListener("keyboardDidShow", measure);
-    const hidden = Keyboard.addListener("keyboardDidHide", measure);
-    return () => {
-      shown.remove();
-      hidden.remove();
-    };
-  }, [open]);
+    setKeyboardRoom(focused ? dropdownMaxHeight + spacing.xs : 0);
+  }, [dropdownMaxHeight, focused, setKeyboardRoom]);
+
+  useEffect(() => () => setKeyboardRoom(0), [setKeyboardRoom]);
 
   const merged = useMemo(
     () =>
@@ -176,14 +180,36 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     [brandQuery.data, compact, typed, yoursQuery.data],
   );
 
-  const showChips =
-    open && typed.length === 0 && (yoursQuery.data?.length ?? 0) > 0;
   const showResults =
     open &&
     typed.length > 0 &&
     (merged.yours.length > 0 ||
       merged.brands.length > 0 ||
       merged.showUseTyped);
+
+  // Where the dropdown goes in the overlay layer: just under the input.
+  const measureAnchor = useCallback(() => {
+    const layer = overlayHost?.layer.current;
+    if (!layer) {
+      return;
+    }
+    // In window coordinates: the layer is a sibling of the content, and measureLayout only works against an ancestor.
+    layer.measureInWindow((layerX, layerY) =>
+      rootRef.current?.measureInWindow((x, y, width, height) =>
+        setAnchor({
+          left: x - layerX,
+          top: y - layerY + height + spacing.xs,
+          width,
+        }),
+      ),
+    );
+  }, [overlayHost]);
+
+  useEffect(() => {
+    if (showResults) {
+      measureAnchor();
+    }
+  }, [measureAnchor, showResults]);
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -269,112 +295,95 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     />
   );
 
+  // Overlays the content below instead of pushing it down: in the screen's overlay layer when there is one, so it
+  // scrolls and takes touches on Android (see OverlayHost), else hanging from the input.
+  const dropdownPosition = overlayHost
+    ? {
+        top: anchor?.top ?? 0,
+        left: anchor?.left ?? 0,
+        width: anchor?.width ?? 0,
+        maxHeight: Math.min(
+          dropdownMaxHeight,
+          overlayHost.layerHeight() - (anchor?.top ?? 0) - spacing.xs,
+        ),
+      }
+    : styles.dropdownInline;
+  const dropdown =
+    showResults && (anchor || !overlayHost) ? (
+      <View style={[styles.dropdown, dropdownPosition]}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.dropdownContent}
+        >
+          <View style={styles.results}>
+            {merged.yours.length > 0 ? (
+              <View>
+                {compact ? null : <Text style={styles.caption}>YOURS</Text>}
+                {merged.yours.map((payee) => (
+                  <ResultRow
+                    key={`y:${payee.brand_id ?? "own"}:${payee.name}`}
+                    label={
+                      payee.category
+                        ? `${payee.name}, ${payee.category.name}`
+                        : payee.name
+                    }
+                    title={payee.name}
+                    subtitle={payee.category?.name}
+                    icon={iconFor(payee.category, payee.counterparty_type)}
+                    onPress={() => choose(payeeSelection(payee))}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {merged.brands.length > 0 ? (
+              <View>
+                {compact ? null : <Text style={styles.caption}>BRANDS</Text>}
+                {merged.brands.map((brand) => (
+                  <ResultRow
+                    key={`b:${brand.id}`}
+                    label={
+                      brand.category
+                        ? `${brand.name}, ${brand.category.name}`
+                        : brand.name
+                    }
+                    title={brand.name}
+                    subtitle={brand.category?.name}
+                    icon={iconFor(brand.category, null)}
+                    onPress={() => choose(brandSelection(brand))}
+                  />
+                ))}
+                <Text style={styles.attribution}>{ATTRIBUTION}</Text>
+              </View>
+            ) : null}
+            {merged.showUseTyped ? (
+              <ResultRow
+                label={`Use “${merged.typedText}”`}
+                title={`Use “${merged.typedText}”`}
+                icon={
+                  <Plus size={16} color={colors.accentText} strokeWidth={1.5} />
+                }
+                onPress={collapse}
+              />
+            ) : null}
+          </View>
+        </ScrollView>
+      </View>
+    ) : null;
+
+  // Every render: the rows' handlers close over the latest props.
+  useEffect(() => {
+    overlayHost?.setOverlay(dropdown);
+  });
+
+  useEffect(() => () => overlayHost?.setOverlay(null), [overlayHost]);
+
   return (
-    <View ref={rootRef} style={styles.root}>
+    <View ref={rootRef} style={styles.root} onLayout={measureAnchor}>
       {input}
 
-      {/* Overlays the content below instead of pushing it down. */}
-      {showChips || showResults ? (
-        <View
-          style={[
-            styles.dropdown,
-            dropUp ? styles.dropdownUp : styles.dropdownDown,
-          ]}
-        >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.dropdownContent}
-          >
-            {showChips ? (
-              <View style={styles.section}>
-                <Text style={styles.caption}>YOUR PAYEES</Text>
-                <View style={styles.chips}>
-                  {(yoursQuery.data ?? []).slice(0, chipLimit).map((payee) => (
-                    <Pressable
-                      key={`${payee.brand_id ?? "own"}:${payee.name}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Pay ${payee.name}`}
-                      hitSlop={4}
-                      onPress={() => choose(payeeSelection(payee))}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        pressed && styles.rowPressed,
-                      ]}
-                    >
-                      {iconFor(payee.category, payee.counterparty_type)}
-                      <Text style={styles.chipLabel} numberOfLines={1}>
-                        {payee.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            {showResults ? (
-              <View style={styles.results}>
-                {merged.yours.length > 0 ? (
-                  <View>
-                    {compact ? null : <Text style={styles.caption}>YOURS</Text>}
-                    {merged.yours.map((payee) => (
-                      <ResultRow
-                        key={`y:${payee.brand_id ?? "own"}:${payee.name}`}
-                        label={
-                          payee.category
-                            ? `${payee.name}, ${payee.category.name}`
-                            : payee.name
-                        }
-                        title={payee.name}
-                        subtitle={payee.category?.name}
-                        icon={iconFor(payee.category, payee.counterparty_type)}
-                        onPress={() => choose(payeeSelection(payee))}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-                {merged.brands.length > 0 ? (
-                  <View>
-                    {compact ? null : (
-                      <Text style={styles.caption}>BRANDS</Text>
-                    )}
-                    {merged.brands.map((brand) => (
-                      <ResultRow
-                        key={`b:${brand.id}`}
-                        label={
-                          brand.category
-                            ? `${brand.name}, ${brand.category.name}`
-                            : brand.name
-                        }
-                        title={brand.name}
-                        subtitle={brand.category?.name}
-                        icon={iconFor(brand.category, null)}
-                        onPress={() => choose(brandSelection(brand))}
-                      />
-                    ))}
-                    <Text style={styles.attribution}>{ATTRIBUTION}</Text>
-                  </View>
-                ) : null}
-                {merged.showUseTyped ? (
-                  <ResultRow
-                    label={`Use “${merged.typedText}”`}
-                    title={`Use “${merged.typedText}”`}
-                    icon={
-                      <Plus
-                        size={16}
-                        color={colors.accentText}
-                        strokeWidth={1.5}
-                      />
-                    }
-                    onPress={collapse}
-                  />
-                ) : null}
-              </View>
-            ) : null}
-          </ScrollView>
-        </View>
-      ) : null}
+      {overlayHost ? null : dropdown}
     </View>
   );
 });
@@ -385,22 +394,18 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   dropdown: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    maxHeight: DROPDOWN_MAX_HEIGHT,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.sm,
     ...shadows.toast,
   },
-  dropdownDown: {
+  dropdownInline: {
     top: "100%",
+    left: 0,
+    right: 0,
     marginTop: spacing.xs,
-  },
-  dropdownUp: {
-    bottom: "100%",
-    marginBottom: spacing.xs,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
   },
   dropdownContent: {
     padding: spacing.sm,
@@ -421,38 +426,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     borderColor: colors.accent,
     borderWidth: 1.5,
   },
-  section: {
-    gap: spacing.xs,
-  },
   caption: {
     fontFamily: fontFamilies.medium,
     fontSize: 11,
     letterSpacing: 0.6,
     color: colors.inkSoft,
     marginTop: spacing.xs,
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    maxWidth: "100%",
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  chipLabel: {
-    flexShrink: 1,
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.inkSoft,
   },
   results: {
     gap: spacing.xs,
