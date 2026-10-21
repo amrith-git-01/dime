@@ -197,8 +197,8 @@ export const ManualAddTransactionEditor = memo(
           </View>
         ) : null}
 
-        {/* Counterparty card */}
-        <View style={[styles.card, styles.cardShadow]}>
+        {/* Counterparty card: above the cards below it, so the suggestions dropdown overlays them */}
+        <View style={[styles.card, styles.cardShadow, styles.cardRaised]}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionLabel}>COUNTERPARTY NAME</Text>
             {requiredTag}
@@ -293,6 +293,9 @@ export const ManualAddTransactionEditor = memo(
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
   cardShadow: shadows.card,
+  cardRaised: {
+    zIndex: 1,
+  },
   content: {
     gap: spacing.lg,
   },
