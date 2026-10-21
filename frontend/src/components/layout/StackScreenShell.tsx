@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,7 +6,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "@/constants";
 import { createThemedStyles } from "@/theme";
 
+import { OverlayHost } from "./OverlayHost";
+
 const DEFAULT_BOTTOM_OFFSET = 24;
+
+const NOOP = () => {};
+
+const KeyboardRoomContext = createContext<(room: number) => void>(NOOP);
+
+/**
+ * Asks the screen to keep `room` px free between the focused input and the keyboard (e.g. for a dropdown under
+ * it); 0 releases it. A no-op outside a stack screen.
+ */
+export function useKeyboardRoom(): (room: number) => void {
+  return useContext(KeyboardRoomContext);
+}
 
 export type StackScreenShellProps = {
   children: ReactNode;
@@ -29,6 +43,8 @@ export function StackScreenShell({
 }: StackScreenShellProps) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  // keyboard-controller re-scrolls whenever `bottomOffset` changes, so the room takes effect while the keyboard is up.
+  const [keyboardRoom, setKeyboardRoom] = useState(0);
   const bodyStyle: StyleProp<ViewStyle> = [
     styles.scrollContent,
     { paddingBottom: spacing.xl + insets.bottom },
@@ -45,9 +61,11 @@ export function StackScreenShell({
       contentContainerStyle={bodyStyle}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
-      bottomOffset={bottomOffset}
+      bottomOffset={bottomOffset + keyboardRoom}
     >
-      {children}
+      <KeyboardRoomContext.Provider value={setKeyboardRoom}>
+        <OverlayHost>{children}</OverlayHost>
+      </KeyboardRoomContext.Provider>
     </KeyboardAwareScrollView>
   );
 }
