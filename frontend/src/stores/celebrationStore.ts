@@ -18,6 +18,13 @@ export type CelebrationRequest = {
   at?: { x: number; y: number };
   /** Set false when the caller already gave haptic feedback for the same moment. */
   haptic?: boolean;
+  /** Big confetti only: play it even if today's one was used (the "all tours done" moment). */
+  ignoreDailyCap?: boolean;
+  /**
+   * Big confetti only: what plays instead once today's one was used. Defaults to the static check;
+   * `medium` plays the lighter confetti (which never uses up the allowance).
+   */
+  capFallback?: "check" | "medium";
 };
 
 export type CelebrationEvent = {
@@ -33,6 +40,13 @@ type CelebrationState = {
   event: CelebrationEvent | null;
   /** Mirrors the system reduce-motion setting (kept current by `CelebrationLayer`). */
   reduceMotion: boolean;
+  /**
+   * The layer's particle canvas has been asked for (by the first effect, or a tour starting). Once
+   * it is up it stays up: creating a GL surface is slow on weak phones and must not happen per effect.
+   */
+  primed: boolean;
+  /** Asks the layer to create its canvas now (a guided tour starts), instead of at the first effect. */
+  prime: () => void;
   /** True while a replayed tour runs: celebrations mark something new, never a replay. */
   suppressed: boolean;
   /**
@@ -53,20 +67,39 @@ export const useCelebrationStore = create<CelebrationState>((set, get) => ({
   event: null,
   reduceMotion: false,
   suppressed: false,
+  primed: false,
+  // Only when particles could actually play: otherwise the canvas would hold a GL surface for nothing.
+  prime: () => {
+    const { suppressed, reduceMotion } = get();
+    if (!suppressed && !reduceMotion && getCelebrationsEnabled()) {
+      set({ primed: true });
+    }
+  },
 
-  celebrate: ({ kind, at, haptic = true }) => {
+  celebrate: ({
+    kind: requestedKind,
+    at,
+    haptic = true,
+    ignoreDailyCap = false,
+    capFallback = "check",
+  }) => {
     const { suppressed, reduceMotion } = get();
     if (suppressed) {
       return;
     }
 
+    let kind = requestedKind;
     let mode: CelebrationEvent["mode"] = "particles";
     if (reduceMotion || !getCelebrationsEnabled()) {
       mode = "check";
     } else if (kind === "confetti") {
       const today = localDayKey();
-      if (getLastConfettiDay() === today) {
-        mode = "check";
+      if (!ignoreDailyCap && getLastConfettiDay() === today) {
+        if (capFallback === "medium") {
+          kind = "confettiMedium";
+        } else {
+          mode = "check";
+        }
       } else {
         setLastConfettiDay(today);
       }
@@ -75,7 +108,7 @@ export const useCelebrationStore = create<CelebrationState>((set, get) => ({
     set({ event: { id: nextEventId++, kind, at, mode } });
 
     if (haptic) {
-      void (kind === "confetti" ? triggerConfirmHaptic() : triggerTickHaptic());
+      void (kind === "burst" ? triggerTickHaptic() : triggerConfirmHaptic());
     }
   },
 

@@ -19,6 +19,7 @@ import {
   buildBurstParticles,
   buildConfettiParticles,
   CELEBRATION_DURATION_MS,
+  MEDIUM_CONFETTI_PARTICLE_COUNT,
   particleFrame,
   type CelebrationParticle,
 } from "@/lib/celebrations/particles";
@@ -94,20 +95,34 @@ const ParticleGroup = memo(function ParticleGroup({
   );
 });
 
-const ParticleCanvas = memo(function ParticleCanvas({
+type ParticleGroupData = {
+  color: string;
+  coins: boolean;
+  particles: CelebrationParticle[];
+};
+
+/**
+ * Builds one effect's particles and runs its clock, then reports them to the canvas that draws
+ * them (and takes them back when the effect is over). Keyed by event id, so it exists per effect;
+ * it draws nothing itself, so no canvas is created or destroyed per effect.
+ */
+const ParticleDriver = memo(function ParticleDriver({
   event,
   size,
   at,
+  progress,
+  onGroups,
   onDone,
 }: {
   event: CelebrationEvent;
   size: LayerSize;
   /** Where the effect happens, in layer coordinates. */
   at: Point | null;
+  progress: SharedValue<number>;
+  onGroups: (groups: ParticleGroupData[] | null) => void;
   onDone: (id: number) => void;
 }) {
   const { colors } = useTheme();
-  const progress = useSharedValue(0);
 
   const palette = useMemo(
     () => [
@@ -122,14 +137,17 @@ const ParticleCanvas = memo(function ParticleCanvas({
   );
 
   // Built once per event (the component is keyed by event id); the layout is read at that moment.
-  const [groups] = useState(() => {
+  const [groups] = useState<ParticleGroupData[]>(() => {
     const particles =
-      event.kind === "confetti"
+      event.kind === "confetti" || event.kind === "confettiMedium"
         ? buildConfettiParticles({
             paletteSize: palette.length,
             width: size.width,
             height: size.height,
             origin: at ?? undefined,
+            ...(event.kind === "confettiMedium"
+              ? { count: MEDIUM_CONFETTI_PARTICLE_COUNT, seed: 13 }
+              : {}),
           })
         : buildBurstParticles({
             paletteSize: palette.length,
@@ -152,6 +170,8 @@ const ParticleCanvas = memo(function ParticleCanvas({
   });
 
   useEffect(() => {
+    onGroups(groups);
+    progress.value = 0;
     progress.value = withTiming(
       1,
       {
@@ -165,20 +185,57 @@ const ParticleCanvas = memo(function ParticleCanvas({
         }
       },
     );
-  }, [event.id, event.kind, onDone, progress]);
+    return () => onGroups(null);
+  }, [groups, event.id, event.kind, onGroups, onDone, progress]);
+
+  return null;
+});
+
+/**
+ * The layer's one particle canvas. It is made once (at the first effect, or when a guided tour
+ * starts and primes it) and then stays: effects only swap the particles drawn inside it. Creating
+ * a GL surface is slow on weak phones and must not happen per effect.
+ */
+const ParticleStage = memo(function ParticleStage({
+  event,
+  size,
+  at,
+  onDone,
+}: {
+  /** The particle effect playing now, if any. */
+  event: CelebrationEvent | null;
+  size: LayerSize;
+  at: Point | null;
+  onDone: (id: number) => void;
+}) {
+  const progress = useSharedValue(1);
+  const [groups, setGroups] = useState<ParticleGroupData[] | null>(null);
 
   return (
-    <Canvas style={StyleSheet.absoluteFill}>
-      {groups.map((group, index) => (
-        <ParticleGroup
-          key={index}
-          particles={group.particles}
-          color={group.color}
-          coins={group.coins}
+    <>
+      {event ? (
+        <ParticleDriver
+          key={event.id}
+          event={event}
+          size={size}
+          at={at}
           progress={progress}
+          onGroups={setGroups}
+          onDone={onDone}
         />
-      ))}
-    </Canvas>
+      ) : null}
+      <Canvas style={StyleSheet.absoluteFill}>
+        {(groups ?? []).map((group, index) => (
+          <ParticleGroup
+            key={index}
+            particles={group.particles}
+            color={group.color}
+            coins={group.coins}
+            progress={progress}
+          />
+        ))}
+      </Canvas>
+    </>
   );
 });
 
@@ -233,11 +290,12 @@ const CheckBadge = memo(function CheckBadge({
 
 /**
  * App-wide celebration layer: plays whatever `useCelebrationStore.celebrate` asks for, above
- * everything, without taking touches. Mount it once at the app root. The Skia canvas only exists
- * while an effect plays.
+ * everything, without taking touches. Mount it once at the app root. Its one Skia canvas is made
+ * the first time it is needed and then kept.
  */
 export function CelebrationLayer() {
   const event = useCelebrationStore((s) => s.event);
+  const primed = useCelebrationStore((s) => s.primed);
   const clear = useCelebrationStore((s) => s.clear);
   const setReduceMotion = useCelebrationStore((s) => s.setReduceMotion);
   const reduceMotion = useReduceMotion();
@@ -249,6 +307,12 @@ export function CelebrationLayer() {
     height: windowSize.height,
   });
   const [origin, setOrigin] = useState<Point>({ x: 0, y: 0 });
+  // The particle canvas is created once (when asked for, or at the first particle effect) and kept.
+  const [canvasUp, setCanvasUp] = useState(false);
+  const particleEvent = event?.mode === "particles" ? event : null;
+  if (!canvasUp && (particleEvent !== null || (primed && !reduceMotion))) {
+    setCanvasUp(true);
+  }
 
   useEffect(() => {
     setReduceMotion(reduceMotion);
@@ -277,18 +341,14 @@ export function CelebrationLayer() {
       pointerEvents="none"
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
-      style={StyleSheet.absoluteFill}
+      // Above the guided tour's dim layer (which sits above everything else).
+      style={[StyleSheet.absoluteFill, { zIndex: 2000, elevation: 200 }]}
       onLayout={onLayout}
     >
-      {event?.mode === "particles" ? (
-        <ParticleCanvas
-          key={event.id}
-          event={event}
-          size={size}
-          at={at}
-          onDone={clear}
-        />
-      ) : event ? (
+      {canvasUp ? (
+        <ParticleStage event={particleEvent} size={size} at={at} onDone={clear} />
+      ) : null}
+      {event && !particleEvent ? (
         <CheckBadge
           key={event.id}
           event={event}

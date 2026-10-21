@@ -74,6 +74,8 @@ export function DimeTabBarFabActions({
   const actionsProgress = useSharedValue(0);
   const fanTourTarget = useTourTarget(tourTargetIds.fabMenu);
   const manualTourTarget = useTourTarget(tourTargetIds.fabManual);
+  const voiceTourTarget = useTourTarget(tourTargetIds.fabVoice);
+  const photoTourTarget = useTourTarget(tourTargetIds.fabPhoto);
 
   useEffect(() => {
     actionsProgress.value = withSpring(fabOpen ? 1 : 0, springs.fabActions);
@@ -117,6 +119,17 @@ export function DimeTabBarFabActions({
         {...manualTourTarget}
         pointerEvents="none"
         style={styles.manualBounds}
+      />
+      {/* And the mic and camera bubbles. */}
+      <View
+        {...voiceTourTarget}
+        pointerEvents="none"
+        style={styles.voiceBounds}
+      />
+      <View
+        {...photoTourTarget}
+        pointerEvents="none"
+        style={styles.photoBounds}
       />
 
       <Animated.View style={[styles.actionBubble, manualActionStyle]}>
@@ -228,6 +241,20 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     position: "absolute",
     left: -SIDE_X,
     top: SIDE_Y,
+    width: OPTION_BUBBLE_SIZE,
+    height: OPTION_BUBBLE_SIZE,
+  },
+  voiceBounds: {
+    position: "absolute",
+    left: SIDE_X,
+    top: SIDE_Y,
+    width: OPTION_BUBBLE_SIZE,
+    height: OPTION_BUBBLE_SIZE,
+  },
+  photoBounds: {
+    position: "absolute",
+    left: 0,
+    top: TOP_Y,
     width: OPTION_BUBBLE_SIZE,
     height: OPTION_BUBBLE_SIZE,
   },

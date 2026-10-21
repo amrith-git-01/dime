@@ -4,6 +4,8 @@ import { Pressable, Text, View } from "react-native";
 
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { AGENT_SUGGESTED_PROMPT_META } from "@/features/agent/constants/suggestedPrompts";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -15,8 +17,9 @@ export const AgentSuggestionsHeader = memo(function AgentSuggestionsHeader({
 }: AgentSuggestionsHeaderProps) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const tourTarget = useTourTarget(tourTargetIds.agentSuggestions);
   return (
-    <View style={styles.container}>
+    <View {...tourTarget} style={styles.container}>
       <Text style={styles.title}>TRY ASKING</Text>
       <View style={styles.list}>
         {AGENT_SUGGESTED_PROMPT_META.map(({ prompt, icon: Icon }) => (

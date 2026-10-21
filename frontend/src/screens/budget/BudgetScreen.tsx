@@ -3,7 +3,6 @@ import {
   type FlashListRef,
   type ListRenderItem,
 } from "@shopify/flash-list";
-import { useIsFocused } from "@react-navigation/native";
 import { useRef } from "react";
 import { View } from "react-native";
 
@@ -15,6 +14,7 @@ import {
   emptyStateCopy,
   TourTarget,
 } from "@/components/shared";
+import { FLOATING_BUTTONS_CLEARANCE } from "@/constants";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
@@ -24,8 +24,9 @@ import {
   BudgetCategoryRowsSkeleton,
   BudgetSummaryCard,
 } from "@/features/budgets/components";
-import { FirstUseTip } from "@/features/onboarding/components";
 import { RecurringSection } from "@/features/recurring/components";
+import { useTourCommand } from "@/hooks/useTourCommand";
+import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import {
@@ -69,10 +70,25 @@ export default function BudgetScreen() {
     suggestedBudget,
     summaryLoading,
   } = useBudgetScreenModel();
-  // Tabs are preloaded behind the screen in view: tips wait until this one is.
-  const isFocused = useIsFocused();
   const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
   const recurring = useBudgetRecurringModel(listRef);
+  // Lets the guided tour scroll the list so each spotlighted part is in view.
+  const { onScroll } = useTourScroller("budgets", (y, animated) =>
+    listRef.current?.scrollToOffset({ offset: y, animated }),
+  );
+  // "Open one for me" on the Budgets tour's steps: the first recurring item, the first category.
+  useTourCommand("budgetsOpenRecurring", () => {
+    const first = recurring.income.items[0] ?? recurring.subscriptions.items[0];
+    if (first) {
+      recurring.onItemPress(first);
+    }
+  });
+  useTourCommand("budgetsOpenCategory", () => {
+    const first = listData[0];
+    if (first) {
+      openCategoryTransactions(first);
+    }
+  });
 
   // Keys carry the month so rows remount (and progress bars snap) when the month changes.
   const keyExtractor = (item: CategorySpendRowData) =>
@@ -88,6 +104,7 @@ export default function BudgetScreen() {
       monthlyBudgetAmount={monthlyBudgetAmount}
       onOpen={openCategoryTransactions}
       onEdit={handleEditCategory}
+      tourTargetId={index === 0 ? tourTargetIds.budgetsFirstCategory : undefined}
     />
   );
 
@@ -95,6 +112,8 @@ export default function BudgetScreen() {
     <TabScreenShell>
       <FlashList
         ref={listRef}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
         style={styles.list}
         data={isListLoading ? NO_ROWS : listData}
         renderItem={renderItem}
@@ -104,28 +123,23 @@ export default function BudgetScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View>
-            <BudgetSummaryCard
-              selectedMonth={selectedMonth.label}
-              canGoPrevMonth={canGoPrevMonth}
-              canGoNextMonth={canGoNextMonth}
-              onPrevMonth={goPrevMonth}
-              onNextMonth={goNextMonth}
-              hasMonthlyBudget={hasMonthlyBudget}
-              summary={monthSummary}
-              summaryLoading={summaryLoading}
-              summaryFailed={monthSummaryFailed}
-              onEditBudget={handleEditBudget}
-              onSetBudget={handleSetBudget}
-              spentValue={monthSummary?.spentValue ?? 0}
-              suggestedBudget={suggestedBudget}
-            />
-
-            <FirstUseTip
-              tipId="budgets"
-              message="Your budget fills as you spend. Tap a category's icon to set its own limit."
-              enabled={isFocused}
-              style={styles.tip}
-            />
+            <TourTarget id={tourTargetIds.budgetsSummary}>
+              <BudgetSummaryCard
+                selectedMonth={selectedMonth.label}
+                canGoPrevMonth={canGoPrevMonth}
+                canGoNextMonth={canGoNextMonth}
+                onPrevMonth={goPrevMonth}
+                onNextMonth={goNextMonth}
+                hasMonthlyBudget={hasMonthlyBudget}
+                summary={monthSummary}
+                summaryLoading={summaryLoading}
+                summaryFailed={monthSummaryFailed}
+                onEditBudget={handleEditBudget}
+                onSetBudget={handleSetBudget}
+                spentValue={monthSummary?.spentValue ?? 0}
+                suggestedBudget={suggestedBudget}
+              />
+            </TourTarget>
 
             <TourTarget
               id={tourTargetIds.budgetsRecurring}
@@ -137,16 +151,18 @@ export default function BudgetScreen() {
                 today={recurring.today}
                 onAdd={recurring.onAdd}
                 onItemPress={recurring.onItemPress}
-                tipEnabled={isFocused}
               />
             </TourTarget>
 
-            <View style={styles.sectionHeader}>
+            <TourTarget
+              id={tourTargetIds.budgetsCategoriesHeader}
+              style={styles.sectionHeader}
+            >
               <BudgetCategoriesSectionHeader
                 onAddPress={handleAddCustomCategory}
                 addDisabled={addCustomCategoryDisabled}
               />
-            </View>
+            </TourTarget>
           </View>
         }
         ListEmptyComponent={
@@ -178,11 +194,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     backgroundColor: colors.paper,
   },
   content: {
-    paddingBottom: spacing.xl * 4,
-  },
-  tip: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
+    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
   },
   sectionHeader: {
     paddingHorizontal: spacing.lg,

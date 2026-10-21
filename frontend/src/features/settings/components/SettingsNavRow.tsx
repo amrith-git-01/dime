@@ -1,5 +1,5 @@
-import { ChevronRight, type LucideIcon } from "lucide-react-native";
-import { memo } from "react";
+import { ChevronRight } from "lucide-react-native";
+import { memo, type ComponentType, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { radius, spacing } from "@/constants";
@@ -12,9 +12,13 @@ import { createThemedStyles, useTheme } from "@/theme";
 export type SettingsNavRowProps = {
   label: string;
   subtitle?: string;
-  icon: LucideIcon;
+  /** A lucide icon, or any component drawn like one (the Dime mark). */
+  icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   onPress: () => void;
   showSeparator?: boolean;
+  /** Replaces the chevron at the end of the row (a status and an action, like a tour's check and Play). */
+  trailing?: ReactNode;
+  accessibilityLabel?: string;
 };
 
 export const SettingsNavRow = memo(function SettingsNavRow({
@@ -23,6 +27,8 @@ export const SettingsNavRow = memo(function SettingsNavRow({
   icon: Icon,
   onPress,
   showSeparator = false,
+  trailing,
+  accessibilityLabel,
 }: SettingsNavRowProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -30,6 +36,7 @@ export const SettingsNavRow = memo(function SettingsNavRow({
     <View>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
         onPress={() => {
           void triggerHaptic();
           onPress();
@@ -48,7 +55,9 @@ export const SettingsNavRow = memo(function SettingsNavRow({
             </Text>
           ) : null}
         </View>
-        <ChevronRight size={20} color={colors.inkFaint} strokeWidth={2} />
+        {trailing ?? (
+          <ChevronRight size={20} color={colors.inkFaint} strokeWidth={2} />
+        )}
       </Pressable>
       {showSeparator ? <View style={styles.separator} /> : null}
     </View>

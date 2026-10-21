@@ -9,6 +9,7 @@ import type { CategorySpendRowData } from "@/components/categories/CategorySpend
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { isTourSampleId } from "@/features/tourPreview";
 import { useSuggestedMonthlyBudget } from "@/features/onboarding/hooks/useSuggestedMonthlyBudget";
 import { buildBudgetCategoryRows } from "./buildBudgetCategoryRows";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
@@ -21,6 +22,8 @@ import {
   useMonthSummaryQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
+import { useTourRestorable } from "@/hooks/useTourRestorable";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import { formatInrCompact } from "@/utils/currency";
 import { toPaise } from "@/utils/paise";
 
@@ -54,6 +57,12 @@ export function useBudgetScreenModel() {
   const goNextMonth = useCallback(() => {
     if (canGoNextMonth) handleSelectBudgetMonth(selectedMonthIndex - 1);
   }, [canGoNextMonth, handleSelectBudgetMonth, selectedMonthIndex]);
+
+  // The tour may change the month; it puts it back when it ends.
+  useTourRestorable("budgets.month", {
+    snapshot: () => selectedMonthIndex,
+    restore: (index) => handleSelectBudgetMonth(index as number),
+  });
 
   const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
   const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
@@ -123,12 +132,18 @@ export function useBudgetScreenModel() {
     [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
   );
 
+  // The guided tour's sample budget is shown, never edited.
+  const isSampleBudget = isTourSampleId(budgetResp?.budget?.id ?? "");
   const handleSetBudget = useCallback(() => {
-    navigateToBudgetEditor("create");
-  }, [navigateToBudgetEditor]);
+    if (!isSampleBudget) {
+      navigateToBudgetEditor("create");
+    }
+  }, [isSampleBudget, navigateToBudgetEditor]);
   const handleEditBudget = useCallback(() => {
-    navigateToBudgetEditor("edit");
-  }, [navigateToBudgetEditor]);
+    if (!isSampleBudget) {
+      navigateToBudgetEditor("edit");
+    }
+  }, [isSampleBudget, navigateToBudgetEditor]);
 
   const handleEditCategory = useCallback(
     (categoryId: string) => {
@@ -146,6 +161,7 @@ export function useBudgetScreenModel() {
         categoryId: item.id,
         categoryDisplayName: item.name,
       });
+      emitTourEvent(tourEventNames.categoryOpened);
     },
     [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
   );

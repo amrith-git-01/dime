@@ -7,9 +7,11 @@ import {
 } from "@/components/categories/CategorySpendBentoRow";
 import {
   CATEGORY_SPEND_ROW_DIVIDER_INSET,
+  OptionalTourTarget,
   SurfaceCardSegment,
 } from "@/components/shared";
 import { spacing } from "@/constants";
+import type { TourTargetId } from "@/constants/tourTargetIds";
 import { createThemedStyles } from "@/theme";
 
 export type BudgetCategoryRowProps = {
@@ -22,6 +24,8 @@ export type BudgetCategoryRowProps = {
   monthlyBudgetAmount: number;
   onOpen: (item: CategorySpendRowData) => void;
   onEdit: (categoryId: string) => void;
+  /** Makes the row a guided-tour target (the first category, which the tour asks to open). */
+  tourTargetId?: TourTargetId;
 };
 
 /** One category row of the Budget list, drawn as a slice of the shared white card. */
@@ -34,6 +38,7 @@ export const BudgetCategoryRow = memo(function BudgetCategoryRow({
   monthlyBudgetAmount,
   onOpen,
   onEdit,
+  tourTargetId,
 }: BudgetCategoryRowProps) {
   const styles = useStyles();
   const handlePress = useCallback(() => onOpen(item), [onOpen, item]);
@@ -46,13 +51,15 @@ export const BudgetCategoryRow = memo(function BudgetCategoryRow({
       marginHorizontal={spacing.lg}
       paddingHorizontal={spacing.lg}
     >
-      <CategorySpendBentoRow
-        item={item}
-        hasMonthlyBudget={hasMonthlyBudget}
-        monthlyBudgetAmount={monthlyBudgetAmount}
-        onPress={handlePress}
-        onEditPress={editable ? handleEditPress : undefined}
-      />
+      <OptionalTourTarget id={tourTargetId}>
+        <CategorySpendBentoRow
+          item={item}
+          hasMonthlyBudget={hasMonthlyBudget}
+          monthlyBudgetAmount={monthlyBudgetAmount}
+          onPress={handlePress}
+          onEditPress={editable ? handleEditPress : undefined}
+        />
+      </OptionalTourTarget>
       {isLast ? null : <View style={styles.rowDivider} />}
     </SurfaceCardSegment>
   );

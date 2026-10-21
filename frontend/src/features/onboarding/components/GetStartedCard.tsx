@@ -12,7 +12,7 @@ import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { springs } from "@/constants/motion";
 import { spacing } from "@/constants/spacing";
-import { replayAppTour } from "@/features/appTour/utils/replayAppTour";
+import { openToursSettings } from "@/features/appTour";
 import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { useCelebrationStore } from "@/stores/celebrationStore";
 import { createThemedStyles } from "@/theme";
@@ -136,12 +136,12 @@ export const GetStartedCard = memo(function GetStartedCard({
           <View style={styles.footer}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Replay the tour"
-              onPress={replayAppTour}
+              accessibilityLabel="Take a tour"
+              onPress={openToursSettings}
               hitSlop={8}
               style={styles.footerButton}
             >
-              <Text style={styles.footerLink}>Replay the tour</Text>
+              <Text style={styles.footerLink}>Take a tour</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -243,7 +243,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   footer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    // Left-aligned: the floating buttons sit over the bottom-right of the screen.
+    justifyContent: "flex-start",
+    gap: spacing.xl,
     paddingHorizontal: spacing.lg,
   },
   footerButton: {

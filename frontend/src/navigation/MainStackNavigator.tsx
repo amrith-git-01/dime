@@ -20,6 +20,7 @@ import SettingsHapticScreenBase from "@/screens/settings/SettingsHapticScreen";
 import SettingsNotificationsScreenBase from "@/screens/settings/SettingsNotificationsScreen";
 import SettingsPermissionsScreenBase from "@/screens/settings/SettingsPermissionsScreen";
 import SettingsScreenBase from "@/screens/settings/SettingsScreen";
+import SettingsToursScreenBase from "@/screens/settings/SettingsToursScreen";
 import { settingsStackShellConfig } from "@/screens/settings/settingsStackShellConfig";
 import EditTransactionScreenBase from "@/screens/transactions/EditTransactionScreen";
 import ManualAddTransactionScreenBase from "@/screens/transactions/ManualAddTransactionScreen";
@@ -55,6 +56,10 @@ const SettingsPermissionsScreen = withStackScreen(
 );
 const SettingsNotificationsScreen = withStackScreen(
   SettingsNotificationsScreenBase,
+);
+const SettingsToursScreen = withStackScreen(
+  SettingsToursScreenBase,
+  settingsStackShellConfig,
 );
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
@@ -134,6 +139,11 @@ export default function MainStackNavigator() {
         name="SettingsNotifications"
         component={SettingsNotificationsScreen}
         options={{ ...stackScreenOptions, title: "Notifications & alerts" }}
+      />
+      <Stack.Screen
+        name="SettingsTours"
+        component={SettingsToursScreen}
+        options={{ ...stackScreenOptions, title: "Tours" }}
       />
       <Stack.Screen
         name="Notifications"

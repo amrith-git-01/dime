@@ -189,6 +189,9 @@ export function useTransactionsListScreenModel() {
     if (params.filter === "category" && params.categoryDisplayName) {
       return params.categoryDisplayName;
     }
+    if (params.filter === "payee" && params.payeeDisplayName) {
+      return params.payeeDisplayName;
+    }
     const label = transactionCountIsPlural ? "Transactions" : "Transaction";
     return `${transactionCountLabel} ${label}`;
   }, [transactionCountLabel, transactionCountIsPlural, params]);

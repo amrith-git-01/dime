@@ -17,3 +17,17 @@ export function TourTarget({ id, children, ...viewProps }: TourTargetProps) {
     </View>
   );
 }
+
+export type OptionalTourTargetProps = {
+  /** The target to claim; without one the children render as they are (no wrapper at all). */
+  id: string | undefined;
+  children: ReactNode;
+};
+
+/**
+ * `<TourTarget>` for something only one item of a list should claim (its first row): the other
+ * items pass no `id` and get no wrapper, so their layout is untouched.
+ */
+export function OptionalTourTarget({ id, children }: OptionalTourTargetProps) {
+  return id === undefined ? <>{children}</> : <TourTarget id={id}>{children}</TourTarget>;
+}

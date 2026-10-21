@@ -1,6 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Sparkles } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -21,15 +20,25 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DimeMark } from "@/components/brand/DimeMark";
 import { OPTION_BUBBLE_SIZE } from "@/components/navigation/dimeTabBarConfig";
 import { radius, spacing, timings } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
+import {
+  isAgentEntryFabHiddenByTour,
+  launchTour,
+  useScriptedChatActive,
+} from "@/features/appTour";
+import { useAppTourStore } from "@/features/appTour/store/appTourStore";
+import { TourHelpFab } from "@/features/appTour/components";
+import { AGENT_SUGGESTED_PROMPTS } from "@/features/agent/constants/suggestedPrompts";
+import { useTourCommand } from "@/hooks/useTourCommand";
 import { useTourTarget } from "@/hooks/useTourTarget";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import {
   useAgentChat,
   useAgentDailyLimitReached,
 } from "@/features/agent/hooks/useAgentChat";
-import { FirstUseTip } from "@/features/onboarding/components";
 import { useLimitsQuery } from "@/features/limits/hooks/useLimitsQuery";
 import { getAgentAvailability } from "@/features/limits/utils/limitsFormat";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -46,10 +55,11 @@ import { AgentMessageRenderer } from "./AgentMessageRenderer";
 import { AgentSuggestionsHeader } from "./AgentSuggestionsHeader";
 import { createThemedStyles, useTheme } from "@/theme";
 
-/** The question the first-use tip offers; it is one of the suggested prompts. */
-const ASK_AI_TIP_PROMPT = "How much did I spend on food this month?";
-
 const FAB_SIZE = OPTION_BUBBLE_SIZE;
+/** The "?" above the Ask AI button is smaller; this centers it over the button. */
+const HELP_FAB_SIZE = 36;
+/** The question the tour's "Ask it for me" button sends (it is one of the suggested prompts). */
+const TOUR_SAMPLE_PROMPT = AGENT_SUGGESTED_PROMPTS[6];
 const MODAL_WIDTH_RATIO = 0.92;
 const MODAL_HEIGHT_RATIO = 0.72;
 
@@ -71,6 +81,9 @@ export function AgentChatOverlay({
   const close = useAgentChatUiStore((s) => s.close);
   const fabOpen = useAddTransactionFabStore((s) => s.fabOpen);
   const tourTarget = useTourTarget(tourTargetIds.agentFab);
+  const panelTourTarget = useTourTarget(tourTargetIds.agentPanel);
+  // The tour's sample chat never calls the model, so today's allowance does not block it.
+  const scriptedChat = useScriptedChatActive();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -118,7 +131,8 @@ export function AgentChatOverlay({
   const storeLimitReached = useAgentDailyLimitReached();
   const { data: limits } = useLimitsQuery();
   const agentAvailability = getAgentAvailability(limits);
-  const limitReached = storeLimitReached || agentAvailability.exhausted;
+  const limitReached =
+    (storeLimitReached || agentAvailability.exhausted) && !scriptedChat;
   const stackNavigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
@@ -216,9 +230,22 @@ export function AgentChatOverlay({
       }
       void triggerHaptic();
       void sendMessage(prompt);
+      emitTourEvent(tourEventNames.suggestionTapped);
     },
     [isPending, limitReached, sendMessage],
   );
+
+  // "Ask it for me" on the Ask AI tour's question step.
+  useTourCommand("agentAskSample", () => handleSuggestedPrompt(TOUR_SAMPLE_PROMPT));
+
+  const handleHelp = useCallback(() => {
+    // Not while a question is being answered: the tour's sample chat would have to wait for it.
+    if (isPending) {
+      return;
+    }
+    void triggerHaptic();
+    launchTour("askAi");
+  }, [isPending]);
 
   const handleDeepLink = useCallback(
     (link: AgentDeepLink) => {
@@ -310,7 +337,12 @@ export function AgentChatOverlay({
     opacity: interpolate(progress.value, [0.32, 0.58], [0, 1], "clamp"),
   }));
 
-  const showFab = showEntryFab && !overlayMounted && !fabOpen;
+  // Hidden while another tour runs: on Android its elevation would draw it over the tour's dim layer.
+  const otherTourActive = useAppTourStore((s) =>
+    isAgentEntryFabHiddenByTour(s.active, s.tourId),
+  );
+  const showFab =
+    showEntryFab && !overlayMounted && !fabOpen && !otherTourActive;
   /** Static circle under the morph during collapse — avoids pill artifact at the end. */
   const showCollapseHandoffFab =
     showEntryFab && overlayMounted && !visible && !fabOpen;
@@ -318,6 +350,11 @@ export function AgentChatOverlay({
 
   return (
     <>
+      <TourHelpFab
+        visible={showFab}
+        right={fabRight + (FAB_SIZE - HELP_FAB_SIZE) / 2}
+        bottom={fabBottom + FAB_SIZE + spacing.sm}
+      />
       {showFab || showCollapseHandoffFab ? (
         <Pressable
           {...tourTarget}
@@ -333,7 +370,7 @@ export function AgentChatOverlay({
             pressed && !showCollapseHandoffFab && styles.fabPressed,
           ]}
         >
-          <Sparkles size={20} color={colors.onAccent} strokeWidth={2} />
+          <DimeMark size={24} color={colors.onAccent} />
         </Pressable>
       ) : null}
 
@@ -363,13 +400,21 @@ export function AgentChatOverlay({
                 style={[styles.collapsedIcon, collapsedIconStyle]}
                 pointerEvents="none"
               >
-                <Sparkles size={20} color={colors.onAccent} strokeWidth={2} />
+                <DimeMark size={24} color={colors.onAccent} />
               </Animated.View>
 
               <Animated.View style={[styles.panelInner, contentStyle]}>
+                {/* Invisible box over the whole panel, for the guided tour to spotlight. */}
+                <View
+                  {...panelTourTarget}
+                  pointerEvents="none"
+                  style={StyleSheet.absoluteFill}
+                />
                 <AgentChatHeader
                   onReset={handleResetChat}
                   onClose={handleClose}
+                  onHelp={handleHelp}
+                  helpDisabled={isPending}
                 />
 
                 <FlatList
@@ -388,20 +433,9 @@ export function AgentChatOverlay({
                   initialNumToRender={10}
                   ListHeaderComponent={
                     showSuggestions ? (
-                      <>
-                        <FirstUseTip
-                          tipId="askAi"
-                          message={`Try “${ASK_AI_TIP_PROMPT}”`}
-                          actionLabel="Try it"
-                          onAction={() => handleSuggestedPrompt(ASK_AI_TIP_PROMPT)}
-                          enabled={visible}
-                          seenOnUnmount
-                          style={styles.tip}
-                        />
-                        <AgentSuggestionsHeader
-                          onSelectPrompt={handleSuggestedPrompt}
-                        />
-                      </>
+                      <AgentSuggestionsHeader
+                        onSelectPrompt={handleSuggestedPrompt}
+                      />
                     ) : null
                   }
                 />
@@ -423,9 +457,6 @@ export function AgentChatOverlay({
 }
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
-  tip: {
-    marginBottom: spacing.md,
-  },
   fab: {
     position: "absolute",
     zIndex: 40,

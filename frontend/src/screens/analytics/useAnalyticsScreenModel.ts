@@ -9,6 +9,7 @@ import type {
   InsightsCashflowDaySelection,
   InsightsMonthSummary,
 } from "@/features/analytics/components";
+import { COUNTERPARTY_DONUT_OTHER_KEY } from "@/features/analytics/constants/counterpartyDonutColors";
 import { useDeferredHeavyCharts } from "@/features/analytics/hooks/useDeferredHeavyCharts";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
 import {
@@ -31,6 +32,9 @@ import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import type { TransactionRow } from "@/features/transactions/types";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
+import { useTourCommand } from "@/hooks/useTourCommand";
+import { useTourRestorable } from "@/hooks/useTourRestorable";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { toPaise } from "@/utils/paise";
@@ -202,6 +206,7 @@ export function useAnalyticsScreenModel() {
   const openTransactionDetail = useCallback(
     (transaction: TransactionRow) => {
       navigation.navigate("TransactionDetail", { transaction });
+      emitTourEvent(tourEventNames.transactionOpened);
     },
     [navigation],
   );
@@ -218,19 +223,39 @@ export function useAnalyticsScreenModel() {
     [navigation, selectedMonth.monthIndex0, selectedMonth.year],
   );
 
-  const openTransactionsListForPayee = useCallback(
-    (slice: CounterpartyDonutDatum) => {
+  const openPayee = useCallback(
+    (payeeKey: string, displayName: string) => {
       navigation.navigate("TransactionsList", {
         filter: "payee",
         year: selectedMonth.year,
         monthIndex0: selectedMonth.monthIndex0,
-        payeeId: slice.payee_key,
-        payeeDisplayName: slice.display_name,
+        payeeId: payeeKey,
+        payeeDisplayName: displayName,
         payeeKeysTop: topPayeeKeys,
       });
+      emitTourEvent(tourEventNames.payeeOpened);
     },
     [navigation, selectedMonth.monthIndex0, selectedMonth.year, topPayeeKeys],
   );
+  const openTransactionsListForPayee = useCallback(
+    (slice: CounterpartyDonutDatum) =>
+      openPayee(slice.payee_key, slice.display_name),
+    [openPayee],
+  );
+
+  // The tour may change the month; it puts it back when it ends.
+  useTourRestorable("insights.month", {
+    snapshot: () => selectedMonthIndex,
+    restore: (index) => handleSelectMonth(index as number),
+  });
+
+  // "Open the top payee" on the Insights tour's payee step.
+  useTourCommand("insightsOpenPayee", () => {
+    const top = counterpartySpend.find((row) => row.payee_key !== COUNTERPARTY_DONUT_OTHER_KEY);
+    if (top) {
+      openPayee(top.payee_key, top.display_name);
+    }
+  });
 
   const openInsightsMonthCompare = useCallback(
     (monthA: CompareMonthParam, monthB: CompareMonthParam) => {

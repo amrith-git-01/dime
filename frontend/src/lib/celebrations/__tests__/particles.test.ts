@@ -4,6 +4,7 @@ import {
   buildConfettiParticles,
   CELEBRATION_DURATION_MS,
   CONFETTI_PARTICLE_COUNT,
+  MEDIUM_CONFETTI_PARTICLE_COUNT,
   particleFrame,
 } from "../particles";
 
@@ -130,5 +131,27 @@ describe("particleFrame", () => {
     expect(early).toBe(1);
     expect(late).toBeGreaterThan(0);
     expect(late).toBeLessThan(1);
+  });
+});
+
+describe("the lighter confetti", () => {
+  it("has fewer pieces and is shorter than the big one", () => {
+    expect(MEDIUM_CONFETTI_PARTICLE_COUNT).toBeLessThan(CONFETTI_PARTICLE_COUNT);
+    expect(MEDIUM_CONFETTI_PARTICLE_COUNT).toBeGreaterThanOrEqual(40);
+    expect(CELEBRATION_DURATION_MS.confettiMedium).toBeLessThan(
+      CELEBRATION_DURATION_MS.confetti,
+    );
+    expect(CELEBRATION_DURATION_MS.confettiMedium).toBeGreaterThan(
+      CELEBRATION_DURATION_MS.burst,
+    );
+  });
+
+  it("builds exactly the requested number of pieces", () => {
+    const particles = buildConfettiParticles({
+      paletteSize: 6,
+      ...SCREEN,
+      count: MEDIUM_CONFETTI_PARTICLE_COUNT,
+    });
+    expect(particles).toHaveLength(MEDIUM_CONFETTI_PARTICLE_COUNT);
   });
 });

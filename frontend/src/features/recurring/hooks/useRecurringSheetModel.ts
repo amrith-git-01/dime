@@ -4,6 +4,7 @@ import { Keyboard } from "react-native";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
 import { useToast } from "@/features/toast/useToast";
+import { isTourSampleId } from "@/features/tourPreview";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
@@ -136,6 +137,11 @@ export function useRecurringSheetModel({
     if (busy) {
       return;
     }
+    // A sample item from the guided tour is only looked at, never saved.
+    if (item && isTourSampleId(item.id)) {
+      onClose();
+      return;
+    }
     if (!validateRecurringForm(form).ok) {
       setSubmitted(true);
       return;
@@ -181,6 +187,11 @@ export function useRecurringSheetModel({
 
   const onConfirmDelete = useCallback(async () => {
     if (!item) {
+      return;
+    }
+    if (isTourSampleId(item.id)) {
+      setDeleteVisible(false);
+      onClose();
       return;
     }
     try {

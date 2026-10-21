@@ -1,4 +1,5 @@
 import { askNotificationsInContext } from "@/features/onboarding/utils/askNotificationsInContext";
+import { isBudgetEmpty, usePreviewable } from "@/features/tourPreview";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
   fetchBudget,
@@ -13,10 +14,15 @@ import { budgetQueryKeys } from "../queryKeys";
 export function useBudgetQuery(options?: { enabled?: boolean }) {
   const { userId } = useSessionUserId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: budgetQueryKeys.current(userId),
     queryFn: fetchBudget,
     enabled: options?.enabled ?? true,
+  });
+  return usePreviewable(query, {
+    domain: "budget",
+    isEmpty: isBudgetEmpty,
+    select: (set) => ({ data: set.current.budget }),
   });
 }
 

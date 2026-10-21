@@ -20,10 +20,12 @@ import { Button } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
 } from "@/features/transactions/utils/transactionDisplay";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import { useTransactionDetailScreenModel } from "@/screens/transactions/useTransactionDetailScreenModel";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -76,6 +78,7 @@ export default function TransactionDetailScreen() {
   const { colors } = useTheme();
   const styles = useStyles();
   const model = useTransactionDetailScreenModel();
+  const cardTourTarget = useTourTarget(tourTargetIds.transactionDetailCard);
   const { transaction } = model;
 
   const { scheme } = useTheme();
@@ -107,116 +110,121 @@ export default function TransactionDetailScreen() {
           onPress={model.handleDismiss}
         />
 
-        <Animated.View style={[styles.card, styles.cardShadow, cardStyle]}>
-          {/* Header: category icon + merchant + header actions */}
-          <View style={styles.cardHeader}>
-            <View
-              style={[styles.iconTile, { backgroundColor: ui.category.bgColor }]}
-            >
-              <CategoryLucideIcon
-                iconName={ui.category.icon_name}
-                color={ui.category.color}
-                size={22}
-                strokeWidth={1.5}
-              />
-            </View>
-            <Text style={styles.merchantName}>
-              {ui.merchant}
-            </Text>
-            <View style={styles.headerActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={12}
-                onPress={model.handleDismiss}
-                style={({ pressed }) => [
-                  styles.closeBtn,
-                  pressed && styles.closeBtnPressed,
-                ]}
+        {/* Not scaled with the card, so the guided tour spotlights its final size. */}
+        <View {...cardTourTarget} style={styles.cardWrap}>
+          <Animated.View style={[styles.card, styles.cardShadow, cardStyle]}>
+            {/* Header: category icon + merchant + header actions */}
+            <View style={styles.cardHeader}>
+              <View
+                style={[styles.iconTile, { backgroundColor: ui.category.bgColor }]}
               >
-                <X size={20} color={colors.ink} strokeWidth={1.5} />
-              </Pressable>
+                <CategoryLucideIcon
+                  iconName={ui.category.icon_name}
+                  color={ui.category.color}
+                  size={22}
+                  strokeWidth={1.5}
+                />
+              </View>
+              <Text style={styles.merchantName}>
+                {ui.merchant}
+              </Text>
+              <View style={styles.headerActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  hitSlop={12}
+                  onPress={model.handleDismiss}
+                  style={({ pressed }) => [
+                    styles.closeBtn,
+                    pressed && styles.closeBtnPressed,
+                  ]}
+                >
+                  <X size={20} color={colors.ink} strokeWidth={1.5} />
+                </Pressable>
+              </View>
             </View>
-          </View>
 
-          {/* Hero amount */}
-          <View style={styles.heroSection}>
-            <Text
-              style={[
-                styles.heroAmount,
-                isCredit ? styles.heroCredit : styles.heroDebit,
-              ]}
-              numberOfLines={1}
-            >
-              {formatTransactionListAmount(ui.amount)}
-            </Text>
-            <View
-              style={[
-                styles.categoryChip,
-                { backgroundColor: ui.category.bgColor },
-              ]}
-            >
-              <CategoryLucideIcon
-                iconName={ui.category.icon_name}
-                color={ui.category.color}
-                size={12}
-                strokeWidth={1.5}
-              />
+            {/* Hero amount */}
+            <View style={styles.heroSection}>
               <Text
-                style={[styles.categoryChipText, { color: ui.category.color }]}
+                style={[
+                  styles.heroAmount,
+                  isCredit ? styles.heroCredit : styles.heroDebit,
+                ]}
                 numberOfLines={1}
               >
-                {ui.category.name}
+                {formatTransactionListAmount(ui.amount)}
               </Text>
+              <View
+                style={[
+                  styles.categoryChip,
+                  { backgroundColor: ui.category.bgColor },
+                ]}
+              >
+                <CategoryLucideIcon
+                  iconName={ui.category.icon_name}
+                  color={ui.category.color}
+                  size={12}
+                  strokeWidth={1.5}
+                />
+                <Text
+                  style={[styles.categoryChipText, { color: ui.category.color }]}
+                  numberOfLines={1}
+                >
+                  {ui.category.name}
+                </Text>
+              </View>
             </View>
-          </View>
 
-          {/* Dashed separator */}
-          <View style={styles.dashedSeparator} />
+            {/* Dashed separator */}
+            <View style={styles.dashedSeparator} />
 
-          {/* Meta rows — fixed 4 rows, no scroll needed */}
-          <View>
-            <MetaRow
-              icon={<Calendar size={16} color={colors.inkFaint} strokeWidth={1.5} />}
-              label="Date"
-              value={formatIsoDate(transaction.transaction_at)}
-            />
-            <MetaRow
-              icon={<Clock size={16} color={colors.inkFaint} strokeWidth={1.5} />}
-              label="Time"
-              value={formatIsoTime(transaction.transaction_at)}
-            />
-            <MetaRow
-              icon={
-                <CreditCard size={16} color={colors.inkFaint} strokeWidth={1.5} />
-              }
-              label="Source"
-              value={ui.viaLabel}
-            />
-            <MetaRow
-              icon={<FileText size={16} color={colors.inkFaint} strokeWidth={1.5} />}
-              label="Notes"
-              value={hasNote ? transaction.note!.trim() : "—"}
-              isLast
-            />
-          </View>
-          <View style={styles.actionsRow}>
-            <View style={styles.actionSlot}>
-              <Button
-                title="Edit"
-                variant="secondary"
-                onPress={model.handleEdit}
+            {/* Meta rows — fixed 4 rows, no scroll needed */}
+            <View>
+              <MetaRow
+                icon={<Calendar size={16} color={colors.inkFaint} strokeWidth={1.5} />}
+                label="Date"
+                value={formatIsoDate(transaction.transaction_at)}
+              />
+              <MetaRow
+                icon={<Clock size={16} color={colors.inkFaint} strokeWidth={1.5} />}
+                label="Time"
+                value={formatIsoTime(transaction.transaction_at)}
+              />
+              <MetaRow
+                icon={
+                  <CreditCard size={16} color={colors.inkFaint} strokeWidth={1.5} />
+                }
+                label="Source"
+                value={ui.viaLabel}
+              />
+              <MetaRow
+                icon={<FileText size={16} color={colors.inkFaint} strokeWidth={1.5} />}
+                label="Notes"
+                value={hasNote ? transaction.note!.trim() : "—"}
+                isLast
               />
             </View>
-            <View style={styles.actionSlot}>
-              <Button
-                title="Delete"
-                variant="danger"
-                onPress={model.handleDeletePress}
-              />
+            <View style={styles.actionsRow}>
+              <View style={styles.actionSlot}>
+                <Button
+                  title="Edit"
+                  variant="secondary"
+                  disabled={model.isSample}
+                  onPress={model.handleEdit}
+                />
+              </View>
+              <View style={styles.actionSlot}>
+                <Button
+                  title="Delete"
+                  variant="danger"
+                  disabled={model.isSample}
+                  onPress={model.handleDeletePress}
+                />
+              </View>
             </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </View>
       </View>
 
       <ConfirmModal
@@ -243,6 +251,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing.lg + spacing.md,
+  },
+  cardWrap: {
+    width: "100%",
   },
   card: {
     width: "100%",

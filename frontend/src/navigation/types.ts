@@ -22,6 +22,7 @@ export type MainStackParamList = {
   SettingsGlossary: undefined;
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;
+  SettingsTours: undefined;
   Notifications: undefined;
   ManualAddTransaction:
     | {

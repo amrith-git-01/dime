@@ -25,6 +25,8 @@ import type {
   TransactionRow,
 } from "@/features/transactions/types";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
+import { useTourCommand } from "@/hooks/useTourCommand";
+import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
@@ -208,9 +210,18 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const onTransactionPress = useCallback(
     (tx: TransactionRow) => {
       navigation.navigate("TransactionDetail", { transaction: tx });
+      emitTourEvent(tourEventNames.transactionOpened);
     },
     [navigation],
   );
+
+  // "Open it for me" on the Home tour's step that asks the user to open a payment.
+  useTourCommand("homeOpenTransaction", () => {
+    const first = recentTransactions[0];
+    if (first) {
+      onTransactionPress(first);
+    }
+  });
 
   const onCategoryPress = useCallback(
     (item: CategorySpendRowData) => {

@@ -34,11 +34,25 @@ export const SEEDED_SYSTEM_CATEGORIES = {
     color: "#4ECDC4",
     scope: "spend",
   },
+  health: {
+    id: "a00eb2e0-48a8-47f1-98cb-3a30b8731501",
+    name: "Health",
+    icon_name: "HeartPulse",
+    color: "#4ADE80",
+    scope: "spend",
+  },
   rent: {
     id: "94b82777-eee4-46de-8c18-7490bda02b60",
     name: "Rent",
     icon_name: "House",
     color: "#38BDF8",
+    scope: "recurring_expense",
+  },
+  internet: {
+    id: "2f223b6a-f43d-4acb-ae01-a458fea3ef3e",
+    name: "Internet & phone",
+    icon_name: "Wifi",
+    color: "#22D3EE",
     scope: "recurring_expense",
   },
   subscriptions: {

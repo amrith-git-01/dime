@@ -29,6 +29,8 @@ export type AgentChatAction =
   /** Request cancelled by the user: drop the placeholder. */
   | { type: "abort"; requestId: number }
   | { type: "reset" }
+  /** Puts a stashed conversation back (the guided tour's sample chat ended). */
+  | { type: "restore"; state: AgentChatState }
   | { type: "feedback"; messageId: string; rating: AgentFeedbackRating }
   | { type: "feedbackFailed"; messageId: string };
 
@@ -94,6 +96,8 @@ export function agentChatReducer(
     case "reset":
       // Memory belongs to the conversation: a new conversation starts fresh.
       return initialAgentChatState;
+    case "restore":
+      return action.state;
     case "feedback":
       return {
         ...state,

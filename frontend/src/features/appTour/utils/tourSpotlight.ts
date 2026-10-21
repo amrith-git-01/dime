@@ -1,6 +1,6 @@
 import type { TourRect } from "@/lib/tour/tourTargetRegistry";
 
-import type { TourSpotlightShape } from "../constants/tourSteps";
+import type { TourSpotlightShape } from "../constants/tourTypes";
 
 export type TourHole = TourRect & { radius: number };
 

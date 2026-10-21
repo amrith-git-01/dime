@@ -10,6 +10,8 @@ import {
 
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { tourTargetIds } from "@/constants/tourTargetIds";
+import { useTourTarget } from "@/hooks/useTourTarget";
 import {
   createThemedStyles,
   useTheme,
@@ -43,6 +45,7 @@ export const AgentChatComposer = memo(function AgentChatComposer({
   const { colors } = useTheme();
   const styles = useStyles();
   const inputProps = useThemedTextInputProps();
+  const tourTarget = useTourTarget(tourTargetIds.agentComposer);
   const [draft, setDraft] = useState("");
   const [seenResetToken, setSeenResetToken] = useState(resetToken);
 
@@ -64,7 +67,7 @@ export const AgentChatComposer = memo(function AgentChatComposer({
   };
 
   return (
-    <View style={styles.wrap}>
+    <View {...tourTarget} style={styles.wrap}>
       {caption ? (
         <Text style={styles.caption} numberOfLines={2}>
           {caption}

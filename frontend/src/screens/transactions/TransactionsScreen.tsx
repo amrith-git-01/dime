@@ -1,10 +1,15 @@
-import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { useMemo } from "react";
+import {
+  FlashList,
+  type FlashListRef,
+  type ListRenderItem,
+} from "@shopify/flash-list";
+import { useMemo, useRef } from "react";
 import { View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { CARD_SEGMENT_SHADOW_TOP_BLEED } from "@/components/shared";
-import { spacing } from "@/constants";
+import { FLOATING_BUTTONS_CLEARANCE, spacing } from "@/constants";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   TransactionCalendarCard,
   TransactionDayCardFooter,
@@ -14,6 +19,7 @@ import {
   TransactionDayCardUpcomingRow,
 } from "@/features/transactions/components";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
 import { createThemedStyles } from "@/theme";
@@ -55,6 +61,12 @@ export default function TransactionsScreen() {
     openUpcomingOccurrence,
   } = useTransactionsScreenModel();
 
+  const listRef = useRef<FlashListRef<TransactionFlashListItem>>(null);
+  // Lets the guided tour scroll the list so each spotlighted part is in view.
+  const { onScroll } = useTourScroller("transactions", (y, animated) =>
+    listRef.current?.scrollToOffset({ offset: y, animated }),
+  );
+
   const isDayLoading =
     emptyVariant === "month-loading" || emptyVariant === "day-loading";
   const isFetching = emptyVariant === "day-loading";
@@ -86,12 +98,20 @@ export default function TransactionsScreen() {
         transaction={item.transaction}
         showDivider={item.sectionRowIndex > 0}
         onPress={openTransactionDetail}
+        tourTargetId={
+          item.sectionRowIndex === 0
+            ? tourTargetIds.transactionsFirstRow
+            : undefined
+        }
       />
     );
 
   return (
     <TabScreenShell>
       <FlashList
+        ref={listRef}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
         style={styles.list}
         data={visibleRows}
         renderItem={renderItem}
@@ -157,7 +177,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
   },
   header: {
     // The day-card header segment reserves top room for its card shadow.

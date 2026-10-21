@@ -16,6 +16,7 @@ import {
 } from "@/features/budgets/hooks/useBudget";
 import { useSuggestedMonthlyBudget } from "@/features/onboarding/hooks/useSuggestedMonthlyBudget";
 import { useToast } from "@/features/toast/useToast";
+import { isTourSampleId } from "@/features/tourPreview";
 import type { MainStackParamList } from "@/navigation/types";
 
 type EditRoute = RouteProp<MainStackParamList, "EditMonthlyBudget">;
@@ -73,8 +74,11 @@ export function useEditMonthlyBudgetScreenModel() {
 
   const canSave = !isBudgetLoading && Object.keys(savePatch).length > 0;
 
+  // The guided tour's sample budget is never saved over (the editor is not part of any tour).
+  const isSampleBudget = isTourSampleId(budgetResp?.budget?.id ?? "");
+
   const handleSave = useCallback(() => {
-    if (Object.keys(savePatch).length === 0) {
+    if (isSampleBudget || Object.keys(savePatch).length === 0) {
       navigation.goBack();
       return;
     }
@@ -85,7 +89,7 @@ export function useEditMonthlyBudgetScreenModel() {
         navigation.goBack();
       },
     });
-  }, [navigation, savePatch, showToast, upsertBudgetMutation]);
+  }, [isSampleBudget, navigation, savePatch, showToast, upsertBudgetMutation]);
 
   const handleClear = useCallback(() => {
     Keyboard.dismiss();

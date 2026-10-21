@@ -25,15 +25,21 @@ export type CelebrationParticle = {
   shape: "rect" | "coin";
 };
 
-export type CelebrationKind = "confetti" | "burst";
+/**
+ * `confetti`: the big one. `confettiMedium`: fewer pieces, shorter, for a tour finished again or
+ * after the day's big one. `burst`: a small radial pop at a point.
+ */
+export type CelebrationKind = "confetti" | "confettiMedium" | "burst";
 
 /** How long each effect plays (ms). */
 export const CELEBRATION_DURATION_MS: Record<CelebrationKind, number> = {
   confetti: 2200,
+  confettiMedium: 1800,
   burst: 750,
 };
 
 export const CONFETTI_PARTICLE_COUNT = 112;
+export const MEDIUM_CONFETTI_PARTICLE_COUNT = 72;
 export const BURST_PARTICLE_COUNT = 22;
 /** Share of confetti drawn as ₹ coins (gold rings) instead of paper. */
 const COIN_SHARE = 0.18;

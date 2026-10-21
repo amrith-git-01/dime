@@ -1,8 +1,10 @@
 import { memo } from "react";
 import { Text, View } from "react-native";
 
+import { TourTarget } from "@/components/shared";
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import { GetStartedCard } from "@/features/onboarding/components";
 
 import { HeroMonthCard } from "./HeroMonthCard";
@@ -50,14 +52,16 @@ export const HomeContent = memo(function HomeContent(
         onAskAi={props.onAskAi}
       />
 
-      <MonthStatRow
-        incomeDisplay={props.creditedDisplay}
-        incomeValue={props.incomeValue}
-        spentDisplay={props.spentMonthDisplay}
-        spentValue={props.spentMonthValue}
-        netDisplay={props.netDisplay}
-        netValue={props.netValue}
-      />
+      <TourTarget id={tourTargetIds.homeStats}>
+        <MonthStatRow
+          incomeDisplay={props.creditedDisplay}
+          incomeValue={props.incomeValue}
+          spentDisplay={props.spentMonthDisplay}
+          spentValue={props.spentMonthValue}
+          netDisplay={props.netDisplay}
+          netValue={props.netValue}
+        />
+      </TourTarget>
 
       <HomeUpcomingSection
         items={props.upcomingItems}

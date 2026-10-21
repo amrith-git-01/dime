@@ -1,8 +1,10 @@
 import { ScrollView, Text, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
+import { TourTarget } from "@/components/shared";
 import { layout, radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   CompareCashflowSection,
   ComparePaceSection,
@@ -54,14 +56,16 @@ function InsightsMonthCompareContent() {
       onScrollBeginDrag={reportScroll}
       onMomentumScrollEnd={reportScroll}
     >
-      <CompareSnapshotCard
-        leftLabel={monthB.label}
-        rightLabel={monthA.label}
-        leftAmount={monthBSpent}
-        rightAmount={monthASpent}
-        spentDelta={spentDelta}
-        isDeltaPositive={isDeltaPositive}
-      />
+      <TourTarget id={tourTargetIds.insightsCompareSnapshot}>
+        <CompareSnapshotCard
+          leftLabel={monthB.label}
+          rightLabel={monthA.label}
+          leftAmount={monthBSpent}
+          rightAmount={monthASpent}
+          spentDelta={spentDelta}
+          isDeltaPositive={isDeltaPositive}
+        />
+      </TourTarget>
 
       <CompareSummarySection
         leftLabel={monthA.label}

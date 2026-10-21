@@ -17,6 +17,7 @@ import {
 } from "@/features/categories/hooks/useCategoryMutations";
 import { parseBudgetAmount } from "@/features/categories/utils/parseBudgetAmount";
 import { useToast } from "@/features/toast/useToast";
+import { isTourSampleId } from "@/features/tourPreview";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -93,6 +94,10 @@ export function useEditCategoryScreenModel() {
   const fieldsDisabled = category?.is_system ?? false;
 
   const handleSave = useCallback(async () => {
+    if (isTourSampleId(categoryId)) {
+      navigation.goBack();
+      return;
+    }
     if (!category) {
       Alert.alert("Category not found", "Go back and try again.");
       return;
@@ -154,6 +159,10 @@ export function useEditCategoryScreenModel() {
 
   const handleConfirmDelete = useCallback(
     (reassignToCategoryId?: string) => {
+      if (isTourSampleId(categoryId)) {
+        setDeleteSheetVisible(false);
+        return;
+      }
       void deleteMutation
         .mutateAsync({ categoryId, reassignToCategoryId })
         .then(() => {
