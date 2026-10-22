@@ -10,11 +10,14 @@ import {
   View,
 } from "react-native";
 
+import { KeyboardEvents } from "react-native-keyboard-controller";
+import Animated, { FadeOut } from "react-native-reanimated";
+
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { useOverlayHost } from "@/components/layout/OverlayHost";
 import { useKeyboardRoom } from "@/components/layout/StackScreenShell";
 import { AppTextInput, TextField } from "@/components/ui";
-import { fontFamilies, radius, spacing } from "@/constants";
+import { fontFamilies, radius, spacing, timings } from "@/constants";
 import type { TransactionType } from "@/features/transactions/types";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -161,6 +164,22 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     },
     [],
   );
+
+  // Android back starts hiding the keyboard while the input stays focused (it blurs only once the keyboard is gone),
+  // so close on "will hide": the dropdown fades out together with the keyboard instead of lingering after it.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const subscription = KeyboardEvents.addListener("keyboardWillHide", () => {
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+      setOpen(false);
+    });
+    return () => subscription.remove();
+  }, [open]);
 
   // While focused, the screen keeps room for the dropdown between the input and the keyboard.
   useEffect(() => {
@@ -310,7 +329,10 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     : styles.dropdownInline;
   const dropdown =
     showResults && (anchor || !overlayHost) ? (
-      <View style={[styles.dropdown, dropdownPosition]}>
+      <Animated.View
+        style={[styles.dropdown, dropdownPosition]}
+        exiting={FadeOut.duration(timings.normal.duration)}
+      >
         <ScrollView
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
@@ -369,7 +391,7 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
             ) : null}
           </View>
         </ScrollView>
-      </View>
+      </Animated.View>
     ) : null;
 
   // Every render: the rows' handlers close over the latest props.
