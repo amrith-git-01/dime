@@ -45,7 +45,8 @@ export const tourTargetIds = {
 
   // Insights
   insightsSummary: "insights.summary",
-  insightsPace: "insights.pace",
+  insightsForecast: "insights.forecast",
+  insightsComingUp: "insights.comingUp",
   insightsCashflow: "insights.cashflow",
   insightsPayees: "insights.payees",
   insightsCompare: "insights.compare",

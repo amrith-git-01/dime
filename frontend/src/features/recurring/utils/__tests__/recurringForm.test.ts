@@ -1,5 +1,6 @@
 import type { RecurringFormState, RecurringItem } from "../../types";
 import {
+  applyRecurringPrefill,
   buildCreateBody,
   buildUpdateBody,
   collectFieldErrors,
@@ -432,5 +433,53 @@ describe("create payload per kind (sheet type toggle)", () => {
     expect(
       buildCreateBody("income", form({ name: " " }), TZ, TODAY),
     ).toBeNull();
+  });
+});
+
+describe("applyRecurringPrefill", () => {
+  const blank = emptyRecurringForm("subscription", TODAY);
+
+  it("leaves the form alone without a prefill", () => {
+    expect(applyRecurringPrefill(blank, undefined)).toBe(blank);
+  });
+
+  it("starts the form with the name, amount, day and cadence it is given", () => {
+    const filled = applyRecurringPrefill(blank, {
+      name: " Spotify ",
+      amount: "119.00",
+      dayOfMonth: 7,
+      cadence: "yearly",
+    });
+    expect(filled).toMatchObject({
+      name: "Spotify",
+      amountText: "119",
+      dayOfMonthText: "7",
+      cadence: "yearly",
+      categoryId: null,
+    });
+  });
+
+  it("keeps the paise of an amount that has them, and the defaults for what is missing", () => {
+    const filled = applyRecurringPrefill(blank, { amount: "649.50" });
+    expect(filled.amountText).toBe("649.50");
+    expect(filled.name).toBe("");
+    expect(filled.dayOfMonthText).toBe(blank.dayOfMonthText);
+    expect(filled.cadence).toBe("monthly");
+  });
+
+  it("ignores values the form could not hold", () => {
+    const filled = applyRecurringPrefill(blank, {
+      name: "x".repeat(200),
+      amount: "abc",
+      dayOfMonth: 40,
+    });
+    expect(filled.name).toHaveLength(80);
+    expect(filled.amountText).toBe("");
+    expect(filled.dayOfMonthText).toBe(blank.dayOfMonthText);
+  });
+
+  it("produces a form that validates once a category is picked", () => {
+    const filled = applyRecurringPrefill(blank, { name: "Spotify", amount: "119.00" });
+    expect(validateRecurringForm({ ...filled, categoryId: "cat-ent" }).ok).toBe(true);
   });
 });

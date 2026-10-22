@@ -15,6 +15,7 @@ export default function RecurringEditorScreen() {
     <RecurringEditor
       kind={params.kind}
       item={params.item}
+      prefill={params.prefill}
       onDone={navigation.goBack}
     />
   );
