@@ -13,6 +13,7 @@ export const USER_ID = '11111111-1111-1111-1111-111111111111';
 const TABLES = [
   'ai_user_usage',
   'ai_usage',
+  'engine_usage',
   'auth_sessions',
   'auth_identities',
   'agent_feedback',
@@ -23,6 +24,11 @@ const TABLES = [
   'user_feedback',
   'user_settings',
   'notifications',
+  'forecast_snapshots',
+  'prediction_feedback',
+  'payee_patterns',
+  'engine_patterns',
+  'txn_labels', // before transactions: it references them
   'category_budgets',
   'budgets',
   'transactions',

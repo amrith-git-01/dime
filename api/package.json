@@ -17,7 +17,8 @@
     "evals": "tsx evals/run.ts",
     "evals:validate": "vitest run test/agent-evals.test.ts",
     "evals:generate": "tsx evals/generate.ts",
-    "brands:build": "tsx scripts/brands/build.ts"
+    "brands:build": "tsx scripts/brands/build.ts",
+    "engine:backtest": "tsx scripts/engine/backtest.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",

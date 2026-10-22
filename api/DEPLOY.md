@@ -35,14 +35,16 @@ npx wrangler d1 create dime-db --location apac
 # R2 must be enabled once in the dashboard (R2 Object Storage -> enable) before this works.
 npx wrangler r2 bucket create dime-media
 
-# Queues: ingest and email, each with a dead-letter queue (the consumers reference the DLQs, so create them too).
+# Queues: ingest, email and the predictive engine, each with a dead-letter queue (the consumers reference the DLQs, so create them too).
 npx wrangler queues create dime-ingest
 npx wrangler queues create dime-ingest-dlq
 npx wrangler queues create dime-email
 npx wrangler queues create dime-email-dlq
+npx wrangler queues create dime-engine
+npx wrangler queues create dime-engine-dlq
 ```
 
-What each queue does: `dime-ingest` carries receipt / voice capture jobs (the `jobs` table is the source of truth, the message is only a `{job_id, kind}` pointer; 3 retries then the DLQ). `dime-ingest-dlq` marks the job failed and notifies the user. `dime-email` carries one message per digest email (fan-out from the daily cron; 3 retries then `dime-email-dlq`, which logs `email_digest_dead_lettered`).
+What each queue does: `dime-ingest` carries receipt / voice capture jobs (the `jobs` table is the source of truth, the message is only a `{job_id, kind}` pointer; 3 retries then the DLQ). `dime-ingest-dlq` marks the job failed and notifies the user. `dime-email` carries one message per digest email (fan-out from the daily cron; 3 retries then `dime-email-dlq`, which logs `email_digest_dead_lettered`). `dime-engine` carries one `{userId}` message per user whose predictive-engine profile needs a rebuild (fan-out from the `0 21 * * *` cron, 02:30 IST; 2 retries then `dime-engine-dlq`, which logs `engine_user_dead_lettered`).
 
 If you ever recreate the database, paste its id into `wrangler.jsonc` `d1_databases[0].database_id` (CI refuses to deploy an all-zero placeholder id).
 
@@ -64,6 +66,7 @@ Edit `wrangler.jsonc` `vars`:
 | `AI_GATEWAY_ID`, `CF_ACCOUNT_ID` | Optional, empty by default. With `AI_GATEWAY_ID` the Workers AI calls go through that AI Gateway (logs, spend limit). With both set, DeepSeek goes through the gateway's `deepseek` endpoint too (the gateway must not require authentication). |
 | `AI_*` | DeepSeek parsing settings. Defaults are fine. |
 | `AGENT_*` | `AGENT_ENABLED` (kill switch: `false` makes every chat answer the `agent_disabled` error; or `wrangler deploy --var AGENT_ENABLED:false`), `AGENT_DAILY_TOKEN_BUDGET` (tokens per user per UTC day, default 200000), `AGENT_DAILY_QUESTIONS` (questions per user per UTC day, default 5; the next one answers 429), `AGENT_MAX_STEPS` (6), `AGENT_TURN_TIMEOUT_SECONDS` (25), `AGENT_LLM_TIMEOUT_SECONDS` (12), `AGENT_MODEL`, `AGENT_MODEL_FALLBACK`. |
+| `ENGINE_*` | The nightly DeepSeek labeller of the predictive engine (`features/engine/labeller.ts`, uses `DEEPSEEK_API_KEY`). `ENGINE_LLM_ENABLED` (kill switch, `true` in `wrangler.jsonc`; `false` keeps the forecast on its code templates), `ENGINE_DAILY_TOKEN_BUDGET` (prompt + completion tokens per UTC day across all users, default `2000000`; about 1.5k tokens per user per night, so it covers roughly 1,300 users; counter table `engine_usage`, migration `0011`), `ENGINE_MODEL` (defaults to `AGENT_MODEL`). |
 | `MAX_RECEIPT_UPLOAD_BYTES`, `MAX_VOICE_UPLOAD_BYTES`, `SIGNED_URL_TTL_SECONDS`, `AVATAR_URL_ALLOWED_HOSTS` | Upload caps (10 MiB / 15 MiB), signed `/media` link lifetime (6 h), avatar hosts. Defaults are fine. |
 
 Bindings (D1 `DB`, R2 `MEDIA`, `AI`, Durable Object `USER_HUB`, queues, crons, assets, rate limits) are already declared in `wrangler.jsonc`; there is nothing else to configure. Then regenerate types: `npm run cf-typegen`.
@@ -113,7 +116,7 @@ npx wrangler deploy --dry-run --outdir dist     # builds, validates bindings, pr
 npx wrangler deploy
 ```
 
-The deploy fails if a queue, bucket or D1 database does not exist (section 2). The first deploy also registers the queue consumers, the two cron triggers (`*/5 * * * *` ingest recovery sweep, `30 2 * * *` = 08:00 IST email digests), applies the Durable Object migration (`UserHub`), and uploads `public/email/*` as static assets.
+The deploy fails if a queue, bucket or D1 database does not exist (section 2). The first deploy also registers the queue consumers, the three cron triggers (`*/5 * * * *` ingest recovery sweep, `30 2 * * *` = 08:00 IST email digests, `0 21 * * *` = 02:30 IST predictive-engine fan-out), applies the Durable Object migration (`UserHub`), and uploads `public/email/*` as static assets.
 
 Smoke test:
 

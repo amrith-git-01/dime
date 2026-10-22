@@ -28,6 +28,7 @@ function tableRules(nowMs: number): TableRule[] {
     { table: 'auth_sessions', where: 'expires_at < ? OR (revoked_at IS NOT NULL AND revoked_at < ?)', params: [sessionCutoff, sessionCutoff] },
     { table: 'ai_usage', where: 'day < ?', params: [usageDay] },
     { table: 'ai_user_usage', where: 'day < ?', params: [usageDay] },
+    { table: 'engine_usage', where: 'day < ?', params: [usageDay] },
     { table: 'agent_usage', where: 'day < ?', params: [usageDay] },
     { table: 'notifications', where: 'deleted_at IS NOT NULL AND deleted_at < ?', params: [iso(NOTIFICATION_RETENTION_DAYS)] },
   ];

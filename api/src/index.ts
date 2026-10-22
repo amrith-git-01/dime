@@ -1,8 +1,10 @@
 import { app } from './app';
+import { getConfig } from './core/env';
 import type { Bindings } from './core/env';
 import { log } from './core/logging';
 import { handleEmailBatch, handleEmailDlq } from './features/email/consumer';
 import { runDigestCron } from './features/email/digest';
+import { ENGINE_CRON, fanOutEngine, handleEngineBatch, handleEngineDlq } from './features/engine/job';
 import { handleIngestBatch, handleIngestDlq } from './features/ingest/consumer';
 import { SWEEP_CRON, runSweep } from './features/ingest/sweep';
 import { postDueRecurring } from './features/recurring/poster';
@@ -23,6 +25,9 @@ export default {
     if (batch.queue.startsWith('dime-email-dlq')) return handleEmailDlq(batch);
     if (batch.queue.startsWith('dime-email')) return handleEmailBatch(batch, env);
 
+    if (batch.queue.startsWith('dime-engine-dlq')) return handleEngineDlq(batch);
+    if (batch.queue.startsWith('dime-engine')) return handleEngineBatch(batch, env);
+
     // An unknown queue: ack so nothing is retried or DLQ'd forever.
     log.warn('queue_unknown', { queue: batch.queue, messages: batch.messages.length });
     batch.ackAll();
@@ -38,6 +43,9 @@ export default {
         return;
       case EMAIL_DIGEST_CRON:
         await runDigestCron(env, controller.scheduledTime);
+        return;
+      case ENGINE_CRON:
+        await fanOutEngine(env, controller.scheduledTime, { copy: getConfig(env).engine.llmEnabled });
         return;
       default:
         log.warn('scheduled_unknown_cron', { cron: controller.cron });

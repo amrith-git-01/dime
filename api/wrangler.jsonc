@@ -43,6 +43,8 @@
     "AGENT_LLM_TIMEOUT_SECONDS": "12",
     "AGENT_DAILY_TOKEN_BUDGET": "200000",
     "AGENT_DAILY_QUESTIONS": "5",
+    "ENGINE_LLM_ENABLED": "true",
+    "ENGINE_DAILY_TOKEN_BUDGET": "2000000",
     "EMAIL_FROM": "Dime <dime.app.mail@gmail.com>",
     "EMAIL_APP_LINK": "https://play.google.com/store",
     "EMAIL_PUBLIC_BASE_URL": "https://dime-api.selvarajamrith958.workers.dev"
@@ -51,7 +53,8 @@
   "queues": {
     "producers": [
       { "binding": "INGEST_QUEUE", "queue": "dime-ingest" },
-      { "binding": "EMAIL_QUEUE", "queue": "dime-email" }
+      { "binding": "EMAIL_QUEUE", "queue": "dime-email" },
+      { "binding": "ENGINE_QUEUE", "queue": "dime-engine" }
     ],
     "consumers": [
       {
@@ -85,6 +88,23 @@
         "max_batch_size": 10,
         "max_batch_timeout": 5,
         "max_retries": 2
+      },
+      // Predictive engine: one message per active user, rebuilt nightly (features/engine/job.ts).
+      {
+        "queue": "dime-engine",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_concurrency": 2,
+        "max_retries": 2,
+        "retry_delay": 60,
+        "dead_letter_queue": "dime-engine-dlq"
+      },
+      // Users the engine queue gave up on: logged as engine_user_dead_lettered and acked (handleEngineDlq).
+      {
+        "queue": "dime-engine-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 2
       }
     ]
   },
@@ -110,7 +130,8 @@
 
   // "*/5 * * * *": ingest recovery sweep (re-sends stale pending/processing jobs).
   // "30 2 * * *" (08:00 IST daily): fan out email digests onto EMAIL_QUEUE.
-  "triggers": { "crons": ["*/5 * * * *", "30 2 * * *"] },
+  // "0 21 * * *" (02:30 IST daily): fan out the predictive engine's nightly run onto ENGINE_QUEUE.
+  "triggers": { "crons": ["*/5 * * * *", "30 2 * * *", "0 21 * * *"] },
 
   // Email images served at /email/*. run_worker_first stays off so assets bypass the Worker (free, no CPU).
   "assets": { "directory": "./public", "binding": "ASSETS" },

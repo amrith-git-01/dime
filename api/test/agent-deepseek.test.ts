@@ -73,6 +73,15 @@ describe('DeepSeek client: request', () => {
     expect(res.content).toBe('hello');
   });
 
+  it('turns on JSON mode only when asked', async () => {
+    const { chat, captured } = client(() => Response.json(completion({ content: '{}' })));
+    await chat(request({ tools: undefined, responseFormat: 'json_object' }));
+    await chat(request());
+    expect(captured[0]?.body['response_format']).toEqual({ type: 'json_object' });
+    expect(captured[0]?.body).toMatchObject({ temperature: 0, thinking: { type: 'disabled' } });
+    expect('response_format' in (captured[1]?.body ?? {})).toBe(false);
+  });
+
   it('omits tool_choice when there are no tools, and streams with usage when a delta callback is given', async () => {
     const { chat, captured } = client(() => sse([{ choices: [{ delta: { content: 'hi' } }] }]));
     await chat(request({ tools: undefined, onDelta: () => undefined }));
