@@ -20,13 +20,13 @@ Also follow `AGENTS.md` and the matching `.cursor/rules/*.mdc` files: frontend a
    - R2 replaces Storage; Workers AI replaces Groq; the Durable Object replaces Realtime; ffmpeg is gone (the iOS app records m4a).
    - Brevo stays because there is no owned domain for Cloudflare Email.
 
-## Status (2026-10-10)
+## Status (2026-10-21)
 
-**Code-complete and verified locally:** audit phases 0–2 and 5–7, the Hono rewrite, agent v2, caching fixes, and the Cloudflare migration phases 1–7 (D1, auth, R2, Workers AI with the cost cap, agent on D1, live updates and frontend, config and docs). Work is **uncommitted** on the branch `feat/audit-and-workers-rewrite`. Nothing has been deployed.
+**Live:** the Workers backend is deployed and the app runs on it (1.5.0, `release/dime-1.5.0.apk`); later work ships by OTA. The onboarding and tour work (Welcome reel, Get started checklist, tours for each tab with sample data, Settings → Tours) is merged and live: see `docs/HANDOVER-ONBOARDING.md` for where everything stands and how to test on the emulator, and `docs/ONBOARDING-TOUR-PLAN.md` for the plan.
 
-Test counts: `api/` 913 tests passing, frontend 679 tests passing.
+Test counts: `api/` 928 tests passing, frontend 1136 tests passing.
 
-**Next steps:** the user follows `api/DEPLOY.md` (create D1 / R2 / queues, secrets, migrations, deploy) and `docs/rewrite/GO-LIVE.md` (production deploy, device test, new app build, then pause and delete Supabase).
+**Parked:** the weekly streak and activation metrics live, uncommitted, in the worktree `.claude/worktrees/agent-a675b386fcbda97a4`; the owner wants to revisit them before they ship.
 
 **`EXPO_PUBLIC_API_BASE_URL` is origin-only.** Do not include `/api/v1`, because the app's paths already include it. `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` must also be listed in the Worker's `GOOGLE_WEB_CLIENT_ID`.
 

@@ -172,7 +172,13 @@ reference; the 1.7 recordings are no longer needed.
 
 ---
 
-## Phase 5: tours for each tab (JavaScript only, OTA; agreed 2026-10-21)
+## Phase 5: tours for each tab (done, 2026-10-21: PR #40, OTA `5c4092a1`)
+
+**As built** (differences from the plan below): finishing a tour gets **confetti** (the owner asked for effects throughout, not
+only a check), a Do step gets a coin burst, ripple and a "Nice!" badge, and the Ask AI chat header has its own "?". Seven tours in
+all: firstExpense (unchanged, auto-start), home, transactions, budgets, insights, askAi, addMenu. Sample data shows only when the
+whole account has no transactions, so a screen is all sample or all real. Details and gotchas: `docs/HANDOVER-ONBOARDING.md`.
+
 
 On-demand, short, interactive tours of one tab at a time, including the screens behind it. The first-expense tour (Phase 1)
 stays as the onboarding moment; its finish card points to "?".
@@ -193,7 +199,7 @@ stays as the onboarding moment; its finish card points to "?".
   Watch steps), never written to the query cache. The sample month reuses the Welcome reel's October story (`reelStory.ts`).
   Ask AI uses a scripted sample answer, never a real model call.
 - **Motion:** the Phase 1 tour engine and tokens (spotlight morph, card choreography, progress bar, reduced-motion path); a ✓
-  check on finishing, no confetti.
+  check on finishing (as built: plus confetti, see above).
 - **First-use tip cards retired** (voice, budgets, recurring, insights, Ask AI, the first-scan toast text); "?" replaces them.
   The checklist's "Replay the tour" becomes "Take a tour".
 - Seen state per user on the device (MMKV).
@@ -201,6 +207,9 @@ stays as the onboarding moment; its finish card points to "?".
 ## Phase 4: later (each its own decision)
 
 - **Forgiving weekly logging streak** with freeze days; milestone celebrations only, no loss-framed notifications.
+  *Built but parked (2026-10-21), not merged:* the worktree `.claude/worktrees/agent-a675b386fcbda97a4` (branch
+  `worktree-agent-a675b386fcbda97a4`, uncommitted) has `GET /api/v1/me/streak`, a Home streak chip with milestone bursts and
+  `api/scripts/metrics/activation.sql`. The owner wants to revisit the design before it ships.
 - **Try before sign-in:** log one expense locally, then sign in to save it (needs local-first storage and a merge on sign-in). Run it as an A/B test.
 
 ---
@@ -212,7 +221,8 @@ stays as the onboarding moment; its finish card points to "?".
 | 1 | Welcome screen, contextual permissions, 4-step tour, spotlight motion, celebrations, reduced motion and accessibility, raw recordings | 1 large batch | OTA update to 1.5.0 |
 | 2 | Checklist, first-use tips, empty states, goal question | 1 medium batch | OTA update |
 | 3 | ~~Feature clips with expo-video~~ dropped (the Welcome reel covers it) | — | — |
-| 4 | Streaks, try-before-sign-in | later | Decide later |
+| 4 | Streaks, try-before-sign-in | later | Decide later (streak built, parked) |
+| 5 | Tours for each tab, sample data, "?" entry points, Settings → Tours, tip cards retired | 1 large batch | OTA (done, #40) |
 
 Each batch follows the project rule: explore, then implement in one pass, then test once at the end, then one review pass. No commits
 without your OK; when a batch is done I raise a PR.
