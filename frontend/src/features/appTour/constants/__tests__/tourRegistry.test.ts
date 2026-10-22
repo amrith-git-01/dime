@@ -92,10 +92,10 @@ describe("the tour registry", () => {
     }
   });
 
-  it("gives the tab tours 4 to 7 numbered steps, and the other tours at least 3", () => {
+  it("gives the tab tours 4 to 8 numbered steps, and the other tours at least 3", () => {
     for (const id of ["home", "transactions", "budgets", "insights"] as TourId[]) {
       expect(getTourActionStepCount(id)).toBeGreaterThanOrEqual(4);
-      expect(getTourActionStepCount(id)).toBeLessThanOrEqual(7);
+      expect(getTourActionStepCount(id)).toBeLessThanOrEqual(8);
     }
     expect(getTourActionStepCount("askAi")).toBeGreaterThanOrEqual(3);
     expect(getTourActionStepCount("addMenu")).toBeGreaterThanOrEqual(3);

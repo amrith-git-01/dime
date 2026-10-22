@@ -1,6 +1,10 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
-import type { RecurringItem, RecurringKind } from "@/features/recurring/types";
+import type {
+  RecurringItem,
+  RecurringKind,
+  RecurringPrefill,
+} from "@/features/recurring/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type MainTabParamList = {
@@ -51,7 +55,12 @@ export type MainStackParamList = {
       }
     | undefined;
   TransactionDetail: { transaction: TransactionRow };
-  RecurringEditor: { kind: RecurringKind; item?: RecurringItem };
+  RecurringEditor: {
+    kind: RecurringKind;
+    item?: RecurringItem;
+    /** Starting values for a new item (ignored when editing). */
+    prefill?: RecurringPrefill;
+  };
   TransactionsList:
     | {
         filter: "day";

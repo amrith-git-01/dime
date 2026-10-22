@@ -1,0 +1,29 @@
+flowchart LR
+  subgraph App["Expo app"]
+    direction TB
+    A["Analytics<br/>Ahead + Looking back"]
+    F["Confirm / dismiss"]
+  end
+
+  subgraph Worker["Cloudflare Worker"]
+    direction TB
+    R["Forecast API<br/>GET /forecast<br/>GET /forecast/accuracy<br/>POST /predictions/feedback"]
+    T["Transaction write"]
+    C["Nightly cron<br/>02:30 IST"] --> Q[["dime-engine queue"]] --> J["Per-user engine job"]
+    J <--> L["DeepSeek labeller<br/>batched, cached"]
+  end
+
+  subgraph D1["D1"]
+    direction TB
+    D[("engine_patterns")]
+    P[("payee_patterns")]
+    X[("txn_labels")]
+    FB[("prediction_feedback")]
+    SN[("forecast_snapshots")]
+  end
+
+  A --> R
+  F --> R
+  R <-- "read patterns, write feedback" --> D1
+  T -. "mark dirty" .-> D1
+  J -- "write patterns, labels, snapshots" --> D1

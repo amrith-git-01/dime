@@ -1,13 +1,12 @@
 import { useRef } from "react";
-import { ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { TourTarget } from "@/components/shared";
+import { ScreenSectionHeader, TourTarget } from "@/components/shared";
 import { FLOATING_BUTTONS_CLEARANCE, layout } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
-  InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsEmptyChartCard,
@@ -16,12 +15,14 @@ import {
   InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
   InsightsMonthSummaryCard,
+  InsightsMonthSwitcher,
   InsightsTopExpensesCard,
 } from "@/features/analytics/components";
 import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
+import { AheadSection } from "@/features/forecast/components";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
@@ -49,10 +50,8 @@ function AnalyticsInsightsScroll() {
     summaryLoading,
     summaryFailed,
     hasMonthlyBudget,
+    ahead,
     chartLoading,
-    burnRateMetrics,
-    paceLoading,
-    burnRateToday,
     fixedCostsMonth,
     fixedCostsLoading,
     currentDay,
@@ -90,33 +89,40 @@ function AnalyticsInsightsScroll() {
       }}
       onMomentumScrollEnd={reportScroll}
     >
-      <TourTarget id={tourTargetIds.insightsSummary}>
-        <InsightsMonthSummaryCard
-          selectedMonth={selectedMonth.label}
-          canGoPrevMonth={canGoPrevMonth}
-          canGoNextMonth={canGoNextMonth}
-          onPrevMonth={goPrevMonth}
-          onNextMonth={goNextMonth}
-          summary={summary}
-          summaryLoading={summaryLoading}
-          summaryFailed={summaryFailed}
-          hasMonthlyBudget={hasMonthlyBudget}
+      <InsightsMonthSwitcher
+        selectedMonth={selectedMonth.label}
+        canGoPrevMonth={canGoPrevMonth}
+        canGoNextMonth={canGoNextMonth}
+        onPrevMonth={goPrevMonth}
+        onNextMonth={goNextMonth}
+      />
+
+      {ahead.visible ? (
+        <AheadSection
+          forecast={ahead.forecast}
+          loading={ahead.loading}
+          failed={ahead.failed}
+          onRetry={ahead.retry}
+          actions={ahead.actions}
         />
-      </TourTarget>
+      ) : null}
+
+      <View>
+        {ahead.visible ? <ScreenSectionHeader title="Looking back" /> : null}
+        <TourTarget id={tourTargetIds.insightsSummary}>
+          <InsightsMonthSummaryCard
+            summary={summary}
+            summaryLoading={summaryLoading}
+            summaryFailed={summaryFailed}
+            hasMonthlyBudget={hasMonthlyBudget}
+          />
+        </TourTarget>
+      </View>
 
       {monthEmpty ? (
         <InsightsEmptyChartCard onAddExpense={onManualAdd} />
       ) : chartsReady ? (
         <>
-          <TourTarget id={tourTargetIds.insightsPace}>
-            <InsightsBurnRateMetricCard
-              metrics={burnRateMetrics}
-              loading={paceLoading}
-              year={chartYear}
-              monthIndex0={chartMonthIndex0}
-              today={burnRateToday}
-            />
-          </TourTarget>
           <InsightsFixedCostsCard
             data={fixedCostsMonth}
             loading={fixedCostsLoading}

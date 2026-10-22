@@ -19,6 +19,8 @@ export default defineConfig(async () => {
             GOOGLE_WEB_CLIENT_ID: 'test-web-client.apps.googleusercontent.com',
             MEDIA_URL_SECRET: 'test-media-url-secret-with-enough-length',
             CORS_ORIGINS: '',
+            // Off by default so no test reaches DeepSeek; labeller tests turn it on with makeEnv overrides.
+            ENGINE_LLM_ENABLED: 'false',
             TEST_MIGRATIONS: migrations,
           },
         },
