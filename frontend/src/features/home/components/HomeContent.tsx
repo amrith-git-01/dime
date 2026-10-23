@@ -6,6 +6,8 @@ import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import { GetStartedCard } from "@/features/onboarding/components";
+import { PendingChip } from "@/features/outbox/components/PendingChip";
+import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
 
 import { HeroMonthCard } from "./HeroMonthCard";
 import { HomeCategoriesSection } from "./HomeCategoriesSection";
@@ -19,13 +21,16 @@ const SECTION_GAP = spacing.xl;
 
 /**
  * Root composer for the Home screen.
- * Layout: HeroMonthCard → Get started (until done) → MonthStatRow → Upcoming → Categories → Recent
+ * Layout: HeroMonthCard → sync status (Pending chip / "Updated …", only when there is something to say)
+ * → Get started (until done) → MonthStatRow → Upcoming → Categories → Recent
  */
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
 ) {
   const styles = useStyles();
   const isLoading = props.isPending;
+  const { items: pendingItems } = usePendingTransactions();
+  const hasSyncStatus = pendingItems.length > 0 || props.updatedLabel !== null;
 
   return (
     <View style={styles.root}>
@@ -43,6 +48,17 @@ export const HomeContent = memo(function HomeContent(
         isLoading={isLoading}
         onAddBudget={props.onAddMonthlyBudget}
       />
+
+      {hasSyncStatus ? (
+        <View style={styles.syncStatus}>
+          <PendingChip />
+          {props.updatedLabel ? (
+            <Text style={styles.updatedLabel} accessibilityLiveRegion="polite">
+              {props.updatedLabel}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <GetStartedCard
         onManualAdd={props.onManualAdd}
@@ -94,6 +110,22 @@ export const HomeContent = memo(function HomeContent(
 const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: SECTION_GAP,
+  },
+  syncStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    // Sits close under the hero card instead of a full section gap away.
+    marginTop: -spacing.md,
+  },
+  updatedLabel: {
+    flexShrink: 1,
+    marginLeft: "auto",
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkFaint,
   },
   error: {
     fontFamily: fontFamilies.regular,

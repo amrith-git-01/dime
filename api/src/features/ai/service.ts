@@ -4,6 +4,7 @@ import { PermanentAiError, TransientAiError } from './errors';
 import { extractReceiptText, transcribeAudio } from './workers-ai';
 import type { ReceiptImage, WorkersAiClient } from './workers-ai';
 import type { CategoryOption, ParsedExpense } from './parse-output';
+import type { DateReference } from './prompts';
 
 /**
  * The AI orchestration used by the ingest consumer (and reusable by the agent): media -> text with
@@ -17,14 +18,14 @@ export interface CategoryContext {
 
 type AiConfig = Pick<AppConfig, 'ai'>;
 
-export async function parseReceipt(config: AiConfig, workersAi: WorkersAiClient, image: ReceiptImage, categories: CategoryContext): Promise<ParsedExpense> {
+export async function parseReceipt(config: AiConfig, workersAi: WorkersAiClient, image: ReceiptImage, categories: CategoryContext, reference?: DateReference): Promise<ParsedExpense> {
   let text: string;
   try {
     text = await extractReceiptText(workersAi, image);
   } catch (err) {
     throw relabel(err, 'Could not read text from the uploaded receipt.');
   }
-  return parseWithFallback(config.ai, { mode: 'receipt', text, ...categories });
+  return parseWithFallback(config.ai, { mode: 'receipt', text, ...categories, reference });
 }
 
 export async function parseVoice(
@@ -33,6 +34,7 @@ export async function parseVoice(
   audio: Uint8Array,
   mimeType: string,
   categories: CategoryContext,
+  reference?: DateReference,
 ): Promise<ParsedExpense> {
   let text: string;
   try {
@@ -40,7 +42,7 @@ export async function parseVoice(
   } catch (err) {
     throw relabel(err, 'Could not transcribe the uploaded audio.');
   }
-  return parseWithFallback(config.ai, { mode: 'voice', text, ...categories });
+  return parseWithFallback(config.ai, { mode: 'voice', text, ...categories, reference });
 }
 
 /** Keep the transient/permanent classification but replace the message with a client-safe one. */

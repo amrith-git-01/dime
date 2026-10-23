@@ -38,6 +38,24 @@ describe('prompts', () => {
     expect(buildReceiptParsePrompt(null)).toContain('exactly one of: Other.');
     expect(buildVoiceParsePrompt('I spent 200 on lunch', ['Food'])).toContain('Voice transcript:\n---\nI spent 200 on lunch\n---');
   });
+
+  it('without a reference date the prompts are unchanged (voice still nulls today/yesterday)', () => {
+    expect(buildReceiptParsePrompt('x', ['Food'])).not.toContain('Reference date');
+    const voice = buildVoiceParsePrompt('x', ['Food']);
+    expect(voice).not.toContain('Reference date');
+    expect(voice).toContain("If speaker says 'today'/'yesterday' and no date context → null.");
+  });
+
+  it('a reference date makes relative dates resolve against the capture day and forbids later dates', () => {
+    const reference = { date: '2026-10-23', weekday: 'Friday' };
+    for (const prompt of [buildReceiptParsePrompt('x', ['Food'], reference), buildVoiceParsePrompt('x', ['Food'], reference)]) {
+      expect(prompt).toContain('Reference date (the day this was captured): 2026-10-23 (Friday).');
+      expect(prompt).toContain("Resolve relative dates ('today', 'yesterday', 'last Monday') against it.");
+      expect(prompt).toContain('Never return a date after the reference date.');
+      expect(prompt).toContain('Always output YYYY-MM-DD.');
+    }
+    expect(buildVoiceParsePrompt('x', ['Food'], reference)).not.toContain('no date context');
+  });
 });
 
 describe('model output normalization (port of _parse_and_validate)', () => {
@@ -55,6 +73,13 @@ describe('model output normalization (port of _parse_and_validate)', () => {
       confidence: 0.9,
       rawModel: 'm1',
     });
+  });
+
+  it('drops a model date after the capture day (notAfterDate) and keeps one on or before it', () => {
+    expect(parseModelOutput(parsedSms({ date: '2026-10-04' }), ctx({ notAfterDate: '2026-10-03' })).date).toBeNull();
+    expect(parseModelOutput(parsedSms({ date: '2026-10-03' }), ctx({ notAfterDate: '2026-10-03' })).date?.iso).toBe('2026-10-03T00:00:00.000Z');
+    expect(parseModelOutput(parsedSms({ date: '2026-10-02' }), ctx({ notAfterDate: '2026-10-03' })).date?.iso).toBe('2026-10-02T00:00:00.000Z');
+    expect(parseModelOutput(parsedSms({ date: '2099-01-01' }), ctx()).date).not.toBeNull(); // no reference: unchanged
   });
 
   it('strips markdown fences', () => {

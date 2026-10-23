@@ -6,8 +6,8 @@ import * as jobs from './repository';
 const DAY_MS = 86_400_000;
 /** Finished (`done` / `failed`) jobs are history nobody reads after a month. */
 const FINISHED_RETENTION_DAYS = 30;
-/** `manual_create` rows exist only as idempotency records for client retries, which happen within minutes. */
-const MANUAL_CREATE_RETENTION_DAYS = 7;
+/** `manual_create` rows exist only as idempotency records for client retries; the app's offline outbox can retry days later (it gives up after 30). */
+const MANUAL_CREATE_RETENTION_DAYS = 30;
 
 const SESSION_RETENTION_DAYS = 7;
 const USAGE_RETENTION_DAYS = 90;

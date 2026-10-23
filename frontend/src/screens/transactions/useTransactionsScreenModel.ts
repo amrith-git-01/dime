@@ -4,6 +4,14 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useMemo } from "react";
 
+import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
+import {
+  addPendingToDaySummaries,
+  addPendingToMonthTotals,
+  isPendingTransactionRow,
+  pendingInMonth,
+  pendingTotals,
+} from "@/features/outbox/utils/pendingMerge";
 import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import { useRecurringQuery } from "@/features/recurring/hooks/useRecurringQuery";
 import type { RecurringOccurrence } from "@/features/recurring/types";
@@ -29,6 +37,7 @@ import { useTourRestorable } from "@/hooks/useTourRestorable";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
+import { usePendingSheetStore } from "@/stores/pendingSheetStore";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -137,9 +146,20 @@ export function useTransactionsScreenModel() {
     ],
   );
 
+  // Entries saved offline are merged in here for display only (never into the query cache).
+  const { pendingRows } = usePendingTransactions();
+  const monthPending = useMemo(
+    () => pendingInMonth(pendingRows, selectedMonth.year, selectedMonth.monthIndex0),
+    [pendingRows, selectedMonth.monthIndex0, selectedMonth.year],
+  );
+
   const summary = useMemo((): TransactionsMonthBentoSummary | null => {
-    const data = summaryQuery.data;
-    if (!data) return null;
+    const serverData = summaryQuery.data;
+    if (!serverData) return null;
+    const data = {
+      ...serverData,
+      ...addPendingToMonthTotals(serverData, pendingTotals(monthPending)),
+    };
     return {
       transactionCount: data.transaction_count,
       spentDisplay: formatSpendMagnitude(data.debit_total),
@@ -152,21 +172,32 @@ export function useTransactionsScreenModel() {
       })(),
       upcomingDisplay: upcomingExpenseTotal > 0 ? formatInrCompact(upcomingExpenseTotal) : null,
     };
-  }, [summaryQuery.data, upcomingExpenseTotal]);
+  }, [monthPending, summaryQuery.data, upcomingExpenseTotal]);
 
+  // The server's loaded rows: paging and "older pages still to load" decisions look at these only.
   const flatRows = useMemo(() => {
     const pages = infiniteData?.pages ?? [];
     return pages.flatMap((p) => p.items);
   }, [infiniteData]);
 
+  // What is shown: the loaded rows plus this month's waiting entries.
+  const displayRows = useMemo(
+    () => (monthPending.length > 0 ? [...monthPending, ...flatRows] : flatRows),
+    [flatRows, monthPending],
+  );
+
   const daySummaries = useMemo(
-    () => infiniteData?.pages[0]?.day_summaries ?? {},
-    [infiniteData],
+    () =>
+      addPendingToDaySummaries(
+        infiniteData?.pages[0]?.day_summaries ?? {},
+        monthPending,
+      ),
+    [infiniteData, monthPending],
   );
 
   const dayTransactions = useMemo(
-    () => filterTransactionsByCalendarDay(flatRows, selectedDayKey),
-    [flatRows, selectedDayKey],
+    () => filterTransactionsByCalendarDay(displayRows, selectedDayKey),
+    [displayRows, selectedDayKey],
   );
 
   const selectedDaySummary = useMemo(
@@ -202,12 +233,12 @@ export function useTransactionsScreenModel() {
   const flashListData = useMemo(
     () =>
       buildTransactionFlashListItemsForSingleDay(
-        flatRows,
+        displayRows,
         selectedDayKey,
         upcomingForSelectedDay,
         today,
       ),
-    [flatRows, selectedDayKey, today, upcomingForSelectedDay],
+    [displayRows, selectedDayKey, today, upcomingForSelectedDay],
   );
 
   // Real transactions only: ghost rows never count towards loading or emptiness.
@@ -232,13 +263,19 @@ export function useTransactionsScreenModel() {
     );
   }, [flatRows]);
 
+  const openPendingSheet = usePendingSheetStore((state) => state.open);
   const openTransactionDetail = useCallback(
     (transaction: TransactionRow) => {
       void triggerHaptic();
+      // A waiting entry has no server row to open: show the pending list instead.
+      if (isPendingTransactionRow(transaction)) {
+        openPendingSheet();
+        return;
+      }
       navigation.navigate("TransactionDetail", { transaction });
       emitTourEvent(tourEventNames.transactionOpened);
     },
-    [navigation],
+    [navigation, openPendingSheet],
   );
 
   const handleLoadMore = useCallback(() => {
@@ -304,7 +341,7 @@ export function useTransactionsScreenModel() {
     selectDay(withSpend.find((key) => key !== selectedDayKey) ?? selectedDayKey);
   });
   useTourCommand("txOpenTransaction", () => {
-    const first = dayTransactions[0];
+    const first = dayTransactions.find((tx) => !isPendingTransactionRow(tx));
     if (first) {
       openTransactionDetail(first);
     }

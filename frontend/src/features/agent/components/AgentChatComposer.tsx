@@ -12,6 +12,7 @@ import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import { useTourTarget } from "@/hooks/useTourTarget";
+import { useConnectivityStore } from "@/stores/connectivityStore";
 import {
   createThemedStyles,
   useTheme,
@@ -54,7 +55,10 @@ export const AgentChatComposer = memo(function AgentChatComposer({
     setDraft("");
   }
 
-  const locked = disabled || limitReached;
+  // The agent runs on the server: without a connection a question cannot be asked.
+  const isOnline = useConnectivityStore((state) => state.isOnline);
+
+  const locked = disabled || limitReached || !isOnline;
   const canSend = !locked && draft.trim().length > 0;
 
   const handleSend = () => {
@@ -68,7 +72,15 @@ export const AgentChatComposer = memo(function AgentChatComposer({
 
   return (
     <View {...tourTarget} style={styles.wrap}>
-      {caption ? (
+      {!isOnline ? (
+        <Text
+          style={styles.caption}
+          numberOfLines={2}
+          accessibilityLiveRegion="polite"
+        >
+          Ask AI needs a connection.
+        </Text>
+      ) : caption ? (
         <Text style={styles.caption} numberOfLines={2}>
           {caption}
         </Text>
@@ -79,9 +91,11 @@ export const AgentChatComposer = memo(function AgentChatComposer({
           value={draft}
           onChangeText={setDraft}
           placeholder={
-            limitReached
-              ? "Daily limit reached. Try again tomorrow."
-              : "Ask a question…"
+            !isOnline
+              ? "Ask AI needs a connection."
+              : limitReached
+                ? "Daily limit reached. Try again tomorrow."
+                : "Ask a question…"
           }
           style={styles.input}
           multiline

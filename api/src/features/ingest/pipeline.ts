@@ -2,6 +2,7 @@ import type { AppConfig } from '../../core/env';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
 import { addNeurons, assertJobAllowed, estimateCaptureNeurons } from '../ai/neuron-cap';
+import type { DateReference } from '../ai/prompts';
 import { parseReceipt, parseVoice } from '../ai/service';
 import type { ParsedExpense } from '../ai/parse-output';
 import type { AiBinding, WorkersAiClient } from '../ai/workers-ai';
@@ -12,6 +13,8 @@ import type { Publisher } from '../realtime/events';
 import { notifyAfterInsert } from '../notifications/after-insert';
 import { createTransaction } from '../transactions/service';
 import type { TxContext } from '../transactions/service';
+import { dateKey, localDate } from '../../core/timezone';
+import { weekdayName } from '../agent/dates';
 import { loadCategoryContext } from './categories';
 import { mediaPayloadSchema } from './schemas';
 
@@ -40,14 +43,31 @@ interface FinishInput {
   parsed: ParsedExpense;
   detectedVia: 'scan' | 'voice';
   timezone: string;
+  /** When the user captured it (UTC ms): the transaction's time when the model finds no date. */
+  capturedAtMs: number;
   receiptUrl?: string;
   voiceUrl?: string;
 }
 
+/** The stored `captured_at` as ms, or now for jobs queued before the field existed (or an unreadable value). */
+function captureTime(stored: string | undefined): number {
+  const ms = stored ? Date.parse(stored) : NaN;
+  return Number.isNaN(ms) ? Date.now() : ms;
+}
+
+/** The capture's calendar date and weekday in the user's timezone, for the parser to resolve relative dates. */
+function referenceDate(timezone: string, capturedAtMs: number): DateReference {
+  const day = localDate(timezone, capturedAtMs);
+  return { date: dateKey(day), weekday: weekdayName(day) };
+}
+
 async function finish(ctx: TxContext, input: FinishInput): Promise<JobOutcome> {
   const { parsed } = input;
-  const nowMs = Date.now();
-  const transactionAt = parsed.date ?? { ms: nowMs, iso: new Date(nowMs).toISOString() };
+  const captured = { ms: input.capturedAtMs, iso: new Date(input.capturedAtMs).toISOString() };
+  // Voice has the capture date as its reference, so "today" now comes back as a date (UTC midnight): the capture time
+  // says more and is the right local day in every timezone. Receipts keep their printed date (payment-hash dedupe relies on it).
+  const sameDay = input.detectedVia === 'voice' && parsed.date?.iso.slice(0, 10) === dateKey(localDate(input.timezone, input.capturedAtMs));
+  const transactionAt = parsed.date && !sameDay ? parsed.date : captured;
   const result = await createTransaction(ctx, {
     amount: parsed.amount,
     type: parsed.type,
@@ -105,6 +125,9 @@ export async function runIngestJob(
     const payload = mediaPayloadSchema.safeParse(job.payload);
     if (!payload.success) throw new InvalidJobError('Job payload is invalid.');
     const p = payload.data;
+    // Offline captures are processed long after the fact: "today" means the day it was captured.
+    const capturedAtMs = captureTime(p.captured_at);
+    const reference = referenceDate(p.timezone, capturedAtMs);
     // Workers AI is billed past a free daily allowance: the day may have filled up since the upload.
     const workersAi: WorkersAiClient = {
       binding: ai,
@@ -121,16 +144,16 @@ export async function runIngestJob(
     if (job.kind === 'receipt') {
       const [media, categories] = await Promise.all([downloadMedia(storage, p.object_path), loadCategoryContext(db, job.user_id)]);
       await assertJobAllowed(db, config.workersAi, estimateCaptureNeurons('receipt', media.byteLength));
-      const parsed = await parseReceipt(config, workersAi, { bytes: media, mimeType: p.mime_type }, categories);
-      return finish(ctx, { jobId: job.id, parsed, detectedVia: 'scan', timezone: p.timezone, receiptUrl: p.object_path });
+      const parsed = await parseReceipt(config, workersAi, { bytes: media, mimeType: p.mime_type }, categories, reference);
+      return finish(ctx, { jobId: job.id, parsed, detectedVia: 'scan', timezone: p.timezone, capturedAtMs, receiptUrl: p.object_path });
     }
     const [media, categories] = await Promise.all([
       downloadMedia(storage, p.object_path),
       loadCategoryContext(db, job.user_id),
     ]);
     await assertJobAllowed(db, config.workersAi, estimateCaptureNeurons('voice', media.byteLength));
-    const parsed = await parseVoice(config, workersAi, media, p.mime_type, categories);
-    return finish(ctx, { jobId: job.id, parsed, detectedVia: 'voice', timezone: p.timezone, voiceUrl: p.object_path });
+    const parsed = await parseVoice(config, workersAi, media, p.mime_type, categories, reference);
+    return finish(ctx, { jobId: job.id, parsed, detectedVia: 'voice', timezone: p.timezone, capturedAtMs, voiceUrl: p.object_path });
   }
 
   throw new InvalidJobError(`Unsupported job kind '${job.kind}'.`);

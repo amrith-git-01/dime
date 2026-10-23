@@ -5,6 +5,7 @@ import { noStore } from './core/cache-control';
 import { corsFromEnv } from './core/cors';
 import type { AppBindings } from './core/env';
 import { notFound, onError } from './core/errors';
+import { etag } from './core/etag';
 import { requestId } from './core/request-id';
 import { agentRoutes } from './features/agent/routes';
 import { authRoutes } from './features/auth/routes';
@@ -34,6 +35,7 @@ export function createApp() {
   // Order matters: request id first so every response (CORS preflights, errors, 404s) carries it.
   app.use(requestId);
   app.use('/api/v1/*', noStore);
+  app.use('/api/v1/*', etag); // inside noStore: tags JSON GETs first, so noStore can pick no-cache
   app.use('/api/v1/*', limitJsonBody);
   app.use(corsFromEnv);
   app.onError(onError);

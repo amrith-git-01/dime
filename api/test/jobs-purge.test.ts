@@ -29,13 +29,13 @@ describe('isPurgeSlot', () => {
 });
 
 describe('purgeOldJobs', () => {
-  it('deletes finished jobs older than 30 days and manual_create rows older than 7 days', async () => {
+  it('deletes finished jobs older than 30 days and manual_create rows older than 30 days', async () => {
     const oldDone = await seedJob({ status: 'done', updated_at: ago(31) });
     const oldFailed = await seedJob({ status: 'failed', updated_at: ago(40) });
     const recentDone = await seedJob({ status: 'done', updated_at: ago(29) });
     const oldPending = await seedJob({ status: 'pending', updated_at: ago(60) });
-    const oldManual = await seedJob({ kind: 'manual_create', status: 'done', updated_at: ago(8) });
-    const recentManual = await seedJob({ kind: 'manual_create', status: 'processing', updated_at: ago(6) });
+    const oldManual = await seedJob({ kind: 'manual_create', status: 'done', updated_at: ago(31) });
+    const recentManual = await seedJob({ kind: 'manual_create', status: 'processing', updated_at: ago(29) });
 
     expect(await purgeOldJobs(testDb(), NOW)).toBe(3);
 

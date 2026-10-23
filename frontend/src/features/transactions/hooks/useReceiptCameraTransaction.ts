@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { onlineManager, useQueryClient } from "@tanstack/react-query";
 import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
@@ -6,12 +6,14 @@ import { Alert, InteractionManager } from "react-native";
 
 import { confirmCapturePermissionReason } from "@/features/onboarding/utils/permissionReasonAlert";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
+import { invalidateOnboardingProgress } from "@/features/onboarding/cache/invalidateOnboardingProgress";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
+import { enqueueCapture } from "@/lib/outbox/outboxQueue";
+import { sendOrQueue } from "@/lib/outbox/sendOrQueue";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 
 import { submitReceipt } from "../api/submitTransactionApi";
-import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
 import { prepareReceiptImageForUpload } from "../receipt/prepareReceiptImageForUpload";
 
 /** Opens camera and queues receipt processing on backend. */
@@ -66,6 +68,7 @@ export function useReceiptCameraTransaction() {
 
     // One key per captured photo, so a retried upload of this capture cannot create a second transaction.
     const idempotencyKey = randomUUID();
+    const capturedAt = new Date().toISOString();
 
     await new Promise<void>((resolve) => {
       InteractionManager.runAfterInteractions(() => resolve());
@@ -85,17 +88,42 @@ export function useReceiptCameraTransaction() {
       }
 
       showBusy("Uploading receipt...");
-      await submitReceipt({
-        fileUri: preparedUri,
-        fileName: "receipt.jpg",
-        mimeType: "image/jpeg",
-        idempotencyKey,
+      const outcome = await sendOrQueue({
+        isOnline: () => onlineManager.isOnline(),
+        // No `capturedAt` on a live upload: the server stamps it with the request time, which is the
+        // same moment (and cannot trip its clock-skew check on a device with a wrong clock).
+        send: () =>
+          submitReceipt({
+            fileUri: preparedUri,
+            fileName: "receipt.jpg",
+            mimeType: "image/jpeg",
+            idempotencyKey,
+          }),
+        queue: async () => {
+          await enqueueCapture({
+            userId,
+            kind: "receipt",
+            sourceUri: preparedUri,
+            fileName: "receipt.jpg",
+            mimeType: "image/jpeg",
+            idempotencyKey,
+            capturedAt,
+          });
+        },
       });
-      showToast({
-        variant: "success",
-        message: "Receipt added for processing",
-      });
-      invalidateTransactionDerivedQueries(qc);
+      if (outcome.status === "queued") {
+        showToast({
+          variant: "info",
+          message: "Saved. It will be read when you're back online.",
+        });
+      } else {
+        showToast({
+          variant: "success",
+          message: "Receipt added for processing",
+        });
+        // The row itself arrives through realtime once it is processed.
+        invalidateOnboardingProgress(qc);
+      }
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";

@@ -4,15 +4,20 @@ import { signUnsubscribeToken } from '../src/features/email/tokens';
 import { USER_ID, call, makeEnv, testApp } from './helpers';
 
 const NO_STORE = 'private, no-store';
-
 function expectNoStore(res: Response): void {
   expect(res.headers.get('Cache-Control')).toBe(NO_STORE);
   expect(res.headers.get('Vary')).toContain('Authorization');
 }
 
+// JSON GETs also carry an ETag (core/etag.ts), but are never storable.
+function expectNoStoreWithEtag(res: Response): void {
+  expect(res.headers.get('ETag')).toMatch(/^W\/"/);
+  expectNoStore(res);
+}
+
 describe('API cache headers', () => {
-  it('marks successful responses private and uncacheable', async () => {
-    expectNoStore(await call('/api/v1/health', { token: false }));
+  it('marks successful JSON GETs private and uncacheable, ETag or not', async () => {
+    expectNoStoreWithEtag(await call('/api/v1/health', { token: false }));
   });
 
   it.each([
@@ -50,7 +55,7 @@ describe('API cache headers', () => {
     const res = await testApp().request('/api/v1/health', { headers: { Origin: 'https://app.example' } }, env);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.example');
     expect(res.headers.get('Vary')).toMatch(/Origin/);
-    expectNoStore(res);
+    expectNoStoreWithEtag(res);
   });
 
   it('does not touch non-API routes (static email images are served by the assets layer)', async () => {

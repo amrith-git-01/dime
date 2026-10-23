@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { resetMemoCaches } from '../src/core/memo-cache';
 import { buildMatchExpression } from '../src/features/brands/service';
 import { call, makeEnv } from './helpers';
-import { oneRow, seedBrand, seedCategory, seedTransaction, seedUser } from './db';
+import { oneRow, seedBrand, seedCategory, seedTransaction, seedUser, testDb } from './db';
 
 /** Seeded system categories. */
 const FOOD = '85bf877a-f8b1-4b07-a9fb-5e8c809907ae';
@@ -68,6 +69,18 @@ describe('GET /brands/search', () => {
     await seedCatalogue();
     expect((await get<BrandResult>('/api/v1/brands/search?q=s&limit=1')).items).toHaveLength(1);
     expect(await get<BrandResult>('/api/v1/brands/search?q=%22*%22')).toEqual({ items: [] });
+  });
+
+  it('answers a repeated search from isolate memory (same normalised query and limit) until the caches are reset', async () => {
+    await seedCatalogue();
+    expect((await get<BrandResult>('/api/v1/brands/search?q=Swi')).items.map((i) => i.id)).toEqual(['wd:swiggy', 'wd:swiss']);
+    await testDb().batch([testDb().prepare('DELETE FROM brands_fts WHERE brand_id = ?').bind('wd:swiss')]);
+    // " swi " normalises to the same key: still the cached answer, with the deleted brand in it.
+    expect((await get<BrandResult>('/api/v1/brands/search?q=%20swi%20')).items.map((i) => i.id)).toEqual(['wd:swiggy', 'wd:swiss']);
+    // A different limit is a different entry, so it sees the database.
+    expect((await get<BrandResult>('/api/v1/brands/search?q=swi&limit=5')).items.map((i) => i.id)).toEqual(['wd:swiggy']);
+    resetMemoCaches();
+    expect((await get<BrandResult>('/api/v1/brands/search?q=swi')).items.map((i) => i.id)).toEqual(['wd:swiggy']);
   });
 
   it('422 for a missing, blank or oversized q and a bad limit', async () => {

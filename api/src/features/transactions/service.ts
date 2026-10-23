@@ -172,9 +172,15 @@ export async function listTransactions(ctx: TxContext, q: ListQuery): Promise<Tr
 }
 
 export async function getTransaction(ctx: TxContext, id: string): Promise<TransactionResponse> {
-  const row = await repo.fetchActive(ctx.db, ctx.userId, id);
+  const row = await getTransactionOrNull(ctx, id);
   if (!row) throw new NotFoundError(NOT_FOUND);
-  return (await enrichRows(ctx, [row]))[0] as TransactionResponse;
+  return row;
+}
+
+/** The enriched active row, or `null` when it is gone (deleted since, or never the caller's). */
+export async function getTransactionOrNull(ctx: TxContext, id: string): Promise<TransactionResponse | null> {
+  const row = await repo.fetchActive(ctx.db, ctx.userId, id);
+  return row ? ((await enrichRows(ctx, [row]))[0] as TransactionResponse) : null;
 }
 
 export async function monthSummary(

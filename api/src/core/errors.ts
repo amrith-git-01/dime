@@ -8,23 +8,31 @@ import { log } from './logging';
 
 /**
  * Domain errors, mapped to HTTP by `onError`. Services and repositories throw these; routes do not
- * wrap calls in try/catch. Response body is FastAPI-compatible: `{"detail": <message>}`.
+ * wrap calls in try/catch. Response body is FastAPI-compatible: `{"detail": <message>}`, plus a
+ * machine-readable `"code"` when the error has one (so the app never matches on English text).
  */
 export class AppError extends Error {
   readonly status: ContentfulStatusCode;
   readonly headers: Record<string, string> | undefined;
+  /** Stable identifier for clients (`captured_at_future`); absent for most errors. */
+  readonly code: string | undefined;
 
-  constructor(status: ContentfulStatusCode, detail: string, options?: { headers?: Record<string, string>; cause?: unknown }) {
+  constructor(
+    status: ContentfulStatusCode,
+    detail: string,
+    options?: { headers?: Record<string, string>; cause?: unknown; code?: string },
+  ) {
     super(detail, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = new.target.name;
     this.status = status;
     this.headers = options?.headers;
+    this.code = options?.code;
   }
 }
 
 export class BadRequestError extends AppError {
-  constructor(detail = 'Bad request.') {
-    super(400, detail);
+  constructor(detail = 'Bad request.', code?: string) {
+    super(400, detail, code === undefined ? undefined : { code });
   }
 }
 
@@ -102,7 +110,7 @@ function isMalformedJson(err: HTTPException): boolean {
 export const onError: ErrorHandler<AppBindings> = (err, c) => {
   if (err instanceof AppError) {
     if (err.status >= 500) log.error('app_error', { err, status: err.status });
-    return c.json({ detail: err.message }, err.status, err.headers);
+    return c.json(err.code === undefined ? { detail: err.message } : { detail: err.message, code: err.code }, err.status, err.headers);
   }
 
   if (err instanceof HTTPException) {

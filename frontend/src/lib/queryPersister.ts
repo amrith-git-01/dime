@@ -16,7 +16,11 @@ import { reportError } from "@/lib/reportError";
 const queryMmkv = createMMKV({ id: "rq-cache" });
 
 export const QUERY_CACHE_KEY = "dime:rq-cache";
-export const QUERY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/**
+ * How long the saved screens are restored after launch. A week, so a day or two offline (or a trip)
+ * still opens on the last data; staleness is separate (`queryDefaults`), so online launches refetch.
+ */
+export const QUERY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const mmkvStorage = {
   getItem: (key: string): string | null => queryMmkv.getString(key) ?? null,

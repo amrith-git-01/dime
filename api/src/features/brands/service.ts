@@ -1,5 +1,6 @@
 import { all, first } from '../../core/db';
 import type { Db, SqlParam } from '../../core/db';
+import { MemoCache } from '../../core/memo-cache';
 import { isoUtc } from '../../core/timestamps';
 import { fetchMetaByIds } from '../categories/repository';
 import { normalizeCounterparty } from '../transactions/dedupe';
@@ -26,10 +27,21 @@ interface BrandDbRow {
   category_color: string | null;
 }
 
+/**
+ * The catalogue is global (the same answer for every user) and changes only with a migration, so a repeated prefix
+ * ("s", "sw", "swi") is answered from isolate memory. System categories are deliberately not cached: their
+ * queries merge in each user's own rows, so there is little to share. Payee suggestions are user-scoped: never cached.
+ */
+const brandSearchCache = new MemoCache<{ items: BrandItem[] }>(10 * 60_000, 500);
+
 /** `GET /brands/search`: catalogue prefix search (name and aliases), most popular first. */
 export async function searchBrands(db: Db, q: string, limit: number): Promise<{ items: BrandItem[] }> {
   const match = buildMatchExpression(q);
   if (!match) return { items: [] };
+  // The results depend only on the normalised query (match terms and the name-prefix ordering) and the limit.
+  const cacheKey = `${normalizeCounterparty(q)}|${limit}`;
+  const cached = brandSearchCache.get(cacheKey);
+  if (cached) return cached;
   const rows = await all<BrandDbRow>(
     db,
     `SELECT b.id, b.name, b.domain, b.logo_url, b.category_id,
@@ -43,7 +55,7 @@ export async function searchBrands(db: Db, q: string, limit: number): Promise<{ 
      LIMIT ?`,
     [match, `${normalizeCounterparty(q)}%`, limit],
   );
-  return {
+  const result = {
     items: rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -54,6 +66,8 @@ export async function searchBrands(db: Db, q: string, limit: number): Promise<{ 
         : null,
     })),
   };
+  brandSearchCache.set(cacheKey, result);
+  return result;
 }
 
 /** The id of a catalogue brand, or null when it does not exist (or `id` is blank). */

@@ -19,6 +19,8 @@ export interface ParseContext {
   model: string;
   allowedCategories: readonly string[];
   categoryOptions: readonly CategoryOption[];
+  /** `YYYY-MM-DD`: a model date after this (the capture's local day) is dropped, so the capture time is used. */
+  notAfterDate?: string | undefined;
 }
 
 /** What the model understood from a receipt / voice note, after validation and normalization. */
@@ -179,12 +181,13 @@ export function parseModelOutput(rawText: string, ctx: ParseContext): ParsedExpe
     throw new ModelOutputError(`Parsed payload validation failed: ${result.error.issues.map((i) => i.path.join('.')).join(', ')}`);
   }
   const v = result.data;
+  const date = parseModelDate(data['date']);
   return {
     counterpartyName: v.counterparty_name,
     counterpartyType: v.counterparty_type,
     amount: v.amount,
     type: v.type,
-    date: parseModelDate(data['date']),
+    date: date && ctx.notAfterDate && date.iso.slice(0, 10) > ctx.notAfterDate ? null : date,
     category: v.category,
     categoryId: v.category_id,
     note: v.note,

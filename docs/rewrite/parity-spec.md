@@ -23,6 +23,7 @@ The TypeScript/Hono API (`api/`) must reproduce these behaviours of the fixed Py
 - **SMS and notification capture were removed (2026-10):** no `/sms` route and no `sms` job kind. Old `sms` / `notification` values in `detected_via` stay valid for existing rows.
 - **Manual `POST /transactions`:** the key is claimed through a `jobs` row with kind `manual_create`, status `processing`, attempts 1.
   - **Success:** `status=done`, `result={"status_code":201,"body":{"accepted":true,"id":"<transaction id>","created":true}}`. A replay returns that status and body.
+  - **`transaction` (added 1.5.x, additive):** the body also carries `transaction`, the saved row in the same shape as a `GET /transactions` list item (for `created: false`, the row it matched after merging). Bodies stored before it existed replay without it.
   - **Concurrent duplicate:** 409 "A request with this Idempotency-Key is still being processed."
   - **Re-claim:** a `failed` row, or a `processing` row with `updated_at` older than 600 s, can be re-claimed with a conditional update.
   - **Action raises:** `status=failed`, `last_error` set, error propagated.

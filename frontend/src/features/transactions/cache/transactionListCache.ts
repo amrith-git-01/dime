@@ -225,6 +225,9 @@ export function applyTransactionInsertToListCaches(
     if (!transactionInCalendarMonth(row, year, calendarMonth)) {
       return;
     }
+    const isNew = !prevMonth.pages.some((page) =>
+      page.items.some((item) => item.id === row.id),
+    );
     queryClient.setQueryData(
       queryKey,
       reconcileDaySummaries(
@@ -232,6 +235,11 @@ export function applyTransactionInsertToListCaches(
         prependToMonthPages(prevMonth, row, { dropOptimistic: true }),
       ),
     );
+    // A new row shifts every later page by one, so a month with older pages still to load would
+    // repeat a row at the next page boundary: refetch it (the patch above covers the wait).
+    if (isNew && prevMonth.pages[prevMonth.pages.length - 1]?.has_more) {
+      void queryClient.invalidateQueries({ queryKey, exact: true });
+    }
   });
 }
 

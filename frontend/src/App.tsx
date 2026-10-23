@@ -24,6 +24,7 @@ import { CelebrationLayer } from "@/components/celebrations/CelebrationLayer";
 import { ToastHost } from "@/components/toast/ToastHost";
 import { loadableAppFonts } from "@/constants/fonts";
 import { AppTourOverlay } from "@/features/appTour/components";
+import { PendingSheet } from "@/features/outbox/components/PendingSheet";
 import { invalidateTransactionDerivedQueries } from "@/features/transactions/cache/invalidateTransactionQueries";
 import {
   ReceiptScanBusyOverlay,
@@ -36,6 +37,7 @@ import {
 import { useDeepLinkHandler } from "@/lib/deepLinks/useDeepLinkHandler";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
+import { startOutboxSync } from "@/lib/outbox/outboxSync";
 import { appQueryPersistOptions } from "@/lib/queryPersister";
 import { removeLegacyWidgetPresets } from "@/lib/widgets/legacyWidgetData";
 import { onWidgetTransactionsChanged } from "@/lib/widgets/widgetCaptureEvents";
@@ -151,6 +153,7 @@ function AppRoot() {
         <RootNavigator />
         <ReceiptScanBusyOverlay />
         <VoiceCaptureBar />
+        <PendingSheet />
       </NavigationContainer>
       <ToastHost />
       <AppTourOverlay />
@@ -169,6 +172,9 @@ function AppContent() {
   }, []);
 
   useEffect(() => subscribeQueryClientLifecycle(queryClient), [queryClient]);
+
+  // Sends the writes saved while offline (manual adds, voice notes, receipt photos) when the server is reachable.
+  useEffect(() => startOutboxSync(queryClient), [queryClient]);
 
   // Keeps the Android home-screen widgets' snapshot in step with the cache.
   useEffect(() => subscribeWidgetSnapshotWriter(queryClient), [queryClient]);

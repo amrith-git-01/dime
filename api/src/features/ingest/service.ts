@@ -33,6 +33,8 @@ export interface AcceptMediaInput {
   contentType: string;
   extension: string;
   timezone: string;
+  /** ISO instant of the capture (the request time unless the app queued it offline). */
+  capturedAt: string;
   key: string | null;
 }
 
@@ -69,7 +71,7 @@ export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): 
       {
         user_id: ctx.userId,
         kind: input.kind,
-        payload: { object_path: objectPath, mime_type: input.contentType, timezone: input.timezone },
+        payload: { object_path: objectPath, mime_type: input.contentType, timezone: input.timezone, captured_at: input.capturedAt },
         status: 'pending',
         attempts: 0,
         idempotency_key: input.key,

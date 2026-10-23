@@ -41,7 +41,6 @@ export default function ProfileSetupScreen() {
       <ConfirmModal
         {...model.signOutConfirmModalProps}
         title="Sign out?"
-        message="You'll need to sign in again to use the app."
         cancelLabel="Cancel"
         confirmLabel="Sign out"
         confirmTone="danger"

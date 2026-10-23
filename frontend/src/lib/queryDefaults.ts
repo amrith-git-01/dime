@@ -2,17 +2,18 @@
  * Persisted app data (transactions, budgets, categories, insights, profile).
  *
  * Freshness is driven by invalidation (mutations + the live-update socket), not by
- * reopening the app. MMKV holds the React Query cache for up to 24 h.
+ * reopening the app. MMKV holds the React Query cache for up to 7 days (so the last screens are
+ * still there after a day or two offline); `APP_QUERY_STALE_MS` decides when an online launch refetches.
  * Transaction-derived queries use the shorter `TRANSACTIONS_QUERY_STALE_MS` so
  * they refetch when the app returns to the foreground.
  */
 export const APP_QUERY_STALE_MS = 24 * 60 * 60 * 1000;
 
 /** Matches QUERY_CACHE_MAX_AGE_MS — keep in-memory entries while MMKV blob is valid. */
-export const APP_QUERY_GC_MS = 24 * 60 * 60 * 1000;
+export const APP_QUERY_GC_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Transaction lists/summaries go stale quickly; the 24 h gcTime still keeps them persisted.
+ * Transaction lists/summaries go stale quickly; the 7-day gcTime still keeps them persisted.
  * Month insights are derived from the same rows and share this staleness.
  */
 export const TRANSACTIONS_QUERY_STALE_MS = 60 * 1000;

@@ -3,7 +3,7 @@ import type { CompositeNavigationProp } from "@react-navigation/native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
-import { format, subDays } from "date-fns";
+import { format, formatDistanceToNowStrict, subDays } from "date-fns";
 import { useCallback, useEffect, useMemo } from "react";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
@@ -12,8 +12,17 @@ import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useUpcomingRecurring } from "@/features/recurring/hooks/useUpcomingRecurring";
 import type { RecurringItem } from "@/features/recurring/types";
 import type { HomeBentoContentProps } from "@/features/home/components";
-import { HOME_MAX_CATEGORIES } from "@/features/home/components";
+import { HOME_MAX_CATEGORIES, HOME_MAX_RECENT } from "@/features/home/components";
 import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
+import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
+import {
+  addPaiseToAmount,
+  addPendingToMonthTotals,
+  isPendingTransactionRow,
+  mergePendingRecent,
+  pendingInMonth,
+  pendingTotals,
+} from "@/features/outbox/utils/pendingMerge";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import {
   useMonthSummaryQuery,
@@ -31,6 +40,8 @@ import { usePreloadSiblingTabScreens } from "@/hooks/usePreloadSiblingTabScreens
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddActions";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
+import { useConnectivityStore } from "@/stores/connectivityStore";
+import { usePendingSheetStore } from "@/stores/pendingSheetStore";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -79,7 +90,15 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const now = useCurrentDay();
   const queryClient = useQueryClient();
   const { userId } = useSessionUserId();
-  const { data: overview, isPending, isError } = useTransactionsHomeQuery();
+  const {
+    data: overview,
+    dataUpdatedAt,
+    isPending,
+    isError,
+  } = useTransactionsHomeQuery();
+  const isOnline = useConnectivityStore((state) => state.isOnline);
+  const openPendingSheet = usePendingSheetStore((state) => state.open);
+  const { pendingRows } = usePendingTransactions();
 
   // If the MMKV-cached home data is from a prior calendar day (staleTime=24h
   // means React Query won't refetch on its own until 24h elapse), force an
@@ -106,6 +125,15 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   const budget = budgetResp?.budget ?? null;
 
+  // Entries saved offline count in this month's numbers until the server has them (drawn here only, never cached).
+  const pendingThisMonth = pendingTotals(
+    pendingInMonth(pendingRows, now.getFullYear(), now.getMonth()),
+  );
+  const spentThisMonth =
+    overview && pendingThisMonth.debitPaise > 0
+      ? addPaiseToAmount(overview.spent_this_month, pendingThisMonth.debitPaise)
+      : overview?.spent_this_month;
+
   const {
     monthlyBudget,
     spentMonthNum,
@@ -113,17 +141,14 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     hasSpentMonth,
     monthlyLeft,
     monthlyProgress,
-  } = computeMonthlyBudgetMath(
-    budget?.monthly_budget,
-    overview?.spent_this_month,
-  );
+  } = computeMonthlyBudgetMath(budget?.monthly_budget, spentThisMonth);
   const monthlySubtext =
     hasMonthlyBudget && hasSpentMonth
       ? `${formatInrCompact(monthlyLeft)} left of ${formatInrCompact(monthlyBudget)}`
       : "";
 
   const spentMonthDisplay = overview
-    ? formatSpendMagnitude(overview.spent_this_month)
+    ? formatSpendMagnitude(spentThisMonth ?? overview.spent_this_month)
     : "\u2014";
   const monthLabel = format(now, "MMM yyyy");
   const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
@@ -132,7 +157,9 @@ export function useHomeScreenModel(): HomeBentoContentProps {
       ? `Recurring ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
       : null;
 
-  const monthSummaryData = monthSummaryQuery.data;
+  const monthSummaryData = monthSummaryQuery.data
+    ? { ...monthSummaryQuery.data, ...addPendingToMonthTotals(monthSummaryQuery.data, pendingThisMonth) }
+    : undefined;
 
   const creditedDisplay = monthSummaryData
     ? formatSpendMagnitude(monthSummaryData.credit_total)
@@ -181,7 +208,11 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     [now, overview?.last_7_days_spend],
   );
 
-  const recentTransactions = overview?.recent_transactions ?? [];
+  const recentTransactions = mergePendingRecent(
+    overview?.recent_transactions ?? [],
+    pendingRows,
+    HOME_MAX_RECENT,
+  );
   const showRecentEmpty =
     !isPending && recentTransactions.length === 0 && !isError;
 
@@ -209,15 +240,20 @@ export function useHomeScreenModel(): HomeBentoContentProps {
 
   const onTransactionPress = useCallback(
     (tx: TransactionRow) => {
+      // A waiting entry has no server row to open: show the pending list instead.
+      if (isPendingTransactionRow(tx)) {
+        openPendingSheet();
+        return;
+      }
       navigation.navigate("TransactionDetail", { transaction: tx });
       emitTourEvent(tourEventNames.transactionOpened);
     },
-    [navigation],
+    [navigation, openPendingSheet],
   );
 
   // "Open it for me" on the Home tour's step that asks the user to open a payment.
   useTourCommand("homeOpenTransaction", () => {
-    const first = recentTransactions[0];
+    const first = recentTransactions.find((tx) => !isPendingTransactionRow(tx));
     if (first) {
       onTransactionPress(first);
     }
@@ -271,5 +307,9 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     upcomingItems,
     upcomingToday,
     onUpcomingPress,
+    updatedLabel:
+      !isOnline && dataUpdatedAt > 0
+        ? `Updated ${formatDistanceToNowStrict(dataUpdatedAt, { addSuffix: true })}`
+        : null,
   };
 }

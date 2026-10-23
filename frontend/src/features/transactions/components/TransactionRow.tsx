@@ -5,6 +5,7 @@ import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
+import { isPendingTransactionRow } from "@/features/outbox/utils/pendingMerge";
 import type { TransactionRow as TransactionRowData } from "@/features/transactions/types";
 import {
   formatTransactionListAmount,
@@ -13,6 +14,7 @@ import {
 import { createThemedStyles, useTheme } from "@/theme";
 
 import { RecurringBadge } from "./RecurringBadge";
+import { WaitingToSyncPill } from "./WaitingToSyncPill";
 
 export type TransactionRowProps = {
   transaction: TransactionRowData;
@@ -35,6 +37,7 @@ export const TransactionRow = memo(function TransactionRow({
     [transaction, scheme],
   );
   const isCredit = ui.amount > 0;
+  const isPending = isPendingTransactionRow(transaction);
   const handlePress = useCallback(
     () => onPress(transaction),
     [onPress, transaction],
@@ -43,6 +46,7 @@ export const TransactionRow = memo(function TransactionRow({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityHint={isPending ? "Waiting to sync. Opens the pending list" : undefined}
       onPress={handlePress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
@@ -63,6 +67,7 @@ export const TransactionRow = memo(function TransactionRow({
             {ui.category.name} · {ui.timeLabel}
           </Text>
           {ui.isRecurring ? <RecurringBadge /> : null}
+          {isPending ? <WaitingToSyncPill /> : null}
         </View>
       </View>
       <Text
