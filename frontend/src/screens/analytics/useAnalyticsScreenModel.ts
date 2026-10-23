@@ -17,17 +17,12 @@ import {
   parseServerToday,
 } from "@/features/analytics/utils/buildCashflowWindow";
 import {
-  topPayeeKeysFromSpend,
+  topPayeeKeysFromRows,
   type CounterpartyDonutDatum,
 } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import type { CompareMonthParam } from "@/features/analytics/utils/compareMonths";
-import { computeBurnRateMetrics } from "@/features/analytics/utils/computeBurnRateMetrics";
-import { fixedPlanFromOccurrences } from "@/features/analytics/utils/fixedPlan";
-import {
-  buildEmptyBurnRateMetrics,
-  isInsightsMonthEmpty,
-} from "@/features/analytics/utils/insightsEmptyState";
+import { isInsightsMonthEmpty } from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
 import type { TransactionRow } from "@/features/transactions/types";
@@ -111,13 +106,17 @@ export function useAnalyticsScreenModel() {
     [insightsData?.counterparty_income],
   );
   const topPayeeKeys = useMemo(
-    () => topPayeeKeysFromSpend(counterpartySpend),
+    () => topPayeeKeysFromRows(counterpartySpend),
     [counterpartySpend],
+  );
+  const topIncomeKeys = useMemo(
+    () => topPayeeKeysFromRows(counterpartyIncome),
+    [counterpartyIncome],
   );
   const topExpenses: TransactionRow[] = insightsData?.top_expenses ?? [];
 
-  // The server's day drives the pace maths; the recurring month is "settled" once it loaded for THIS month
-  // (or failed, in which case pace falls back to the plain straight line).
+  // The server's day decides whether the selected month is past; the recurring
+  // month is "settled" once it loaded for THIS month (or failed).
   const serverToday = useMemo(
     () => parseServerToday(insightsData?.today),
     [insightsData?.today],
@@ -127,55 +126,9 @@ export function useAnalyticsScreenModel() {
     recurringMonthQuery.isError ||
     (recurringMonthQuery.isSuccess && !recurringMonthQuery.isPlaceholderData);
   const fixedMonth = recurringSettled ? recurringMonth : undefined;
-  const fixedItems = useMemo(
-    () => fixedPlanFromOccurrences(fixedMonth?.items),
-    [fixedMonth?.items],
-  );
-  const fixedSpentSoFar =
-    toPaise(insightsData?.summary.fixed_debit_total) / 100;
-  const paceLoading = chartLoading || !recurringSettled;
-
-  const burnRateMetrics = useMemo(() => {
-    if (paceLoading) return null;
-    if (summaryFailed)
-      return buildEmptyBurnRateMetrics(
-        hasMonthlyBudget,
-        hasMonthlyBudget ? monthlyBudgetAmount : null,
-      );
-    const computed = computeBurnRateMetrics(
-      dailyCashflow,
-      hasMonthlyBudget ? monthlyBudgetAmount : null,
-      selectedMonth.year,
-      selectedMonth.monthIndex0,
-      {
-        fixedItems,
-        fixedSpentSoFar,
-        ...(serverToday ? { today: serverToday } : {}),
-      },
-    );
-    return (
-      computed ??
-      buildEmptyBurnRateMetrics(
-        hasMonthlyBudget,
-        hasMonthlyBudget ? monthlyBudgetAmount : null,
-      )
-    );
-  }, [
-    paceLoading,
-    dailyCashflow,
-    fixedItems,
-    fixedSpentSoFar,
-    hasMonthlyBudget,
-    monthlyBudgetAmount,
-    selectedMonth.monthIndex0,
-    selectedMonth.year,
-    serverToday,
-    summaryFailed,
-  ]);
 
   const expectedIncome =
     toPaise(fixedMonth?.totals.fixed_income_upcoming) / 100;
-  const projectedSpend = burnRateMetrics?.projected ?? null;
   const summary = useMemo((): InsightsMonthSummary | null => {
     if (summaryLoading || summaryFailed) return null;
     const isPast = isPastMonth(
@@ -188,14 +141,13 @@ export function useAnalyticsScreenModel() {
       hasMonthlyBudget,
       monthlyBudgetAmount,
       isPast,
-      { expectedIncome, projectedSpend },
+      { expectedIncome },
     );
   }, [
     expectedIncome,
     hasMonthlyBudget,
     insightsData?.summary,
     monthlyBudgetAmount,
-    projectedSpend,
     selectedMonth.year,
     selectedMonth.monthIndex0,
     serverToday,
@@ -242,6 +194,21 @@ export function useAnalyticsScreenModel() {
       openPayee(slice.payee_key, slice.display_name),
     [openPayee],
   );
+  // Credits only show under a payee filter when asked for, and "Other" needs the income donut's own top keys.
+  const openTransactionsListForPayer = useCallback(
+    (slice: CounterpartyDonutDatum) => {
+      navigation.navigate("TransactionsList", {
+        filter: "payee",
+        year: selectedMonth.year,
+        monthIndex0: selectedMonth.monthIndex0,
+        payeeId: slice.payee_key,
+        payeeDisplayName: slice.display_name,
+        payeeKeysTop: topIncomeKeys,
+        direction: "credit",
+      });
+    },
+    [navigation, selectedMonth.monthIndex0, selectedMonth.year, topIncomeKeys],
+  );
 
   // The tour may change the month; it puts it back when it ends.
   useTourRestorable("insights.month", {
@@ -284,15 +251,13 @@ export function useAnalyticsScreenModel() {
     openTransactionDetail,
     openTransactionsListForDay,
     openTransactionsListForPayee,
+    openTransactionsListForPayer,
     summary,
     summaryLoading,
     summaryFailed,
     hasMonthlyBudget,
     dailyCashflow,
     chartLoading,
-    burnRateMetrics,
-    paceLoading,
-    burnRateToday: serverToday,
     fixedCostsMonth: fixedMonth,
     fixedCostsLoading: !recurringSettled,
     currentDay,

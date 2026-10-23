@@ -69,6 +69,8 @@ export type MainStackParamList = {
         payeeKey?: string;
         payeeKeysTop: string[];
         payeeDisplayName: string;
+        /** `credit` lists what a payer sent you (Who paid you); defaults to `debit`. */
+        direction?: "debit" | "credit";
         fromIso?: string;
         toIso?: string;
       }

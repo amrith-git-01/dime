@@ -1,7 +1,10 @@
 import type { ThemeColors } from "@/theme";
 
 import { COUNTERPARTY_DONUT_OTHER_KEY } from "../constants/counterpartyDonutColors";
-import type { CounterpartySpendRow } from "../types";
+import type { CounterpartyIncomeRow, CounterpartySpendRow } from "../types";
+
+/** One payee row from either side of the month: what you paid, or what paid you. */
+export type CounterpartyRow = CounterpartySpendRow | CounterpartyIncomeRow;
 
 export type CounterpartyDonutDatum = {
   label: string;
@@ -10,14 +13,15 @@ export type CounterpartyDonutDatum = {
   payee_key: string;
   display_name: string;
   share: number;
-  debit_total: number;
+  /** Rupees spent on (or received from) the payee. */
+  amount: number;
   transaction_count: number;
 };
 
 export type DonutColors = ThemeColors["donut"];
 
 function sliceColorForRow(
-  row: CounterpartySpendRow,
+  row: CounterpartyRow,
   topPayeeColorIndex: number,
   donutColors: DonutColors,
 ): string {
@@ -28,14 +32,16 @@ function sliceColorForRow(
 }
 
 export function buildCounterpartyDonutData(
-  rows: CounterpartySpendRow[],
+  rows: CounterpartyRow[],
   donutColors: DonutColors,
 ): CounterpartyDonutDatum[] {
   let topPayeeColorIndex = 0;
   const result: CounterpartyDonutDatum[] = [];
 
   for (const row of rows) {
-    const value = Number.parseFloat(row.debit_total);
+    const value = Number.parseFloat(
+      "credit_total" in row ? row.credit_total : row.debit_total,
+    );
     if (!Number.isFinite(value) || value <= 0) {
       continue;
     }
@@ -47,7 +53,7 @@ export function buildCounterpartyDonutData(
       payee_key: row.payee_key,
       display_name: row.display_name,
       share: row.share,
-      debit_total: value,
+      amount: value,
       transaction_count: row.transaction_count,
     });
     if (!isOther) {
@@ -59,7 +65,7 @@ export function buildCounterpartyDonutData(
 }
 
 /** Payee keys for top slices (excludes `__other__`). */
-export function topPayeeKeysFromSpend(rows: CounterpartySpendRow[]): string[] {
+export function topPayeeKeysFromRows(rows: CounterpartyRow[]): string[] {
   return rows
     .filter((row) => row.payee_key !== COUNTERPARTY_DONUT_OTHER_KEY)
     .map((row) => row.payee_key);

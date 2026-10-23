@@ -30,7 +30,7 @@ export function buildAgentDonutData(
     payee_key: `agent-slice-${index}`,
     display_name: item.name.trim(),
     share: item.value / total,
-    debit_total: item.value,
+    amount: item.value,
     transaction_count: 0,
   }));
 }

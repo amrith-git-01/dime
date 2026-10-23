@@ -15,7 +15,7 @@ describe("flattenTransactionListSections", () => {
   ];
 
   it("emits a header item before each section's rows", () => {
-    const { items, headerIndices } = flattenTransactionListSections(sections, {
+    const items = flattenTransactionListSections(sections, {
       "2026-08-15": -30,
       "2026-08-14": 5,
     });
@@ -27,7 +27,6 @@ describe("flattenTransactionListSections", () => {
       "header:2026-08-14",
       "c",
     ]);
-    expect(headerIndices).toEqual([0, 3]);
     expect(items[0]).toMatchObject({
       kind: "header",
       dayKey: "2026-08-15",
@@ -38,7 +37,7 @@ describe("flattenTransactionListSections", () => {
   });
 
   it("marks first and last rows within each section", () => {
-    const { items } = flattenTransactionListSections(sections, {});
+    const items = flattenTransactionListSections(sections, {});
     expect(items[1]).toMatchObject({
       isFirstInSection: true,
       isLastInSection: false,
@@ -54,9 +53,6 @@ describe("flattenTransactionListSections", () => {
   });
 
   it("returns nothing for no sections", () => {
-    expect(flattenTransactionListSections([], {})).toEqual({
-      items: [],
-      headerIndices: [],
-    });
+    expect(flattenTransactionListSections([], {})).toEqual([]);
   });
 });

@@ -27,6 +27,7 @@ import type {
   TransactionListItem,
   TransactionListRowItem,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { resolveListEmptyCopy } from "./listEmptyCopy";
 import { formatTransactionListAmount } from "@/features/transactions/utils/transactionDisplay";
 import { isFutureDayKey } from "@/features/transactions/utils/transactionsCalendar";
 
@@ -93,30 +94,13 @@ function getItemType(item: TransactionListItem): TransactionListItem["kind"] {
   return item.kind;
 }
 
-function resolveListEmptyCopy(
-  filter: "day" | "category" | "payee",
-  usesRange: boolean,
-) {
-  if (filter === "day") {
-    return emptyStateCopy.transactionsListDay;
-  }
-  if (filter === "category") {
-    return usesRange
-      ? emptyStateCopy.transactionsListCategoryRange
-      : emptyStateCopy.transactionsListCategory;
-  }
-  return usesRange
-    ? emptyStateCopy.transactionsListPayeeRange
-    : emptyStateCopy.transactionsListPayee;
-}
-
 export default function TransactionsListScreen() {
   const { colors } = useTheme();
   const styles = useStyles();
   const {
     listItems,
-    stickyHeaderIndices,
     filter,
+    direction,
     usesRange,
     isEmpty,
     isError,
@@ -167,7 +151,7 @@ export default function TransactionsListScreen() {
   }
 
   if (isEmpty) {
-    const copy = resolveListEmptyCopy(filter, usesRange);
+    const copy = resolveListEmptyCopy(filter, usesRange, direction);
     return (
       <View style={styles.fill}>
         <EmptyState
@@ -187,7 +171,6 @@ export default function TransactionsListScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         getItemType={getItemType}
-        stickyHeaderIndices={stickyHeaderIndices}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}

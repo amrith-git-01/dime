@@ -515,6 +515,16 @@ describe('GET /transactions/month-insights', () => {
     ]);
     expect(body.counterparty_income).toEqual([]);
   });
+
+  it('who paid you: top four payers plus an Other row, like who you paid', async () => {
+    const payers: Array<[string, string]> = [['Alpha', '600'], ['Beta', '500'], ['Gamma', '400'], ['Delta', '300'], ['Epsilon', '200'], ['Zeta', '100']];
+    for (const [name, amount] of payers) {
+      await seedTransaction({ amount, type: 'credit', counterparty_name: name, transaction_at: '2026-05-03T00:00:00.000Z' });
+    }
+    const body = await (await call('/api/v1/transactions/month-insights?year=2026&month=5&timezone=UTC')).json<InsightsBody>();
+    expect(body.counterparty_income.map((r) => r['payee_key'])).toEqual(['alpha', 'beta', 'gamma', 'delta', '__other__']);
+    expect(body.counterparty_income.at(-1)).toEqual({ payee_key: '__other__', display_name: 'Other', credit_total: '300.00', share: 0.1429, transaction_count: 2 });
+  });
 });
 
 const createBody = (over: Record<string, unknown> = {}) => ({

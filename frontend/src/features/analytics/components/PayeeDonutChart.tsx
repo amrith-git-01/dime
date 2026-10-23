@@ -68,7 +68,7 @@ export type PayeeDonutEmptyChartProps = {
   innerRadiusRatio?: number;
 };
 
-/** Neutral donut ring when there is no payee spend. */
+/** Neutral donut ring when there are no payees. */
 export const PayeeDonutEmptyChart = memo(function PayeeDonutEmptyChart({
   size = 168,
   innerRadiusRatio = COUNTERPARTY_DONUT_INNER_RADIUS_RATIO,
@@ -83,7 +83,7 @@ export const PayeeDonutEmptyChart = memo(function PayeeDonutEmptyChart({
         payee_key: "__empty__",
         display_name: "",
         share: 0,
-        debit_total: 0,
+        amount: 0,
         transaction_count: 0,
       },
     ],

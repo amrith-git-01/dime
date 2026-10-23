@@ -56,7 +56,7 @@ export async function monthInsightsData(
     daily_cashflow: dailyCashflowSeries(dayTotals, days),
     // "Who you paid" is flexible spend only, so its shares are of the flexible total.
     counterparty_spend: rollUpSpend(payees, totals.debitCents - totals.fixedDebitCents),
-    counterparty_income: rollUpIncome(payees, totals.creditCents),
+    counterparty_income: rollUpIncome(payees, totals.creditCents, { withOther: true }),
     top_rows: topRows,
   };
 }

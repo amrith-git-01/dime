@@ -7,15 +7,14 @@ import { TourTarget } from "@/components/shared";
 import { FLOATING_BUTTONS_CLEARANCE, layout } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
-  InsightsBurnRateMetricCard,
   InsightsCounterpartyDonutCard,
   InsightsDailyCashflowChart,
   InsightsEmptyChartCard,
   InsightsFixedCostsCard,
   InsightsHeavyChartsPlaceholder,
-  InsightsIncomeSourcesCard,
   InsightsMonthCompareLauncherCard,
   InsightsMonthSummaryCard,
+  InsightsMonthSwitcher,
   InsightsTopExpensesCard,
 } from "@/features/analytics/components";
 import {
@@ -31,6 +30,7 @@ function AnalyticsInsightsScroll() {
   const styles = useStyles();
   const cashflowTooltipDismissRef = useRef<(() => void) | null>(null);
   const payeeTooltipDismissRef = useRef<(() => void) | null>(null);
+  const payerTooltipDismissRef = useRef<(() => void) | null>(null);
   const { reportScroll } = useInsightsScrollVisibility();
   const scrollRef = useRef<ScrollView>(null);
   // Lets the guided tour scroll Insights so each spotlighted card is in view.
@@ -50,9 +50,6 @@ function AnalyticsInsightsScroll() {
     summaryFailed,
     hasMonthlyBudget,
     chartLoading,
-    burnRateMetrics,
-    paceLoading,
-    burnRateToday,
     fixedCostsMonth,
     fixedCostsLoading,
     currentDay,
@@ -65,6 +62,7 @@ function AnalyticsInsightsScroll() {
     openTransactionDetail,
     openTransactionsListForDay,
     openTransactionsListForPayee,
+    openTransactionsListForPayer,
     onManualAdd,
     canGoPrevMonth,
     canGoNextMonth,
@@ -86,17 +84,23 @@ function AnalyticsInsightsScroll() {
       onScrollBeginDrag={() => {
         cashflowTooltipDismissRef.current?.();
         payeeTooltipDismissRef.current?.();
+        payerTooltipDismissRef.current?.();
         reportScroll();
       }}
       onMomentumScrollEnd={reportScroll}
     >
+      <InsightsMonthSwitcher
+        selectedMonth={selectedMonth.label}
+        prevMonthLabel={monthOptions[selectedMonthIndex + 1]?.label}
+        nextMonthLabel={monthOptions[selectedMonthIndex - 1]?.label}
+        canGoPrevMonth={canGoPrevMonth}
+        canGoNextMonth={canGoNextMonth}
+        onPrevMonth={goPrevMonth}
+        onNextMonth={goNextMonth}
+      />
+
       <TourTarget id={tourTargetIds.insightsSummary}>
         <InsightsMonthSummaryCard
-          selectedMonth={selectedMonth.label}
-          canGoPrevMonth={canGoPrevMonth}
-          canGoNextMonth={canGoNextMonth}
-          onPrevMonth={goPrevMonth}
-          onNextMonth={goNextMonth}
           summary={summary}
           summaryLoading={summaryLoading}
           summaryFailed={summaryFailed}
@@ -108,15 +112,6 @@ function AnalyticsInsightsScroll() {
         <InsightsEmptyChartCard onAddExpense={onManualAdd} />
       ) : chartsReady ? (
         <>
-          <TourTarget id={tourTargetIds.insightsPace}>
-            <InsightsBurnRateMetricCard
-              metrics={burnRateMetrics}
-              loading={paceLoading}
-              year={chartYear}
-              monthIndex0={chartMonthIndex0}
-              today={burnRateToday}
-            />
-          </TourTarget>
           <InsightsFixedCostsCard
             data={fixedCostsMonth}
             loading={fixedCostsLoading}
@@ -135,7 +130,7 @@ function AnalyticsInsightsScroll() {
           </TourTarget>
           <TourTarget id={tourTargetIds.insightsPayees}>
             <InsightsCounterpartyDonutCard
-              counterpartySpend={counterpartySpend}
+              rows={counterpartySpend}
               chartYear={chartYear}
               chartMonthIndex0={chartMonthIndex0}
               chartsDataSettled={chartsDataSettled}
@@ -144,9 +139,15 @@ function AnalyticsInsightsScroll() {
               onViewPayeePress={openTransactionsListForPayee}
             />
           </TourTarget>
-          <InsightsIncomeSourcesCard
-            counterpartyIncome={counterpartyIncome}
-            loading={chartLoading}
+          <InsightsCounterpartyDonutCard
+            variant="income"
+            rows={counterpartyIncome}
+            chartYear={chartYear}
+            chartMonthIndex0={chartMonthIndex0}
+            chartsDataSettled={chartsDataSettled}
+            chartLoading={chartLoading}
+            tooltipDismissRef={payerTooltipDismissRef}
+            onViewPayeePress={openTransactionsListForPayer}
           />
           <InsightsTopExpensesCard
             topExpenses={topExpenses}

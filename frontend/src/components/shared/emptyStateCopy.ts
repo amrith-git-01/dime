@@ -57,6 +57,14 @@ export const emptyStateCopy = {
     headline: "No transactions for this payee",
     subtext: "No debits matched this payee in the selected period.",
   },
+  transactionsListPayer: {
+    headline: "No transactions for this payer",
+    subtext: "No credits matched this payer in the selected month.",
+  },
+  transactionsListPayerRange: {
+    headline: "No transactions for this payer",
+    subtext: "No credits matched this payer in the selected period.",
+  },
   analyticsCategoryBreakdown: {
     headline: "No category data yet",
     subtext: "Spending by payee will appear once you log expenses.",
