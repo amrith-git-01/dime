@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSplashReveal } from "@/components/app/SplashRevealContext";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { OfflineBanner } from "@/components/layout/OfflineBanner";
 import { DimeTabBar } from "@/components/navigation/DimeTabBar";
 import { spacing } from "@/constants";
 import { AgentChatOverlay } from "@/features/agent/components";
@@ -135,6 +136,7 @@ export default function MainTabNavigator() {
           showUnreadNotificationDot={showUnreadNotificationDot}
         />
       </View>
+      <OfflineBanner />
       <View style={styles.navigatorSlot}>
         <Tabs.Navigator
           tabBar={(props) => (

@@ -1,11 +1,14 @@
 import { confirmCapturePermissionReason } from "@/features/onboarding/utils/permissionReasonAlert";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
+import { invalidateOnboardingProgress } from "@/features/onboarding/cache/invalidateOnboardingProgress";
 import { useToast } from "@/features/toast/useToast";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { enqueueCapture } from "@/lib/outbox/outboxQueue";
+import { sendOrQueue } from "@/lib/outbox/sendOrQueue";
 import { useReceiptScanUiStore } from "@/stores/receiptScanUiStore";
 import { useVoiceCaptureUiStore } from "@/stores/voiceCaptureUiStore";
-import { useQueryClient } from "@tanstack/react-query";
+import { onlineManager, useQueryClient } from "@tanstack/react-query";
 import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
@@ -16,7 +19,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 
 import { submitVoice } from "../api/submitTransactionApi";
-import { invalidateTransactionDerivedQueries } from "../cache/invalidateTransactionQueries";
 import { guessVoiceUploadMeta } from "../voice/guessVoiceMime";
 import {
   MIN_VOICE_RECORDING_SECONDS,
@@ -247,21 +249,47 @@ export function useVoiceCaptureSession() {
     setPhase("idle");
 
     const { fileName, mimeType } = guessVoiceUploadMeta(uri);
+    const capturedAt = new Date().toISOString();
+    // One key per recording: the direct upload and a later outbox retry of it are the same capture.
+    const idempotencyKey = randomUUID();
 
     showBusy("Uploading voice note…");
 
     try {
-      await submitVoice({
-        fileUri: uri,
-        fileName,
-        mimeType,
-        idempotencyKey: randomUUID(),
+      const outcome = await sendOrQueue({
+        isOnline: () => onlineManager.isOnline(),
+        // No `capturedAt` on a live upload: the server stamps it with the request time, which is the
+        // same moment (and cannot trip its clock-skew check on a device with a wrong clock).
+        send: () =>
+          submitVoice({ fileUri: uri, fileName, mimeType, idempotencyKey }),
+        queue: async () => {
+          if (!userId) {
+            throw new Error("Sign in to add a transaction by voice.");
+          }
+          await enqueueCapture({
+            userId,
+            kind: "voice",
+            sourceUri: uri,
+            fileName,
+            mimeType,
+            idempotencyKey,
+            capturedAt,
+          });
+        },
       });
-      showToast({
-        variant: "success",
-        message: "Voice transaction added",
-      });
-      invalidateTransactionDerivedQueries(qc);
+      if (outcome.status === "queued") {
+        showToast({
+          variant: "info",
+          message: "Saved. It will be read when you're back online.",
+        });
+      } else {
+        showToast({
+          variant: "success",
+          message: "Voice transaction added",
+        });
+        // The row itself arrives through realtime once it is processed.
+        invalidateOnboardingProgress(qc);
+      }
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save the transaction.";
@@ -274,7 +302,7 @@ export function useVoiceCaptureSession() {
       hideBusy();
       invalidateLimitsQueries(qc);
     }
-  }, [close, hardClose, hideBusy, qc, recorder, showBusy, showToast]);
+  }, [close, hardClose, hideBusy, qc, recorder, showBusy, showToast, userId]);
 
   const statusLine =
     phase === "recording"

@@ -45,6 +45,7 @@ import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import type { MainStackParamList } from "@/navigation/types";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
+import { useConnectivityStore } from "@/stores/connectivityStore";
 
 import type { AgentDeepLink, ChatMessage } from "../types";
 import { navigateAgentDeepLink } from "../utils/agentDeepLink";
@@ -212,27 +213,30 @@ export function AgentChatOverlay({
     setComposerResetToken((token) => token + 1);
   }, [resetConversation]);
 
+  // The agent runs on the server: offline, neither the composer nor the suggestions can ask.
+  const isOnline = useConnectivityStore((s) => s.isOnline);
+
   const handleSend = useCallback(
     (text: string) => {
-      if (isPending || limitReached) {
+      if (isPending || limitReached || !isOnline) {
         return;
       }
       void triggerHaptic();
       void sendMessage(text);
     },
-    [isPending, limitReached, sendMessage],
+    [isOnline, isPending, limitReached, sendMessage],
   );
 
   const handleSuggestedPrompt = useCallback(
     (prompt: string) => {
-      if (isPending || limitReached) {
+      if (isPending || limitReached || !isOnline) {
         return;
       }
       void triggerHaptic();
       void sendMessage(prompt);
       emitTourEvent(tourEventNames.suggestionTapped);
     },
-    [isPending, limitReached, sendMessage],
+    [isOnline, isPending, limitReached, sendMessage],
   );
 
   // "Ask it for me" on the Ask AI tour's question step.

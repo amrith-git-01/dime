@@ -579,7 +579,17 @@ describe('POST /transactions', () => {
     expect(res.status).toBe(201);
     const rows = await rowsOf<Record<string, unknown>>('transactions');
     expect(rows).toHaveLength(1);
-    expect(await res.json()).toEqual({ accepted: true, id: rows[0]!['id'], created: true });
+    const reply = await res.json<{ transaction: Record<string, unknown> }>();
+    expect(reply).toEqual({
+      accepted: true,
+      id: rows[0]!['id'],
+      created: true,
+      // The saved row in list-item shape (same as GET /transactions items).
+      transaction: expect.objectContaining({ id: rows[0]!['id'], user_id: USER_ID, amount: '250.50', type: 'credit', counterparty_name: 'Acme Corp', note: 'monthly', detected_via: 'manual' }) as unknown,
+    });
+    const listed = await (await call('/api/v1/transactions')).json<{ items: unknown[] }>();
+    // Same shape as a list item (lists just omit payment_hash).
+    expect({ ...reply.transaction, payment_hash: null }).toEqual(listed.items[0]);
     expect(rows[0]).toEqual({
       id: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown,
       user_id: USER_ID,
@@ -629,7 +639,13 @@ describe('POST /transactions', () => {
     const res = await postTx(createBody({ note: 'late', category: 'Salary', counterparty_type: 'person' }));
     expect(res.status).toBe(201);
     // The id of the row it matched, flagged as not created so a client never undoes someone else's row.
-    expect(await res.json()).toEqual({ accepted: true, id: TX, created: false });
+    // The merged row is included too, so the client can show what is now stored.
+    expect(await res.json()).toEqual({
+      accepted: true,
+      id: TX,
+      created: false,
+      transaction: expect.objectContaining({ id: TX, note: 'late', category_id: CAT, counterparty_type: 'person' }) as unknown,
+    });
     expect(await rowsOf('transactions')).toHaveLength(1);
     expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT, note: 'late', counterparty_type: 'person' });
   });
@@ -857,7 +873,8 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
     const res = await postTx(createBody(), withKey);
     expect(res.status).toBe(201);
     const created = await rowsOf<{ id: string }>('transactions');
-    const stored = { accepted: true, id: created[0]!.id, created: true };
+    const stored = { accepted: true, id: created[0]!.id, created: true, transaction: expect.objectContaining({ id: created[0]!.id }) as unknown };
+    const storedBody = await res.clone().json<Record<string, unknown>>();
     expect(await res.json()).toEqual(stored);
     const jobs = await jobsOfKey();
     expect(jobs).toHaveLength(1);
@@ -868,11 +885,12 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
       status: 'done',
       attempts: 1,
       idempotency_key: KEY,
-      result: JSON.stringify({ status_code: 201, body: stored }),
+      result: JSON.stringify({ status_code: 201, body: storedBody }),
     });
     expect(await rowsOf('transactions')).toHaveLength(1);
     // The same key again replays and creates nothing.
-    expect(await (await postTx(createBody(), withKey)).json()).toEqual(stored);
+    // The replay returns the stored body verbatim, saved row included.
+    expect(await (await postTx(createBody(), withKey)).json()).toEqual(storedBody);
     expect(await rowsOf('transactions')).toHaveLength(1);
   });
 
@@ -897,9 +915,10 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
       payment_hash: await hashFor(),
     });
     const first = await postTx(createBody(), withKey);
-    expect(await first.json()).toEqual({ accepted: true, id: TX, created: false });
+    const firstBody = await first.json<Record<string, unknown>>();
+    expect(firstBody).toMatchObject({ accepted: true, id: TX, created: false, transaction: { id: TX } });
     const replay = await postTx(createBody(), withKey);
-    expect(await replay.json()).toEqual({ accepted: true, id: TX, created: false });
+    expect(await replay.json()).toEqual(firstBody);
     expect(await rowsOf('transactions')).toHaveLength(1);
   });
 

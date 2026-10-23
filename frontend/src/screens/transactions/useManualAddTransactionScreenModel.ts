@@ -8,6 +8,7 @@ import { Alert, Keyboard, Platform } from "react-native";
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
+import { buildManualPreview } from "@/features/outbox/utils/manualPreview";
 import { useCounterpartySelect } from "@/features/payees/hooks/useCounterpartySelect";
 import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
@@ -191,11 +192,18 @@ export function useManualAddTransactionScreenModel() {
       return;
     }
     try {
-      await submitMutation.mutateAsync({ body: payload });
-      showToast({
-        variant: "success",
-        message: "Transaction added",
+      const result = await submitMutation.mutateAsync({
+        body: payload,
+        preview: buildManualPreview(payload, categories),
       });
+      showToast(
+        result.status === "queued"
+          ? {
+              variant: "info",
+              message: "Saved offline. It will sync when you're back online.",
+            }
+          : { variant: "success", message: "Transaction added" },
+      );
       navigation.goBack();
     } catch (error) {
       const message =
@@ -211,7 +219,7 @@ export function useManualAddTransactionScreenModel() {
         },
       });
     }
-  }, [buildPayload, navigation, showToast, submitMutation, userId]);
+  }, [buildPayload, categories, navigation, showToast, submitMutation, userId]);
 
   const setExpenseType = useCallback(() => {
     void triggerHaptic();

@@ -74,6 +74,13 @@ describe("restoreQueryCache", () => {
     expect(hasPersistedQueryCache()).toBe(false);
   });
 
+  it("keeps a blob for a week so the saved screens are still there after days offline", () => {
+    expect(QUERY_CACHE_MAX_AGE_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    writeBlob({ timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000 });
+    expect(restoreQueryCache(queryClient)).toBe(true);
+    expect(queryClient.getQueryData(KEY)).toEqual([{ id: "c1" }]);
+  });
+
   it("clears a corrupt blob", () => {
     createMMKV({ id: "rq-cache" }).set(QUERY_CACHE_KEY, "{not json");
     expect(restoreQueryCache(queryClient)).toBe(false);

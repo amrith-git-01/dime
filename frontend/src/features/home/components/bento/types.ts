@@ -41,6 +41,9 @@ export type HomeBentoContentProps = {
   upcomingToday: Date;
   onUpcomingPress: (item: RecurringItem) => void;
 
+  /** "Updated 3 hours ago" while offline (from the home query's last successful fetch); null online. */
+  updatedLabel: string | null;
+
   // Navigation
   onNavigateBudgets: () => void;
   onNavigateTransactions: () => void;

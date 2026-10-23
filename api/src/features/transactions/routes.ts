@@ -6,6 +6,7 @@ import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { rateLimit } from '../../core/rate-limit';
 import { getDb } from '../../core/db';
+import { log } from '../../core/logging';
 import { parseTimezone } from '../../core/timezone';
 import { validate } from '../../core/validation';
 import { monthInsights } from '../insights/service';
@@ -14,6 +15,7 @@ import { mediaStore } from '../media/storage';
 import { notifyAfterInsert } from '../notifications/after-insert';
 import { requestPublisher } from '../realtime/publish';
 import { idParamSchema, listQuerySchema, monthQuerySchema, timezoneQuerySchema, transactionWriteSchema } from './schemas';
+import type { TransactionResponse } from './schemas';
 import * as service from './service';
 import type { TxContext } from './service';
 
@@ -72,7 +74,7 @@ transactionRoutes.post(
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = txContext(c);
 
-    const create = async (): Promise<{ accepted: true; id?: string; created?: boolean }> => {
+    const create = async (): Promise<{ accepted: true; id?: string; created?: boolean; transaction?: TransactionResponse }> => {
       const result = await service.createManual(ctx, body);
       if (result.kind === 'created' && body.type === 'debit') {
         defer(
@@ -94,7 +96,13 @@ transactionRoutes.post(
       }
       // The id lets a client undo its own add (widgets) without listing; `created: false` says the
       // payment already existed, so it is not the client's to undo. Idempotent replays return this body.
-      return { accepted: true, id: result.id, created: result.kind === 'created' };
+      // `transaction` is the saved row (list-item shape) so the app can patch its caches without a
+      // refetch; replays of bodies stored before it existed simply lack it.
+      const transaction = await service.getTransactionOrNull(ctx, result.id).catch((err: unknown) => {
+        log.warn('manual_create_row_read_failed', { err, id: result.id }); // the row is saved; the app refetches
+        return null;
+      });
+      return { accepted: true, id: result.id, created: result.kind === 'created', ...(transaction ? { transaction } : {}) };
     };
 
     if (key === null) return c.json(await create(), 201);

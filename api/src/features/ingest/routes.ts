@@ -14,8 +14,9 @@ import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey } from '../jobs/idempotency
 import { getCaptureJobForUser } from '../jobs/repository';
 import { detectAudioFormat } from '../media/audio-format';
 import { mediaStore } from '../media/storage';
-import { idParamSchema, timezoneQuerySchema } from '../transactions/schemas';
+import { idParamSchema } from '../transactions/schemas';
 import { getTransaction } from '../transactions/service';
+import { captureQuerySchema, resolveCapturedAt } from './schemas';
 import { acceptMedia, findReplayJobId } from './service';
 import type { IngestContext } from './service';
 
@@ -73,14 +74,17 @@ ingestRoutes.post(
   rateLimit('WRITE_LIMITER'),
   rateLimit('AI_LIMITER'),
   limitUpload((cfg) => cfg.maxReceiptUploadBytes),
-  validate('query', timezoneQuerySchema),
+  validate('query', captureQuerySchema),
   async (c) => {
-    const timezone = parseTimezone(c.req.valid('query').timezone); // 400 before anything is read or stored
+    const query = c.req.valid('query');
+    const timezone = parseTimezone(query.timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = ingestContext(c);
     // C2: a known key is answered before the body is read or anything is uploaded.
     const replayJobId = await findReplayJobId(ctx.db, ctx.userId, key);
     if (replayJobId) return c.json(accepted(replayJobId), 202);
+    // After the replay check: a retry of an upload the server already accepted is never refused as too old / ahead.
+    const capturedAt = resolveCapturedAt(query.captured_at, Date.now());
 
     const file = await readFilePart(c, getConfig(c.env).maxReceiptUploadBytes);
     const detected = detectReceiptImageFormat(await readHeader(file));
@@ -91,6 +95,7 @@ ingestRoutes.post(
       contentType: detected.contentType,
       extension: detected.ext,
       timezone,
+      capturedAt: capturedAt.iso,
       key,
     });
     return c.json(accepted(jobId), 202);
@@ -102,13 +107,15 @@ ingestRoutes.post(
   rateLimit('WRITE_LIMITER'),
   rateLimit('AI_LIMITER'),
   limitUpload((cfg) => cfg.maxVoiceUploadBytes),
-  validate('query', timezoneQuerySchema),
+  validate('query', captureQuerySchema),
   async (c) => {
-    const timezone = parseTimezone(c.req.valid('query').timezone); // 400 before anything is read or stored
+    const query = c.req.valid('query');
+    const timezone = parseTimezone(query.timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
     const ctx = ingestContext(c);
     const replayJobId = await findReplayJobId(ctx.db, ctx.userId, key);
     if (replayJobId) return c.json(accepted(replayJobId), 202);
+    const capturedAt = resolveCapturedAt(query.captured_at, Date.now()); // after the replay check, as for receipts
 
     const file = await readFilePart(c, getConfig(c.env).maxVoiceUploadBytes);
     const detected = detectAudioFormat(await readHeader(file));
@@ -121,6 +128,7 @@ ingestRoutes.post(
       contentType: detected.contentType,
       extension: detected.ext,
       timezone,
+      capturedAt: capturedAt.iso,
       key,
     });
     return c.json(accepted(jobId), 202);

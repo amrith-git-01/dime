@@ -19,6 +19,7 @@ import Animated, {
 import { listEntrance, springs, timings } from "@/constants/motion";
 import { radius, spacing } from "@/constants";
 import { CategoryLucideIcon } from "@/components/categories/CategoryLucideIcon";
+import { isPendingTransactionRow } from "@/features/outbox/utils/pendingMerge";
 import type { TransactionRow } from "@/features/transactions/types";
 
 import {
@@ -30,6 +31,7 @@ import {
 import { createThemedStyles, useTheme } from "@/theme";
 
 import { RecurringBadge } from "./RecurringBadge";
+import { WaitingToSyncPill } from "./WaitingToSyncPill";
 
 type CategoryIconProps = {
   category: TransactionCategory;
@@ -99,7 +101,7 @@ export type TransactionListRowProps = {
   onPress?: (tx: TransactionRow) => void;
 };
 
-function RowBody({ ui }: { ui: UiTransaction }) {
+function RowBody({ ui, pending = false }: { ui: UiTransaction; pending?: boolean }) {
   const styles = useStyles();
   return (
     <>
@@ -135,6 +137,7 @@ function RowBody({ ui }: { ui: UiTransaction }) {
               {ui.viaLabel}
             </Text>
             {ui.isRecurring ? <RecurringBadge /> : null}
+            {pending ? <WaitingToSyncPill /> : null}
           </View>
           <Text
             style={[
@@ -177,7 +180,7 @@ export const TransactionListRow = memo(function TransactionListRow({
 
     return (
       <View style={cardRowStyle}>
-        <RowBody ui={ui} />
+        <RowBody ui={ui} pending={isPendingTransactionRow(transaction)} />
       </View>
     );
   }
@@ -241,7 +244,7 @@ const TransactionListRowScreenStatic = memo(
           pressed && styles.screenRowPressed,
         ]}
       >
-        <RowBody ui={ui} />
+        <RowBody ui={ui} pending={isPendingTransactionRow(transaction)} />
       </Pressable>
     );
   },
@@ -334,7 +337,7 @@ const TransactionListRowScreenAnimated = memo(
               pressOverlayStyle,
             ]}
           />
-          <RowBody ui={ui} />
+          <RowBody ui={ui} pending={transaction ? isPendingTransactionRow(transaction) : false} />
         </Animated.View>
       </Pressable>
     );

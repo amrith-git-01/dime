@@ -5,7 +5,7 @@ import { aggregateFailure, aiPost } from './http';
 import { ModelOutputError, parseModelOutput } from './parse-output';
 import type { CategoryOption, ParsedExpense } from './parse-output';
 import { buildParsePrompt } from './prompts';
-import type { ParseMode } from './prompts';
+import type { DateReference, ParseMode } from './prompts';
 
 export interface ModelCandidate {
   provider: string;
@@ -56,6 +56,8 @@ export interface ParseInput {
   text: string;
   allowedCategories: readonly string[];
   categoryOptions: readonly CategoryOption[];
+  /** The capture's local date: what "today" means, and the latest date the answer may carry. */
+  reference?: DateReference | undefined;
 }
 
 /**
@@ -66,7 +68,7 @@ export interface ParseInput {
 export async function parseWithFallback(config: AppConfig['ai'], input: ParseInput): Promise<ParsedExpense> {
   const candidates = parseCandidates(config);
   const perCandidateMs = config.timeoutMs / candidates.length;
-  const prompt = buildParsePrompt(input.mode, input.text, input.allowedCategories);
+  const prompt = buildParsePrompt(input.mode, input.text, input.allowedCategories, input.reference);
   const errors: unknown[] = [];
 
   for (const candidate of candidates) {
@@ -78,6 +80,7 @@ export async function parseWithFallback(config: AppConfig['ai'], input: ParseInp
         model: candidate.model,
         allowedCategories: input.allowedCategories,
         categoryOptions: input.categoryOptions,
+        notAfterDate: input.reference?.date,
       });
       log.info('ai_parse_ok', { mode: input.mode, model: candidate.model, elapsedMs: Date.now() - started, confidence: parsed.confidence });
       return parsed;

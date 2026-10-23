@@ -40,6 +40,7 @@ import { readStoredAuthSession } from "@/lib/auth/authStorage";
 import { clearAppDataMmkv } from "@/lib/userDataWipe";
 import { subscribeUserTransitionWipe } from "@/lib/userTransitionWipe";
 import { getDeviceIanaTimezone } from "@/utils/deviceTimezone";
+import { useConnectivityStore } from "@/stores/connectivityStore";
 import { reportError } from "@/lib/reportError";
 
 /** Sync MMKV → React Query (main cache blob + notifications). Runs once at launch. */
@@ -128,7 +129,10 @@ export function subscribeQueryClientLifecycle(
   });
   onlineManager.setEventListener((setOnline) =>
     NetInfo.addEventListener((state) => {
-      setOnline(state.isConnected !== false);
+      const online = state.isConnected !== false;
+      setOnline(online);
+      // onlineManager has no subscribe in query-core 5.101: the UI and the outbox read this store.
+      useConnectivityStore.getState().setOnline(online);
     }),
   );
   return () => appStateSub.remove();

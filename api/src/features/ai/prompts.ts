@@ -19,6 +19,22 @@ const DATE_RULES =
   '- Date formats accepted: YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, DD Mon YYYY (e.g. 23-Feb-2025), ' +
   'Mon DD YYYY, YYYY/MM/DD. Always output YYYY-MM-DD. If ambiguous or unreadable → null.\n';
 
+/** The capture's calendar date (`YYYY-MM-DD`) and weekday name in the user's timezone. */
+export interface DateReference {
+  date: string;
+  weekday: string;
+}
+
+/** Relative dates resolve against the capture day, not the day the (possibly queued) job happens to run. */
+function referenceRules(reference: DateReference | undefined): string {
+  if (!reference) return '';
+  return (
+    `- Reference date (the day this was captured): ${reference.date} (${reference.weekday}). ` +
+    "Resolve relative dates ('today', 'yesterday', 'last Monday') against it. " +
+    'Never return a date after the reference date.\n'
+  );
+}
+
 const TYPE_RULES =
   '- type=debit: money LEFT your account (purchase, withdrawal, payment, transfer out).\n' +
   '- type=credit: money ARRIVED in your account (refund, salary, incoming transfer).\n' +
@@ -53,13 +69,18 @@ function categoryBlock(allowed: readonly string[] | null | undefined): string {
 
 const orNa = (text: string | null | undefined) => text?.trim() || 'N/A';
 
-export function buildReceiptParsePrompt(ocrText: string | null | undefined, allowedCategories?: readonly string[] | null): string {
+export function buildReceiptParsePrompt(
+  ocrText: string | null | undefined,
+  allowedCategories?: readonly string[] | null,
+  reference?: DateReference,
+): string {
   return (
     'Extract transaction from receipt text (OCR below). Return ONLY valid JSON, no markdown.\n' +
     `Schema: ${SCHEMA}\n` +
     'Rules:\n' +
     TYPE_RULES +
     DATE_RULES +
+    referenceRules(reference) +
     COUNTERPARTY_RULES +
     categoryBlock(allowedCategories) +
     NOTE_RULES +
@@ -73,18 +94,23 @@ export function buildReceiptParsePrompt(ocrText: string | null | undefined, allo
   );
 }
 
-export function buildVoiceParsePrompt(transcript: string | null | undefined, allowedCategories?: readonly string[] | null): string {
+export function buildVoiceParsePrompt(
+  transcript: string | null | undefined,
+  allowedCategories?: readonly string[] | null,
+  reference?: DateReference,
+): string {
   return (
     'Extract transaction from voice transcript below. Return ONLY valid JSON, no markdown.\n' +
     `Schema: ${SCHEMA}\n` +
     'Rules:\n' +
     TYPE_RULES +
     DATE_RULES +
+    referenceRules(reference) +
     COUNTERPARTY_RULES +
     categoryBlock(allowedCategories) +
     NOTE_RULES +
     "- Infer intent from natural speech (e.g. 'I spent 200 on lunch' → debit, food).\n" +
-    "- If speaker says 'today'/'yesterday' and no date context → null.\n" +
+    (reference ? '' : "- If speaker says 'today'/'yesterday' and no date context → null.\n") +
     '- Use null for unknown fields. Never invent values.\n' +
     'Voice transcript:\n---\n' +
     orNa(transcript) +
@@ -92,9 +118,9 @@ export function buildVoiceParsePrompt(transcript: string | null | undefined, all
   );
 }
 
-export function buildParsePrompt(mode: ParseMode, text: string, allowedCategories: readonly string[]): string {
-  if (mode === 'receipt') return buildReceiptParsePrompt(text, allowedCategories);
-  return buildVoiceParsePrompt(text, allowedCategories);
+export function buildParsePrompt(mode: ParseMode, text: string, allowedCategories: readonly string[], reference?: DateReference): string {
+  if (mode === 'receipt') return buildReceiptParsePrompt(text, allowedCategories, reference);
+  return buildVoiceParsePrompt(text, allowedCategories, reference);
 }
 
 /** Vision OCR prompt (plain text out, no JSON). */

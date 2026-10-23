@@ -110,6 +110,47 @@ describe('processIngestMessage: success', () => {
     expect(await result()).toEqual({ transaction_id: TX });
   });
 
+  describe('captured_at (offline captures)', () => {
+    const CAPTURED = '2026-10-10T20:30:00.000Z'; // 2026-10-11 02:00 in Kolkata, a Sunday
+    const prompt = () => String((stub.last('POST', '/chat/completions').body as { messages: { content: string }[] }).messages[0]?.content);
+
+    it('uses the stored capture time when the model finds no date, and tells the parser the capture\'s local date', async () => {
+      await seedFood();
+      await seedPending({ payload: mediaPayload({ captured_at: CAPTURED }) });
+      stubDeepSeek(parsedSms({ date: null }));
+      const m = msg();
+      await processIngestMessage(m, deps());
+      expect(m.acked).toBe(true);
+      expect((await transactions())[0]?.['transaction_at']).toBe(CAPTURED);
+      expect(prompt()).toContain('Reference date (the day this was captured): 2026-10-11 (Sunday).');
+    });
+
+    it('a model date after the capture day is dropped; an earlier one is kept', async () => {
+      await seedFood();
+      await seedPending({ payload: mediaPayload({ captured_at: CAPTURED }) });
+      stubDeepSeek(parsedSms({ date: '2026-10-12' }));
+      await processIngestMessage(msg(), deps());
+      expect((await transactions())[0]?.['transaction_at']).toBe(CAPTURED);
+    });
+
+    it('a model date on or before the capture day is kept for receipts', async () => {
+      await seedFood();
+      await seedPending({ payload: mediaPayload({ captured_at: CAPTURED }) });
+      stubDeepSeek(parsedSms({ date: '2026-10-09' }));
+      await processIngestMessage(msg(), deps());
+      expect((await transactions())[0]?.['transaction_at']).toBe('2026-10-09T00:00:00.000Z');
+    });
+
+    it('a jobs without captured_at (queued before the field existed) falls back to now', async () => {
+      await seedFood();
+      await seedPending();
+      stubDeepSeek(parsedSms({ date: null }));
+      await processIngestMessage(msg(), deps());
+      expect(Date.now() - Date.parse(String((await transactions())[0]?.['transaction_at']))).toBeLessThan(60_000);
+      expect(prompt()).toContain('Reference date (the day this was captured):');
+    });
+  });
+
   it('a debit still completes when the follow-up notifications fail', async () => {
     await seedFood();
     await seedPending();

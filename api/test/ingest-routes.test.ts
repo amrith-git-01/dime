@@ -55,6 +55,65 @@ describe('auth and validation', () => {
     expect(await storedKeys()).toEqual([]);
   });
 
+  it('captured_at: absent uses the request time; a recent or queued-offline value is stored as given', async () => {
+    const before = Date.now();
+    const queue = new FakeQueue();
+    await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG), env: ingestEnv(queue) });
+    const stamped = Date.parse(String((await jobs())[0]?.payload['captured_at']));
+    expect(stamped).toBeGreaterThanOrEqual(before);
+    expect(stamped).toBeLessThanOrEqual(Date.now());
+
+    const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const res = await call(`/api/v1/transactions/voice?${TZ}&captured_at=${encodeURIComponent(threeDaysAgo)}`, { method: 'POST', body: uploadForm(M4A), env: ingestEnv(queue) });
+    expect(res.status).toBe(202);
+    expect((await jobs())[1]?.payload['captured_at']).toBe(threeDaysAgo);
+  });
+
+  it('captured_at: 400 when more than 5 minutes ahead or older than 30 days, 422 when malformed; nothing is stored', async () => {
+    const at = (ms: number) => encodeURIComponent(new Date(Date.now() + ms).toISOString());
+    const post = (path: string, qs: string) => call(`/api/v1/transactions/${path}?${TZ}&captured_at=${qs}`, { method: 'POST', body: uploadForm(path === 'voice' ? M4A : JPEG), env: ingestEnv(new FakeQueue()) });
+    for (const path of ['receipt', 'voice']) {
+      expect((await post(path, at(10 * 60_000))).status, `${path} future`).toBe(400);
+      expect((await post(path, at(-31 * 86_400_000))).status, `${path} old`).toBe(400);
+      expect((await post(path, 'not-a-date')).status, `${path} malformed`).toBe(422);
+      expect((await post(path, at(60_000))).status, `${path} within the skew allowance`).toBe(202);
+    }
+    expect(await jobs()).toHaveLength(2);
+    expect(await storedKeys()).toHaveLength(2);
+  });
+
+  it('captured_at: the 400 carries a stable machine-readable code next to the detail', async () => {
+    const at = (ms: number) => encodeURIComponent(new Date(Date.now() + ms).toISOString());
+    const post = (qs: string) => call(`/api/v1/transactions/voice?${TZ}&captured_at=${qs}`, { method: 'POST', body: uploadForm(M4A), env: ingestEnv(new FakeQueue()) });
+    expect(await (await post(at(10 * 60_000))).json()).toEqual({ detail: 'captured_at cannot be in the future.', code: 'captured_at_future' });
+    expect(await (await post(at(-31 * 86_400_000))).json()).toEqual({ detail: 'captured_at is too old (max 30 days).', code: 'captured_at_too_old' });
+  });
+
+  it('captured_at: a replay of an upload already accepted is answered even when captured_at is now too old or ahead', async () => {
+    const jobId = await seedJob({ kind: 'receipt', idempotency_key: KEY });
+    const voiceJobId = await seedJob({ kind: 'voice', idempotency_key: '6d1f8e0a-4c1b-4b7e-9a55-0c1d2e3f4a5c' });
+    const queue = new FakeQueue();
+    const old = encodeURIComponent(new Date(Date.now() - 40 * 86_400_000).toISOString());
+    const ahead = encodeURIComponent(new Date(Date.now() + 3_600_000).toISOString());
+    const receipt = await call(`/api/v1/transactions/receipt?${TZ}&captured_at=${old}`, {
+      method: 'POST',
+      body: uploadForm(JPEG),
+      headers: { 'Idempotency-Key': KEY },
+      env: ingestEnv(queue),
+    });
+    expect(receipt.status).toBe(202);
+    expect(await receipt.json()).toEqual({ accepted: true, job_id: jobId });
+    const voice = await call(`/api/v1/transactions/voice?${TZ}&captured_at=${ahead}`, {
+      method: 'POST',
+      body: uploadForm(M4A),
+      headers: { 'Idempotency-Key': '6d1f8e0a-4c1b-4b7e-9a55-0c1d2e3f4a5c' },
+      env: ingestEnv(queue),
+    });
+    expect(voice.status).toBe(202);
+    expect(await voice.json()).toEqual({ accepted: true, job_id: voiceJobId });
+    expect(await storedKeys()).toEqual([]);
+  });
+
   it('404 for the removed SMS endpoint', async () => {
     expect((await call(`/api/v1/transactions/sms?${TZ}`, { method: 'POST', json: { messages: [] } })).status).toBe(404);
   });
@@ -94,7 +153,12 @@ describe('POST /transactions/receipt', () => {
 
     expect(job).toMatchObject({ user_id: USER_ID, kind: 'receipt', status: 'pending', attempts: 0, idempotency_key: null });
     const payload = job?.payload as Record<string, string>;
-    expect(payload).toEqual({ object_path: expect.stringMatching(/^receipts\//) as string, mime_type: 'image/jpeg', timezone: 'Asia/Kolkata' });
+    expect(payload).toEqual({
+      object_path: expect.stringMatching(/^receipts\//) as string,
+      mime_type: 'image/jpeg',
+      timezone: 'Asia/Kolkata',
+      captured_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as string,
+    });
     expect(key).toBe(payload['object_path']);
     expect(queue.sent).toEqual([{ job_id: job?.id, kind: 'receipt' }]);
   });

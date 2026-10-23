@@ -106,11 +106,16 @@ export { TX_PAGE_LIMIT };
 
 export type UpdateTransactionBody = Omit<CreateTransactionBody, "detected_via">;
 
+/** The server answers with the full saved row (fresh signed media URLs included). */
 export async function updateTransaction(
   id: string,
   body: UpdateTransactionBody,
-): Promise<void> {
-  await dimeApi.patch(`/api/v1/transactions/${id}`, body);
+): Promise<TransactionRow | undefined> {
+  const { data } = await dimeApi.patch<TransactionRow | undefined>(
+    `/api/v1/transactions/${id}`,
+    body,
+  );
+  return data && typeof data.id === "string" ? data : undefined;
 }
 
 export async function deleteTransaction(
