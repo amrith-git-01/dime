@@ -7,7 +7,6 @@ import { fontFamilies } from "@/constants/fonts";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   CompareCashflowSection,
-  ComparePaceSection,
   ComparePayeeSection,
   CompareSnapshotCard,
   CompareSummarySection,
@@ -77,17 +76,6 @@ function InsightsMonthCompareContent() {
         leftFailed={monthA.isError}
         rightFailed={monthB.isError}
         spentDelta={spentDelta}
-      />
-
-      <ComparePaceSection
-        leftLabel={monthA.label}
-        rightLabel={monthB.label}
-        leftMetrics={monthA.burnRateMetrics}
-        rightMetrics={monthB.burnRateMetrics}
-        leftLoading={monthA.chartLoading}
-        rightLoading={monthB.chartLoading}
-        leftFailed={monthA.isError}
-        rightFailed={monthB.isError}
       />
 
       <CompareCashflowSection

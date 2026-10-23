@@ -134,6 +134,7 @@ export function useTransactionsListScreenModel() {
       flatRows,
       resolvePayeeFilterId(params),
       params.payeeKeysTop,
+      params.direction,
     );
   }, [flatRows, params]);
 
@@ -237,15 +238,15 @@ export function useTransactionsListScreenModel() {
   const isEmpty =
     !isPending && !isError && transactionCount === 0 && !showLoadingMore;
 
-  const { items: listItems, headerIndices: stickyHeaderIndices } = useMemo(
+  const listItems = useMemo(
     () => flattenTransactionListSections(listSections, sectionNetTotals),
     [listSections, sectionNetTotals],
   );
 
   return {
     listItems,
-    stickyHeaderIndices,
     filter: params.filter,
+    direction: params.filter === "payee" ? (params.direction ?? "debit") : "debit",
     usesRange,
     isEmpty,
     isError,

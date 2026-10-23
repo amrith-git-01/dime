@@ -403,7 +403,7 @@ describe('insights rollups', () => {
     expect(result.reduce((sum, r) => sum + r.share, 0)).toBeLessThan(1.01);
   });
 
-  it('income keeps the top five sources; no spend or income when the month total is zero', () => {
+  it('income lists sources by amount; no spend or income when the month total is zero', () => {
     const rows: PayeeRow[] = [
       { type: 'debit', payee_key: 'swiggy india', display_name: 'Swiggy India', total_cents: 1500, count: 2 },
       { type: 'debit', payee_key: 'unknown', display_name: 'Unknown', total_cents: 700, count: 1 },
@@ -413,6 +413,36 @@ describe('insights rollups', () => {
       { payee_key: 'boss', display_name: 'Boss', credit_total: '99.00', share: 1, transaction_count: 1 },
     ]);
     expect(rollUpSpend(rows, 0)).toEqual([]);
+  });
+
+  it('income with Other: top four payers plus an Other bucket, like spend; the default keeps the top five', () => {
+    const rows: PayeeRow[] = Array.from({ length: 7 }, (_, i) => ({
+      type: 'credit',
+      payee_key: `payer-${i}`,
+      display_name: `Payer ${i}`,
+      total_cents: (100 - i) * 100,
+      count: 1 + i,
+    }));
+    const total = rows.reduce((sum, r) => sum + r.total_cents, 0);
+
+    const plain = rollUpIncome(rows, total);
+    expect(plain.map((r) => r.payee_key)).toEqual(['payer-0', 'payer-1', 'payer-2', 'payer-3', 'payer-4']);
+
+    const withOther = rollUpIncome(rows, total, { withOther: true });
+    expect(withOther.map((r) => r.payee_key)).toEqual(['payer-0', 'payer-1', 'payer-2', 'payer-3', '__other__']);
+    expect(withOther.at(-1)).toEqual({
+      payee_key: '__other__',
+      display_name: 'Other',
+      credit_total: '285.00', // payers 4, 5 and 6: 96 + 95 + 94
+      share: share(9600 + 9500 + 9400, total),
+      transaction_count: 5 + 6 + 7,
+    });
+    const shares = withOther.reduce((sum, r) => sum + r.share, 0);
+    expect(shares).toBeGreaterThan(0.99);
+    expect(shares).toBeLessThan(1.01);
+
+    // No Other row when four payers or fewer exist.
+    expect(rollUpIncome(rows.slice(0, 4), 39400, { withOther: true }).map((r) => r.payee_key)).toEqual(['payer-0', 'payer-1', 'payer-2', 'payer-3']);
   });
 
   it('share rounds half-even to four decimals', () => {

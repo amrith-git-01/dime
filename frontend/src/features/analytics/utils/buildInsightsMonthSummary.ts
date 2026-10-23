@@ -10,8 +10,6 @@ import {
 export type InsightsSummaryExtras = {
   /** Fixed income still to come this month (rupees). */
   expectedIncome?: number;
-  /** Projected total spend for the month (rupees); null when unknown. */
-  projectedSpend?: number | null;
 };
 
 const num = (raw: string | undefined): number => {
@@ -66,14 +64,6 @@ export function buildInsightsMonthSummary(
   const fixedSpent = Math.min(num(data.fixed_debit_total), spentMonthNum);
   const flexibleSpent = Math.max(0, spentMonthNum - fixedSpent);
   const expectedIncome = !isPast ? Math.max(0, extras.expectedIncome ?? 0) : 0;
-  const projectedSpend = !isPast ? (extras.projectedSpend ?? null) : null;
-  const hasProjectedNet =
-    projectedSpend != null && (expectedIncome > 0 || hasIncome);
-  const projectedNetValue = hasProjectedNet
-    ? (Number.isFinite(incomeNum) ? incomeNum : 0) +
-      expectedIncome -
-      projectedSpend
-    : 0;
 
   return {
     transactionCount: data.transaction_count,
@@ -106,9 +96,5 @@ export function buildInsightsMonthSummary(
     flexibleDisplay: formatInrCompact(flexibleSpent),
     expectedIncomeDisplay:
       expectedIncome > 0 ? formatInrCompact(expectedIncome) : null,
-    projectedNetDisplay: hasProjectedNet
-      ? formatNetDisplay(projectedNetValue)
-      : null,
-    projectedNetValue,
   };
 }

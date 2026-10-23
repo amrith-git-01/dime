@@ -8,11 +8,6 @@ import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsigh
 import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import { formatSpentDelta } from "@/features/analytics/utils/compareMonths";
-import {
-  computeBurnRateMetrics,
-  type InsightsBurnRateMetrics,
-} from "@/features/analytics/utils/computeBurnRateMetrics";
-import { buildEmptyBurnRateMetrics } from "@/features/analytics/utils/insightsEmptyState";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import type { MainStackParamList } from "@/navigation/types";
 
@@ -58,39 +53,6 @@ function useCompareMonthSide(
     [query.data?.daily_cashflow],
   );
 
-  const burnRateMetrics = useMemo((): InsightsBurnRateMetrics | null => {
-    if (chartLoading) {
-      return null;
-    }
-    if (query.isError) {
-      return buildEmptyBurnRateMetrics(
-        hasMonthlyBudget,
-        hasMonthlyBudget ? monthlyBudgetAmount : null,
-      );
-    }
-    const computed = computeBurnRateMetrics(
-      dailyCashflow,
-      hasMonthlyBudget ? monthlyBudgetAmount : null,
-      year,
-      monthIndex0,
-    );
-    return (
-      computed ??
-      buildEmptyBurnRateMetrics(
-        hasMonthlyBudget,
-        hasMonthlyBudget ? monthlyBudgetAmount : null,
-      )
-    );
-  }, [
-    chartLoading,
-    dailyCashflow,
-    hasMonthlyBudget,
-    monthlyBudgetAmount,
-    monthIndex0,
-    query.isError,
-    year,
-  ]);
-
   return {
     label,
     year,
@@ -100,7 +62,6 @@ function useCompareMonthSide(
     summaryLoading,
     chartLoading,
     summary,
-    burnRateMetrics,
     dailyCashflow,
     counterpartySpend: query.data?.counterparty_spend ?? [],
     rawSummary: query.data?.summary,

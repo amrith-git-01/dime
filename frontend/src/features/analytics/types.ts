@@ -38,7 +38,7 @@ export type CounterpartyIncomeRow = {
 export type MonthInsights = {
   year: number;
   month: number;
-  /** Today in the request timezone (`YYYY-MM-DD`): pace maths uses the server's day, not the device clock. */
+  /** Today in the request timezone (`YYYY-MM-DD`): the server's day, not the device clock, decides whether a month is past. */
   today?: string;
   summary: InsightsSummary;
   daily_cashflow: DailyCashflowRow[];

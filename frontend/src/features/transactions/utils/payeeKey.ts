@@ -29,15 +29,19 @@ export function resolvePayeeFilterId(input: {
   return id ?? "";
 }
 
+/** `debit` lists what was paid to a payee ("Who you paid"); `credit` what a payer sent ("Who paid you"). */
+export type PayeeDirection = "debit" | "credit";
+
 export function filterTransactionsByPayee(
   transactions: TransactionRow[],
   payeeKey: string,
   topPayeeKeys: string[] = [],
+  direction: PayeeDirection = "debit",
 ): TransactionRow[] {
-  const debits = transactions.filter((tx) => tx.type === "debit");
+  const sameType = transactions.filter((tx) => tx.type === direction);
   if (payeeKey === "__other__") {
     const exclude = new Set(topPayeeKeys);
-    return debits.filter((tx) => !exclude.has(transactionPayeeKey(tx)));
+    return sameType.filter((tx) => !exclude.has(transactionPayeeKey(tx)));
   }
-  return debits.filter((tx) => transactionPayeeKey(tx) === payeeKey);
+  return sameType.filter((tx) => transactionPayeeKey(tx) === payeeKey);
 }

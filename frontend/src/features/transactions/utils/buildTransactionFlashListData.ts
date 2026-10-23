@@ -197,22 +197,14 @@ export type TransactionListItem =
   | TransactionListHeaderItem
   | TransactionListRowItem;
 
-export type FlattenedTransactionList = {
-  items: TransactionListItem[];
-  /** Indices of `items` that are day headers (sticky). */
-  headerIndices: number[];
-};
-
 /** Flattens day sections into FlashList rows with the day header as its own item. */
 export function flattenTransactionListSections(
   sections: TransactionListSection[],
   netTotals: Record<string, number>,
-): FlattenedTransactionList {
+): TransactionListItem[] {
   const items: TransactionListItem[] = [];
-  const headerIndices: number[] = [];
 
   sections.forEach((section) => {
-    headerIndices.push(items.length);
     items.push({
       kind: "header",
       id: `header:${section.key}`,
@@ -231,5 +223,5 @@ export function flattenTransactionListSections(
     });
   });
 
-  return { items, headerIndices };
+  return items;
 }

@@ -86,6 +86,7 @@ export function toTransactionsListParams(
       payeeKey: payeeId,
       payeeDisplayName: params.payeeDisplayName,
       payeeKeysTop: params.payeeKeysTop.map(String),
+      ...(params.direction === "credit" ? { direction: "credit" as const } : {}),
       ...(range ?? {}),
     };
   }

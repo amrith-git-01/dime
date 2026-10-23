@@ -60,7 +60,7 @@ const LegendRow = memo(function LegendRow({ slice, onPress }: LegendRowProps) {
         </Text>
         <Text style={styles.meta}>
           {formatPayeeShare(slice.share)} ·{" "}
-          {formatInrCompact(slice.debit_total)}
+          {formatInrCompact(slice.amount)}
         </Text>
       </View>
     </View>

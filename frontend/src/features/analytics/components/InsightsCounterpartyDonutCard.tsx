@@ -23,10 +23,10 @@ import {
 } from "@/features/analytics/constants/counterpartyDonut";
 import { useTheme } from "@/theme";
 import { COUNTERPARTY_DONUT_OTHER_KEY } from "@/features/analytics/constants/counterpartyDonutColors";
-import type { CounterpartySpendRow } from "@/features/analytics/types";
 import {
   buildCounterpartyDonutData,
   type CounterpartyDonutDatum,
+  type CounterpartyRow,
 } from "@/features/analytics/utils/buildCounterpartyDonutData";
 import { formatPayeeShare } from "@/features/analytics/utils/formatPayeeShare";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
@@ -44,8 +44,34 @@ import { PayeeDonutPressable } from "./PayeeDonutPressable";
 const CONTENT_MIN_HEIGHT = 240;
 const TOOLTIP_WIDTH = 168;
 
+/** The two donuts: where the money went, and where it came from. */
+export type CounterpartyDonutVariant = "spend" | "income";
+
+const VARIANT_COPY = {
+  spend: {
+    kicker: "WHO YOU PAID",
+    subtitle: "Debit spending by payee this month · Excludes recurring costs",
+    amountLabel: "Spent",
+    amountTone: "debit",
+    // Each donut keeps its own reveal identity (a module-level Set remembers what has played).
+    identityPrefix: "donut",
+    empty: emptyStateCopy.analyticsCounterparty,
+    otherActionLabel: "View other payees",
+  },
+  income: {
+    kicker: "WHO PAID YOU",
+    subtitle: "Income by payer this month",
+    amountLabel: "Received",
+    amountTone: "credit",
+    identityPrefix: "income-donut",
+    empty: emptyStateCopy.analyticsIncomeSources,
+    otherActionLabel: "View other payers",
+  },
+} as const;
+
 export type InsightsCounterpartyDonutCardProps = {
-  counterpartySpend: CounterpartySpendRow[];
+  variant?: CounterpartyDonutVariant;
+  rows: CounterpartyRow[];
   chartYear: number;
   chartMonthIndex0: number;
   chartsDataSettled: boolean;
@@ -62,13 +88,15 @@ type PayeeTooltipState = {
 
 function buildPayeeTooltipRows(
   slice: CounterpartyDonutDatum,
+  variant: CounterpartyDonutVariant,
 ): ChartPressTooltipRow[] {
+  const copy = VARIANT_COPY[variant];
   return [
     { label: "Share", value: formatPayeeShare(slice.share) },
     {
-      label: "Spent",
-      value: formatInrCompact(slice.debit_total),
-      tone: "debit",
+      label: copy.amountLabel,
+      value: formatInrCompact(slice.amount),
+      tone: copy.amountTone,
     },
     {
       label: "Transactions",
@@ -77,19 +105,19 @@ function buildPayeeTooltipRows(
   ];
 }
 
-const EmptyDonutLayout = memo(function EmptyDonutLayout() {
-  return (
-    <EmptyState
-      layout="inset"
-      headline={emptyStateCopy.analyticsCounterparty.headline}
-      subtext={emptyStateCopy.analyticsCounterparty.subtext}
-    />
-  );
+const EmptyDonutLayout = memo(function EmptyDonutLayout({
+  variant,
+}: {
+  variant: CounterpartyDonutVariant;
+}) {
+  const { headline, subtext } = VARIANT_COPY[variant].empty;
+  return <EmptyState layout="inset" headline={headline} subtext={subtext} />;
 });
 
 export const InsightsCounterpartyDonutCard = memo(
   function InsightsCounterpartyDonutCard({
-    counterpartySpend,
+    variant = "spend",
+    rows,
     chartYear,
     chartMonthIndex0,
     chartsDataSettled,
@@ -98,17 +126,18 @@ export const InsightsCounterpartyDonutCard = memo(
     onViewPayeePress,
   }: InsightsCounterpartyDonutCardProps) {
     const { colors } = useTheme();
+    const copy = VARIANT_COPY[variant];
     const chartData = useMemo(
-      () => buildCounterpartyDonutData(counterpartySpend, colors.donut),
-      [counterpartySpend, colors.donut],
+      () => buildCounterpartyDonutData(rows, colors.donut),
+      [rows, colors.donut],
     );
-    const hasSpend = chartData.length > 0;
+    const hasRows = chartData.length > 0;
     const { containerRef, onChartLayout, isFullyVisible } =
       useChartInViewport("center");
 
     const donutEntryProgress = usePieClockwiseEntry({
-      identity: `donut-${chartYear}-${chartMonthIndex0}`,
-      enabled: chartsDataSettled && !chartLoading && hasSpend,
+      identity: `${copy.identityPrefix}-${chartYear}-${chartMonthIndex0}`,
+      enabled: chartsDataSettled && !chartLoading && hasRows,
       isVisible: isFullyVisible,
       animateConfig: INSIGHTS_CHART_DONUT_ANIMATION,
     });
@@ -149,8 +178,8 @@ export const InsightsCounterpartyDonutCard = memo(
       if (!tooltipPayee) {
         return [];
       }
-      return buildPayeeTooltipRows(tooltipPayee.slice);
-    }, [tooltipPayee]);
+      return buildPayeeTooltipRows(tooltipPayee.slice, variant);
+    }, [tooltipPayee, variant]);
 
     const handleTooltipViewPress = useCallback(() => {
       const payee = tooltipPayee?.slice;
@@ -168,11 +197,11 @@ export const InsightsCounterpartyDonutCard = memo(
       return {
         label:
           tooltipPayee.slice.payee_key === COUNTERPARTY_DONUT_OTHER_KEY
-            ? "View other payees"
+            ? copy.otherActionLabel
             : "View transactions",
         onPress: handleTooltipViewPress,
       };
-    }, [handleTooltipViewPress, tooltipPayee]);
+    }, [copy.otherActionLabel, handleTooltipViewPress, tooltipPayee]);
 
     const handleLegendPress = useCallback(
       (slice: CounterpartyDonutDatum, anchor: ChartTooltipAnchor) => {
@@ -185,14 +214,14 @@ export const InsightsCounterpartyDonutCard = memo(
     return (
       <>
         <InsightsCard
-          kicker="WHO YOU PAID"
-          subtitle="Debit spending by payee this month · Excludes recurring costs"
+          kicker={copy.kicker}
+          subtitle={copy.subtitle}
         >
           <View style={styles.body}>
             {chartLoading ? (
               <InsightsDonutCardSkeleton />
-            ) : !hasSpend ? (
-              <EmptyDonutLayout />
+            ) : !hasRows ? (
+              <EmptyDonutLayout variant={variant} />
             ) : (
               <View
                 ref={containerRef}

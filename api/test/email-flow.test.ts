@@ -466,6 +466,14 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
     expect(sqls.length).toBeLessThanOrEqual(7);
   });
 
+  it('income sources stay the top five with no Other row (the donut on Insights adds one, the email does not)', async () => {
+    for (const [name, amount] of [['P1', '700'], ['P2', '600'], ['P3', '500'], ['P4', '400'], ['P5', '300'], ['P6', '200'], ['P7', '100']]) {
+      await seedTransaction({ amount, type: 'credit', counterparty_name: name, transaction_at: '2026-08-11T10:00:00.000Z' });
+    }
+    const payload = await buildDigestPayload(spyDb().db, input);
+    expect(payload.incomeSources.map((p) => p[0])).toEqual(['P1', 'P2', 'P3', 'P4', 'P5']);
+  });
+
   it('a nameless top expense is labelled "Expense"', async () => {
     await seedTransaction({ amount: '300.50', type: 'debit', counterparty_name: null, transaction_at: '2026-08-10T20:00:00.000Z' });
     const payload = await buildDigestPayload(testDb(), input);

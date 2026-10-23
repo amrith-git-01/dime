@@ -1,6 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
@@ -30,17 +29,9 @@ export type InsightsMonthSummary = {
   flexibleDisplay: string;
   /** Fixed income still to come this month; null when none (or a closed month). */
   expectedIncomeDisplay: string | null;
-  /** Credited + expected income - projected spend; null when it cannot be told. */
-  projectedNetDisplay: string | null;
-  projectedNetValue: number;
 };
 
 export type InsightsMonthSummaryCardProps = {
-  selectedMonth: string;
-  canGoPrevMonth: boolean;
-  canGoNextMonth: boolean;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
   summary: InsightsMonthSummary | null;
   summaryLoading: boolean;
   summaryFailed: boolean;
@@ -78,11 +69,6 @@ function budgetUsedProgress(summary: InsightsMonthSummary): number {
 }
 
 export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
-  selectedMonth,
-  canGoPrevMonth,
-  canGoNextMonth,
-  onPrevMonth,
-  onNextMonth,
   summary,
   summaryLoading,
   summaryFailed,
@@ -101,37 +87,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
       {/* Header row */}
       <View style={styles.headerRow}>
         <Text style={styles.kicker}>THIS MONTH</Text>
-        <View style={styles.navRow}>
-          <Pressable
-            onPress={onPrevMonth}
-            disabled={!canGoPrevMonth}
-            hitSlop={8}
-            style={styles.navBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Previous month"
-          >
-            <ChevronLeft
-              size={18}
-              color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
-              strokeWidth={2}
-            />
-          </Pressable>
-          <Text style={styles.monthLabel}>{selectedMonth}</Text>
-          <Pressable
-            onPress={onNextMonth}
-            disabled={!canGoNextMonth}
-            hitSlop={8}
-            style={styles.navBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Next month"
-          >
-            <ChevronRight
-              size={18}
-              color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </View>
       </View>
 
       {/* Hero amount */}
@@ -200,9 +155,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
             {summary.expectedIncomeDisplay ? (
               <Text style={styles.splitText}>
                 {`Expected income ${summary.expectedIncomeDisplay}`}
-                {summary.projectedNetDisplay
-                  ? ` · Projected net ${summary.projectedNetDisplay}`
-                  : ""}
               </Text>
             ) : null}
           </View>
@@ -238,9 +190,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     overflow: "hidden",
   },
   headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
@@ -252,22 +201,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
-  },
-  navRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  navBtn: {
-    padding: spacing.xs,
-  },
-  monthLabel: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.ink,
-    minWidth: 72,
-    textAlign: "center",
   },
   heroSection: {
     alignItems: "center",

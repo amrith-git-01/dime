@@ -43,18 +43,37 @@ export function rollUpSpend(debitRows: readonly PayeeRow[], monthDebitCents: num
   return result;
 }
 
-/** Top 5 income sources by amount. */
-export function rollUpIncome(creditRows: readonly PayeeRow[], monthCreditCents: number): CounterpartyIncomeRow[] {
+/**
+ * Income sources by amount. The email digest lists the top 5 and stops; the month insights donut
+ * ("Who paid you") passes `withOther` for the top 4 plus an "Other" bucket, like `rollUpSpend`.
+ */
+export function rollUpIncome(
+  creditRows: readonly PayeeRow[],
+  monthCreditCents: number,
+  opts: { withOther?: boolean } = {},
+): CounterpartyIncomeRow[] {
   if (monthCreditCents <= 0) return [];
-  return creditRows
-    .filter((r) => r.type === 'credit')
-    .sort(byTotalDesc)
-    .slice(0, TOP_INCOME_SOURCES)
-    .map((r) => ({
-      payee_key: r.payee_key,
-      display_name: r.display_name,
-      credit_total: formatCents(r.total_cents),
-      share: share(r.total_cents, monthCreditCents),
-      transaction_count: r.count,
-    }));
+  const ranked = creditRows.filter((r) => r.type === 'credit').sort(byTotalDesc);
+  const top = opts.withOther ? TOP_PAYEES : TOP_INCOME_SOURCES;
+  const result: CounterpartyIncomeRow[] = ranked.slice(0, top).map((r) => ({
+    payee_key: r.payee_key,
+    display_name: r.display_name,
+    credit_total: formatCents(r.total_cents),
+    share: share(r.total_cents, monthCreditCents),
+    transaction_count: r.count,
+  }));
+  if (opts.withOther) {
+    const rest = ranked.slice(top);
+    const otherTotal = rest.reduce((sum, r) => sum + r.total_cents, 0);
+    if (otherTotal > 0) {
+      result.push({
+        payee_key: OTHER_KEY,
+        display_name: 'Other',
+        credit_total: formatCents(otherTotal),
+        share: share(otherTotal, monthCreditCents),
+        transaction_count: rest.reduce((sum, r) => sum + r.count, 0),
+      });
+    }
+  }
+  return result;
 }
