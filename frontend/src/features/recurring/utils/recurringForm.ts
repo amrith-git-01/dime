@@ -13,7 +13,6 @@ import type {
   RecurringFormState,
   RecurringItem,
   RecurringKind,
-  RecurringPrefill,
   UpdateRecurringBody,
 } from "../types";
 
@@ -51,33 +50,6 @@ export function emptyRecurringForm(
     note: "",
     active: true,
     postCurrentPeriod: defaultPostCurrentPeriod(kind),
-  };
-}
-
-/** `form` with the caller's starting values laid over it (a name over the length limit is cut, bad values are ignored). */
-export function applyRecurringPrefill(
-  form: RecurringFormState,
-  prefill: RecurringPrefill | undefined,
-): RecurringFormState {
-  if (!prefill) {
-    return form;
-  }
-  const name = prefill.name?.trim().slice(0, MAX_NAME_LENGTH);
-  const paise = prefill.amount === undefined ? 0 : toPaise(prefill.amount);
-  const day = prefill.dayOfMonth;
-  return {
-    ...form,
-    ...(name ? { name } : {}),
-    ...(paise > 0
-      ? {
-          amountText:
-            paise % 100 === 0 ? String(paise / 100) : paiseToAmountString(paise),
-        }
-      : {}),
-    ...(day !== undefined && Number.isInteger(day) && day >= 1 && day <= 31
-      ? { dayOfMonthText: String(day) }
-      : {}),
-    ...(prefill.cadence ? { cadence: prefill.cadence } : {}),
   };
 }
 

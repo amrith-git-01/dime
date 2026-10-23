@@ -8,7 +8,6 @@ import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { budgetQueryKeys } from "@/features/budgets/queryKeys";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
-import { forecastQueryKeys } from "@/features/forecast/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { onboardingQueryKeys } from "@/features/onboarding/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
@@ -108,20 +107,6 @@ describe("shouldDehydrateQuery", () => {
       insightsQueryKeys.month(USER, 2026, 9, TZ),
     ];
     expect(persisted(kept)).toEqual(kept);
-  });
-
-  it("keeps the current month's forecast", () => {
-    const current = [forecastQueryKeys.month(USER, 2026, 10, TZ)];
-    expect(persisted(current)).toEqual(current);
-  });
-
-  it("drops any other month's forecast: last month has no future left to predict", () => {
-    expect(
-      persisted([
-        forecastQueryKeys.month(USER, 2026, 9, TZ),
-        forecastQueryKeys.month(USER, 2026, 11, TZ),
-      ]),
-    ).toEqual([]);
   });
 
   it("drops older months", () => {

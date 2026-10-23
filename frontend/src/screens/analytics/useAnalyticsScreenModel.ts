@@ -39,8 +39,6 @@ import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddAct
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import { toPaise } from "@/utils/paise";
 
-import { useAheadModel } from "./useAheadModel";
-
 type AnalyticsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Insights">,
   NativeStackNavigationProp<MainStackParamList>
@@ -118,14 +116,6 @@ export function useAnalyticsScreenModel() {
   );
   const topExpenses: TransactionRow[] = insightsData?.top_expenses ?? [];
 
-  // The current month looks ahead (forecast, coming up, watch); other months only look back.
-  const ahead = useAheadModel({
-    navigation,
-    year: selectedMonth.year,
-    monthIndex0: selectedMonth.monthIndex0,
-    knownTransactions: topExpenses,
-  });
-
   // The server's day drives the pace maths; the recurring month is "settled" once it loaded for THIS month
   // (or failed, in which case pace falls back to the plain straight line).
   const serverToday = useMemo(
@@ -185,8 +175,7 @@ export function useAnalyticsScreenModel() {
 
   const expectedIncome =
     toPaise(fixedMonth?.totals.fixed_income_upcoming) / 100;
-  // The forecast's middle figure replaces the straight-line pace once it has one.
-  const projectedSpend = ahead.projectedSpend ?? burnRateMetrics?.projected ?? null;
+  const projectedSpend = burnRateMetrics?.projected ?? null;
   const summary = useMemo((): InsightsMonthSummary | null => {
     if (summaryLoading || summaryFailed) return null;
     const isPast = isPastMonth(
@@ -299,9 +288,11 @@ export function useAnalyticsScreenModel() {
     summaryLoading,
     summaryFailed,
     hasMonthlyBudget,
-    ahead,
     dailyCashflow,
     chartLoading,
+    burnRateMetrics,
+    paceLoading,
+    burnRateToday: serverToday,
     fixedCostsMonth: fixedMonth,
     fixedCostsLoading: !recurringSettled,
     currentDay,

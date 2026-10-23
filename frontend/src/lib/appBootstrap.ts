@@ -19,7 +19,6 @@ import {
 } from "@/features/budgets/queryKeys";
 import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
-import { forecastQueryKeys } from "@/features/forecast/queryKeys";
 import { hydrateNotificationsFromMmkv } from "@/features/notifications/cache/syncNotificationsMmkv";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { fetchUserSettings } from "@/features/settings/api/settingsApi";
@@ -138,7 +137,6 @@ export function subscribeQueryClientLifecycle(
 function invalidateServerDrivenQueries(queryClient: QueryClient): void {
   for (const queryKey of [
     insightsQueryKeys.all,
-    forecastQueryKeys.all,
     notificationQueryKeys.all,
     budgetQueryKeys.all,
     categoryBudgetsQueryKeys.all,

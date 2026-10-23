@@ -57,12 +57,6 @@ export const SHADOWED_TABLES = [
   'brands_fts_content',
   'brands_fts_docsize',
   'brands_fts_config',
-  'engine_patterns',
-  'payee_patterns',
-  'txn_labels',
-  'prediction_feedback',
-  'forecast_snapshots',
-  'engine_usage',
 ] as const;
 
 const TABLE_NAMES: ReadonlySet<string> = new Set([...Object.keys(EXPOSED_TABLES), ...SHADOWED_TABLES]);

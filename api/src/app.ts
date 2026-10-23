@@ -21,8 +21,6 @@ import { onboardingRoutes } from './features/onboarding/routes';
 import { profileAvatarRoutes } from './features/profile-avatar/routes';
 import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
-import { predictionRoutes } from './features/engine/feedback-routes';
-import { forecastRoutes } from './features/engine/routes';
 import { recurringRoutes } from './features/recurring/routes';
 import { transactionRoutes } from './features/transactions/routes';
 import { updatesRoutes } from './features/updates/routes';
@@ -68,8 +66,6 @@ export function createApp() {
   api.route('/transactions', ingestRoutes); // receipt / voice capture (R3)
   api.route('/ingest', ingestJobRoutes); // capture job status (polled by the Android widget card)
   api.route('/recurring', recurringRoutes);
-  api.route('/forecast', forecastRoutes); // predictive engine: month-end range, safe to spend, coming up, watch
-  api.route('/predictions', predictionRoutes); // feedback on the engine's predictions (confirm / dismiss)
   api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);
   api.route('/agent', agentRoutes);

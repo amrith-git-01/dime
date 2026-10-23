@@ -16,7 +16,6 @@ export {
   isBudgetEmpty,
   isCategoryBudgetsEmpty,
   isDebitTotalsEmpty,
-  isForecastEmpty,
   isHomeOverviewEmpty,
   isInsightsDataEmpty,
   isMonthPagesEmpty,

@@ -1,5 +1,6 @@
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
@@ -35,6 +36,11 @@ export type InsightsMonthSummary = {
 };
 
 export type InsightsMonthSummaryCardProps = {
+  selectedMonth: string;
+  canGoPrevMonth: boolean;
+  canGoNextMonth: boolean;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
   summary: InsightsMonthSummary | null;
   summaryLoading: boolean;
   summaryFailed: boolean;
@@ -72,6 +78,11 @@ function budgetUsedProgress(summary: InsightsMonthSummary): number {
 }
 
 export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
+  selectedMonth,
+  canGoPrevMonth,
+  canGoNextMonth,
+  onPrevMonth,
+  onNextMonth,
   summary,
   summaryLoading,
   summaryFailed,
@@ -90,6 +101,37 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
       {/* Header row */}
       <View style={styles.headerRow}>
         <Text style={styles.kicker}>THIS MONTH</Text>
+        <View style={styles.navRow}>
+          <Pressable
+            onPress={onPrevMonth}
+            disabled={!canGoPrevMonth}
+            hitSlop={8}
+            style={styles.navBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
+            <ChevronLeft
+              size={18}
+              color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
+              strokeWidth={2}
+            />
+          </Pressable>
+          <Text style={styles.monthLabel}>{selectedMonth}</Text>
+          <Pressable
+            onPress={onNextMonth}
+            disabled={!canGoNextMonth}
+            hitSlop={8}
+            style={styles.navBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
+            <ChevronRight
+              size={18}
+              color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </View>
       </View>
 
       {/* Hero amount */}
@@ -210,6 +252,22 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     color: colors.inkSoft,
     textTransform: "uppercase",
     letterSpacing: 0.6,
+  },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  navBtn: {
+    padding: spacing.xs,
+  },
+  monthLabel: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.ink,
+    minWidth: 72,
+    textAlign: "center",
   },
   heroSection: {
     alignItems: "center",
