@@ -10,7 +10,6 @@ import { INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, WRONG_SCOPE, hasPgCode, isUnique
 import { formatMoney } from '../../core/decimal';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
-import { markEngineDirty } from '../engine/dirty';
 import { deleted, inserted, updated } from '../realtime/events';
 import type { ChangeEvent, Publish } from '../realtime/events';
 import { emit } from '../realtime/publish';
@@ -202,7 +201,6 @@ export async function deleteCategory(
     if (!target?.name || target.scope !== 'spend') throw new ValidationError('Target category not found.');
     const moved = await repo.reassignTransactions(db, { userId, fromCategoryId: categoryId, toCategoryId: reassignToCategoryId });
     events.push(...moved.map((row) => updated('transactions', row)));
-    if (moved.length > 0) await markEngineDirty(db, userId);
   }
   if (!(await repo.deleteCustom(db, userId, categoryId))) throw new NotFoundError(NOT_FOUND);
   events.push(deleted('categories', categoryId));

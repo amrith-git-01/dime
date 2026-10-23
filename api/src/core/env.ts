@@ -84,11 +84,6 @@ const configSchema = z.object({
   AGENT_DAILY_QUESTIONS: int(5),
   AGENT_MEMORY_SECRET: z.string().optional(),
 
-  // Predictive engine (features/engine/labeller.ts): one DeepSeek call per user per night, off unless enabled.
-  ENGINE_LLM_ENABLED: z.stringbool().default(false),
-  ENGINE_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(2_000_000),
-  ENGINE_MODEL: z.string().optional(),
-
   BREVO_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default('Dime <hello@localhost>'),
   EMAIL_UNSUBSCRIBE_SECRET: z.string().optional(),
@@ -143,14 +138,6 @@ export interface AppConfig {
     /** Questions (turns) one user may ask per UTC day. */
     dailyQuestions: number;
     memorySecret: string | undefined;
-  };
-  engine: {
-    /** Kill switch of the nightly DeepSeek labeller; off = the forecast uses its code templates only. */
-    llmEnabled: boolean;
-    baseUrl: string;
-    model: string;
-    /** Prompt + completion tokens the labeller may spend per UTC day, all users together. */
-    dailyTokenBudget: number;
   };
   email: {
     brevoApiKey: string | undefined;
@@ -214,12 +201,6 @@ function build(p: Parsed): AppConfig {
       dailyTokenBudget: p.AGENT_DAILY_TOKEN_BUDGET,
       dailyQuestions: p.AGENT_DAILY_QUESTIONS,
       memorySecret: p.AGENT_MEMORY_SECRET,
-    },
-    engine: {
-      llmEnabled: p.ENGINE_LLM_ENABLED,
-      baseUrl: deepseekVia(p, p.AGENT_BASE_URL),
-      model: p.ENGINE_MODEL?.trim() || p.AGENT_MODEL,
-      dailyTokenBudget: p.ENGINE_DAILY_TOKEN_BUDGET,
     },
     email: {
       brevoApiKey: p.BREVO_API_KEY,

@@ -40,12 +40,6 @@ AGENT_DAILY_QUESTIONS=5
 # HMAC key of the conversation-memory token (use `openssl rand -base64 32`). Without it follow-up memory is off.
 AGENT_MEMORY_SECRET=placeholder-long-random-string
 
-# --- Predictive engine labeller (nightly DeepSeek call per user; docs/PREDICTIVE-ENGINE-PLAN.md section 7) ---
-ENGINE_LLM_ENABLED=true
-# Tokens (prompt + completion) the labeller may use per UTC day across all users; beyond it the forecast uses its templates.
-ENGINE_DAILY_TOKEN_BUDGET=2000000
-# ENGINE_MODEL=deepseek-v4-flash   # defaults to AGENT_MODEL
-
 # --- Uploads and media ---
 MAX_RECEIPT_UPLOAD_BYTES=10485760
 MAX_VOICE_UPLOAD_BYTES=15728640

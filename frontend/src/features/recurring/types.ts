@@ -2,20 +2,6 @@ export type RecurringKind = "income" | "subscription";
 
 export type RecurringCadence = "monthly" | "yearly";
 
-/** Form fields a caller can start the add screen with (Insights "Track as recurring"). */
-export type RecurringPrefill = {
-  name?: string;
-  /** Rupees as a decimal string (`"119.00"`). */
-  amount?: string;
-  dayOfMonth?: number;
-  cadence?: RecurringCadence;
-  /**
-   * The Insights suggestion this item answers (a payee key). Once the item is created the app
-   * tells Dime the suggestion was right; leaving the editor leaves the suggestion in place.
-   */
-  feedbackPayeeKey?: string;
-};
-
 /** One row of `GET /api/v1/recurring`. Amounts are decimal strings. */
 export type RecurringItem = {
   id: string;

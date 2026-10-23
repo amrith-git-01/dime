@@ -3,7 +3,6 @@ import { Keyboard } from "react-native";
 
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import type { CategoryRow } from "@/features/categories/types";
-import { postPredictionFeedback } from "@/features/forecast/api/forecastApi";
 import { useToast } from "@/features/toast/useToast";
 import { isTourSampleId } from "@/features/tourPreview";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
@@ -14,11 +13,9 @@ import type {
   RecurringFormState,
   RecurringItem,
   RecurringKind,
-  RecurringPrefill,
 } from "../types";
 import { RECURRING_COPY } from "../utils/recurringDisplay";
 import {
-  applyRecurringPrefill,
   buildCreateBody,
   buildUpdateBody,
   DEFAULT_INCOME_CATEGORY_NAME,
@@ -42,8 +39,6 @@ export type UseRecurringSheetModelArgs = {
   kind: RecurringKind;
   /** The item being edited; omit to add a new one. */
   item?: RecurringItem;
-  /** Starting values for a new item (create only). */
-  prefill?: RecurringPrefill;
   onClose: () => void;
 };
 
@@ -51,7 +46,6 @@ export type UseRecurringSheetModelArgs = {
 export function useRecurringSheetModel({
   kind: initialKind,
   item,
-  prefill,
   onClose,
 }: UseRecurringSheetModelArgs) {
   const isEditing = item !== undefined;
@@ -81,11 +75,8 @@ export function useRecurringSheetModel({
     () =>
       item
         ? formFromItem(item)
-        : applyRecurringPrefill(
-            emptyRecurringForm(kind, new Date(), salaryCategoryId),
-            prefill,
-          ),
-    [salaryCategoryId, item, kind, prefill],
+        : emptyRecurringForm(kind, new Date(), salaryCategoryId),
+    [salaryCategoryId, item, kind],
   );
   const [patch, setPatch] = useState<Partial<RecurringFormState>>({});
   const form = useMemo(() => ({ ...base, ...patch }), [base, patch]);
@@ -176,14 +167,6 @@ export function useRecurringSheetModel({
           return;
         }
         await createMutation.mutateAsync(body);
-        // The item came from an Insights suggestion: only now has the user said yes to it.
-        if (prefill?.feedbackPayeeKey) {
-          postPredictionFeedback({
-            targetKind: "subscription_candidate",
-            targetId: prefill.feedbackPayeeKey,
-            verdict: "confirm",
-          }).catch(() => undefined);
-        }
         showToast({ variant: "success", message: copy.createdToast });
       }
       onClose();
@@ -198,7 +181,6 @@ export function useRecurringSheetModel({
     item,
     kind,
     onClose,
-    prefill?.feedbackPayeeKey,
     showToast,
     updateMutation,
   ]);

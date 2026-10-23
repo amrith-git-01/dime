@@ -10,7 +10,6 @@ import { existingBrandId, resolveBrandId } from '../brands/service';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
 import type { CategoryScope } from '../categories/schemas';
-import { markEngineDirty } from '../engine/dirty';
 import { emit } from '../realtime/publish';
 import { inserted, updated as changed } from '../realtime/events';
 import type { Publish } from '../realtime/events';
@@ -387,10 +386,7 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
     if (Object.keys(patch).length > 0) {
       log.info('transaction_dedupe_merge', { id: existing.id });
       const merged = await repo.updateForUser(ctx.db, ctx.userId, existing.id, patch);
-      if (merged) {
-        await markEngineDirty(ctx.db, ctx.userId);
-        await emit(ctx.publish, [changed('transactions', merged)]);
-      }
+      if (merged) await emit(ctx.publish, [changed('transactions', merged)]);
     } else {
       log.info('transaction_dedupe_skip', { id: existing.id });
     }
@@ -399,7 +395,6 @@ export async function createTransaction(ctx: TxContext, input: NewTransactionInp
 
   try {
     const stored = await repo.insertTransactionRow(ctx.db, row);
-    await markEngineDirty(ctx.db, ctx.userId);
     await emit(ctx.publish, [inserted('transactions', stored)]);
     return { kind: 'created', id: stored.id, categoryId, paymentHash };
   } catch (err) {
@@ -503,7 +498,6 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
     throw err;
   }
   if (!updated) throw new NotFoundError(NOT_FOUND);
-  await markEngineDirty(ctx.db, ctx.userId);
   await emit(ctx.publish, [changed('transactions', updated)]);
   return (await enrichRows(ctx, [updated]))[0] as TransactionResponse;
 }
@@ -511,7 +505,6 @@ export async function updateTransaction(ctx: TxContext, id: string, body: Transa
 export async function deleteTransaction(ctx: TxContext, id: string): Promise<void> {
   const deletedRow = await repo.softDeleteRow(ctx.db, ctx.userId, id);
   if (!deletedRow) throw new NotFoundError(NOT_FOUND);
-  await markEngineDirty(ctx.db, ctx.userId);
   // A soft delete reaches the app as an UPDATE with `deleted_at` set (what the app's handlers expect).
   await emit(ctx.publish, [changed('transactions', deletedRow)]);
 }

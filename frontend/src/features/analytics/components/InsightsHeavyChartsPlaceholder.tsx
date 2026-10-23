@@ -9,6 +9,7 @@ import {
   InsightsDonutCardSkeleton,
   InsightsTopExpensesSkeleton,
 } from "./InsightsAnalyticsSkeletons";
+import { InsightsBurnRateMetricCard } from "./InsightsBurnRateMetricCard";
 import { createThemedStyles } from "@/theme";
 
 /** Lightweight placeholders — no Victory/Skia mount. */
@@ -17,6 +18,12 @@ export const InsightsHeavyChartsPlaceholder = memo(
     const styles = useStyles();
     return (
       <>
+        <InsightsBurnRateMetricCard
+          metrics={null}
+          loading
+          year={new Date().getFullYear()}
+          monthIndex0={new Date().getMonth()}
+        />
         <TwoToneCard
           header={
             <View style={styles.header}>

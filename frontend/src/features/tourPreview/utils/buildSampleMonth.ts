@@ -22,8 +22,6 @@ import type {
 import type { BudgetGetResponse } from "@/features/budgets/api/budgetsApi";
 import type { CategoryBudgetItem } from "@/features/budgets/api/categoryBudgetsApi";
 import type { CategoryRow } from "@/features/categories/types";
-import type { ForecastResponse } from "@/features/forecast/types";
-import { buildSampleForecast } from "@/features/forecast/utils/buildSampleForecast";
 import type {
   RecurringItem,
   RecurringListResponse,
@@ -42,8 +40,6 @@ import type {
   TransactionRow,
   TransactionType,
 } from "@/features/transactions/types";
-
-import { formatInrCompact } from "@/utils/currency";
 
 import { tourSampleId } from "./sampleIds";
 
@@ -67,8 +63,6 @@ export type TourSampleMonth = {
   budget: BudgetGetResponse;
   categoryBudgets: CategoryBudgetItem[];
   insights: MonthInsights;
-  /** The Insights "Ahead" section (meaningful for the current month only). */
-  forecast: ForecastResponse;
 };
 
 export type BuildSampleMonthInput = {
@@ -681,47 +675,6 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
       .map((tx) => tx.row),
   };
 
-  const sampleCategory = (
-    category: SampleCategory,
-    budgetCents: number,
-    usualCents: number,
-    projectedCents: number,
-  ) => ({
-    id: category.id,
-    name: category.name,
-    iconName: category.icon_name,
-    color: category.color,
-    spentCents: debitByCategoryCents.get(category.id) ?? 0,
-    budgetCents,
-    usualCents,
-    projectedCents,
-  });
-  const forecast = buildSampleForecast({
-    today,
-    timezone: input.timezone,
-    idFor: (n) => tourSampleId(idBase + n),
-    spentCents: month.debit,
-    budgetCents: MONTHLY_BUDGET_CENTS,
-    bills: [
-      { name: "Broadband", cents: BROADBAND_CENTS, dueDay: BROADBAND_DUE_DAY },
-      { name: "Netflix", cents: NETFLIX_CENTS, dueDay: NETFLIX_DUE_DAY },
-    ],
-    incomes: [{ name: "Salary", cents: SALARY_CENTS, dueDay: 1 }],
-    categories: [
-      sampleCategory(categories.food, FOOD_BUDGET_CENTS, 6_200_00, 7_900_00),
-      sampleCategory(categories.shopping, SHOPPING_BUDGET_CENTS, 5_000_00, 5_400_00),
-      sampleCategory(categories.transport, TRANSPORT_BUDGET_CENTS, 3_600_00, 3_700_00),
-    ],
-    unusual: insights.top_expenses[0]
-      ? {
-          transactionId: insights.top_expenses[0].id,
-          merchant: insights.top_expenses[0].merchant,
-          cents: Math.round(Number(insights.top_expenses[0].amount) * 100),
-        }
-      : null,
-    formatRupees: (cents) => formatInrCompact(cents / 100),
-  });
-
   return {
     year,
     monthIndex0,
@@ -735,7 +688,6 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
     budget,
     categoryBudgets,
     insights,
-    forecast,
   };
 }
 

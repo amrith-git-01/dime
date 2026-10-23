@@ -1,7 +1,6 @@
 import type { MonthInsights } from "@/features/analytics/types";
 import type { BudgetGetResponse } from "@/features/budgets/api/budgetsApi";
 import type { CategoryBudgetItem } from "@/features/budgets/api/categoryBudgetsApi";
-import type { ForecastResponse } from "@/features/forecast/types";
 import type {
   RecurringListResponse,
   RecurringMonthResponse,
@@ -38,11 +37,6 @@ export function isMonthPagesEmpty(
 
 export function isInsightsDataEmpty(data: MonthInsights): boolean {
   return data.summary.transaction_count === 0;
-}
-
-/** No history and nothing spent: the forecast has nothing to say yet. */
-export function isForecastEmpty(data: ForecastResponse): boolean {
-  return data.historyDays === 0 && Number(data.landing.spentSoFar) === 0;
 }
 
 export function isRecurringListEmpty(data: RecurringListResponse): boolean {

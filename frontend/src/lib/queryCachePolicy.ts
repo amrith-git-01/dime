@@ -2,7 +2,6 @@ import type { Query, QueryKey } from "@tanstack/react-query";
 import type { PersistedClient } from "@tanstack/react-query-persist-client";
 
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
-import { forecastQueryKeys } from "@/features/forecast/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { onboardingQueryKeys } from "@/features/onboarding/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
@@ -21,7 +20,6 @@ const MEDIA_URL_FIELDS: ReadonlySet<string> = new Set([
 
 const TRANSACTIONS_ROOT = transactionsQueryKeys.all[0];
 const INSIGHTS_ROOT = insightsQueryKeys.all[0];
-const FORECAST_ROOT = forecastQueryKeys.all[0];
 
 /** Key layout `[root, kind, userId, year, month, ...]`, shared by month-scoped queries. */
 function monthOfKey(
@@ -31,23 +29,21 @@ function monthOfKey(
   const monthScoped =
     (root === TRANSACTIONS_ROOT &&
       (kind === "monthPages" || kind === "monthSummary")) ||
-    (root === INSIGHTS_ROOT && kind === "month") ||
-    (root === FORECAST_ROOT && kind === "month");
+    (root === INSIGHTS_ROOT && kind === "month");
   if (!monthScoped || typeof year !== "number" || typeof month !== "number") {
     return null;
   }
   return { year, month };
 }
 
-/** Only the current and previous calendar month (`monthsBack` 1, the default) are worth restoring offline. */
+/** Only the current and previous calendar month are worth restoring offline. */
 function isRecentMonth(
   { year, month }: { year: number; month: number },
   now: Date,
-  monthsBack: 0 | 1 = 1,
 ): boolean {
   const currentIndex = now.getFullYear() * 12 + now.getMonth();
   const index = year * 12 + (month - 1);
-  return index === currentIndex || (monthsBack === 1 && index === currentIndex - 1);
+  return index === currentIndex || index === currentIndex - 1;
 }
 
 /**
@@ -83,13 +79,7 @@ export function shouldDehydrateQuery(
     }
   }
   const month = monthOfKey(query.queryKey);
-  if (month === null) {
-    return true;
-  }
-  // A forecast looks ahead: last month's is history the Insights screen never asks for.
-  return root === FORECAST_ROOT
-    ? isRecentMonth(month, now, 0)
-    : isRecentMonth(month, now);
+  return month === null || isRecentMonth(month, now);
 }
 
 function isInfiniteData(

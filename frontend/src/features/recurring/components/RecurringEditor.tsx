@@ -17,12 +17,7 @@ import { SettingsToggleRow } from "@/features/settings/components";
 import { ManualAddAmountSection } from "@/features/transactions/components/bento";
 
 import { useRecurringSheetModel } from "../hooks/useRecurringSheetModel";
-import type {
-  RecurringCadence,
-  RecurringItem,
-  RecurringKind,
-  RecurringPrefill,
-} from "../types";
+import type { RecurringCadence, RecurringItem, RecurringKind } from "../types";
 import { postCurrentPeriodLabel } from "../utils/recurringDisplay";
 import { MONTH_NAMES } from "../utils/recurringForm";
 import { createThemedStyles } from "@/theme";
@@ -32,8 +27,6 @@ export type RecurringEditorProps = {
   kind: RecurringKind;
   /** Item to edit; omit to add a new one. */
   item?: RecurringItem;
-  /** Starting values for a new item; ignored when editing. */
-  prefill?: RecurringPrefill;
   /** Called after a save or delete (the screen goes back). */
   onDone: () => void;
 };
@@ -55,17 +48,11 @@ const noop = () => undefined;
 export const RecurringEditor = memo(function RecurringEditor({
   kind: initialKind,
   item,
-  prefill,
   onDone,
 }: RecurringEditorProps) {
   const styles = useStyles();
   const formTourTarget = useTourTarget(tourTargetIds.recurringEditorForm);
-  const model = useRecurringSheetModel({
-    kind: initialKind,
-    item,
-    prefill,
-    onClose: onDone,
-  });
+  const model = useRecurringSheetModel({ kind: initialKind, item, onClose: onDone });
   const { form, errors, update, copy, isEditing, kind } = model;
   const isYearly = form.cadence === "yearly";
   const showStatusCard = isEditing || model.showPostCurrentPeriod;

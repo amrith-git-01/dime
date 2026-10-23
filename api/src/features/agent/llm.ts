@@ -47,8 +47,6 @@ export interface LlmRequest {
   signal: AbortSignal;
   timeoutMs: number;
   maxTokens?: number;
-  /** `json_object` turns on DeepSeek's JSON mode (the prompt must still say "json"). Unset leaves the request as it was. */
-  responseFormat?: 'json_object';
   /** When set, the request streams and this receives every content delta. */
   onDelta?: (text: string) => void;
 }
@@ -203,7 +201,6 @@ export function createDeepSeekClient(options: { baseUrl: string; apiKey: string 
       ...(tools ? { tools, tool_choice: request.toolChoice ?? 'auto' } : {}),
       temperature: 0,
       max_tokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
-      ...(request.responseFormat ? { response_format: { type: request.responseFormat } } : {}),
       thinking: { type: 'disabled' },
       ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
     };
