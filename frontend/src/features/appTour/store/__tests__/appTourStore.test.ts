@@ -1,6 +1,10 @@
 import { createMMKV } from "react-native-mmkv";
 
+import { clearAppliedCardOrders, setAppliedCardOrder } from "@/features/cardLayout/appliedOrder";
+import { DEFAULT_CARD_ORDER } from "@/features/cardLayout/cardIds";
+import { DEFAULT_USER_SETTINGS } from "@/features/settings/types";
 import { useTourPreviewStore } from "@/features/tourPreview";
+import { writePersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
 import { emitTourEvent } from "@/lib/tour/tourEvents";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
@@ -11,6 +15,7 @@ import {
   findTourStepIndex,
   getTour,
   TOUR_ORDER,
+  TOURS,
 } from "../../constants/tourRegistry";
 import type { TourId } from "../../constants/tourTypes";
 import { isTourSeen, markTourSeen } from "../../utils/tourSeen";
@@ -52,6 +57,9 @@ function switchUser(next: string | undefined): void {
 }
 
 const store = () => useAppTourStore.getState();
+const TOURS_STEP_IDS = {
+  budgets: TOURS.budgets.steps.map((s) => s.id),
+};
 const celebration = () => useCelebrationStore.getState();
 
 const ADD_FAB = findTourStepIndex("firstExpense", "addFab");
@@ -103,6 +111,43 @@ describe("app tour store", () => {
       suspended: false,
       accountEmpty: null,
       shown: 0,
+    });
+  });
+
+  describe("card order", () => {
+    afterEach(() => {
+      clearAppliedCardOrders();
+      store().skip();
+    });
+
+    it("a tab tour walks the cards in the order the screen shows", () => {
+      setAppliedCardOrder("home", [...DEFAULT_CARD_ORDER.home].reverse());
+      store().start("home");
+      expect(getTour("home").steps.map((s) => s.id).slice(0, 2)).toEqual(["recent", "detail"]);
+      expect(getTour("home").steps.at(-1)?.kind).toBe("finale");
+    });
+
+    it("falls back to the order saved on the device when the screen is not mounted yet", () => {
+      writePersistedUserSettings("user-a", {
+        ...DEFAULT_USER_SETTINGS,
+        cardLayouts: { insights: [...DEFAULT_CARD_ORDER.insights].reverse() },
+      });
+      store().start("insights");
+      expect(getTour("insights").steps[0].id).toBe("compare");
+    });
+
+    it("the default order leaves the steps as written", () => {
+      store().start("budgets");
+      expect(getTour("budgets").steps.map((s) => s.id)).toEqual(TOURS_STEP_IDS.budgets);
+    });
+
+    it("a tour started later is arranged again (no order carried over from the last run)", () => {
+      setAppliedCardOrder("home", [...DEFAULT_CARD_ORDER.home].reverse());
+      store().start("home");
+      store().skip();
+      clearAppliedCardOrders();
+      store().start("home");
+      expect(getTour("home").steps[0].id).toBe("monthCard");
     });
   });
 

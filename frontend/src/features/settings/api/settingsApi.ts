@@ -1,3 +1,4 @@
+import { sanitizeCardLayouts, type CardLayouts } from "@/features/cardLayout/cardIds";
 import { dimeApi } from "@/lib/api/dimeApi";
 
 import {
@@ -19,9 +20,11 @@ type UserSettingsDto = {
   daily_expense_reminder_time: string;
   weekly_email_enabled?: boolean;
   monthly_email_enabled?: boolean;
+  /** Absent on servers from before Arrange. */
+  card_layouts?: CardLayouts | null;
 };
 
-function mapDto(dto: UserSettingsDto): UserSettings {
+export function mapDto(dto: UserSettingsDto): UserSettings {
   return normalizeUserSettings({
     budgetAlertsEnabled: dto.budget_alerts_enabled,
     budgetMonthlyAlertsEnabled: dto.budget_monthly_alerts_enabled,
@@ -35,13 +38,14 @@ function mapDto(dto: UserSettingsDto): UserSettings {
     dailyExpenseReminderTime: dto.daily_expense_reminder_time,
     weeklyEmailEnabled: dto.weekly_email_enabled ?? true,
     monthlyEmailEnabled: dto.monthly_email_enabled ?? true,
+    cardLayouts: sanitizeCardLayouts(dto.card_layouts),
   });
 }
 
-function mapPatchToDto(
+export function mapPatchToDto(
   patch: UserSettingsPatch,
-): Record<string, boolean | number | string> {
-  const dto: Record<string, boolean | number | string> = {};
+): Record<string, boolean | number | string | CardLayouts> {
+  const dto: Record<string, boolean | number | string | CardLayouts> = {};
   if (patch.budgetAlertsEnabled !== undefined) {
     dto.budget_alerts_enabled = patch.budgetAlertsEnabled;
   }
@@ -77,6 +81,9 @@ function mapPatchToDto(
   }
   if (patch.monthlyEmailEnabled !== undefined) {
     dto.monthly_email_enabled = patch.monthlyEmailEnabled;
+  }
+  if (patch.cardLayouts !== undefined) {
+    dto.card_layouts = patch.cardLayouts;
   }
   return dto;
 }

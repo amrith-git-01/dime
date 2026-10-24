@@ -1,3 +1,5 @@
+import { sortTourStepsByCardOrder } from "../utils/sortTourStepsByCardOrder";
+
 import { firstExpenseTour } from "./firstExpenseTour";
 import { addMenuTour, askAiTour } from "./featureTours";
 import {
@@ -38,8 +40,31 @@ export const TOUR_ORDER: readonly TourId[] = [
 
 export const TOUR_COUNT = TOUR_ORDER.length;
 
+/** Tours whose card steps were put in the user's card order for the run in progress (see `arrangeTour`). */
+const arrangedTours = new Map<TourId, TourDefinition>();
+
+/** The tour to run: for a tab tour started after the user arranged its cards, the steps follow that order. */
 export function getTour(id: TourId): TourDefinition {
-  return TOURS[id];
+  return arrangedTours.get(id) ?? TOURS[id];
+}
+
+/**
+ * Sets the card order a tour follows (call as the tour starts). Passing no order, or a tour with
+ * no card steps, goes back to the steps as written.
+ */
+export function arrangeTour(
+  id: TourId,
+  cardOrder: readonly string[] | undefined,
+): void {
+  const base = TOURS[id];
+  if (!cardOrder || !base.steps.some((step) => step.cardId !== undefined)) {
+    arrangedTours.delete(id);
+    return;
+  }
+  arrangedTours.set(id, {
+    ...base,
+    steps: sortTourStepsByCardOrder(base.steps, cardOrder),
+  });
 }
 
 /** The tour the "?" of a tab opens. */
@@ -58,7 +83,7 @@ export function tourIdForTab(tab: TourTab): TourId {
 
 /** Index of the step with this id in a tour (-1 when there is none). */
 export function findTourStepIndex(id: TourId, stepId: string): number {
-  return TOURS[id].steps.findIndex((step) => step.id === stepId);
+  return getTour(id).steps.findIndex((step) => step.id === stepId);
 }
 
 /** The steps the user goes through (everything except the welcome and finish cards). */
@@ -68,7 +93,7 @@ function isActionStep(step: TourStep): boolean {
 
 /** How many numbered steps a tour has ("Step 2 of 6"). */
 export function getTourActionStepCount(id: TourId): number {
-  return TOURS[id].steps.filter(isActionStep).length;
+  return getTour(id).steps.filter(isActionStep).length;
 }
 
 /** 1-based position among the numbered steps; null for the welcome and finish cards. */
@@ -76,7 +101,7 @@ export function getTourActionStepNumber(
   id: TourId,
   stepIndex: number,
 ): number | null {
-  const steps = TOURS[id].steps;
+  const steps = getTour(id).steps;
   const step = steps[stepIndex];
   if (!step || !isActionStep(step)) {
     return null;
@@ -89,7 +114,7 @@ export function getStepScreen(
   id: TourId,
   step: TourStep,
 ): TourScreen | undefined {
-  return step.screen ?? TOURS[id].tab;
+  return step.screen ?? getTour(id).tab;
 }
 
 const ALL_TABS: readonly TourTab[] = [
@@ -104,7 +129,7 @@ const ALL_TABS: readonly TourTab[] = [
  * (a tour that works over any tab, like Ask AI or the + menu, owns all four).
  */
 export function getTourOwnedScreens(id: TourId): ReadonlySet<TourScreen> {
-  const tour = TOURS[id];
+  const tour = getTour(id);
   const owned = new Set<TourScreen>(
     tour.tab && !tour.ownsAllTabs ? [tour.tab] : ALL_TABS,
   );

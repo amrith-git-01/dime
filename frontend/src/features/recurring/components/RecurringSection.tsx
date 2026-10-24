@@ -191,7 +191,6 @@ function RecurringKindCard({
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
   root: {
-    marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
   },
   cards: {

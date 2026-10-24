@@ -1,10 +1,5 @@
-import {
-  FlashList,
-  type FlashListRef,
-  type ListRenderItem,
-} from "@shopify/flash-list";
-import { useRef } from "react";
-import { View } from "react-native";
+import { useRef, type ReactNode } from "react";
+import { ScrollView, View } from "react-native";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
@@ -18,6 +13,12 @@ import { FLOATING_BUTTONS_CLEARANCE } from "@/constants";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
+import {
+  ArrangeCards,
+  OrderedCards,
+  useCardOrder,
+  type BudgetsCardId,
+} from "@/features/cardLayout";
 import {
   BudgetCategoriesSectionHeader,
   BudgetCategoryRow,
@@ -44,7 +45,6 @@ function isBudgetCategoryEditable(item: CategorySpendRowData): boolean {
 }
 
 const SKELETON_ROW_COUNT = 10;
-const NO_ROWS: CategorySpendRowData[] = [];
 
 export default function BudgetScreen() {
   const styles = useStyles();
@@ -70,11 +70,12 @@ export default function BudgetScreen() {
     suggestedBudget,
     summaryLoading,
   } = useBudgetScreenModel();
-  const listRef = useRef<FlashListRef<CategorySpendRowData>>(null);
-  const recurring = useBudgetRecurringModel(listRef);
-  // Lets the guided tour scroll the list so each spotlighted part is in view.
+  const cardOrder = useCardOrder("budgets");
+  const scrollRef = useRef<ScrollView>(null);
+  const recurring = useBudgetRecurringModel(scrollRef);
+  // Lets the guided tour scroll the screen so each spotlighted part is in view.
   const { onScroll } = useTourScroller("budgets", (y, animated) =>
-    listRef.current?.scrollToOffset({ offset: y, animated }),
+    scrollRef.current?.scrollTo({ y, animated }),
   );
   // "Open one for me" on the Budgets tour's steps: the first recurring item, the first category.
   useTourCommand("budgetsOpenRecurring", () => {
@@ -90,100 +91,114 @@ export default function BudgetScreen() {
     }
   });
 
-  // Keys carry the month so rows remount (and progress bars snap) when the month changes.
-  const keyExtractor = (item: CategorySpendRowData) =>
-    `${budgetListKey}:${item.id}`;
-
-  const renderItem: ListRenderItem<CategorySpendRowData> = ({ item, index }) => (
-    <BudgetCategoryRow
-      item={item}
-      isFirst={index === 0}
-      isLast={index === listData.length - 1}
-      editable={isBudgetCategoryEditable(item)}
-      hasMonthlyBudget={hasMonthlyBudget}
-      monthlyBudgetAmount={monthlyBudgetAmount}
-      onOpen={openCategoryTransactions}
-      onEdit={handleEditCategory}
-      tourTargetId={index === 0 ? tourTargetIds.budgetsFirstCategory : undefined}
-    />
+  const categoryRows = isListLoading ? null : listData.length === 0 ? (
+    <View style={styles.emptyCard}>
+      <EmptyState
+        layout="inset"
+        headline={emptyStateCopy.budgetCategories.headline}
+        subtext={emptyStateCopy.budgetCategories.subtext}
+      />
+    </View>
+  ) : (
+    // Keys carry the month so rows remount (and progress bars snap) when the month changes.
+    listData.map((item, index) => (
+      <BudgetCategoryRow
+        key={`${budgetListKey}:${item.id}`}
+        item={item}
+        isFirst={index === 0}
+        isLast={index === listData.length - 1}
+        editable={isBudgetCategoryEditable(item)}
+        hasMonthlyBudget={hasMonthlyBudget}
+        monthlyBudgetAmount={monthlyBudgetAmount}
+        onOpen={openCategoryTransactions}
+        onEdit={handleEditCategory}
+        tourTargetId={
+          index === 0 ? tourTargetIds.budgetsFirstCategory : undefined
+        }
+      />
+    ))
   );
+
+  const cards: Partial<Record<BudgetsCardId, ReactNode>> = {
+    "budgets.summary": (
+      <TourTarget id={tourTargetIds.budgetsSummary}>
+        <BudgetSummaryCard
+          selectedMonth={selectedMonth.label}
+          canGoPrevMonth={canGoPrevMonth}
+          canGoNextMonth={canGoNextMonth}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
+          hasMonthlyBudget={hasMonthlyBudget}
+          summary={monthSummary}
+          summaryLoading={summaryLoading}
+          summaryFailed={monthSummaryFailed}
+          onEditBudget={handleEditBudget}
+          onSetBudget={handleSetBudget}
+          spentValue={monthSummary?.spentValue ?? 0}
+          suggestedBudget={suggestedBudget}
+        />
+      </TourTarget>
+    ),
+    "budgets.recurring": (
+      <TourTarget id={tourTargetIds.budgetsRecurring}>
+        <RecurringSection
+          income={recurring.income}
+          subscriptions={recurring.subscriptions}
+          today={recurring.today}
+          onAdd={recurring.onAdd}
+          onItemPress={recurring.onItemPress}
+        />
+      </TourTarget>
+    ),
+    "budgets.categories": (
+      <View>
+        <TourTarget
+          id={tourTargetIds.budgetsCategoriesHeader}
+          style={styles.sectionHeader}
+        >
+          <BudgetCategoriesSectionHeader
+            onAddPress={handleAddCustomCategory}
+            addDisabled={addCustomCategoryDisabled}
+          />
+        </TourTarget>
+        {isListLoading ? (
+          <View style={styles.categoryCard}>
+            <BudgetCategoryRowsSkeleton
+              rowCount={SKELETON_ROW_COUNT}
+              showProgress={hasMonthlyBudget}
+            />
+          </View>
+        ) : (
+          categoryRows
+        )}
+      </View>
+    ),
+  };
 
   return (
     <TabScreenShell>
-      <FlashList
-        ref={listRef}
+      <ScrollView
+        ref={scrollRef}
         onScroll={onScroll}
         scrollEventThrottle={32}
         style={styles.list}
-        data={isListLoading ? NO_ROWS : listData}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        extraData={{ hasMonthlyBudget, monthlyBudgetAmount }}
-        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        ListHeaderComponent={
-          <View>
-            <TourTarget id={tourTargetIds.budgetsSummary}>
-              <BudgetSummaryCard
-                selectedMonth={selectedMonth.label}
-                canGoPrevMonth={canGoPrevMonth}
-                canGoNextMonth={canGoNextMonth}
-                onPrevMonth={goPrevMonth}
-                onNextMonth={goNextMonth}
-                hasMonthlyBudget={hasMonthlyBudget}
-                summary={monthSummary}
-                summaryLoading={summaryLoading}
-                summaryFailed={monthSummaryFailed}
-                onEditBudget={handleEditBudget}
-                onSetBudget={handleSetBudget}
-                spentValue={monthSummary?.spentValue ?? 0}
-                suggestedBudget={suggestedBudget}
-              />
-            </TourTarget>
+        showsVerticalScrollIndicator={false}
+      >
+        <OrderedCards
+          order={cardOrder.order}
+          cards={cards}
+          ready={cardOrder.ready}
+          onCardLayout={(id, event) => {
+            // The recurring block's top, for "scroll to Recurring" (measured in the scroll content).
+            if (id === "budgets.recurring") {
+              recurring.onSectionLayout(event);
+            }
+          }}
+        />
 
-            <TourTarget
-              id={tourTargetIds.budgetsRecurring}
-              onLayout={recurring.onSectionLayout}
-            >
-              <RecurringSection
-                income={recurring.income}
-                subscriptions={recurring.subscriptions}
-                today={recurring.today}
-                onAdd={recurring.onAdd}
-                onItemPress={recurring.onItemPress}
-              />
-            </TourTarget>
-
-            <TourTarget
-              id={tourTargetIds.budgetsCategoriesHeader}
-              style={styles.sectionHeader}
-            >
-              <BudgetCategoriesSectionHeader
-                onAddPress={handleAddCustomCategory}
-                addDisabled={addCustomCategoryDisabled}
-              />
-            </TourTarget>
-          </View>
-        }
-        ListEmptyComponent={
-          isListLoading ? (
-            <View style={styles.categoryCard}>
-              <BudgetCategoryRowsSkeleton
-                rowCount={SKELETON_ROW_COUNT}
-                showProgress={hasMonthlyBudget}
-              />
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <EmptyState
-                layout="inset"
-                headline={emptyStateCopy.budgetCategories.headline}
-                subtext={emptyStateCopy.budgetCategories.subtext}
-              />
-            </View>
-          )
-        }
-      />
+        <ArrangeCards screen="budgets" cardOrder={cardOrder} />
+      </ScrollView>
     </TabScreenShell>
   );
 }
@@ -193,12 +208,15 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     flex: 1,
     backgroundColor: colors.paper,
   },
+  // The blocks (summary, recurring, categories) have no top margin of their own: the gap spaces
+  // them whatever order the user put them in.
   content: {
+    paddingTop: spacing.lg,
     paddingBottom: FLOATING_BUTTONS_CLEARANCE,
+    gap: spacing.xl,
   },
   sectionHeader: {
     paddingHorizontal: spacing.lg,
-    marginTop: spacing.xl,
     // The first category segment reserves top room for its card shadow.
     marginBottom: -CARD_SEGMENT_SHADOW_TOP_BLEED,
   },

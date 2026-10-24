@@ -1,10 +1,16 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import { TourTarget } from "@/components/shared";
 import { fontFamilies } from "@/constants/fonts";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
+import {
+  ArrangeCards,
+  OrderedCards,
+  useCardOrder,
+  type HomeCardId,
+} from "@/features/cardLayout";
 import { GetStartedCard } from "@/features/onboarding/components";
 import { PendingChip } from "@/features/outbox/components/PendingChip";
 import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
@@ -21,45 +27,48 @@ const SECTION_GAP = spacing.xl;
 
 /**
  * Root composer for the Home screen.
- * Layout: HeroMonthCard → sync status (Pending chip / "Updated …", only when there is something to say)
- * → Get started (until done) → MonthStatRow → Upcoming → Categories → Recent
+ * Default layout: HeroMonthCard → sync status (Pending chip / "Updated …", only when there is something to say,
+ * and it travels with the hero) → Get started (until done) → MonthStatRow → Upcoming → Categories → Recent.
+ * The cards are in the user's order (Arrange, at the end of the screen); the error line stays on top.
  */
 export const HomeContent = memo(function HomeContent(
   props: HomeBentoContentProps,
 ) {
   const styles = useStyles();
+  const cardOrder = useCardOrder("home");
   const isLoading = props.isPending;
   const { items: pendingItems } = usePendingTransactions();
   const hasSyncStatus = pendingItems.length > 0 || props.updatedLabel !== null;
 
-  return (
-    <View style={styles.root}>
-      {props.isError ? (
-        <Text style={styles.error}>Could not load spending data.</Text>
-      ) : null}
-
-      <HeroMonthCard
-        monthLabel={props.monthLabel}
-        heroAmount={props.spentMonthDisplay}
-        hasBudget={props.hasMonthlyBudget}
-        subtext={props.monthlySubtext}
-        progress={props.monthlyProgress}
-        splitLine={props.monthSplitLine}
-        isLoading={isLoading}
-        onAddBudget={props.onAddMonthlyBudget}
-      />
-
-      {hasSyncStatus ? (
-        <View style={styles.syncStatus}>
-          <PendingChip />
-          {props.updatedLabel ? (
-            <Text style={styles.updatedLabel} accessibilityLiveRegion="polite">
-              {props.updatedLabel}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-
+  const cards: Partial<Record<HomeCardId, ReactNode>> = {
+    "home.month": (
+      <View>
+        <HeroMonthCard
+          monthLabel={props.monthLabel}
+          heroAmount={props.spentMonthDisplay}
+          hasBudget={props.hasMonthlyBudget}
+          subtext={props.monthlySubtext}
+          progress={props.monthlyProgress}
+          splitLine={props.monthSplitLine}
+          isLoading={isLoading}
+          onAddBudget={props.onAddMonthlyBudget}
+        />
+        {hasSyncStatus ? (
+          <View style={styles.syncStatus}>
+            <PendingChip />
+            {props.updatedLabel ? (
+              <Text
+                style={styles.updatedLabel}
+                accessibilityLiveRegion="polite"
+              >
+                {props.updatedLabel}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    ),
+    "home.getStarted": (
       <GetStartedCard
         onManualAdd={props.onManualAdd}
         onVoice={props.onVoice}
@@ -67,7 +76,8 @@ export const HomeContent = memo(function HomeContent(
         onAddRecurring={props.onAddRecurring}
         onAskAi={props.onAskAi}
       />
-
+    ),
+    "home.stats": (
       <TourTarget id={tourTargetIds.homeStats}>
         <MonthStatRow
           incomeDisplay={props.creditedDisplay}
@@ -78,13 +88,15 @@ export const HomeContent = memo(function HomeContent(
           netValue={props.netValue}
         />
       </TourTarget>
-
+    ),
+    "home.upcoming": (
       <HomeUpcomingSection
         items={props.upcomingItems}
         today={props.upcomingToday}
         onItemPress={props.onUpcomingPress}
       />
-
+    ),
+    "home.categories": (
       <HomeCategoriesSection
         items={props.topCategories}
         hasMonthlyBudget={props.hasMonthlyBudget}
@@ -93,7 +105,8 @@ export const HomeContent = memo(function HomeContent(
         onViewAll={props.onNavigateBudgets}
         onCategoryPress={props.onCategoryPress}
       />
-
+    ),
+    "home.recent": (
       <HomeRecentSection
         transactions={props.recentTransactions}
         isEmpty={props.showRecentEmpty}
@@ -103,6 +116,22 @@ export const HomeContent = memo(function HomeContent(
         onManualAdd={props.onManualAdd}
         onVoice={props.onVoice}
       />
+    ),
+  };
+
+  return (
+    <View style={styles.root}>
+      {props.isError ? (
+        <Text style={styles.error}>Could not load spending data.</Text>
+      ) : null}
+
+      <OrderedCards
+        order={cardOrder.order}
+        cards={cards}
+        ready={cardOrder.ready}
+      />
+
+      <ArrangeCards screen="home" cardOrder={cardOrder} />
     </View>
   );
 });
@@ -116,8 +145,8 @@ const useStyles = createThemedStyles(({ colors }) => ({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
-    // Sits close under the hero card instead of a full section gap away.
-    marginTop: -spacing.md,
+    // Sits close under the hero card (the sync status travels with it when the cards are arranged).
+    marginTop: spacing.md,
   },
   updatedLabel: {
     flexShrink: 1,

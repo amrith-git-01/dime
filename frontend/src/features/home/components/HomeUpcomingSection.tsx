@@ -2,6 +2,7 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { ScreenSectionHeader } from "@/components/shared";
+import { useCardSlotEmpty } from "@/features/cardLayout/components/CardSlot";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
@@ -25,6 +26,8 @@ export const HomeUpcomingSection = memo(function HomeUpcomingSection({
 }: HomeUpcomingSectionProps) {
   const styles = useStyles();
   const tourTarget = useTourTarget(tourTargetIds.homeUpcoming);
+  // Its slot in the arranged cards takes no space while there is nothing to show.
+  useCardSlotEmpty(items.length === 0);
   if (items.length === 0) {
     return null;
   }

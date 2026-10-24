@@ -8,6 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { ScreenSectionHeader } from "@/components/shared";
+import { useCardSlotEmpty } from "@/features/cardLayout/components/CardSlot";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { springs } from "@/constants/motion";
@@ -86,6 +87,8 @@ export const GetStartedCard = memo(function GetStartedCard({
     [onManualAdd, onVoice, onSetBudget, onAddRecurring, onAskAi],
   );
 
+  // Its slot in the arranged cards takes no space once the checklist is gone.
+  useCardSlotEmpty(!checklist.visible);
   if (!checklist.visible) {
     return null;
   }

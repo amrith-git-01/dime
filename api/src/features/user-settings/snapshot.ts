@@ -1,3 +1,26 @@
+export const CARD_SCREENS = ['home', 'budgets', 'insights'] as const;
+export type CardScreen = (typeof CARD_SCREENS)[number];
+/** Saved card order per screen; a screen without a key keeps its default order. */
+export type CardLayouts = Partial<Record<CardScreen, string[]>>;
+
+/** Stored JSON -> layouts. Corrupt or foreign JSON reads as "nothing saved" instead of failing the settings read. */
+export function parseCardLayouts(raw: unknown): CardLayouts {
+  if (typeof raw !== 'string' || raw === '') return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+  const out: CardLayouts = {};
+  for (const screen of CARD_SCREENS) {
+    const ids = (parsed as Record<string, unknown>)[screen];
+    if (Array.isArray(ids) && ids.length > 0 && ids.every((id) => typeof id === 'string')) out[screen] = ids;
+  }
+  return out;
+}
+
 /** Typed view of a `user_settings` row with Python's defaults and clamping (UserSettingsSnapshot). */
 export interface UserSettings {
   budget_alerts_enabled: boolean;
@@ -12,6 +35,7 @@ export interface UserSettings {
   daily_expense_reminder_time: string;
   weekly_email_enabled: boolean;
   monthly_email_enabled: boolean;
+  card_layouts: CardLayouts;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -27,6 +51,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   daily_expense_reminder_time: '20:00',
   weekly_email_enabled: true,
   monthly_email_enabled: true,
+  card_layouts: {},
 };
 
 export const SETTINGS_COLUMNS = Object.keys(DEFAULT_SETTINGS).join(',');
@@ -55,5 +80,6 @@ export function settingsFromRow(row: Record<string, unknown> | null | undefined)
     daily_expense_reminder_time: typeof time === 'string' ? time : typeof time === 'number' ? String(time) : '20:00',
     weekly_email_enabled: bool('weekly_email_enabled'),
     monthly_email_enabled: bool('monthly_email_enabled'),
+    card_layouts: parseCardLayouts(row['card_layouts']),
   };
 }

@@ -31,6 +31,8 @@ Exports the JS, builds and signs the manifest with the private key, uploads asse
 
 The update is published for the `version` currently in `app.json`; it only reaches APKs built with that same version.
 
+**API first.** When an OTA depends on a new API field or migration (e.g. `card_layouts` for Arrange, migration `0013`), the API must be live before the OTA goes out. The Deploy API workflow (`.github/workflows/deploy-api.yml`) runs `wrangler d1 migrations apply DB --remote` *before* `wrangler deploy`, so migrations always land before the Worker that uses them; just wait for that workflow to finish, then publish the OTA.
+
 ## Android widget (runtime 1.2.0)
 
 The home-screen widget (`react-native-android-widget`) and its capture card are native code, so they ship in a **new APK built as version 1.2.0** (`android.versionCode` 3). Every later JS-only change to them goes by OTA, but an OTA published for 1.2.0 reaches only 1.2.0 installs: older installs keep receiving updates for their own version until they install the new APK.

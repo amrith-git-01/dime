@@ -290,6 +290,14 @@ describe('user_settings insert-or-ignore', () => {
     expect(await insertDefaults(testDb(), USER_ID, { budget_monthly_warn_pct: 90 })).toBeNull();
     expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ budget_monthly_warn_pct: 70, weekly_email_enabled: 0 });
   });
+
+  it('stores card_layouts as NULL by default and as the given JSON when passed', async () => {
+    await insertDefaults(testDb(), USER_ID);
+    expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ card_layouts: null });
+    await testDb().prepare('DELETE FROM user_settings').run();
+    const row = await insertDefaults(testDb(), USER_ID, { card_layouts: '{"home":["home.stats"]}' });
+    expect(row).toMatchObject({ card_layouts: '{"home":["home.stats"]}' });
+  });
 });
 
 describe('db-errors', () => {
