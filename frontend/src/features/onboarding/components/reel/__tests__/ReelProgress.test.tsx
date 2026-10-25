@@ -135,3 +135,32 @@ describe("ReelProgress live fill", () => {
     unmount(tree);
   });
 });
+
+describe("ReelProgress frameless", () => {
+  function trackHeights(tree: ProgressTree) {
+    return tree.root
+      .findAll((node) => {
+        const style = StyleSheet.flatten(node.props.style as never) as
+          | { overflow?: string; height?: number }
+          | undefined;
+        return style?.overflow === "hidden";
+      })
+      .map(
+        (node) =>
+          (StyleSheet.flatten(node.props.style as never) as { height: number }).height,
+      );
+  }
+
+  it("draws 4 dp tracks by default and 3 dp tracks when frameless", async () => {
+    let tree!: ProgressTree;
+    await act(async () => {
+      tree = create(element(baseProps({})));
+    });
+    expect(new Set(trackHeights(tree))).toEqual(new Set([4]));
+    await act(async () => {
+      tree.update(element(baseProps({ frameless: true })));
+    });
+    expect(new Set(trackHeights(tree))).toEqual(new Set([3]));
+    unmount(tree);
+  });
+});

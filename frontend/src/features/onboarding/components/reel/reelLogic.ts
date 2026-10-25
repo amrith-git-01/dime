@@ -26,13 +26,16 @@ export const REEL_SCENE_MS = 3500;
 export const REEL_CARD_WIDTH = 320;
 export const REEL_CARD_HEIGHT = 264;
 /**
- * Height around the card: segments above (16) + gap (12) + gap below the card (12) + one caption
- * line. The caption allows 1.2x font scaling, so its 24 dp line is reserved as 29.
+ * Height around the card: gap (16) + one caption line + gap (10) + segments (16) below it. The
+ * caption allows 1.2x font scaling, so its 24 dp line is reserved as 29.
  */
-export const REEL_CHROME_HEIGHT = 69;
-/** Below this much room for the card the reel is dropped rather than squeezed unreadable. */
-export const REEL_MIN_CARD_HEIGHT = 120;
+export const REEL_CHROME_HEIGHT = 71;
 export const REEL_MIN_SCALE = 0.55;
+/**
+ * Below this much room for the card the reel is dropped rather than squeezed unreadable. It is the
+ * card's height at the scale floor, so a visible reel never draws taller than the room it was given.
+ */
+export const REEL_MIN_CARD_HEIGHT = Math.ceil(REEL_CARD_HEIGHT * REEL_MIN_SCALE);
 
 /** A horizontal drag past this distance (dp) or fling past this speed (dp/s) changes scene. */
 const SWIPE_DISTANCE = 48;

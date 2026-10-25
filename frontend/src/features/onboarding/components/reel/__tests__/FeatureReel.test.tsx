@@ -1,3 +1,5 @@
+import { StyleSheet } from "react-native";
+
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 import { FeatureReel } from "../FeatureReel";
@@ -55,10 +57,15 @@ type ReelNode = {
   props: Record<string, unknown>;
 };
 type ReelTree = {
-  root: { findAllByProps: (props: object) => ReelNode[] };
+  root: {
+    findAllByProps: (props: object) => ReelNode[];
+    findAll: (predicate: (node: ReelNode) => boolean) => ReelNode[];
+  };
   toJSON: () => unknown;
   unmount: () => void;
 };
+
+type Json = { props: Record<string, unknown>; children?: Json[] };
 
 const ROOMY = { availableWidth: 328, availableHeight: 420 };
 
@@ -157,5 +164,34 @@ describe("FeatureReel", () => {
     const tree = await renderReel({ availableHeight: 80 });
     expect(tree.toJSON()).toBeNull();
     unmount(tree);
+  });
+
+  it("lays out the card, then the caption, then the progress bar", async () => {
+    const tree = await renderReel();
+    const root = tree.toJSON() as { children: Json[] };
+    expect(root.children).toHaveLength(3);
+    const [card, caption, progress] = root.children;
+    expect(JSON.stringify(card)).toContain('"adjustable"');
+    expect(caption.props.accessibilityLiveRegion).toBe("polite");
+    expect(JSON.stringify(progress)).toContain('"flexDirection":"row"');
+    expect(JSON.stringify(progress)).not.toContain('"adjustable"');
+    unmount(tree);
+  });
+
+  it("frameless only drops the card's hairline border; the default keeps it", async () => {
+    const framed = await renderReel();
+    const framedStyle = StyleSheet.flatten(
+      reelNode(framed)?.props.style as never,
+    ) as { borderWidth?: number };
+    expect(framedStyle.borderWidth).toBe(StyleSheet.hairlineWidth);
+    unmount(framed);
+
+    const plain = await renderReel({ frameless: true });
+    const plainStyle = StyleSheet.flatten(
+      reelNode(plain)?.props.style as never,
+    ) as { borderWidth?: number; backgroundColor?: string };
+    expect(plainStyle.borderWidth).toBeUndefined();
+    expect(plainStyle.backgroundColor).toBeDefined();
+    unmount(plain);
   });
 });

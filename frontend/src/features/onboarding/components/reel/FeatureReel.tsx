@@ -50,22 +50,32 @@ const ACCESSIBILITY_ACTIONS = [
   { name: "decrement", label: "Previous feature" },
 ] as const;
 
+/** Gap above the progress bar; with the caption gap and lines it makes `REEL_CHROME_HEIGHT`. */
+const PROGRESS_GAP = 10;
+
 export type FeatureReelProps = {
   /** Room the layout can spare; the reel scales to fit (and hides when there is no room). */
   availableWidth: number;
   availableHeight: number;
   /** Freezes the reel (Google sign-in in progress). */
   paused?: boolean;
+  /**
+   * For the reel on a tinted panel. Only changes the plate (no hairline border) and the progress
+   * track (thinner, accent-alpha); the layout order and spacing are the same either way.
+   */
+  frameless?: boolean;
 };
 
 /**
- * The Welcome screen's looping feature reel: six code-drawn scenes on one card, a segmented
- * progress bar above and a caption below. Auto-advances, swipes, pauses on hold, taps to jump.
+ * The Welcome screen's looping feature reel: six code-drawn scenes on one card, a caption
+ * below it and the segmented progress bar under that. Auto-advances, swipes, pauses on hold,
+ * taps to jump.
  */
 export function FeatureReel({
   availableWidth,
   availableHeight,
   paused = false,
+  frameless = false,
 }: FeatureReelProps) {
   const styles = useStyles();
   const layout = computeReelLayout(availableWidth, availableHeight);
@@ -146,19 +156,6 @@ export function FeatureReel({
 
   return (
     <View style={{ width: layout.width }}>
-      <View style={styles.progress}>
-        <ReelProgress
-          count={REEL_SCENE_COUNT}
-          activeIndex={index}
-          reduceMotion={reduceMotion}
-          phase={phase}
-          clock={clock}
-          sceneGen={sceneGen}
-          activeGen={activeGen}
-          onSelect={jumpTo}
-        />
-      </View>
-
       <GestureDetector gesture={gesture}>
         <View
           accessible
@@ -166,7 +163,10 @@ export function FeatureReel({
           accessibilityLabel={reelAccessibilityLabel(index)}
           accessibilityActions={ACCESSIBILITY_ACTIONS}
           onAccessibilityAction={onAccessibilityAction}
-          style={[styles.card, { width: layout.width, height: layout.height }]}
+          style={[
+            frameless ? styles.cardFrameless : styles.card,
+            { width: layout.width, height: layout.height },
+          ]}
         >
           <View
             style={[
@@ -201,18 +201,37 @@ export function FeatureReel({
       >
         {caption}
       </Animated.Text>
+
+      <View style={styles.progress}>
+        <ReelProgress
+          count={REEL_SCENE_COUNT}
+          activeIndex={index}
+          reduceMotion={reduceMotion}
+          phase={phase}
+          clock={clock}
+          sceneGen={sceneGen}
+          activeGen={activeGen}
+          frameless={frameless}
+          onSelect={jumpTo}
+        />
+      </View>
     </View>
   );
 }
 
 const useStyles = createThemedStyles(({ colors, shadows }) => ({
   progress: {
-    marginBottom: spacing.md,
+    marginTop: PROGRESS_GAP,
   },
   card: {
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  cardFrameless: {
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
     ...shadows.card,
   },
@@ -223,7 +242,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     padding: spacing.lg,
   },
   caption: {
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
     fontFamily: fontFamilies.semiBold,
     fontSize: 17,
     lineHeight: 24,

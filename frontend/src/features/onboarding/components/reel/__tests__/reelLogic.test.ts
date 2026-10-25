@@ -7,6 +7,7 @@ import {
   REEL_CARD_HEIGHT,
   REEL_CARD_WIDTH,
   REEL_CHROME_HEIGHT,
+  REEL_MIN_CARD_HEIGHT,
   REEL_MIN_SCALE,
   REEL_SCENE_COUNT,
   REEL_SCENES,
@@ -182,6 +183,10 @@ describe("accessibility label", () => {
 });
 
 describe("layout fitting", () => {
+  it("reserves the caption (16 + 29) and the progress bar (10 + 16) under the card", () => {
+    expect(REEL_CHROME_HEIGHT).toBe(16 + 29 + 10 + 16);
+  });
+
   it("uses full size when there is plenty of room", () => {
     const layout = computeReelLayout(328, REEL_CARD_HEIGHT + REEL_CHROME_HEIGHT + 80);
     expect(layout.visible).toBe(true);
@@ -210,10 +215,24 @@ describe("layout fitting", () => {
     expect(layout.height).toBeCloseTo(REEL_CARD_HEIGHT * (288 / REEL_CARD_WIDTH), 5);
   });
 
-  it("never goes below the minimum scale", () => {
-    const layout = computeReelLayout(328, 125 + REEL_CHROME_HEIGHT);
+  it("never goes below the minimum scale, and never draws taller than its room", () => {
+    const room = REEL_MIN_CARD_HEIGHT;
+    const layout = computeReelLayout(328, room + REEL_CHROME_HEIGHT);
     expect(layout.visible).toBe(true);
-    expect(layout.scale).toBe(REEL_MIN_SCALE);
+    expect(layout.scale).toBeGreaterThanOrEqual(REEL_MIN_SCALE);
+    expect(layout.height).toBeLessThanOrEqual(room);
+    // A very narrow column hits the floor itself, still within the room.
+    const narrow = computeReelLayout(100, 700);
+    expect(narrow.scale).toBe(REEL_MIN_SCALE);
+    expect(narrow.height).toBeLessThanOrEqual(700 - REEL_CHROME_HEIGHT);
+  });
+
+  it("hides below the height of the card at the minimum scale", () => {
+    expect(REEL_MIN_CARD_HEIGHT).toBe(146);
+    expect(computeReelLayout(328, 130 + REEL_CHROME_HEIGHT).visible).toBe(false);
+    expect(
+      computeReelLayout(328, REEL_MIN_CARD_HEIGHT - 1 + REEL_CHROME_HEIGHT).visible,
+    ).toBe(false);
   });
 
   it("hides when almost no room is left", () => {
