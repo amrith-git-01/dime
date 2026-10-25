@@ -13,25 +13,41 @@ export async function getOrCreate(db: Db, userId: string): Promise<UserSettings>
 /** Keys accepted for old app builds but no longer stored (the daily budget was removed). */
 const IGNORED_KEYS: ReadonlySet<string> = new Set(['budget_daily_alerts_enabled', 'budget_daily_warn_pct']);
 
-/** Fields present and non-null in the patch (null = unchanged, as in Python). */
+/** Fields present and non-null in the patch (null = unchanged, as in Python). `card_layouts` is handled apart. */
 function patchFields(body: SettingsPatch): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
-    if (value !== null && value !== undefined && !IGNORED_KEYS.has(key)) out[key] = value;
+    if (value !== null && value !== undefined && key !== 'card_layouts' && !IGNORED_KEYS.has(key)) out[key] = value;
   }
   return out;
+}
+
+/** JSON merge patch for the screens named in the request: an empty list becomes `null` (= back to the default order). */
+function cardLayoutsMergePatch(body: SettingsPatch): Record<string, string[] | null> | null {
+  const out: Record<string, string[] | null> = {};
+  for (const [screen, ids] of Object.entries(body.card_layouts ?? {})) {
+    if (ids) out[screen] = ids.length > 0 ? ids : null;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 /** Common case is one round trip: update-with-return. A missing row is created with the patch applied. */
 export async function patch(db: Db, userId: string, body: SettingsPatch): Promise<UserSettings> {
   const fields = patchFields(body);
-  if (Object.keys(fields).length === 0) return getOrCreate(db, userId);
+  const layouts = cardLayoutsMergePatch(body);
+  if (Object.keys(fields).length === 0 && !layouts) return getOrCreate(db, userId);
 
-  let row = await repo.update(db, userId, fields);
+  const mergePatch = layouts ? JSON.stringify(layouts) : undefined;
+  let row = await repo.update(db, userId, fields, mergePatch);
   if (!row) {
-    row = await repo.insertDefaults(db, userId, fields);
+    // A new row has nothing to merge into: store only the screens that were actually arranged.
+    const created = layouts ? Object.fromEntries(Object.entries(layouts).filter(([, ids]) => ids !== null)) : {};
+    row = await repo.insertDefaults(db, userId, {
+      ...fields,
+      card_layouts: Object.keys(created).length > 0 ? JSON.stringify(created) : null,
+    });
     // Lost a creation race: the row exists now, so apply the patch to it.
-    row ??= await repo.update(db, userId, fields);
+    row ??= await repo.update(db, userId, fields, mergePatch);
   }
   return settingsFromRow(row);
 }

@@ -37,6 +37,7 @@ import {
 import { useDeepLinkHandler } from "@/lib/deepLinks/useDeepLinkHandler";
 import { configureExpoNotifications } from "@/lib/notifications/expoNotificationsSetup";
 import { useNotificationOpenHandler } from "@/lib/notifications/useNotificationOpenHandler";
+import { startCardLayoutSync } from "@/features/settings/sync/cardLayoutSync";
 import { startOutboxSync } from "@/lib/outbox/outboxSync";
 import { appQueryPersistOptions } from "@/lib/queryPersister";
 import { removeLegacyWidgetPresets } from "@/lib/widgets/legacyWidgetData";
@@ -175,6 +176,9 @@ function AppContent() {
 
   // Sends the writes saved while offline (manual adds, voice notes, receipt photos) when the server is reachable.
   useEffect(() => startOutboxSync(queryClient), [queryClient]);
+
+  // Sends an arranged card order whose save failed while offline or on a server error.
+  useEffect(() => startCardLayoutSync(queryClient), [queryClient]);
 
   // Keeps the Android home-screen widgets' snapshot in step with the cache.
   useEffect(() => subscribeWidgetSnapshotWriter(queryClient), [queryClient]);

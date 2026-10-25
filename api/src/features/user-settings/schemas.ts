@@ -3,6 +3,20 @@ import * as z from 'zod';
 const bool = z.boolean().nullish();
 const pct = z.number().int().min(50).max(95).nullish();
 
+/** Card ids are chosen by the app ("home.upcoming"); the server only checks shape, so new cards need no deploy. */
+const cardId = z.string().regex(/^[a-z][a-zA-Z0-9_.-]{0,47}$/);
+/** An empty list means "back to the default order" for that screen. */
+const cardOrder = z
+  .array(cardId)
+  .max(30)
+  .refine((ids) => new Set(ids).size === ids.length, 'card ids must be unique');
+
+export const CARD_LAYOUT_MAX_BYTES = 4096;
+
+const cardLayouts = z
+  .strictObject({ home: cardOrder.optional(), budgets: cardOrder.optional(), insights: cardOrder.optional() })
+  .refine((layouts) => JSON.stringify(layouts).length <= CARD_LAYOUT_MAX_BYTES, 'card_layouts is too large');
+
 /** `extra="forbid"` + every field optional/nullable; null means "leave unchanged" like in Python. */
 export const settingsPatchSchema = z.strictObject({
   budget_alerts_enabled: bool,
@@ -24,6 +38,8 @@ export const settingsPatchSchema = z.strictObject({
     .nullish(),
   weekly_email_enabled: bool,
   monthly_email_enabled: bool,
+  /** Merged per screen with the stored layouts: patching `home` leaves `budgets` alone. */
+  card_layouts: cardLayouts.nullish(),
 });
 
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

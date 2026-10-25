@@ -26,7 +26,8 @@ export async function insertDefaults(
   userId: string,
   overrides: Record<string, unknown> = {},
 ): Promise<SettingsRow | null> {
-  const values: Record<string, unknown> = { ...DEFAULT_SETTINGS, ...overrides };
+  // `card_layouts` is stored as JSON text (NULL = nothing rearranged); a caller passes it as a ready string.
+  const values: Record<string, unknown> = { ...DEFAULT_SETTINGS, ...overrides, card_layouts: overrides['card_layouts'] ?? null };
   const columns = Object.keys(values);
   const now = nowIso();
   const row = await first<SettingsRow>(
@@ -40,14 +41,35 @@ export async function insertDefaults(
   return row ? toSettingsRow(row) : null;
 }
 
-/** Update and return the row in one call; null when the user has no settings row yet. */
-export async function update(db: Db, userId: string, patch: Record<string, unknown>): Promise<SettingsRow | null> {
+/**
+ * Merge a JSON patch (RFC 7396: arrays replace, `null` removes a key) into the stored card layouts. Done in SQL so two
+ * devices arranging different screens at once cannot overwrite each other; corrupt stored JSON starts over from `{}`
+ * and an empty result is stored as NULL.
+ */
+const MERGE_CARD_LAYOUTS = `card_layouts = NULLIF(json_patch(CASE WHEN json_valid(card_layouts) AND json_type(card_layouts) = 'object' THEN card_layouts ELSE '{}' END, ?), '{}')`;
+
+/**
+ * Update and return the row in one call; null when the user has no settings row yet.
+ * `cardLayoutsPatch` is a JSON merge patch for the `card_layouts` column (see MERGE_CARD_LAYOUTS).
+ */
+export async function update(
+  db: Db,
+  userId: string,
+  patch: Record<string, unknown>,
+  cardLayoutsPatch?: string,
+): Promise<SettingsRow | null> {
   const columns = Object.keys(patch);
+  const sets = [...columns.map((c) => `${c} = ?`)];
+  const params = columns.map((c) => param(patch[c]));
+  if (cardLayoutsPatch !== undefined) {
+    sets.push(MERGE_CARD_LAYOUTS);
+    params.push(cardLayoutsPatch);
+  }
   const row = await first<SettingsRow>(
     db,
-    `UPDATE user_settings SET ${[...columns.map((c) => `${c} = ?`), 'updated_at = ?'].join(', ')}
+    `UPDATE user_settings SET ${[...sets, 'updated_at = ?'].join(', ')}
      WHERE user_id = ? RETURNING ${SETTINGS_COLUMNS}`,
-    [...columns.map((c) => param(patch[c])), nowIso(), userId],
+    [...params, nowIso(), userId],
   );
   return row ? toSettingsRow(row) : null;
 }

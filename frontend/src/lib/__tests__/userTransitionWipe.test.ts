@@ -9,7 +9,10 @@ import {
   readPersistedNotifications,
   writePersistedNotifications,
 } from "@/lib/notifications/notificationsMmkv";
+import { getAppliedCardOrder, setAppliedCardOrder } from "@/features/cardLayout/appliedOrder";
 import {
+  addPendingCardLayoutScreens,
+  readPendingCardLayoutScreens,
   readPersistedUserSettings,
   writePersistedUserSettings,
 } from "@/lib/settings/userSettingsMmkv";
@@ -57,6 +60,9 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
   queryClient.setQueryData(notificationQueryKeys.unreadCount(userId), 3);
   writePersistedNotifications(userId, { inbox: [], unreadCount: 3 });
   writePersistedUserSettings(userId, DEFAULT_USER_SETTINGS);
+  // The order Home shows and an arranged order that never reached the server.
+  setAppliedCardOrder("home", ["home.recent", "home.month"]);
+  addPendingCardLayoutScreens(userId, ["home"]);
   recentTransactionMutations.mark("tx-1");
   writeWidgetSnapshot({
     userId,
@@ -108,6 +114,9 @@ describe("subscribeUserTransitionWipe", () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(readPersistedNotifications("user-a")).toBeNull();
     expect(readPersistedUserSettings("user-a")).toBeNull();
+    // Tours must not walk the previous user's card order, and nothing pending goes to the next account.
+    expect(getAppliedCardOrder("home")).toBeUndefined();
+    expect(readPendingCardLayoutScreens("user-a")).toEqual([]);
     expect(recentTransactionMutations.isRecent("tx-1")).toBe(false);
     expect(readWidgetSnapshot()).toBeNull();
     // The old account's capture status and waiting jobs must not reach the next one.

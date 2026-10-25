@@ -14,12 +14,13 @@ import {
 import { useAuthSessionStore } from "@/stores/authSessionStore";
 import { useCelebrationStore } from "@/stores/celebrationStore";
 
-import { getTour, TOUR_ORDER } from "../constants/tourRegistry";
+import { arrangeTour, getTour, TOUR_ORDER } from "../constants/tourRegistry";
 import type { TourId, TourStep } from "../constants/tourTypes";
 import {
   pickTourCompletionCelebration,
   type TourCelebration,
 } from "../utils/tourCelebrations";
+import { currentCardOrderForTour } from "../utils/currentCardOrderForTour";
 import { popTourScreens, runTourEnterActions } from "../utils/tourNavigation";
 import {
   getSeenTourIds,
@@ -221,6 +222,8 @@ export const useAppTourStore = create<AppTourState>((set, get) => {
         return;
       }
       const userId = useAuthSessionStore.getState().userId;
+      // A tab tour walks the cards in the order the user arranged them.
+      arrangeTour(tourId, currentCardOrderForTour(tourId, userId));
       // Starting a tour that was already seen is a replay (lighter effects, or none for the first-run tour).
       const from: AppTourStartedFrom =
         startedFrom ?? (isTourSeen(tourId, userId) ? "replay" : "auto");

@@ -1,3 +1,9 @@
+import {
+  mergeCardLayouts,
+  sanitizeCardLayouts,
+  type CardLayouts,
+} from "@/features/cardLayout/cardIds";
+
 export type UserSettings = {
   budgetAlertsEnabled: boolean;
   budgetMonthlyAlertsEnabled: boolean;
@@ -11,8 +17,14 @@ export type UserSettings = {
   dailyExpenseReminderTime: string;
   weeklyEmailEnabled: boolean;
   monthlyEmailEnabled: boolean;
+  /** Saved card order per screen (Arrange). A screen without an entry keeps its default order. */
+  cardLayouts: CardLayouts;
 };
 
+/**
+ * Fields to change. `cardLayouts` is merged per screen with the stored ones (patching `home` leaves
+ * `budgets` alone) and an empty list for a screen means "back to the default order".
+ */
 export type UserSettingsPatch = Partial<UserSettings>;
 
 export type FeedbackType = "bug" | "idea" | "enhancement";
@@ -35,6 +47,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   dailyExpenseReminderTime: "20:00",
   weeklyEmailEnabled: true,
   monthlyEmailEnabled: true,
+  cardLayouts: {},
 };
 
 export function normalizeUserSettings(
@@ -43,5 +56,19 @@ export function normalizeUserSettings(
   return {
     ...DEFAULT_USER_SETTINGS,
     ...partial,
+    // Old caches and old servers have no layouts; anything malformed reads as "nothing saved".
+    cardLayouts: sanitizeCardLayouts(partial?.cardLayouts),
+  };
+}
+
+/** The settings after a patch, the way the server will have them: per-screen merge for `cardLayouts`. */
+export function applyUserSettingsPatch(
+  settings: UserSettings,
+  patch: UserSettingsPatch,
+): UserSettings {
+  return {
+    ...settings,
+    ...patch,
+    cardLayouts: mergeCardLayouts(settings.cardLayouts, patch.cardLayouts),
   };
 }

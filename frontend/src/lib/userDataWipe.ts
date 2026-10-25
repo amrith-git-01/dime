@@ -7,7 +7,11 @@ import { deleteAllOutboxFiles } from "@/lib/outbox/outboxFiles";
 import { clearOutboxStorage } from "@/lib/outbox/outboxStorage";
 import { clearQueryMmkv } from "@/lib/queryPersister";
 import { bumpUserDataEpoch } from "@/lib/userDataEpoch";
-import { clearPersistedUserSettings } from "@/lib/settings/userSettingsMmkv";
+import { clearAppliedCardOrders } from "@/features/cardLayout/appliedOrder";
+import {
+  clearPendingCardLayouts,
+  clearPersistedUserSettings,
+} from "@/lib/settings/userSettingsMmkv";
 import { clearWidgetCaptureData } from "@/lib/widgets/widgetCaptureMmkv";
 import { clearWidgetSnapshot } from "@/lib/widgets/widgetSnapshotMmkv";
 import { refreshWidgets } from "@/widgets/refreshWidgets";
@@ -31,6 +35,7 @@ export function clearAppDataMmkv(): void {
   void deleteAllOutboxFiles();
   clearPersistedNotifications();
   clearPersistedUserSettings();
+  clearPendingCardLayouts();
   useCurrentUserStore.getState().clearProfile();
   // The home-screen widget falls back to "Sign in to Dime" instead of showing the old user's money,
   // and the old user's capture status never reaches the next account.
@@ -42,6 +47,8 @@ export function clearAppDataMmkv(): void {
 
 /** Puts every user-scoped UI store back to its initial state so nothing leaks to the next user. */
 function resetUserScopedUiStores(): void {
+  // The orders the screens showed belong to the previous user; a tour must not walk them.
+  clearAppliedCardOrders();
   useAgentChatUiStore.setState(useAgentChatUiStore.getInitialState(), true);
   useOutboxStore.getState().reset();
   usePendingDeepLinkStore.setState(

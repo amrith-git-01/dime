@@ -18,8 +18,9 @@ import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 
+/** The Budgets scroll view (anything that can scroll to a y offset). */
 type ScrollableList = {
-  scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
+  scrollTo: (params: { y: number; animated?: boolean }) => void;
 };
 
 type BudgetsRoute = RouteProp<MainTabParamList, "Budgets">;
@@ -79,6 +80,7 @@ export function useBudgetRecurringModel(
 
   // Scroll to the section when asked to, then clear the param so the next visit scrolls again.
   const [sectionY, setSectionY] = useState<number | null>(null);
+  // Fed the layout of the recurring block's wrapper, whose y is measured in the scroll content.
   const onSectionLayout = useCallback((event: LayoutChangeEvent) => {
     setSectionY(event.nativeEvent.layout.y);
   }, []);
@@ -87,7 +89,7 @@ export function useBudgetRecurringModel(
     if (!requestedKind || sectionY === null) {
       return;
     }
-    listRef.current?.scrollToOffset({ offset: sectionY, animated: true });
+    listRef.current?.scrollTo({ y: sectionY, animated: true });
     navigation.setParams({ recurringKind: undefined } as never);
   }, [listRef, navigation, requestedKind, sectionY]);
 

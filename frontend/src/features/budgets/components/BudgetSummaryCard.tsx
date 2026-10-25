@@ -233,7 +233,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
     ...shadows.card,
   },
   headerRow: {

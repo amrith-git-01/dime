@@ -113,6 +113,8 @@ describe('/me/settings', () => {
     weekly_email_enabled: true, monthly_email_enabled: true,
     // Removed daily-budget keys, still answered as 'off' for installed 1.0.0 builds.
     budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80,
+    // Per-screen card order ("Arrange"); {} until somebody rearranges a screen.
+    card_layouts: {},
   };
 
   it('GET creates defaults when the row is missing', async () => {
@@ -159,6 +161,88 @@ describe('/me/settings', () => {
     // The sent values are ignored: the response keeps the fixed legacy values.
     expect(body).toMatchObject({ budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80 });
     expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ budget_daily_alerts_enabled: 1, budget_daily_warn_pct: 80 });
+  });
+
+  describe('card_layouts', () => {
+    // Many writes in a row: skip the (shared, per-isolate) write limiter so later suites keep their budget.
+    const patch = (card_layouts: unknown) =>
+      call('/api/v1/me/settings', { method: 'PATCH', json: { card_layouts }, env: makeEnv({ WRITE_LIMITER: undefined }) });
+    const stored = async () => (await oneRow<{ card_layouts: string | null }>('user_settings', 'user_id = ?', USER_ID))?.card_layouts;
+
+    it('creates the row with the layout when none exists and echoes it as an object', async () => {
+      const res = await patch({ home: ['home.stats', 'home.month'] });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ...full, card_layouts: { home: ['home.stats', 'home.month'] } });
+      expect(JSON.parse((await stored()) ?? 'null')).toEqual({ home: ['home.stats', 'home.month'] });
+    });
+
+    it('merges per screen: patching one screen leaves the others untouched, and replaces that screen\'s list', async () => {
+      await patch({ home: ['home.stats', 'home.month'], budgets: ['budgets.recurring', 'budgets.summary'] });
+      const res = await patch({ home: ['home.recent'], insights: ['insights.compare'] });
+      expect((await res.json<{ card_layouts: unknown }>()).card_layouts).toEqual({
+        home: ['home.recent'],
+        budgets: ['budgets.recurring', 'budgets.summary'],
+        insights: ['insights.compare'],
+      });
+    });
+
+    it('an empty list removes that screen only; no screens left stores NULL', async () => {
+      await patch({ home: ['home.stats'], budgets: ['budgets.recurring'] });
+      expect((await (await patch({ home: [] })).json<{ card_layouts: unknown }>()).card_layouts).toEqual({ budgets: ['budgets.recurring'] });
+      expect((await (await patch({ budgets: [] })).json<{ card_layouts: unknown }>()).card_layouts).toEqual({});
+      expect(await stored()).toBeNull();
+    });
+
+    it('does not disturb other settings, and other settings patches do not touch the layout', async () => {
+      await patch({ home: ['home.stats'] });
+      const env = makeEnv({ WRITE_LIMITER: undefined });
+      const res = await call('/api/v1/me/settings', { method: 'PATCH', json: { budget_alerts_enabled: false, card_layouts: { insights: ['insights.month'] } }, env });
+      expect(await res.json()).toEqual({ ...full, budget_alerts_enabled: false, card_layouts: { home: ['home.stats'], insights: ['insights.month'] } });
+      const again = await call('/api/v1/me/settings', { method: 'PATCH', json: { weekly_email_enabled: false }, env });
+      expect((await again.json<{ card_layouts: unknown }>()).card_layouts).toEqual({ home: ['home.stats'], insights: ['insights.month'] });
+    });
+
+    it('null and an empty object leave the layout unchanged', async () => {
+      await patch({ home: ['home.stats'] });
+      for (const value of [null, {}]) {
+        expect((await (await patch(value)).json<{ card_layouts: unknown }>()).card_layouts).toEqual({ home: ['home.stats'] });
+      }
+    });
+
+    it('rejects unknown screens, bad ids, duplicates, too many ids and oversized payloads with 422', async () => {
+      const long = 'a'.repeat(49);
+      const many = Array.from({ length: 31 }, (_, i) => `card.${i}`);
+      const huge = Array.from({ length: 30 }, (_, i) => `${'x'.repeat(46)}${String(i).padStart(2, '0')}`);
+      for (const bad of [
+        { settings: ['a'] },
+        { home: ['Home.Month'] },
+        { home: ['1abc'] },
+        { home: [long] },
+        { home: ['home.a b'] },
+        { home: ['home.a', 'home.a'] },
+        { home: many },
+        { home: 'home.a' },
+        { home: huge, budgets: huge, insights: huge },
+      ]) {
+        const res = await patch(bad);
+        expect(res.status, JSON.stringify(bad).slice(0, 60)).toBe(422);
+      }
+      expect(await rowsOf('user_settings')).toHaveLength(0);
+    });
+
+    it('reads corrupt or foreign stored JSON as no layout instead of failing', async () => {
+      for (const raw of ['{not json', '[1,2]', '"x"', '{"home":"nope","budgets":[1],"other":["a"],"insights":["insights.month"]}']) {
+        await testDb().prepare('DELETE FROM user_settings').run();
+        await seedSettings({ card_layouts: raw });
+        const res = await call('/api/v1/me/settings');
+        expect((await res.json<{ card_layouts: unknown }>()).card_layouts).toEqual(raw.includes('insights.month') ? { insights: ['insights.month'] } : {});
+      }
+    });
+
+    it('a patch over corrupt stored JSON starts from an empty object', async () => {
+      await seedSettings({ card_layouts: '{broken' });
+      expect((await (await patch({ home: ['home.stats'] })).json<{ card_layouts: unknown }>()).card_layouts).toEqual({ home: ['home.stats'] });
+    });
   });
 
   it('clamps stored warn percentages like the Python snapshot', async () => {

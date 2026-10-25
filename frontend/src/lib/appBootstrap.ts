@@ -24,6 +24,9 @@ import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { fetchUserSettings } from "@/features/settings/api/settingsApi";
 import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserSettingsMmkv";
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
+import type { UserSettings } from "@/features/settings/types";
+import { overlayPendingLayouts } from "@/features/settings/utils/settingsPatchRollback";
+import { readPendingCardLayoutScreens } from "@/lib/settings/userSettingsMmkv";
 import {
   PushPermissionDeniedError,
   syncExpoPushTokenForUser,
@@ -210,7 +213,13 @@ export function prefetchSiblingTabQueries(
     try {
       const settings = await queryClient.fetchQuery({
         queryKey: settingsQueryKeys.user(userId),
-        queryFn: fetchUserSettings,
+        // An arranged order the server has not heard about yet stays as it is on this device.
+        queryFn: async () =>
+          overlayPendingLayouts(
+            await fetchUserSettings(),
+            queryClient.getQueryData<UserSettings>(settingsQueryKeys.user(userId)),
+            readPendingCardLayoutScreens(userId),
+          ),
       });
 
       if (settings.deviceNotificationsEnabled) {

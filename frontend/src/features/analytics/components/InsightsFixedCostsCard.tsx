@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { useCardSlotEmpty } from "@/features/cardLayout/components/CardSlot";
 import { RecurringOccurrenceRow } from "@/features/recurring/components";
 import type { RecurringMonthResponse } from "@/features/recurring/types";
 import { formatInrCompact } from "@/utils/currency";
@@ -32,6 +33,8 @@ export const InsightsFixedCostsCard = memo(function InsightsFixedCostsCard({
     [data?.items],
   );
 
+  // Its slot in the arranged cards takes no space while there is nothing to show.
+  useCardSlotEmpty(!loading && expenses.length === 0);
   if (!loading && expenses.length === 0) {
     return null;
   }

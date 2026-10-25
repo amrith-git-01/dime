@@ -1,4 +1,5 @@
 import type { TourTargetId } from "@/constants/tourTargetIds";
+import type { CardId } from "@/features/cardLayout/cardIds";
 import type { SampleDomain } from "@/features/tourPreview/types";
 import type { TourScrollKey } from "@/lib/tour/tourScrollRegistry";
 
@@ -78,6 +79,13 @@ export type TourStep = {
   targetId?: TourTargetId;
   /** Screen to be on while the step shows; defaults to the tour's own tab. */
   screen?: TourScreen;
+  /**
+   * The Home / Budgets / Insights card this step is about. The user can arrange those cards, so
+   * a tab tour puts its card steps in the order of the cards on screen when it starts
+   * (see `sortTourStepsByCardOrder`). Steps without one (a screen the tour opens, the finish
+   * card) follow the card step before them.
+   */
+  cardId?: CardId;
   /** Scrolls this screen's list so the target is in view before the spotlight lands on it. */
   scrollKey?: TourScrollKey;
   /** Scrolled to first while the target itself is not mounted (a row beyond a list's draw distance). */
