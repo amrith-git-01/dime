@@ -5,6 +5,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
+import { withAlpha } from "@/constants/colorUtils";
 import { createThemedStyles } from "@/theme";
 
 import {
@@ -15,6 +16,8 @@ import {
 import { type ReelPhase } from "./reelMachine";
 
 const SEGMENT_HEIGHT = 4;
+/** Thinner bar for the panel-mounted reel; the touch target stays SEGMENT_HIT_HEIGHT. */
+const SEGMENT_HEIGHT_FRAMELESS = 3;
 /** Touch target of one segment (the visible bar is only SEGMENT_HEIGHT tall). */
 const SEGMENT_HIT_HEIGHT = 16;
 
@@ -54,6 +57,7 @@ const ReelSegment = memo(function ReelSegment({
   clock,
   sceneGen,
   activeGen,
+  frameless,
   onSelect,
 }: {
   index: number;
@@ -61,6 +65,7 @@ const ReelSegment = memo(function ReelSegment({
   clock: SharedValue<number>;
   sceneGen: SharedValue<number>;
   activeGen: number;
+  frameless: boolean;
   onSelect: (index: number) => void;
 }) {
   const styles = useStyles();
@@ -70,7 +75,7 @@ const ReelSegment = memo(function ReelSegment({
       onPress={() => onSelect(index)}
       hitSlop={{ top: 8, bottom: 8 }}
     >
-      <View style={styles.track}>
+      <View style={frameless ? styles.trackFrameless : styles.track}>
         {fill === "live" ? (
           <LiveFill clock={clock} sceneGen={sceneGen} activeGen={activeGen} />
         ) : fill === "full" ? (
@@ -91,6 +96,8 @@ export type ReelProgressProps = {
   /** Generation the clock currently belongs to, and the one the active scene is waiting for. */
   sceneGen: SharedValue<number>;
   activeGen: number;
+  /** Thinner bars with an accent-alpha track, for the reel on the Welcome panel. */
+  frameless?: boolean;
   /** Stable: called with the tapped segment's index. */
   onSelect: (index: number) => void;
 };
@@ -108,6 +115,7 @@ export const ReelProgress = memo(function ReelProgress({
   clock,
   sceneGen,
   activeGen,
+  frameless = false,
   onSelect,
 }: ReelProgressProps) {
   const styles = useStyles();
@@ -125,6 +133,7 @@ export const ReelProgress = memo(function ReelProgress({
           clock={clock}
           sceneGen={sceneGen}
           activeGen={activeGen}
+          frameless={frameless}
           onSelect={onSelect}
         />
       ))}
@@ -132,7 +141,7 @@ export const ReelProgress = memo(function ReelProgress({
   );
 });
 
-const useStyles = createThemedStyles(({ colors }) => ({
+const useStyles = createThemedStyles(({ colors, scheme }) => ({
   row: {
     flexDirection: "row",
     gap: 4,
@@ -148,8 +157,18 @@ const useStyles = createThemedStyles(({ colors }) => ({
     overflow: "hidden",
     backgroundColor: colors.accentTint,
   },
+  trackFrameless: {
+    height: SEGMENT_HEIGHT_FRAMELESS,
+    borderRadius: SEGMENT_HEIGHT_FRAMELESS / 2,
+    overflow: "hidden",
+    backgroundColor:
+      scheme === "dark"
+        ? withAlpha(colors.accentText, 0.3)
+        : withAlpha(colors.accent, 0.22),
+  },
+  // Fills the track whatever its height; the track clips the rounded ends.
   fill: {
-    height: SEGMENT_HEIGHT,
+    height: "100%",
     borderRadius: SEGMENT_HEIGHT / 2,
     backgroundColor: colors.accentText,
   },

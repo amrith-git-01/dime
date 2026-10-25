@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StackScreenShell } from "@/components/layout/StackScreenShell";
 import { Button } from "@/components/ui";
-import { spacing } from "@/constants";
+import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
+import { SPLASH_WORDMARK_ASPECT } from "@/constants/splash";
 import {
   FeatureReel,
   WelcomeTrustLines,
@@ -16,6 +17,12 @@ import { useAuthScreenModel } from "./useAuthScreenModel";
 import { createThemedStyles, useTheme } from "@/theme";
 
 const wordmark = require("../../../assets/images/splash-wordmark.png");
+
+/** Wordmark width; its height follows the PNG's aspect so the mark sits flush with the text edge. */
+const WORDMARK_WIDTH = 84;
+const PANEL_BOTTOM_PADDING = 20;
+/** Space between the wordmark and the reel, inside the reel region (not available to the reel). */
+const REEL_REGION_TOP_GAP = spacing.lg;
 
 export default function AuthScreen() {
   const { colors, scheme } = useTheme();
@@ -34,8 +41,10 @@ export default function AuthScreen() {
       scrollEnabled={false}
       contentContainerStyle={styles.shellContent}
     >
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.brandHeader}>
+      <View style={styles.screen}>
+        <View
+          style={[styles.panel, { paddingTop: insets.top + spacing.lg }]}
+        >
           <Image
             source={wordmark}
             style={[
@@ -45,56 +54,60 @@ export default function AuthScreen() {
             accessibilityLabel="Dime"
             resizeMode="contain"
           />
-        </View>
 
-        <View style={styles.copy}>
-          <Text
-            accessibilityRole="header"
-            textBreakStrategy="balanced"
-            style={styles.headline}
-          >
-            Know where every rupee goes
-          </Text>
-          <Text style={styles.subhead}>
-            Log what you spend in seconds and watch your month take shape.
-          </Text>
-        </View>
-
-        <View style={styles.reelRegion} onLayout={onReelLayout}>
-          <FeatureReel
-            availableWidth={reelRegion.width}
-            availableHeight={reelRegion.height - spacing.xl}
-            paused={model.busy}
-          />
+          <View style={styles.reelRegion} onLayout={onReelLayout}>
+            <FeatureReel
+              frameless
+              availableWidth={reelRegion.width}
+              availableHeight={reelRegion.height - REEL_REGION_TOP_GAP}
+              paused={model.busy}
+            />
+          </View>
         </View>
 
         <View
           style={[
-            styles.ctaRegion,
-            { paddingBottom: Math.max(insets.bottom, spacing.md) },
+            styles.bottom,
+            { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.md },
           ]}
         >
-          {model.googleError ? (
-            <Text style={styles.errorText}>{model.googleError}</Text>
-          ) : null}
+          <View>
+            <Text
+              accessibilityRole="header"
+              textBreakStrategy="balanced"
+              maxFontSizeMultiplier={1.2}
+              style={styles.headline}
+            >
+              Know where every rupee goes
+            </Text>
+            <Text maxFontSizeMultiplier={1.3} style={styles.subhead}>
+              Log it in seconds. Watch your month take shape.
+            </Text>
+          </View>
 
-          <Button
-            title="Continue with Google"
-            busyLabel="Signing in"
-            accessibilityLabel="Continue with Google"
-            loading={model.googleLoading}
-            disabled={model.busy}
-            leadingIcon={
-              <MaterialCommunityIcons
-                name="google"
-                size={22}
-                color={colors.onAccent}
-              />
-            }
-            onPress={() => model.submitGoogle()}
-          />
+          <View style={styles.actions}>
+            {model.googleError ? (
+              <Text style={styles.errorText}>{model.googleError}</Text>
+            ) : null}
 
-          <WelcomeTrustLines />
+            <Button
+              title="Continue with Google"
+              busyLabel="Signing in"
+              accessibilityLabel="Continue with Google"
+              loading={model.googleLoading}
+              disabled={model.busy}
+              leadingIcon={
+                <MaterialCommunityIcons
+                  name="google"
+                  size={22}
+                  color={colors.onAccent}
+                />
+              }
+              onPress={() => model.submitGoogle()}
+            />
+
+            <WelcomeTrustLines />
+          </View>
         </View>
       </View>
     </StackScreenShell>
@@ -108,45 +121,50 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   screen: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    backgroundColor: colors.paper,
   },
-  brandHeader: {
-    alignItems: "flex-start",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+  // Soft accent-tinted panel that runs under the status bar; holds the wordmark and the reel.
+  panel: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: PANEL_BOTTOM_PADDING,
+    backgroundColor: colors.accentTint,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
   },
   wordmark: {
-    width: 112,
-    height: 37,
+    width: WORDMARK_WIDTH,
+    height: WORDMARK_WIDTH / SPLASH_WORDMARK_ASPECT,
   },
-  copy: {
-    gap: spacing.sm,
-    paddingTop: spacing.md,
+  reelRegion: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: REEL_REGION_TOP_GAP,
+  },
+  bottom: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 28,
   },
   headline: {
     fontFamily: fontFamilies.semiBold,
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 30,
+    lineHeight: 36,
     letterSpacing: -0.6,
     color: colors.ink,
   },
   subhead: {
+    marginTop: 10,
     fontFamily: fontFamilies.regular,
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.inkSoft,
   },
-  reelRegion: {
-    flex: 1,
-    alignItems: "stretch",
-    justifyContent: "flex-start",
-    minHeight: 0,
-    paddingTop: spacing.xl,
-  },
-  ctaRegion: {
-    gap: spacing.md,
-    paddingTop: spacing.md,
+  actions: {
+    gap: spacing.lg,
   },
   errorText: {
     fontFamily: fontFamilies.regular,
