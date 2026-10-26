@@ -8,10 +8,7 @@ import { Button } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { SPLASH_WORDMARK_ASPECT } from "@/constants/splash";
-import {
-  FeatureReel,
-  WelcomeTrustLines,
-} from "@/features/onboarding/components";
+import { FeatureReel } from "@/features/onboarding/components";
 
 import { useAuthScreenModel } from "./useAuthScreenModel";
 import { createThemedStyles, useTheme } from "@/theme";
@@ -23,6 +20,8 @@ const WORDMARK_WIDTH = 84;
 const PANEL_BOTTOM_PADDING = 20;
 /** Space between the wordmark and the reel, inside the reel region (not available to the reel). */
 const REEL_REGION_TOP_GAP = spacing.lg;
+/** Extra room under the sign-in button; the panel above flexes, so this also shortens it. */
+const BOTTOM_BREATHING_ROOM = 72;
 
 export default function AuthScreen() {
   const { colors, scheme } = useTheme();
@@ -68,7 +67,10 @@ export default function AuthScreen() {
         <View
           style={[
             styles.bottom,
-            { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.md },
+            {
+              paddingBottom:
+                Math.max(insets.bottom, spacing.lg) + BOTTOM_BREATHING_ROOM,
+            },
           ]}
         >
           <View>
@@ -105,8 +107,6 @@ export default function AuthScreen() {
               }
               onPress={() => model.submitGoogle()}
             />
-
-            <WelcomeTrustLines />
           </View>
         </View>
       </View>
@@ -147,7 +147,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
   bottom: {
     gap: spacing.xl,
     paddingHorizontal: spacing.xl,
-    paddingTop: 28,
+    paddingTop: spacing.xl,
   },
   headline: {
     fontFamily: fontFamilies.semiBold,
