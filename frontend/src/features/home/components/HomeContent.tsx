@@ -131,7 +131,9 @@ export const HomeContent = memo(function HomeContent(
         ready={cardOrder.ready}
       />
 
-      <ArrangeCards screen="home" cardOrder={cardOrder} />
+      <TourTarget id={tourTargetIds.homeArrange} style={styles.arrangeTarget}>
+        <ArrangeCards screen="home" cardOrder={cardOrder} />
+      </TourTarget>
     </View>
   );
 });
@@ -139,6 +141,10 @@ export const HomeContent = memo(function HomeContent(
 const useStyles = createThemedStyles(({ colors }) => ({
   root: {
     gap: SECTION_GAP,
+  },
+  // Hugs the centred Arrange button so the tour spotlights the button, not the full width.
+  arrangeTarget: {
+    alignSelf: "center",
   },
   syncStatus: {
     flexDirection: "row",

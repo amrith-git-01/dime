@@ -508,7 +508,7 @@ describe("app tour store", () => {
     describe("finishing", () => {
       it("reaching the finish card marks the tour seen and reports the progress", () => {
         markTourSeen("firstExpense", "user-a");
-        tourOn("home", "detail");
+        tourOn("home", "arrange");
         store().next();
         expect(getTour("home").steps[store().stepIndex].kind).toBe("finale");
         expect(isTourSeen("home", "user-a")).toBe(true);
@@ -525,7 +525,7 @@ describe("app tour store", () => {
 
       it("a replay gets the lighter confetti, never the big one", () => {
         markTourSeen("home", "user-a");
-        tourOn("home", "detail");
+        tourOn("home", "arrange");
         store().next();
         expect(store().completion).toMatchObject({
           firstTime: false,
@@ -562,7 +562,7 @@ describe("app tour store", () => {
         for (const id of TOUR_ORDER) {
           markTourSeen(id, "user-a");
         }
-        tourOn("home", "detail");
+        tourOn("home", "arrange");
         store().next();
         expect(store().completion).toMatchObject({ allDone: false, celebration: "medium" });
       });
@@ -582,7 +582,7 @@ describe("app tour store", () => {
       });
 
       it("the celebration plays once per run (a pause and resume remounts the overlay)", () => {
-        tourOn("home", "detail");
+        tourOn("home", "arrange");
         store().next();
         expect(store().celebrated).toBe(false);
         store().markCelebrated();
@@ -595,7 +595,7 @@ describe("app tour store", () => {
       });
 
       it("Done closes the tour (it was already marked seen)", () => {
-        tourOn("home", "detail");
+        tourOn("home", "arrange");
         store().next();
         store().next();
         expect(store().active).toBe(false);

@@ -16,7 +16,8 @@ function mergeEnter(
  * - Steps with a `cardId` are grouped by card (a card's steps keep their order); a step without
  *   one (a screen the tour opens from that card, e.g. "All the details") stays right after the
  *   card step it followed, so it moves with its card.
- * - Steps before the first card step (a welcome card) and the finish card(s) at the end stay put.
+ * - Steps before the first card step (a welcome card), the `atEnd` steps (e.g. Arrange) and the
+ *   finish card(s) at the end stay put.
  * - A card that is not in `order` goes last, in its original place among such cards.
  * - What the first step of the tour carries (`enter` actions such as closing the + menu, and
  *   `backExits`) belongs to whichever step now opens the tour.
@@ -30,7 +31,7 @@ export function sortTourStepsByCardOrder(
     return [...steps];
   }
   let end = steps.length;
-  while (end > firstCard && steps[end - 1].kind === "finale") {
+  while (end > firstCard && (steps[end - 1].kind === "finale" || steps[end - 1].atEnd)) {
     end -= 1;
   }
 

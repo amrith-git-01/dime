@@ -14,6 +14,8 @@ export const tourTargetIds = {
   homeCategories: "home.categories",
   /** First row of Recent transactions: the tour asks the user to open it. */
   homeFirstTransaction: "home.firstTransaction",
+  /** The Arrange button at the end of Home. */
+  homeArrange: "home.arrange",
 
   // Add menu
   addFab: "tabBar.addFab",

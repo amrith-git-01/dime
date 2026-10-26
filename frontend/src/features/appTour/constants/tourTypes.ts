@@ -86,6 +86,8 @@ export type TourStep = {
    * card) follow the card step before them.
    */
   cardId?: CardId;
+  /** Stays after all the card steps, just before the finish card, whatever order the cards are in. */
+  atEnd?: boolean;
   /** Scrolls this screen's list so the target is in view before the spotlight lands on it. */
   scrollKey?: TourScrollKey;
   /** Scrolled to first while the target itself is not mounted (a row beyond a list's draw distance). */

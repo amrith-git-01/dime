@@ -4,7 +4,7 @@ import { ScrollView } from "react-native";
 import { BENTO_SECTION_GAP } from "@/components/bento";
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { TourTarget } from "@/components/shared";
-import { FLOATING_BUTTONS_CLEARANCE, layout } from "@/constants";
+import { ARRANGE_SCREEN_BOTTOM_CLEARANCE, layout } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   InsightsCounterpartyDonutCard,
@@ -242,7 +242,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   scrollContent: {
     ...layout.screenContent,
-    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
+    paddingBottom: ARRANGE_SCREEN_BOTTOM_CLEARANCE,
     gap: BENTO_SECTION_GAP,
   },
 }));

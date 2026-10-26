@@ -6,6 +6,16 @@ import { spacing } from "./spacing";
  */
 export const FLOATING_BUTTONS_CLEARANCE = 140;
 
+/** Height of the "Arrange" button row at the end of Home, Budgets and Insights. */
+export const ARRANGE_ROW_HEIGHT = 44;
+
+/**
+ * Bottom space for Home, Budgets and Insights, whose last item is the centred Arrange row: the last
+ * card stays exactly where the full clearance put it, and Arrange only has to clear the "+" bubble.
+ */
+export const ARRANGE_SCREEN_BOTTOM_CLEARANCE =
+  FLOATING_BUTTONS_CLEARANCE - (ARRANGE_ROW_HEIGHT + spacing.xl);
+
 /** Reusable layout presets (spread into StyleSheet rules). */
 export const layout = {
   screenContent: {
