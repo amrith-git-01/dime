@@ -39,9 +39,6 @@ jest.mock("@/features/onboarding/components", () => ({
     mockReel(props);
     return null;
   },
-  WelcomeTrustLines: jest.requireActual(
-    "@/features/onboarding/components/WelcomeTrustLines",
-  ).WelcomeTrustLines,
 }));
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the renderer ships without types */
@@ -104,13 +101,13 @@ describe("AuthScreen", () => {
     unmount(tree);
   });
 
-  it("shows the headline, subhead, button and trust row", () => {
+  it("shows the headline, subhead and button, without the trust row", () => {
     const tree = render();
     const all = texts(tree);
     expect(all).toContain("Know where every rupee goes");
     expect(all).toContain("Log it in seconds. Watch your month take shape.");
     expect(all).toContain("Continue with Google");
-    expect(all).toContain("No bank login · Your data is never sold");
+    expect(all).not.toContain("No bank login · Your data is never sold");
     unmount(tree);
   });
 

@@ -2,7 +2,7 @@ import { memo, useRef } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
-import { FLOATING_BUTTONS_CLEARANCE, layout } from "@/constants";
+import { ARRANGE_SCREEN_BOTTOM_CLEARANCE, layout } from "@/constants";
 import { HomeContent } from "@/features/home/components";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
@@ -38,6 +38,6 @@ const styles = StyleSheet.create({
   },
   content: {
     ...layout.screenContent,
-    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
+    paddingBottom: ARRANGE_SCREEN_BOTTOM_CLEARANCE,
   },
 });

@@ -3,6 +3,7 @@ import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { fontFamilies } from "@/constants/fonts";
+import { ARRANGE_ROW_HEIGHT } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -43,7 +44,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.xs,
-    minHeight: 44,
+    minHeight: ARRANGE_ROW_HEIGHT,
     paddingHorizontal: spacing.lg,
   },
   pressed: {

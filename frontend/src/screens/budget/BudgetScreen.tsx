@@ -9,7 +9,7 @@ import {
   emptyStateCopy,
   TourTarget,
 } from "@/components/shared";
-import { FLOATING_BUTTONS_CLEARANCE } from "@/constants";
+import { ARRANGE_SCREEN_BOTTOM_CLEARANCE } from "@/constants";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
@@ -212,7 +212,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   // them whatever order the user put them in.
   content: {
     paddingTop: spacing.lg,
-    paddingBottom: FLOATING_BUTTONS_CLEARANCE,
+    paddingBottom: ARRANGE_SCREEN_BOTTOM_CLEARANCE,
     gap: spacing.xl,
   },
   sectionHeader: {

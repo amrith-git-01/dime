@@ -21,7 +21,12 @@ export { bentoTileMinHeight, budgetRowHeight } from "./dimensions";
 export { fontFamilies, loadableAppFonts } from "./fonts";
 export { useFormStyles } from "./formStyles";
 export { iconSizes, type IconSizeToken } from "./iconSizes";
-export { FLOATING_BUTTONS_CLEARANCE, layout } from "./layout";
+export {
+  ARRANGE_ROW_HEIGHT,
+  ARRANGE_SCREEN_BOTTOM_CLEARANCE,
+  FLOATING_BUTTONS_CLEARANCE,
+  layout,
+} from "./layout";
 export {
   fabBreathe,
   fabIdleCloseMs,

@@ -128,6 +128,7 @@ describe("the tab tours follow the card order", () => {
       "upcoming",
       "stats",
       "monthCard",
+      "arrange",
       "finale",
     ]);
     expect(getTour("home").steps[0].enter).toEqual(["closeFab"]);
