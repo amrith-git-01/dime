@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -21,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { radius } from "@/constants/radius";
 import { fontFamilies } from "@/constants/fonts";
 import { springs } from "@/constants/motion";
+import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { spacing } from "@/constants/spacing";
 import { createThemedStyles } from "@/theme";
 
@@ -38,6 +40,9 @@ import { SortableList, type SortableItem } from "./SortableList";
 const DISMISS_DISTANCE = 100;
 const DISMISS_VELOCITY = 900;
 const DISMISS_MS = 160;
+/** The sheet slides up while the backdrop only fades in place (it never moves with the sheet). */
+const OPEN_MS = 280;
+const CLOSE_MS = 200;
 const SHEET_MAX_HEIGHT_RATIO = 0.9;
 
 export type ArrangeSheetProps = {
@@ -88,17 +93,54 @@ export const ArrangeSheet = memo(function ArrangeSheet({
     setDraft(next as CardId[]);
   }, []);
 
-  const sheetY = useSharedValue(0);
+  const reduceMotion = useReduceMotion();
+  // Starts below the screen and slides up on open; the backdrop fades from 0.
+  const sheetY = useSharedValue(windowHeight);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const duration = reduceMotion ? 0 : OPEN_MS;
+    backdropOpacity.value = withTiming(1, { duration });
+    sheetY.value = withTiming(0, { duration, easing: Easing.out(Easing.cubic) });
+  }, [backdropOpacity, reduceMotion, sheetY, visible]);
+
+  /** Slide the sheet away and fade the backdrop, then hand over (the modal itself has no animation). */
+  const closeThen = useCallback(
+    (then: () => void) => {
+      const duration = reduceMotion ? 0 : CLOSE_MS;
+      backdropOpacity.value = withTiming(0, { duration });
+      sheetY.value = withTiming(
+        windowHeight,
+        { duration, easing: Easing.in(Easing.cubic) },
+        (finished) => {
+          if (finished) {
+            runOnJS(then)();
+          }
+        },
+      );
+    },
+    [backdropOpacity, reduceMotion, sheetY, windowHeight],
+  );
+  const cancel = useCallback(() => closeThen(onCancel), [closeThen, onCancel]);
+  const done = () => {
+    const next = [...draft];
+    closeThen(() => onDone(next));
+  };
+
   const grabberPan = Gesture.Pan()
     .onUpdate((event) => {
       sheetY.value = Math.max(0, event.translationY);
+      backdropOpacity.value = 1 - Math.min(1, Math.max(0, event.translationY) / windowHeight);
     })
     .onEnd((event) => {
       if (
         event.translationY > DISMISS_DISTANCE ||
         event.velocityY > DISMISS_VELOCITY
       ) {
-        // Out of sight first, so the modal's own slide-out has nothing left to show.
+        backdropOpacity.value = withTiming(0, { duration: DISMISS_MS });
         sheetY.value = withTiming(windowHeight, { duration: DISMISS_MS }, (finished) => {
           if (finished) {
             runOnJS(onCancel)();
@@ -106,10 +148,14 @@ export const ArrangeSheet = memo(function ArrangeSheet({
         });
       } else {
         sheetY.value = withSpring(0, springs.smooth);
+        backdropOpacity.value = withTiming(1, { duration: DISMISS_MS });
       }
     });
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: sheetY.value }],
+  }));
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
   }));
 
   const maxSheetHeight = windowHeight * SHEET_MAX_HEIGHT_RATIO;
@@ -118,17 +164,19 @@ export const ArrangeSheet = memo(function ArrangeSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       statusBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={cancel}
     >
       <GestureHandlerRootView style={styles.root}>
-        <Pressable
-          style={styles.backdrop}
-          onPress={onCancel}
-          accessibilityRole="button"
-          accessibilityLabel="Close without saving"
-        />
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={cancel}
+            accessibilityRole="button"
+            accessibilityLabel="Close without saving"
+          />
+        </Animated.View>
         <Animated.View
           style={[
             styles.sheet,
@@ -146,7 +194,7 @@ export const ArrangeSheet = memo(function ArrangeSheet({
           <View style={styles.header}>
             <Pressable
               style={styles.headerButton}
-              onPress={onCancel}
+              onPress={cancel}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
             >
@@ -157,7 +205,7 @@ export const ArrangeSheet = memo(function ArrangeSheet({
             </Text>
             <Pressable
               style={[styles.headerButton, styles.headerButtonEnd]}
-              onPress={() => onDone([...draft])}
+              onPress={done}
               accessibilityRole="button"
               accessibilityLabel="Done"
             >
@@ -203,7 +251,8 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlays.scrim,
+    // The light scrim: the screen stays readable behind the sheet.
+    backgroundColor: colors.overlays.scrimLight,
   },
   sheet: {
     backgroundColor: colors.surface,
