@@ -15,6 +15,7 @@ type SettingsHubDestination =
   | "SettingsAppearance"
   | "SettingsNotifications"
   | "SettingsEmail"
+  | "SettingsBrokeReports"
   | "SettingsGlossary"
   | "SettingsPermissions"
   | "SettingsTours"

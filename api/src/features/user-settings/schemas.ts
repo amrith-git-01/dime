@@ -38,6 +38,8 @@ export const settingsPatchSchema = z.strictObject({
     .nullish(),
   weekly_email_enabled: bool,
   monthly_email_enabled: bool,
+  report_alerts_enabled: bool,
+  report_roast_level: z.enum(['gentle', 'spicy', 'savage']).nullish(),
   /** Merged per screen with the stored layouts: patching `home` leaves `budgets` alone. */
   card_layouts: cardLayouts.nullish(),
 });

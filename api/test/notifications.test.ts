@@ -211,6 +211,43 @@ describe('insertDeduped', () => {
   });
 });
 
+describe('report_ready notifications (migration 0014 rebuilt the table)', () => {
+  const report = { user_id: USER_ID, kind: 'report_ready' as const, title: 'T', body: 'B', action_type: 'report' as const, action_transaction_id: null, action_period_key: '2026-10', dedupe_key: 'report:2026-10' };
+
+  it('stores the period and answers it only on the report action', async () => {
+    const created = await insertDeduped(testDb(), report);
+    expect(created).toMatchObject({ kind: 'report_ready', action_type: 'report', action_period_key: '2026-10' });
+    await seedRow(1, { created_at: '2026-01-01T00:00:00.000Z' });
+    const body = await (await call('/api/v1/notifications')).json<{ items: { kind: string; action: Record<string, unknown> }[] }>();
+    expect(body.items.map((i) => i.action)).toEqual([
+      { type: 'report', transaction_id: null, period_key: '2026-10' },
+      { type: 'home', transaction_id: null }, // every other kind keeps its old shape
+    ]);
+  });
+
+  it('the old constraints survive the rebuild and the new values are the only additions', async () => {
+    const insert = (kind: string, actionType: string, period: string | null, key: string) =>
+      testDb()
+        .prepare('INSERT INTO notifications (id, user_id, kind, title, body, action_type, action_period_key, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(`00000000-0000-4000-8000-${key.padStart(12, '0')}`, USER_ID, kind, 't', 'b', actionType, period, key)
+        .run();
+    await insert('report_ready', 'report', '2026-10', '1');
+    await insert('transaction_auto', 'none', null, '2');
+    await expect(insert('weekly_summary', 'none', null, '3')).rejects.toThrow(/CHECK/i);
+    await expect(insert('report_ready', 'somewhere', null, '4')).rejects.toThrow(/CHECK/i);
+    await expect(insert('report_ready', 'report', '2026-1', '5')).rejects.toThrow(/CHECK/i);
+    await expect(insert('report_ready', 'report', '2026-10', '1')).rejects.toThrow(/UNIQUE/i); // (user_id, dedupe_key) is still unique
+    const { results } = await testDb().prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'notifications' AND name = 'notifications_user_created_idx'").all();
+    expect(results).toHaveLength(1);
+  });
+
+  it('insertDeduped dedupes a report on its key like any other notification', async () => {
+    expect(await insertDeduped(testDb(), report)).not.toBeNull();
+    expect(await insertDeduped(testDb(), report)).toBeNull();
+    expect(await rowsOf('notifications')).toHaveLength(1);
+  });
+});
+
 describe('sendExpoPush', () => {
   const base = { title: 'Hi', body: 'Body', data: { kind: 'x' } };
 

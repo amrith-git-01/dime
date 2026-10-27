@@ -1,5 +1,7 @@
 import { format, isValid, parse } from "date-fns";
 
+import { isReportPeriodKey } from "@/features/brokeReport/utils/periodKey";
+
 import { DEEP_LINK_SCHEME } from "./deepLinkUrls";
 
 export type DeepLinkIntent =
@@ -9,7 +11,9 @@ export type DeepLinkIntent =
   | { kind: "scan" }
   | { kind: "voice" }
   | { kind: "budgets"; recurring: boolean }
-  | { kind: "agent" };
+  | { kind: "agent" }
+  /** `periodKey` is a `YYYY-MM` month. */
+  | { kind: "report"; periodKey: string };
 
 const URL_PATTERN = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?/i;
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,6 +74,9 @@ export function parseDeepLink(
       return { kind: "budgets", recurring: path === "recurring" };
     case "agent":
       return { kind: "agent" };
+    case "reports":
+      // `dime://reports/2026-10`; a missing or malformed month is not a link the app can open.
+      return isReportPeriodKey(path) ? { kind: "report", periodKey: path } : null;
     default:
       return null;
   }

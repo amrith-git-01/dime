@@ -10,6 +10,9 @@ import type { DigestPeriod } from './periods';
 import { createQuoteSource } from './quotes';
 import type { Quote } from './quotes';
 import * as sends from './sends-repository';
+import type { PushSender } from '../notifications/emitter';
+import type { Publisher } from '../realtime/events';
+import { envPublisher } from '../realtime/publish';
 import { patch as patchSettings } from '../user-settings/service';
 import { UnsubscribeSecretError, signUnsubscribeToken, unsubscribeUrl, verifyUnsubscribeToken } from './tokens';
 import type { DigestKind } from './tokens';
@@ -37,6 +40,9 @@ export interface EmailDeps {
   brevo: BrevoClient;
   /** One random quote per call; the batch shares a single lazily fetched page. */
   quote: () => Promise<Quote>;
+  /** Used by the Broke Report messages on the same queue (the in-app bell and the push); digests ignore them. */
+  publisher?: Publisher | undefined;
+  pushSend?: PushSender | undefined;
 }
 
 export function createEmailDeps(env: Bindings, db: Db): EmailDeps {
@@ -46,6 +52,7 @@ export function createEmailDeps(env: Bindings, db: Db): EmailDeps {
     config,
     brevo: new BrevoClient(config.email.brevoApiKey, config.email.from),
     quote: createQuoteSource(config.email.favqsApiKey),
+    publisher: envPublisher(env),
   };
 }
 

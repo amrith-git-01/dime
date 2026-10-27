@@ -33,6 +33,11 @@ import {
 } from "@/constants/colors";
 import { hexToRgba } from "@/constants/colorUtils";
 import { shadows as lightShadows } from "@/constants/shadows";
+import {
+  reportPaletteDark,
+  reportPaletteLight,
+  type ReportPalette,
+} from "@/constants/reportPalette";
 import { createTypography, type Typography } from "@/constants/typography";
 
 /**
@@ -139,6 +144,8 @@ export type ThemeColors = {
     /** FAB action bubble fill; the glyph on it is `onInk`. */
     actionIcon: string;
   };
+  /** Broke Report slide tones (bold backgrounds with readable text). */
+  report: ReportPalette;
   surfaces: {
     primaryTint10: string;
     primaryBorder28: string;
@@ -278,6 +285,7 @@ export const lightColors: ThemeColors = deepFreeze({
     whiteOverlay92: lightSurfaces.whiteOverlay92,
     onPrimaryChipBg: lightSurfaces.onPrimaryChipBg,
   },
+  report: reportPaletteLight,
 });
 
 // ─── Dark ────────────────────────────────────────────────────────────────────
@@ -385,6 +393,7 @@ export const darkColors: ThemeColors = deepFreeze({
     whiteOverlay92: "rgba(28, 28, 32, 0.92)",
     onPrimaryChipBg: "rgba(255, 255, 255, 0.08)",
   },
+  report: reportPaletteDark,
 });
 
 // ─── Shadows ─────────────────────────────────────────────────────────────────

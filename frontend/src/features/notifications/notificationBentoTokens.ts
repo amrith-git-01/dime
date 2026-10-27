@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react-native";
-import { AlertTriangle, ScanLine } from "lucide-react-native";
+import { AlertTriangle, Bell, FileBarChart, ScanLine } from "lucide-react-native";
 
 import type { ThemeColors } from "@/theme";
 
@@ -52,6 +52,20 @@ export function getNotificationRowVisual(
         icon: AlertTriangle,
         backgroundColor: colors.dangerTint,
         iconColor: colors.danger,
+      };
+    case "report_ready":
+      return {
+        icon: FileBarChart,
+        backgroundColor: colors.accentTint,
+        iconColor: colors.accent,
+      };
+    case "unknown":
+    default:
+      // A kind from a newer server: neutral well, the row still shows its own title and body.
+      return {
+        icon: Bell,
+        backgroundColor: colors.surfaces.primaryTint10,
+        iconColor: colors.inkSoft,
       };
   }
 }

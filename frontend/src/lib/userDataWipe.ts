@@ -4,6 +4,7 @@ import { recentTransactionMutations } from "@/features/transactions/utils/recent
 import { etagCache } from "@/lib/api/etagCache";
 import { clearPersistedNotifications } from "@/lib/notifications/notificationsMmkv";
 import { deleteAllOutboxFiles } from "@/lib/outbox/outboxFiles";
+import { clearReportBannerFlags } from "@/lib/reports/reportBannerStorage";
 import { clearOutboxStorage } from "@/lib/outbox/outboxStorage";
 import { clearQueryMmkv } from "@/lib/queryPersister";
 import { bumpUserDataEpoch } from "@/lib/userDataEpoch";
@@ -35,6 +36,7 @@ export function clearAppDataMmkv(): void {
   void deleteAllOutboxFiles();
   clearPersistedNotifications();
   clearPersistedUserSettings();
+  clearReportBannerFlags();
   clearPendingCardLayouts();
   useCurrentUserStore.getState().clearProfile();
   // The home-screen widget falls back to "Sign in to Dime" instead of showing the old user's money,

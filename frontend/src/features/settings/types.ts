@@ -4,6 +4,16 @@ import {
   type CardLayouts,
 } from "@/features/cardLayout/cardIds";
 
+export const REPORT_ROAST_LEVELS = ["gentle", "spicy", "savage"] as const;
+export type ReportRoastLevel = (typeof REPORT_ROAST_LEVELS)[number];
+
+export function isReportRoastLevel(value: unknown): value is ReportRoastLevel {
+  return (
+    typeof value === "string" &&
+    (REPORT_ROAST_LEVELS as readonly string[]).includes(value)
+  );
+}
+
 export type UserSettings = {
   budgetAlertsEnabled: boolean;
   budgetMonthlyAlertsEnabled: boolean;
@@ -17,6 +27,10 @@ export type UserSettings = {
   dailyExpenseReminderTime: string;
   weeklyEmailEnabled: boolean;
   monthlyEmailEnabled: boolean;
+  /** Push / inbox note when the monthly Broke Report is ready. */
+  reportAlertsEnabled: boolean;
+  /** How hard the Broke Report's copy teases. */
+  reportRoastLevel: ReportRoastLevel;
   /** Saved card order per screen (Arrange). A screen without an entry keeps its default order. */
   cardLayouts: CardLayouts;
 };
@@ -47,6 +61,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   dailyExpenseReminderTime: "20:00",
   weeklyEmailEnabled: true,
   monthlyEmailEnabled: true,
+  reportAlertsEnabled: true,
+  reportRoastLevel: "spicy",
   cardLayouts: {},
 };
 
@@ -56,6 +72,14 @@ export function normalizeUserSettings(
   return {
     ...DEFAULT_USER_SETTINGS,
     ...partial,
+    // Old caches and old servers have neither report field; an unknown level reads as the default.
+    reportAlertsEnabled:
+      typeof partial?.reportAlertsEnabled === "boolean"
+        ? partial.reportAlertsEnabled
+        : DEFAULT_USER_SETTINGS.reportAlertsEnabled,
+    reportRoastLevel: isReportRoastLevel(partial?.reportRoastLevel)
+      ? partial.reportRoastLevel
+      : DEFAULT_USER_SETTINGS.reportRoastLevel,
     // Old caches and old servers have no layouts; anything malformed reads as "nothing saved".
     cardLayouts: sanitizeCardLayouts(partial?.cardLayouts),
   };

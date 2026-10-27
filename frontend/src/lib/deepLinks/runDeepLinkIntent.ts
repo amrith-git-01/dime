@@ -55,5 +55,11 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
       });
       useAgentChatUiStore.getState().open();
       return;
+    case "report":
+      navigationRef.navigate("Main", {
+        screen: "BrokeReport",
+        params: { periodKey: intent.periodKey },
+      });
+      return;
   }
 }

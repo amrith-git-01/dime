@@ -23,7 +23,10 @@ export type MainStackParamList = {
   SettingsPermissions: undefined;
   SettingsNotifications: undefined;
   SettingsTours: undefined;
+  SettingsBrokeReports: undefined;
   Notifications: undefined;
+  /** `periodKey`: `YYYY-MM` of a stored Broke Report. */
+  BrokeReport: { periodKey: string };
   ManualAddTransaction:
     | {
         /** `yyyy-MM-dd` day the new transaction is dated to (a past day opens at 12:00). */

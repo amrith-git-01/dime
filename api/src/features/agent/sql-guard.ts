@@ -49,6 +49,7 @@ export const SHADOWED_TABLES = [
   'ai_usage',
   'ai_user_usage',
   'd1_migrations',
+  'monthly_reports',
   'brands',
   'brand_aliases',
   'brands_fts',

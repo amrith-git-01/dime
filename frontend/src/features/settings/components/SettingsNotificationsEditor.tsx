@@ -8,7 +8,9 @@ import { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 import { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
+import { SettingsOptionRow } from "./SettingsOptionRow";
 import { SettingsToggleRow } from "./SettingsToggleRow";
+import { REPORT_ROAST_LEVELS, type ReportRoastLevel } from "../types";
 
 export type SettingsNotificationsEditorProps = {
   deviceNotificationsEnabled: boolean;
@@ -23,6 +25,10 @@ export type SettingsNotificationsEditorProps = {
   budgetCategoryWarnPct: number;
   autoCaptureAlertsEnabled: boolean;
   captureFailedAlertsEnabled: boolean;
+  reportAlertsEnabled: boolean;
+  reportRoastLevel: ReportRoastLevel;
+  onReportAlertsChange: (enabled: boolean) => void;
+  onReportRoastLevelChange: (level: ReportRoastLevel) => void;
   togglesDisabled?: boolean;
   onBudgetMonthlyAlertsChange: (enabled: boolean) => void;
   onBudgetCategoryAlertsChange: (enabled: boolean) => void;
@@ -39,6 +45,14 @@ export type SettingsNotificationsEditorProps = {
   draftSyncKey?: number;
 };
 
+const ROAST_LEVEL_COPY: Readonly<
+  Record<ReportRoastLevel, { label: string; subtitle: string }>
+> = {
+  gentle: { label: "Gentle", subtitle: "Kind and encouraging" },
+  spicy: { label: "Spicy", subtitle: "Light teasing (default)" },
+  savage: { label: "Savage", subtitle: "No mercy" },
+};
+
 export const SettingsNotificationsEditor = memo(
   function SettingsNotificationsEditor({
     deviceNotificationsEnabled,
@@ -53,6 +67,10 @@ export const SettingsNotificationsEditor = memo(
     budgetCategoryWarnPct,
     autoCaptureAlertsEnabled,
     captureFailedAlertsEnabled,
+    reportAlertsEnabled,
+    reportRoastLevel,
+    onReportAlertsChange,
+    onReportRoastLevelChange,
     togglesDisabled = false,
     onBudgetMonthlyAlertsChange,
     onBudgetCategoryAlertsChange,
@@ -130,6 +148,31 @@ export const SettingsNotificationsEditor = memo(
             disabled={togglesDisabled}
             onAnimationBusyChange={onAnimationBusyChange}
           />
+        </SettingsFormCard>
+
+        <SettingsFormCard
+          title="Broke Report"
+          subtitle="Your month in review, with attitude."
+        >
+          <SettingsToggleRow
+            label="Monthly Broke Report"
+            subtitle="A push when your report is ready"
+            value={reportAlertsEnabled}
+            onValueChange={onReportAlertsChange}
+            disabled={togglesDisabled}
+            onAnimationBusyChange={onAnimationBusyChange}
+            showSeparator
+          />
+          {REPORT_ROAST_LEVELS.map((level, index) => (
+            <SettingsOptionRow
+              key={level}
+              label={ROAST_LEVEL_COPY[level].label}
+              subtitle={ROAST_LEVEL_COPY[level].subtitle}
+              selected={reportRoastLevel === level}
+              onPress={() => onReportRoastLevelChange(level)}
+              showSeparator={index < REPORT_ROAST_LEVELS.length - 1}
+            />
+          ))}
         </SettingsFormCard>
 
         <BentoEditorFooter

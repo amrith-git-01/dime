@@ -11,6 +11,7 @@ import {
   useCardOrder,
   type HomeCardId,
 } from "@/features/cardLayout";
+import { ReportBanner } from "@/features/brokeReport/components";
 import { GetStartedCard } from "@/features/onboarding/components";
 import { PendingChip } from "@/features/outbox/components/PendingChip";
 import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
@@ -124,6 +125,9 @@ export const HomeContent = memo(function HomeContent(
       {props.isError ? (
         <Text style={styles.error}>Could not load spending data.</Text>
       ) : null}
+
+      {/* Not one of the arrangeable cards: it shows for a few days after a report lands. */}
+      <ReportBanner />
 
       <OrderedCards
         order={cardOrder.order}

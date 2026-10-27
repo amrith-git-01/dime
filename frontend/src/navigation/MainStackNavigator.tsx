@@ -5,12 +5,14 @@ import {
   stackScrollGrowShellConfig,
   stackVirtualizedListShellConfig,
 } from "@/components/layout/stackScrollGrowShellConfig";
+import BrokeReportScreenBase from "@/screens/brokeReport/BrokeReportScreen";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import RecurringEditorScreenBase from "@/screens/recurring/RecurringEditorScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
+import SettingsBrokeReportsScreenBase from "@/screens/settings/SettingsBrokeReportsScreen";
 import SettingsAccountScreenBase from "@/screens/settings/SettingsAccountScreen";
 import SettingsAppearanceScreenBase from "@/screens/settings/SettingsAppearanceScreen";
 import SettingsEmailScreenBase from "@/screens/settings/SettingsEmailScreen";
@@ -29,6 +31,7 @@ import TransactionsListScreenBase from "@/screens/transactions/TransactionsListS
 
 import { RECURRING_COPY } from "@/features/recurring/utils/recurringDisplay";
 
+import { brokeReportScreenOptions, getBrokeReportScreenId } from "./brokeReportRoute";
 import MainTabNavigator from "./MainTabNavigator";
 import { withStackScreen } from "./stackScreenHosts";
 import { stackScreenOptions } from "./stackScreenOptions";
@@ -61,6 +64,10 @@ const SettingsToursScreen = withStackScreen(
   SettingsToursScreenBase,
   settingsStackShellConfig,
 );
+const SettingsBrokeReportsScreen = withStackScreen(
+  SettingsBrokeReportsScreenBase,
+  settingsStackShellConfig,
+);
 const NotificationsScreen = withStackScreen(
   NotificationsScreenBase,
   notificationsInboxShellConfig,
@@ -69,7 +76,7 @@ const ManualAddTransactionScreen = withStackScreen(
   ManualAddTransactionScreenBase,
 );
 const EditTransactionScreen = withStackScreen(EditTransactionScreenBase);
-// TransactionDetail renders its own overlay — no shell wrapper
+// TransactionDetail and BrokeReport render their own full-screen surface — no shell wrapper
 const TransactionsListScreen = withStackScreen(
   TransactionsListScreenBase,
   stackVirtualizedListShellConfig,
@@ -144,6 +151,17 @@ export default function MainStackNavigator() {
         name="SettingsTours"
         component={SettingsToursScreen}
         options={{ ...stackScreenOptions, title: "Tours" }}
+      />
+      <Stack.Screen
+        name="SettingsBrokeReports"
+        component={SettingsBrokeReportsScreen}
+        options={{ ...stackScreenOptions, title: "Broke Reports" }}
+      />
+      <Stack.Screen
+        name="BrokeReport"
+        component={BrokeReportScreenBase}
+        options={brokeReportScreenOptions}
+        getId={getBrokeReportScreenId}
       />
       <Stack.Screen
         name="Notifications"

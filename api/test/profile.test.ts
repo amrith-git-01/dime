@@ -111,6 +111,8 @@ describe('/me/settings', () => {
     budget_category_warn_pct: 80, auto_capture_alerts_enabled: true, capture_failed_alerts_enabled: true,
     device_notifications_enabled: true, daily_expense_reminder_enabled: true, daily_expense_reminder_time: '20:00',
     weekly_email_enabled: true, monthly_email_enabled: true,
+    // Broke Report: push + inbox alert when a month's report is ready, and the tone of its copy (read by the app).
+    report_alerts_enabled: true, report_roast_level: 'spicy',
     // Removed daily-budget keys, still answered as 'off' for installed 1.0.0 builds.
     budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80,
     // Per-screen card order ("Arrange"); {} until somebody rearranges a screen.
@@ -243,6 +245,33 @@ describe('/me/settings', () => {
       await seedSettings({ card_layouts: '{broken' });
       expect((await (await patch({ home: ['home.stats'] })).json<{ card_layouts: unknown }>()).card_layouts).toEqual({ home: ['home.stats'] });
     });
+  });
+
+  it('PATCH stores the Broke Report alert switch and roast level', async () => {
+    const res = await call('/api/v1/me/settings', { method: 'PATCH', json: { report_alerts_enabled: false, report_roast_level: 'savage' } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ...full, report_alerts_enabled: false, report_roast_level: 'savage' });
+    expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({ report_alerts_enabled: 0, report_roast_level: 'savage' });
+    // null = unchanged; the other level names are accepted too.
+    const again = await call('/api/v1/me/settings', { method: 'PATCH', json: { report_roast_level: null, report_alerts_enabled: true } });
+    expect(await again.json()).toEqual({ ...full, report_roast_level: 'savage' });
+    expect((await call('/api/v1/me/settings', { method: 'PATCH', json: { report_roast_level: 'gentle' } })).status).toBe(200);
+  });
+
+  it('PATCH rejects an unknown roast level', async () => {
+    const res = await call('/api/v1/me/settings', { method: 'PATCH', json: { report_roast_level: 'brutal' } });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ detail: [{ loc: ['body', 'report_roast_level'] }] });
+    expect(await rowsOf('user_settings')).toHaveLength(0);
+  });
+
+  it('a stored roast level the code does not know reads as the default', async () => {
+    expect(settingsFromRow({ report_roast_level: 'brutal' }).report_roast_level).toBe('spicy');
+    expect(settingsFromRow({ report_roast_level: 'gentle' }).report_roast_level).toBe('gentle');
+    expect(settingsFromRow({}).report_alerts_enabled).toBe(true);
+    expect(settingsFromRow({ report_alerts_enabled: 0 }).report_alerts_enabled).toBe(false);
+    // The table refuses such a value in the first place.
+    await expect(seedSettings({ report_roast_level: 'brutal' })).rejects.toThrow();
   });
 
   it('clamps stored warn percentages like the Python snapshot', async () => {

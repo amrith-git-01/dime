@@ -1,6 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { deleteAsync } from "expo-file-system/legacy";
 
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
+import {
+  dismissReportBanner,
+  isReportBannerDismissed,
+} from "@/lib/reports/reportBannerStorage";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import { DEFAULT_USER_SETTINGS } from "@/features/settings/types";
@@ -58,6 +63,10 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
     DEFAULT_USER_SETTINGS,
   );
   queryClient.setQueryData(notificationQueryKeys.unreadCount(userId), 3);
+  // The user's Broke Reports (cached) and a dismissed Home banner (on the device).
+  queryClient.setQueryData(reportQueryKeys.list(userId), []);
+  queryClient.setQueryData(reportQueryKeys.period(userId, "2026-10"), null);
+  dismissReportBanner(userId, "2026-10");
   writePersistedNotifications(userId, { inbox: [], unreadCount: 3 });
   writePersistedUserSettings(userId, DEFAULT_USER_SETTINGS);
   // The order Home shows and an arranged order that never reached the server.
@@ -114,6 +123,7 @@ describe("subscribeUserTransitionWipe", () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(readPersistedNotifications("user-a")).toBeNull();
     expect(readPersistedUserSettings("user-a")).toBeNull();
+    expect(isReportBannerDismissed("user-a", "2026-10")).toBe(false);
     // Tours must not walk the previous user's card order, and nothing pending goes to the next account.
     expect(getAppliedCardOrder("home")).toBeUndefined();
     expect(readPendingCardLayoutScreens("user-a")).toEqual([]);
@@ -161,6 +171,6 @@ describe("subscribeUserTransitionWipe", () => {
   it("stops wiping after unsubscribe", () => {
     unsubscribe();
     setUser(undefined);
-    expect(queryClient.getQueryCache().getAll()).toHaveLength(2);
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(4);
   });
 });

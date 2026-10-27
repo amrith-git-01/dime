@@ -53,6 +53,40 @@ describe("notifications MMKV snapshot", () => {
     expect(readPersistedNotifications("user-a")).toBeNull();
   });
 
+  it("normalizes rows it reads back, so a kind or action from another build cannot crash the inbox", () => {
+    writePersistedNotifications("user-a", {
+      ...snapshot,
+      inbox: [
+        {
+          id: "n1",
+          kind: "from_the_future",
+          title: "Hi",
+          body: "There",
+          createdAt: "2026-11-01T00:00:00Z",
+          readAt: null,
+          action: { type: "teleport" },
+        },
+        null,
+        {
+          id: "n2",
+          kind: "report_ready",
+          title: "Report",
+          body: "Ready",
+          createdAt: "2026-11-01T00:00:00Z",
+          readAt: null,
+          action: { type: "report", periodKey: "2026-10" },
+        },
+      ] as never,
+    });
+    const inbox = readPersistedNotifications("user-a")?.inbox ?? [];
+    expect(inbox).toHaveLength(2);
+    expect(inbox[0]).toMatchObject({ kind: "unknown", action: { type: "none" } });
+    expect(inbox[1]).toMatchObject({
+      kind: "report_ready",
+      action: { type: "report", periodKey: "2026-10" },
+    });
+  });
+
   it("returns null without a user id", () => {
     writePersistedNotifications("user-a", snapshot);
     expect(readPersistedNotifications(undefined)).toBeNull();

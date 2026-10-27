@@ -23,6 +23,7 @@ import { profileAvatarRoutes } from './features/profile-avatar/routes';
 import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
 import { recurringRoutes } from './features/recurring/routes';
+import { reportsRoutes } from './features/reports/routes';
 import { transactionRoutes } from './features/transactions/routes';
 import { updatesRoutes } from './features/updates/routes';
 import { userFeedbackRoutes } from './features/user-feedback/routes';
@@ -68,6 +69,7 @@ export function createApp() {
   api.route('/transactions', ingestRoutes); // receipt / voice capture (R3)
   api.route('/ingest', ingestJobRoutes); // capture job status (polled by the Android widget card)
   api.route('/recurring', recurringRoutes);
+  api.route('/reports', reportsRoutes); // Broke Report: monthly recap snapshots
   api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);
   api.route('/agent', agentRoutes);

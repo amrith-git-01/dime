@@ -1,12 +1,19 @@
+/**
+ * `unknown` is never sent by the server: it is what a kind this build does not know becomes
+ * (a newer server, an old cached row), so a new kind can show up without breaking the inbox.
+ */
 export type NotificationKind =
   | "transaction_auto"
   | "budget_threshold"
-  | "capture_failed";
+  | "capture_failed"
+  | "report_ready"
+  | "unknown";
 
 export type NotificationAction =
   | { type: "transaction_detail"; transactionId: string }
   | { type: "home" }
   | { type: "manual_add" }
+  | { type: "report"; periodKey: string }
   | { type: "none" };
 
 export type AppNotification = {

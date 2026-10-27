@@ -20,3 +20,12 @@ export const TRANSACTIONS_QUERY_STALE_MS = 60 * 1000;
 
 /** Inbox and unread badge: pushes land server-side, so a day-old cache is too stale to trust. */
 export const NOTIFICATIONS_QUERY_STALE_MS = 2 * 60 * 1000;
+
+/**
+ * A stored Broke Report snapshot never changes (a missing one may appear later, so only a cached
+ * snapshot is immutable: see `useReport`).
+ */
+export const REPORT_SNAPSHOT_STALE_MS = Number.POSITIVE_INFINITY;
+
+/** The reports list gains a row on the 1st and flips `viewed` when a report is opened. */
+export const REPORT_LIST_STALE_MS = 5 * 60 * 1000;

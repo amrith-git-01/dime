@@ -21,6 +21,9 @@ export function parseCardLayouts(raw: unknown): CardLayouts {
   return out;
 }
 
+export const ROAST_LEVELS = ['gentle', 'spicy', 'savage'] as const;
+export type RoastLevel = (typeof ROAST_LEVELS)[number];
+
 /** Typed view of a `user_settings` row with Python's defaults and clamping (UserSettingsSnapshot). */
 export interface UserSettings {
   budget_alerts_enabled: boolean;
@@ -35,6 +38,8 @@ export interface UserSettings {
   daily_expense_reminder_time: string;
   weekly_email_enabled: boolean;
   monthly_email_enabled: boolean;
+  report_alerts_enabled: boolean;
+  report_roast_level: RoastLevel;
   card_layouts: CardLayouts;
 }
 
@@ -51,6 +56,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   daily_expense_reminder_time: '20:00',
   weekly_email_enabled: true,
   monthly_email_enabled: true,
+  report_alerts_enabled: true,
+  report_roast_level: 'spicy',
   card_layouts: {},
 };
 
@@ -80,6 +87,8 @@ export function settingsFromRow(row: Record<string, unknown> | null | undefined)
     daily_expense_reminder_time: typeof time === 'string' ? time : typeof time === 'number' ? String(time) : '20:00',
     weekly_email_enabled: bool('weekly_email_enabled'),
     monthly_email_enabled: bool('monthly_email_enabled'),
+    report_alerts_enabled: bool('report_alerts_enabled'),
+    report_roast_level: ROAST_LEVELS.find((level) => level === row['report_roast_level']) ?? DEFAULT_SETTINGS.report_roast_level,
     card_layouts: parseCardLayouts(row['card_layouts']),
   };
 }

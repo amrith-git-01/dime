@@ -1,6 +1,7 @@
 import { createMMKV } from "react-native-mmkv";
 
 import type { AppNotification } from "@/features/notifications/types";
+import { normalizeNotification } from "@/features/notifications/utils/normalizeNotification";
 import { CACHE_SCHEMA_VERSION } from "@/lib/cacheVersion";
 import { APP_QUERY_GC_MS } from "@/lib/queryDefaults";
 
@@ -57,7 +58,13 @@ export function readPersistedNotifications(
       notificationsMmkv.remove(NOTIFICATIONS_MMKV_KEY);
       return null;
     }
-    return snapshot;
+    // Written by this or another build: a kind or action this build cannot handle must not get through.
+    return {
+      ...snapshot,
+      inbox: snapshot.inbox
+        .filter((item) => item != null && typeof item === "object")
+        .map(normalizeNotification),
+    };
   } catch {
     return null;
   }
