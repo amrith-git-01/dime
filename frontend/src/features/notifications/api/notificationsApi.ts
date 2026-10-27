@@ -1,34 +1,46 @@
 import { dimeApi } from "@/lib/api/dimeApi";
 
 import type { AppNotification, NotificationInboxFilter } from "../types";
+import { normalizeNotificationKind } from "../utils/normalizeNotification";
 import {
   NOTIFICATIONS_PAGE_LIMIT,
   type NotificationsPage,
 } from "../utils/notificationPages";
 
+/**
+ * `kind` and `action.type` are plain strings on purpose: a newer server can send values this build
+ * does not know, and the mapping below must absorb them instead of trusting the type.
+ */
 export type NotificationDto = {
   id: string;
-  kind: "transaction_auto" | "budget_threshold" | "capture_failed";
+  kind: string;
   title: string;
   body: string;
   created_at: string;
   read_at: string | null;
-  action: {
-    type: "transaction_detail" | "home" | "manual_add" | "none";
-    transaction_id: string | null;
-  };
+  action?: {
+    type: string;
+    transaction_id?: string | null;
+    /** `YYYY-MM`, only on the `report` action. */
+    period_key?: string | null;
+  } | null;
 };
 
 function mapAction(
   action: NotificationDto["action"],
 ): AppNotification["action"] {
-  switch (action.type) {
+  switch (action?.type) {
     case "transaction_detail":
       if (action.transaction_id) {
         return {
           type: "transaction_detail",
           transactionId: action.transaction_id,
         };
+      }
+      return { type: "none" };
+    case "report":
+      if (action.period_key) {
+        return { type: "report", periodKey: action.period_key };
       }
       return { type: "none" };
     case "home":
@@ -45,7 +57,7 @@ function mapAction(
 export function mapNotificationDto(dto: NotificationDto): AppNotification {
   return {
     id: dto.id,
-    kind: dto.kind,
+    kind: normalizeNotificationKind(dto.kind),
     title: dto.title,
     body: dto.body,
     createdAt: dto.created_at,

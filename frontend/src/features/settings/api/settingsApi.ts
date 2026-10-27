@@ -2,6 +2,7 @@ import { sanitizeCardLayouts, type CardLayouts } from "@/features/cardLayout/car
 import { dimeApi } from "@/lib/api/dimeApi";
 
 import {
+  isReportRoastLevel,
   normalizeUserSettings,
   type UserSettings,
   type UserSettingsPatch,
@@ -20,6 +21,9 @@ type UserSettingsDto = {
   daily_expense_reminder_time: string;
   weekly_email_enabled?: boolean;
   monthly_email_enabled?: boolean;
+  /** Absent on servers from before the Broke Report. */
+  report_alerts_enabled?: boolean;
+  report_roast_level?: string;
   /** Absent on servers from before Arrange. */
   card_layouts?: CardLayouts | null;
 };
@@ -38,6 +42,10 @@ export function mapDto(dto: UserSettingsDto): UserSettings {
     dailyExpenseReminderTime: dto.daily_expense_reminder_time,
     weeklyEmailEnabled: dto.weekly_email_enabled ?? true,
     monthlyEmailEnabled: dto.monthly_email_enabled ?? true,
+    reportAlertsEnabled: dto.report_alerts_enabled ?? true,
+    reportRoastLevel: isReportRoastLevel(dto.report_roast_level)
+      ? dto.report_roast_level
+      : "spicy",
     cardLayouts: sanitizeCardLayouts(dto.card_layouts),
   });
 }
@@ -81,6 +89,12 @@ export function mapPatchToDto(
   }
   if (patch.monthlyEmailEnabled !== undefined) {
     dto.monthly_email_enabled = patch.monthlyEmailEnabled;
+  }
+  if (patch.reportAlertsEnabled !== undefined) {
+    dto.report_alerts_enabled = patch.reportAlertsEnabled;
+  }
+  if (patch.reportRoastLevel !== undefined) {
+    dto.report_roast_level = patch.reportRoastLevel;
   }
   if (patch.cardLayouts !== undefined) {
     dto.card_layouts = patch.cardLayouts;

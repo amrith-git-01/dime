@@ -42,6 +42,11 @@ jest.mock("@/features/cardLayout/components/ArrangeCards", () => {
   return { ArrangeCards: ({ screen }: { screen: string }) => <T>{`ARRANGE ${screen}`}</T> };
 });
 
+jest.mock("@/features/brokeReport/components", () => ({
+  ReportBanner: () => null,
+  PastReportsShelf: () => null,
+}));
+
 jest.mock("@/features/analytics/components", () => {
   const { Text: T } = jest.requireActual("react-native");
   const stub = (label: string) =>

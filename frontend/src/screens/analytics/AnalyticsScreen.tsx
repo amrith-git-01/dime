@@ -27,6 +27,7 @@ import {
   InsightsScrollVisibilityProvider,
   useInsightsScrollVisibility,
 } from "@/features/analytics/hooks/useInsightsScrollVisibility";
+import { PastReportsShelf } from "@/features/brokeReport/components";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useAnalyticsScreenModel } from "./useAnalyticsScreenModel";
@@ -214,6 +215,9 @@ function AnalyticsInsightsScroll() {
       }}
       onMomentumScrollEnd={reportScroll}
     >
+      {/* A fixed shelf above the arrangeable cards (hidden until a report exists). */}
+      <PastReportsShelf />
+
       <OrderedCards
         order={cardOrder.order}
         cards={cards}

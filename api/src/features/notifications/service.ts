@@ -15,6 +15,7 @@ function rowToResponse(row: NotificationRow): NotificationResponse {
     action: {
       type: row.action_type ?? 'none',
       transaction_id: row.action_transaction_id == null ? null : String(row.action_transaction_id).toLowerCase(),
+      ...(row.action_period_key ? { period_key: row.action_period_key } : {}),
     },
   };
 }

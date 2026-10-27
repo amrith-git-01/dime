@@ -5,6 +5,7 @@ import {
   Mail,
   MessageSquareText,
   Shield,
+  Sparkles,
   SunMoon,
   Vibrate,
 } from "lucide-react-native";
@@ -69,6 +70,13 @@ export default function SettingsScreen() {
             label="Notifications & alerts"
             subtitle="Device permission, budget limits, and capture alerts"
             onPress={() => openDestination("SettingsNotifications")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={Sparkles}
+            label="Broke Reports"
+            subtitle="Your monthly recaps, newest first"
+            onPress={() => openDestination("SettingsBrokeReports")}
             showSeparator
           />
           <SettingsNavRow

@@ -17,6 +17,7 @@ import {
   budgetQueryKeys,
   categoryBudgetsQueryKeys,
 } from "@/features/budgets/queryKeys";
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
 import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { hydrateNotificationsFromMmkv } from "@/features/notifications/cache/syncNotificationsMmkv";
@@ -147,6 +148,8 @@ function invalidateServerDrivenQueries(queryClient: QueryClient): void {
     notificationQueryKeys.all,
     budgetQueryKeys.all,
     categoryBudgetsQueryKeys.all,
+    // A report may have been built while the app slept (the 1st); snapshots themselves never change.
+    reportQueryKeys.all,
   ]) {
     void queryClient.invalidateQueries({ queryKey });
   }

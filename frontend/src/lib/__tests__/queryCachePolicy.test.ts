@@ -10,6 +10,8 @@ import { budgetQueryKeys } from "@/features/budgets/queryKeys";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
 import { onboardingQueryKeys } from "@/features/onboarding/queryKeys";
+import { FULL_SNAPSHOT } from "@/features/brokeReport/__fixtures__/reportFixtures";
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { payeesQueryKeys } from "@/features/payees/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
@@ -97,6 +99,18 @@ describe("shouldDehydrateQuery", () => {
 
   it("never persists the Get started progress", () => {
     expect(persisted([onboardingQueryKeys.progress(USER)])).toEqual([]);
+  });
+
+  it("persists Broke Report lists and snapshots, but not a 'no such report' answer or junk", () => {
+    queryClient.setQueryData(reportQueryKeys.list(USER), [{ period_key: "2026-09" }]);
+    queryClient.setQueryData(reportQueryKeys.period(USER, "2026-09"), FULL_SNAPSHOT);
+    queryClient.setQueryData(reportQueryKeys.period(USER, "2026-08"), null);
+    queryClient.setQueryData(reportQueryKeys.period(USER, "2026-07"), { hello: "world" });
+    queryClient.setQueryData(reportQueryKeys.list("user-b"), "not a list");
+    expect(persistedKeys(dehydrateAll(queryClient))).toEqual([
+      reportQueryKeys.list(USER),
+      reportQueryKeys.period(USER, "2026-09"),
+    ]);
   });
 
   it("keeps the current and previous month of monthPages, monthSummary and insights", () => {

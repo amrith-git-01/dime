@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { uuidString } from '../../core/validation';
 
-export const NOTIFICATION_COLUMNS = 'id,kind,title,body,created_at,read_at,action_type,action_transaction_id';
+export const NOTIFICATION_COLUMNS = 'id,kind,title,body,created_at,read_at,action_type,action_transaction_id,action_period_key';
 
 const CURSOR_ID = /^[0-9a-fA-F-]{8,40}$/;
 
@@ -37,13 +37,15 @@ export const notificationIdParamSchema = z.object({ id: uuidString });
 
 export interface NotificationRow {
   id: string;
-  kind: 'transaction_auto' | 'budget_threshold' | 'capture_failed';
+  kind: 'transaction_auto' | 'budget_threshold' | 'capture_failed' | 'report_ready';
   title: string;
   body: string;
   created_at: string;
   read_at: string | null;
-  action_type: 'transaction_detail' | 'home' | 'manual_add' | 'none' | null;
+  action_type: 'transaction_detail' | 'home' | 'manual_add' | 'report' | 'none' | null;
   action_transaction_id: string | null;
+  /** `YYYY-MM` of the report to open; set only for `report` notifications. */
+  action_period_key: string | null;
 }
 
 export interface NotificationResponse {
@@ -53,7 +55,8 @@ export interface NotificationResponse {
   body: string;
   created_at: string;
   read_at: string | null;
-  action: { type: NonNullable<NotificationRow['action_type']>; transaction_id: string | null };
+  /** `period_key` is present only on `report` actions, so every other notification keeps its old shape. */
+  action: { type: NonNullable<NotificationRow['action_type']>; transaction_id: string | null; period_key?: string };
 }
 
 export interface NotificationListResponse {
@@ -70,5 +73,6 @@ export interface NewNotification {
   body: string;
   action_type: NonNullable<NotificationRow['action_type']>;
   action_transaction_id: string | null;
+  action_period_key?: string | null;
   dedupe_key: string;
 }

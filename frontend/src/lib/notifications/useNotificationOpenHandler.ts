@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
 
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
 import {
@@ -12,15 +13,12 @@ import {
   readLastHandledNotificationResponseStamp,
   writeLastHandledNotificationResponseStamp,
 } from "@/lib/notifications/notificationsMmkv";
+import {
+  resolvePushAction,
+  type NotificationActionData,
+} from "@/lib/notifications/resolvePushAction";
 import { canNavigateToMain } from "@/navigation/canNavigateToMain";
 import { navigationRef } from "@/navigation/navigationRef";
-
-type NotificationActionData = {
-  action_type?: string;
-  action_transaction_id?: string;
-  // Allow additional backend fields without tightening the type.
-  [key: string]: unknown;
-};
 
 function navigateToNotifications(): void {
   navigationRef.navigate("Main", {
@@ -33,18 +31,23 @@ function handleNotificationAction(
   data: NotificationActionData | undefined,
   queryClient: ReturnType<typeof useQueryClient>,
 ): boolean {
-  if (data?.action_type === "manual_add") {
+  const target = resolvePushAction(data);
+
+  if (target.type === "manual_add") {
     navigationRef.navigate("Main", { screen: "ManualAddTransaction" });
     return true;
   }
 
-  const transactionId =
-    typeof data?.action_transaction_id === "string"
-      ? data.action_transaction_id
-      : null;
+  if (target.type === "report") {
+    navigationRef.navigate("Main", {
+      screen: "BrokeReport",
+      params: { periodKey: target.periodKey },
+    });
+    return true;
+  }
 
-  if (transactionId) {
-    const transaction = findTransactionInCache(queryClient, transactionId);
+  if (target.type === "transaction") {
+    const transaction = findTransactionInCache(queryClient, target.transactionId);
     if (transaction) {
       navigationRef.navigate("Main", {
         screen: "TransactionDetail",
@@ -185,6 +188,9 @@ export function useNotificationOpenHandler(): {
       void queryClient.invalidateQueries({
         queryKey: notificationQueryKeys.all,
       });
+      // A report-ready push means a new report: the list (and a period asked for before it existed) is
+      // behind the server too. Snapshots already cached never change, so refetching them is cheap.
+      void queryClient.invalidateQueries({ queryKey: reportQueryKeys.all });
     });
     return () => subscription.remove();
   }, [queryClient]);

@@ -1,7 +1,9 @@
 import type { Bindings } from '../../core/env';
 import { log } from '../../core/logging';
 import { isTransientError } from '../ingest/consumer';
-import { digestMessageSchema } from './digest';
+import type { ReportMessage } from '../reports/fanout';
+import { deliverReport } from '../reports/service';
+import { emailMessageSchema } from './digest';
 import { digestPeriodFromKey } from './periods';
 import { emailConfigured, createEmailDeps, sendDigest } from './service';
 import type { EmailDeps } from './service';
@@ -26,7 +28,26 @@ export function retryDelaySeconds(attempts: number): number {
 }
 
 /**
- * One queue message = one email. `sendDigest` claims `email_sends` first, so a duplicate or late
+ * A Broke Report message: build the month's snapshot (idempotent) and raise the notification (deduped), same ack/retry rules
+ * as a digest: transient failures retry with backoff, permanent ones are logged and acked. No email is involved, so the
+ * Brevo configuration is irrelevant here. Never throws.
+ */
+async function processReportMessage(message: EmailMessageHandle, report: ReportMessage, deps: EmailDeps): Promise<void> {
+  const { user_id: userId, period_key: periodKey } = report;
+  try {
+    const outcome = await deliverReport({ db: deps.db, publisher: deps.publisher, pushSend: deps.pushSend }, { userId, periodKey });
+    log.info('report_message_processed', { userId, periodKey, outcome });
+    message.ack();
+  } catch (err) {
+    const transient = isTransientError(err);
+    log.warn('report_message_failed', { userId, periodKey, attempt: message.attempts, transient, err });
+    if (transient) message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
+    else message.ack();
+  }
+}
+
+/**
+ * One queue message = one email (or one Broke Report). `sendDigest` claims `email_sends` first, so a duplicate or late
  * delivery is harmless. Outcomes:
  * - sent / skipped (no address, already claimed): ack;
  * - transient failure (Brevo 429/5xx, network, DB hiccup): the claim was released, `retry` with backoff;
@@ -34,12 +55,13 @@ export function retryDelaySeconds(attempts: number): number {
  * Never throws.
  */
 export async function processEmailMessage(message: EmailMessageHandle, deps: EmailDeps): Promise<void> {
-  const parsed = digestMessageSchema.safeParse(message.body);
+  const parsed = emailMessageSchema.safeParse(message.body);
   if (!parsed.success) {
     log.error('email_message_invalid', { messageId: message.id });
     message.ack(); // retrying a malformed message can never help
     return;
   }
+  if (parsed.data.type === 'report') return processReportMessage(message, parsed.data, deps);
   const { user_id: userId, kind, period_key: periodKey } = parsed.data;
   const period = digestPeriodFromKey(kind, periodKey);
   if (!period) {
@@ -94,12 +116,16 @@ export async function handleEmailBatch(batch: MessageBatch<unknown>, env: Bindin
  */
 export function handleEmailDlq(batch: MessageBatch<unknown>): void {
   for (const message of batch.messages) {
-    const parsed = digestMessageSchema.safeParse(message.body);
-    if (parsed.success) {
+    const parsed = emailMessageSchema.safeParse(message.body);
+    if (!parsed.success) {
+      log.error('email_dlq_message_invalid', { messageId: message.id, attempts: message.attempts });
+    } else if (parsed.data.type === 'report') {
+      const { user_id: userId, period_key: periodKey } = parsed.data;
+      // Nothing to undo: the snapshot is immutable and the notification is deduped, so a later open still builds it.
+      log.error('report_dead_lettered', { messageId: message.id, userId, periodKey, attempts: message.attempts });
+    } else {
       const { user_id: userId, kind, period_key: periodKey } = parsed.data;
       log.error('email_digest_dead_lettered', { messageId: message.id, userId, kind, periodKey, attempts: message.attempts });
-    } else {
-      log.error('email_dlq_message_invalid', { messageId: message.id, attempts: message.attempts });
     }
     message.ack();
   }

@@ -61,6 +61,10 @@ jest.mock("../MonthStatRow", () => {
   const { Text: T } = jest.requireActual("react-native");
   return { MonthStatRow: () => <T>STATS</T> };
 });
+jest.mock("@/features/brokeReport/components", () => ({
+  ReportBanner: () => null,
+  PastReportsShelf: () => null,
+}));
 jest.mock("@/features/onboarding/components", () => {
   const { Text: T } = jest.requireActual("react-native");
   return { GetStartedCard: () => <T>GET STARTED</T> };

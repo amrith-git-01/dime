@@ -1,4 +1,4 @@
-import { cardLinkUrl, deepLinkUrls } from "../deepLinkUrls";
+import { cardLinkUrl, deepLinkUrls, reportDeepLinkUrl } from "../deepLinkUrls";
 import { parseDeepLink } from "../parseDeepLink";
 
 const NOW = new Date(2026, 9, 15, 18, 30);
@@ -54,6 +54,25 @@ describe("parseDeepLink", () => {
       recurring: true,
     });
     expect(parseDeepLink("dime://home?utm=widget", NOW)).toEqual({ kind: "home" });
+  });
+
+  it("parses a Broke Report month and ignores a malformed one", () => {
+    expect(parseDeepLink("dime://reports/2026-10", NOW)).toEqual({
+      kind: "report",
+      periodKey: "2026-10",
+    });
+    expect(parseDeepLink(reportDeepLinkUrl("2026-01"), NOW)).toEqual({
+      kind: "report",
+      periodKey: "2026-01",
+    });
+    expect(parseDeepLink("DIME://Reports/2026-12/", NOW)).toEqual({
+      kind: "report",
+      periodKey: "2026-12",
+    });
+    expect(parseDeepLink("dime://reports", NOW)).toBeNull();
+    expect(parseDeepLink("dime://reports/2026-13", NOW)).toBeNull();
+    expect(parseDeepLink("dime://reports/sample", NOW)).toBeNull();
+    expect(parseDeepLink("dime://reports/2026-10/extra", NOW)).toBeNull();
   });
 
   it("returns null for unknown targets, other schemes and empty input", () => {

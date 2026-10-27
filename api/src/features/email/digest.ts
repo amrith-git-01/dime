@@ -4,6 +4,7 @@ import type { AppConfig, Bindings } from '../../core/env';
 import { getConfig } from '../../core/env';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
+import { fanOutReports, isReportFanOutDay, reportMessageSchema } from '../reports/fanout';
 import { emailConfigured } from './service';
 import { digestPeriodNow, dueDigestKinds } from './periods';
 import { listDigestUserPages } from './sends-repository';
@@ -12,6 +13,7 @@ import type { DigestKind } from './tokens';
 /**
  * Digest fan-out: the cron (and `POST /internal/email/run`) puts ONE message per opted-in user on
  * `EMAIL_QUEUE`; the consumer sends each email. Messages carry only `(user, kind, period_key)`.
+ * The same queue also carries the monthly `report` messages (Broke Report, see `features/reports/fanout.ts`).
  */
 
 export const digestMessageSchema = z.object({
@@ -21,6 +23,10 @@ export const digestMessageSchema = z.object({
   period_key: z.string().min(1),
 });
 export type DigestMessage = z.infer<typeof digestMessageSchema>;
+
+/** Everything `EMAIL_QUEUE` carries, told apart by `type`. */
+export const emailMessageSchema = z.discriminatedUnion('type', [digestMessageSchema, reportMessageSchema]);
+export type EmailMessage = z.infer<typeof emailMessageSchema>;
 
 /** `Queue.sendBatch` accepts at most 100 messages per call. */
 export const SEND_BATCH_LIMIT = 100;
@@ -61,15 +67,37 @@ export async function fanOutDigest(input: {
   return result;
 }
 
-/** Cron entry point: whichever digests are due on this IST day. */
+/**
+ * Cron entry point: whichever digests are due on this IST day, plus the Broke Report fan-out on IST days 1 to 3 (days 2 and
+ * 3 only pick up users still missing their report). A failure in one does not skip the other; the first error is rethrown
+ * at the end so the run is still reported as failed.
+ */
 export async function runDigestCron(env: Bindings, scheduledTimeMs: number): Promise<FanOutResult[]> {
-  const kinds = dueDigestKinds(scheduledTimeMs);
-  if (kinds.length === 0) return [];
-  const db = env.DB;
-  const config = getConfig(env);
   const results: FanOutResult[] = [];
-  for (const kind of kinds) {
-    results.push(await fanOutDigest({ db, queue: env.EMAIL_QUEUE, config, kind, nowMs: scheduledTimeMs }));
+  let failure: { err: unknown } | undefined;
+
+  const kinds = dueDigestKinds(scheduledTimeMs);
+  if (kinds.length > 0) {
+    const config = getConfig(env);
+    try {
+      for (const kind of kinds) {
+        results.push(await fanOutDigest({ db: env.DB, queue: env.EMAIL_QUEUE, config, kind, nowMs: scheduledTimeMs }));
+      }
+    } catch (err) {
+      failure = { err };
+    }
   }
+
+  if (isReportFanOutDay(scheduledTimeMs)) {
+    try {
+      const report = await fanOutReports({ db: env.DB, queue: env.EMAIL_QUEUE, nowMs: scheduledTimeMs });
+      if (report.failed > 0) failure ??= { err: new Error(`report fan-out: ${report.failed} of ${report.selected} messages not queued`) };
+    } catch (err) {
+      log.error('report_fanout_failed', { err });
+      failure ??= { err };
+    }
+  }
+
+  if (failure) throw failure.err;
   return results;
 }

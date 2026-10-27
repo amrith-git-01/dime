@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
 import { realtimeClient } from "@/lib/realtime";
 
 import { notificationQueryKeys } from "../queryKeys";
@@ -20,6 +21,8 @@ export function useNotificationsRealtimeSync(userId: string | null) {
 
     const refresh = () => {
       void queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all });
+      // A "report ready" row arrives here too: show the new report without a restart.
+      void queryClient.invalidateQueries({ queryKey: reportQueryKeys.all });
     };
 
     // Rows inserted while the socket was down were never delivered: onResync refetches.

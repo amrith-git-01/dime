@@ -3,6 +3,8 @@ import type { PersistedClient } from "@tanstack/react-query-persist-client";
 
 import { insightsQueryKeys } from "@/features/analytics/queryKeys";
 import { limitsQueryKeys } from "@/features/limits/queryKeys";
+import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
+import { isReportSnapshot } from "@/features/brokeReport/utils/snapshotShape";
 import { onboardingQueryKeys } from "@/features/onboarding/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { payeesQueryKeys } from "@/features/payees/queryKeys";
@@ -18,6 +20,7 @@ const MEDIA_URL_FIELDS: ReadonlySet<string> = new Set([
   "voice_url",
 ]);
 
+const REPORTS_ROOT = reportQueryKeys.all[0];
 const TRANSACTIONS_ROOT = transactionsQueryKeys.all[0];
 const INSIGHTS_ROOT = insightsQueryKeys.all[0];
 
@@ -49,6 +52,8 @@ function isRecentMonth(
 /**
  * Which queries are written to disk. Lists with arbitrary ranges/filters, per-month history
  * beyond the previous month, detail rows, notifications (own snapshot), daily limits, onboarding progress and payee search stay in memory only.
+ * Broke Reports are persisted on purpose: the list and each snapshot are small and a stored snapshot never
+ * changes, so a report opens offline. A "no such report" answer (`null`) is not: it may exist tomorrow.
  */
 export function shouldDehydrateQuery(
   query: Query,
@@ -72,6 +77,12 @@ export function shouldDehydrateQuery(
   // "Get started" progress moves with the user's own actions; a restored copy would only be stale.
   if (root === onboardingQueryKeys.all[0]) {
     return false;
+  }
+  if (root === REPORTS_ROOT) {
+    // Only what is usable: a snapshot that is one, a list that is a list. Never a "no such report".
+    return String(kind).startsWith("period")
+      ? isReportSnapshot(query.state.data)
+      : Array.isArray(query.state.data);
   }
   if (root === TRANSACTIONS_ROOT) {
     if (kind === "detail" || kind === "rangePages" || kind === "filteredMonthPages") {

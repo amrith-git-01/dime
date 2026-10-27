@@ -7,7 +7,9 @@ import { getConfig } from '../../core/env';
 import type { AppBindings } from '../../core/env';
 import { BadRequestError, UnauthorizedError } from '../../core/errors';
 import { getDb } from '../../core/db';
-import { validate } from '../../core/validation';
+import { unprocessable, validate } from '../../core/validation';
+import { fanOutReports } from '../reports/fanout';
+import { isPastMonth, parsePeriodKey } from '../reports/service';
 import { fanOutDigest } from './digest';
 import { renderUnsubscribedHtml } from './html';
 import { unsubscribe } from './service';
@@ -50,4 +52,23 @@ emailRoutes.post('/internal/email/run', requireCronSecret, validate('json', runB
     nowMs: Date.now(),
   });
   return c.json({ sent: result.queued, queued: result.queued });
+});
+
+const reportsRunBodySchema = z.object({ period_key: z.string().regex(/^20\d{2}-(?:0[1-9]|1[0-2])$/).optional() });
+
+/**
+ * Re-run the Broke Report fan-out now: the previous IST month, or the finished month named by an optional `period_key`.
+ * Same messages and selection as the cron (users with 5+ debits and no stored report yet), so it is safe to repeat.
+ * `queued` counts messages put on the queue, not reports built: the consumer builds them asynchronously.
+ */
+emailRoutes.post('/internal/reports/run', requireCronSecret, async (c) => {
+  // The body is optional: no body (or an empty one) means "the previous month".
+  const raw: unknown = await c.req.json().catch(() => ({}));
+  const parsed = reportsRunBodySchema.safeParse(raw ?? {});
+  if (!parsed.success) unprocessable([{ type: 'string_pattern_mismatch', loc: ['body', 'period_key'], msg: 'period_key must be YYYY-MM' }]);
+  const periodKey = parsed.data.period_key;
+  const ym = periodKey ? parsePeriodKey(periodKey) : null;
+  if (periodKey && (!ym || !isPastMonth(ym, Date.now()))) throw new BadRequestError('period_key must be a finished month.');
+  const result = await fanOutReports({ db: getDb(c), queue: c.env.EMAIL_QUEUE, nowMs: Date.now(), periodKey });
+  return c.json({ period_key: result.periodKey, selected: result.selected, queued: result.queued, failed: result.failed });
 });

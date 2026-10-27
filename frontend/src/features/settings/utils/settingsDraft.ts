@@ -12,7 +12,9 @@ export function settingsEqual(a: UserSettings, b: UserSettings): boolean {
     a.dailyExpenseReminderEnabled === b.dailyExpenseReminderEnabled &&
     a.dailyExpenseReminderTime === b.dailyExpenseReminderTime &&
     a.weeklyEmailEnabled === b.weeklyEmailEnabled &&
-    a.monthlyEmailEnabled === b.monthlyEmailEnabled
+    a.monthlyEmailEnabled === b.monthlyEmailEnabled &&
+    a.reportAlertsEnabled === b.reportAlertsEnabled &&
+    a.reportRoastLevel === b.reportRoastLevel
   );
 }
 
@@ -55,6 +57,12 @@ export function buildSettingsPatch(
   }
   if (draft.monthlyEmailEnabled !== saved.monthlyEmailEnabled) {
     patch.monthlyEmailEnabled = draft.monthlyEmailEnabled;
+  }
+  if (draft.reportAlertsEnabled !== saved.reportAlertsEnabled) {
+    patch.reportAlertsEnabled = draft.reportAlertsEnabled;
+  }
+  if (draft.reportRoastLevel !== saved.reportRoastLevel) {
+    patch.reportRoastLevel = draft.reportRoastLevel;
   }
 
   return Object.keys(patch).length > 0 ? patch : null;

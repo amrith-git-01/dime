@@ -21,6 +21,7 @@ const TABLES = [
   'email_sends',
   'user_push_tokens',
   'user_feedback',
+  'monthly_reports',
   'user_settings',
   'notifications',
   'category_budgets',

@@ -5,6 +5,7 @@ import { useUpdateUserSettingsMutation } from "@/features/settings/hooks/useUpda
 import { useUserSettingsQuery } from "@/features/settings/hooks/useUserSettingsQuery";
 import {
   DEFAULT_USER_SETTINGS,
+  type ReportRoastLevel,
   type UserSettings,
 } from "@/features/settings/types";
 import {
@@ -199,6 +200,18 @@ export function useSettingsNotificationsScreenModel() {
           patchDraft(prev, savedSettings, {
             captureFailedAlertsEnabled: enabled,
           }),
+        );
+      },
+      reportAlertsEnabled: editorDraft.reportAlertsEnabled,
+      reportRoastLevel: editorDraft.reportRoastLevel,
+      onReportAlertsChange: (enabled: boolean) => {
+        setDraft((prev) =>
+          patchDraft(prev, savedSettings, { reportAlertsEnabled: enabled }),
+        );
+      },
+      onReportRoastLevelChange: (level: ReportRoastLevel) => {
+        setDraft((prev) =>
+          patchDraft(prev, savedSettings, { reportRoastLevel: level }),
         );
       },
       onClear: handleClear,

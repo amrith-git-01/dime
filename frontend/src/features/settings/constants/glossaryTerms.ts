@@ -149,6 +149,24 @@ export const GLOSSARY_GROUPS: readonly GlossaryGroup[] = [
     ],
   },
   {
+    id: "reports",
+    title: "Reports",
+    terms: [
+      {
+        id: "broke-report",
+        term: "Broke Report",
+        description:
+          "A monthly recap of where your money went, told as a short story. It appears once a month has five or more expenses.",
+      },
+      {
+        id: "usual",
+        term: "Usual",
+        description:
+          "Your typical month: the middle of your last three months with spending. Reports compare against it.",
+      },
+    ],
+  },
+  {
     id: "alerts",
     title: "Alerts",
     terms: [

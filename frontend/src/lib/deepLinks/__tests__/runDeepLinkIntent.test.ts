@@ -78,6 +78,14 @@ describe("runDeepLinkIntent", () => {
       pop: true,
     });
   });
+
+  it("opens a Broke Report over the tabs", () => {
+    runDeepLinkIntent({ kind: "report", periodKey: "2026-10" });
+    expect(navigationRef.navigate).toHaveBeenCalledWith("Main", {
+      screen: "BrokeReport",
+      params: { periodKey: "2026-10" },
+    });
+  });
 });
 
 describe("usePendingDeepLinkStore", () => {

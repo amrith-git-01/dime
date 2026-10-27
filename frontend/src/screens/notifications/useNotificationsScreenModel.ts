@@ -57,6 +57,11 @@ export function useNotificationsScreenModel() {
           }
           break;
         }
+        case "report":
+          navigation.navigate("BrokeReport", {
+            periodKey: notification.action.periodKey,
+          });
+          break;
         case "none":
           break;
         default:

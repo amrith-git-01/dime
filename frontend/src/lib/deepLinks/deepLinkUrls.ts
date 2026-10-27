@@ -13,6 +13,11 @@ export const deepLinkUrls = {
   agent: `${DEEP_LINK_SCHEME}://agent`,
 } as const;
 
+/** A Broke Report: `dime://reports/YYYY-MM`. Parsed by `parseDeepLink`. */
+export function reportDeepLinkUrl(periodKey: string): string {
+  return `${DEEP_LINK_SCHEME}://reports/${periodKey}`;
+}
+
 /**
  * The widget's own scheme. Its Add / Scan / Gallery / Voice buttons open the small capture card
  * (`WidgetActionsActivity`), not the app, so they cannot use `dime://`: MainActivity claims that.

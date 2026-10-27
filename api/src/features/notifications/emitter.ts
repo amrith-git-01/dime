@@ -44,6 +44,8 @@ export interface Emitter {
   captureFailed(input: { source: 'scan'; title: string; body: string; dayKey: string }): Promise<void>;
   budgetThreshold(input: { scope: 'monthly'; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
   categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
+  /** The monthly Broke Report is ready (`periodKey` = the report's `YYYY-MM`). */
+  reportReady(input: { periodKey: string; title: string; body: string }): Promise<void>;
 }
 
 /**
@@ -72,6 +74,8 @@ export function createEmitter(
           kind: row.kind,
           action_type: row.action_type,
           action_transaction_id: row.action_transaction_id,
+          // Only report notifications carry it (the app opens that month's Broke Report).
+          ...(row.action_period_key ? { period_key: row.action_period_key } : {}),
         },
         onInvalidToken: (token) => deleteByToken(db, token),
       });
@@ -130,6 +134,18 @@ export function createEmitter(
         action_type: 'home',
         action_transaction_id: null,
         dedupe_key: `budget:category:${categoryId}:${threshold}:${periodKey}`,
+      });
+    },
+    async reportReady({ periodKey, title, body }) {
+      if (!settings.report_alerts_enabled) return;
+      await emit({
+        kind: 'report_ready',
+        title,
+        body,
+        action_type: 'report',
+        action_transaction_id: null,
+        action_period_key: periodKey,
+        dedupe_key: `report:${periodKey}`,
       });
     },
   };
