@@ -34,6 +34,10 @@ export type RecurringSectionProps = {
   today: Date;
   onAdd: (kind: RecurringKind) => void;
   onItemPress: (item: RecurringItem) => void;
+  /** Opens the new-reminder form. */
+  onAddReminder: () => void;
+  /** Opens the Reminders list. */
+  onSeeReminders: () => void;
 };
 
 const SKELETON_ROWS = 2;
@@ -45,8 +49,11 @@ export const RecurringSection = memo(function RecurringSection({
   today,
   onAdd,
   onItemPress,
+  onAddReminder,
+  onSeeReminders,
 }: RecurringSectionProps) {
   const styles = useStyles();
+  const { colors } = useTheme();
   // The guided tour points at the first recurring row of whichever card has rows first.
   const firstItemKind: RecurringKind =
     income.items.length > 0 ? "income" : "subscription";
@@ -70,6 +77,37 @@ export const RecurringSection = memo(function RecurringSection({
           onItemPress={onItemPress}
           firstItemIsTourTarget={firstItemKind === "subscription"}
         />
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.kicker}>Reminders</Text>
+              <Text style={styles.reminderHint}>
+                Bills to pay and money to collect, with a nudge before they are due.
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add reminder"
+              onPress={() => {
+                void triggerHaptic();
+                onAddReminder();
+              }}
+              style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+            >
+              <Plus size={14} color={colors.accentText} strokeWidth={2.5} />
+              <Text style={styles.addBtnText}>Add reminder</Text>
+            </Pressable>
+          </View>
+          <View style={styles.divider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See all reminders"
+            onPress={onSeeReminders}
+            style={({ pressed }) => [styles.seeAll, pressed && styles.addBtnPressed]}
+          >
+            <Text style={styles.retry}>See all reminders</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -268,6 +306,17 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.danger,
+  },
+  reminderHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+  },
+  seeAll: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
   },
   retry: {
     fontFamily: fontFamilies.medium,

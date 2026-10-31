@@ -10,6 +10,8 @@ import {
   hasChanges,
   isCurrentPeriodDuePassed,
   parseDayOfMonth,
+  sanitizeRemindLeadDays,
+  toggleRemindLeadDay,
   validateRecurringForm,
   visibleFieldErrors,
 } from "../recurringForm";
@@ -432,5 +434,51 @@ describe("create payload per kind (sheet type toggle)", () => {
     expect(
       buildCreateBody("income", form({ name: " " }), TZ, TODAY),
     ).toBeNull();
+  });
+});
+
+describe("reminder days (remind_lead_days)", () => {
+  it("starts with no reminder, and reads an item without the field (older server) as off", () => {
+    expect(emptyRecurringForm("subscription", TODAY).remindLeadDays).toEqual([]);
+    expect(formFromItem(item()).remindLeadDays).toEqual([]);
+    expect(formFromItem(item({ remind_lead_days: null })).remindLeadDays).toEqual([]);
+    expect(formFromItem(item({ remind_lead_days: [1, 3] })).remindLeadDays).toEqual([3, 1]);
+  });
+
+  it("cleans junk: whole days 1 to 30, no repeats, at most five, largest first", () => {
+    expect(sanitizeRemindLeadDays([1, 1, 0, -2, 31, 2.5, 7, "3" as never])).toEqual([7, 1]);
+    expect(sanitizeRemindLeadDays([1, 2, 3, 5, 7, 9, 10])).toHaveLength(5);
+    expect(sanitizeRemindLeadDays(null)).toEqual([]);
+    expect(sanitizeRemindLeadDays(undefined)).toEqual([]);
+  });
+
+  it("toggles a day, never beyond five", () => {
+    expect(toggleRemindLeadDay([], 3)).toEqual([3]);
+    expect(toggleRemindLeadDay([3], 7)).toEqual([7, 3]);
+    expect(toggleRemindLeadDay([7, 3], 3)).toEqual([7]);
+    expect(toggleRemindLeadDay([9, 7, 5, 3, 2], 1)).toEqual([9, 7, 5, 3, 2]);
+  });
+
+  it("sends the days on create only when some are chosen (omitted means off)", () => {
+    const withDays = buildCreateBody("subscription", form({ ...emptyRecurringForm("subscription", TODAY), name: "Rent", amountText: "9000", categoryId: "c", remindLeadDays: [3, 1] }), TZ, TODAY);
+    expect(withDays).toMatchObject({ remind_lead_days: [3, 1] });
+    const without = buildCreateBody("subscription", form({ ...emptyRecurringForm("subscription", TODAY), name: "Rent", amountText: "9000", categoryId: "c" }), TZ, TODAY);
+    expect(without).not.toHaveProperty("remind_lead_days");
+  });
+
+  it("sends a changed list on update, and null when the reminder is turned off", () => {
+    const on = item({ remind_lead_days: [3, 1] });
+    expect(buildUpdateBody(on, formFromItem(on), TZ)).toEqual({});
+    expect(
+      buildUpdateBody(on, { ...formFromItem(on), remindLeadDays: [7, 3, 1] }, TZ),
+    ).toEqual({ remind_lead_days: [7, 3, 1] });
+    expect(buildUpdateBody(on, { ...formFromItem(on), remindLeadDays: [] }, TZ)).toEqual({
+      remind_lead_days: null,
+    });
+    // Off stays off: nothing to send.
+    expect(buildUpdateBody(item(), { ...formFromItem(item()), remindLeadDays: [] }, TZ)).toEqual({});
+    expect(
+      buildUpdateBody(item(), { ...formFromItem(item()), remindLeadDays: [2] }, TZ),
+    ).toEqual({ remind_lead_days: [2] });
   });
 });

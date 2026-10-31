@@ -14,6 +14,7 @@ import { FULL_SNAPSHOT } from "@/features/brokeReport/__fixtures__/reportFixture
 import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { payeesQueryKeys } from "@/features/payees/queryKeys";
+import { reminderQueryKeys } from "@/features/reminders/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 
 import {
@@ -111,6 +112,15 @@ describe("shouldDehydrateQuery", () => {
       reportQueryKeys.list(USER),
       reportQueryKeys.period(USER, "2026-09"),
     ]);
+  });
+
+  it("never persists reminders (payee names and UPI IDs stay off the disk)", () => {
+    queryClient.setQueryData(reminderQueryKeys.list(USER, "open"), [{ id: "r1", upi_id: "a@bank" }]);
+    queryClient.setQueryData(reminderQueryKeys.list(USER, "done"), [{ id: "r2" }]);
+    queryClient.setQueryData(reminderQueryKeys.list(USER, "all"), [{ id: "r3" }]);
+    expect(persistedKeys(dehydrateAll(queryClient))).toEqual([]);
+    // The root name is part of the rule: a key built by the app really is excluded.
+    expect(reminderQueryKeys.all[0]).toBe("reminders");
   });
 
   it("keeps the current and previous month of monthPages, monthSummary and insights", () => {

@@ -25,6 +25,7 @@ import {
   isCurrentPeriodDuePassed,
   parseDayOfMonth,
   recurringCategoryScope,
+  toggleRemindLeadDay,
   validateRecurringForm,
   visibleFieldErrors,
 } from "../utils/recurringForm";
@@ -94,6 +95,13 @@ export function useRecurringSheetModel({
       update({ categoryId: category.id });
     },
     [update],
+  );
+
+  const onRemindLeadDayToggle = useCallback(
+    (day: number) => {
+      update({ remindLeadDays: toggleRemindLeadDay(form.remindLeadDays, day) });
+    },
+    [form.remindLeadDays, update],
   );
 
   const errors = useMemo(
@@ -215,6 +223,7 @@ export function useRecurringSheetModel({
     categoriesLoading,
     pickerCategories,
     onCategoryPress,
+    onRemindLeadDayToggle,
     showPostCurrentPeriod,
     saving: createMutation.isPending || updateMutation.isPending,
     deleting: deleteMutation.isPending,

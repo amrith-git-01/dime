@@ -7,8 +7,11 @@ import type { LocalDate } from '../../core/timezone';
 import { mediaStore } from '../media/storage';
 import { notifyAfterInsert } from '../notifications/after-insert';
 import { publishChanges } from '../realtime/publish';
+import { nextRemindIso } from '../reminders/plan';
 import { createTransaction } from '../transactions/service';
 import type { CreateResult, TxContext } from '../transactions/service';
+import { fetchByUserId } from '../user-settings/repository';
+import { settingsFromRow } from '../user-settings/snapshot';
 import * as repo from './repository';
 import { dueInstantMs, nextAfter, parseDateKey } from './schedule';
 import type { RecurringRow } from './schemas';
@@ -94,7 +97,10 @@ export async function postDueRecurring(env: Bindings, nowMs: number = Date.now()
       };
       const result = await postOccurrence(ctx, item, dueDate, (work) => work);
       if (result.kind === 'created') posted += 1;
-      await repo.advance(db, item.id, item.next_due_date, dateKey(nextAfter(item, dueDate)));
+      const nextDue = dateKey(nextAfter(item, dueDate));
+      // The next period's lead-day reminder (only items that opted in read the user's reminder settings).
+      const nextRemind = item.remind_lead_days === null ? null : nextRemindIso({ ...item, next_due_date: nextDue }, settingsFromRow(await fetchByUserId(db, item.user_id)), nowMs);
+      await repo.advance(db, item.id, item.next_due_date, nextDue, nextRemind);
     } catch (err) {
       log.error('recurring_post_failed', { id: item.id, err });
     }

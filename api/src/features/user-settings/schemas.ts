@@ -1,5 +1,8 @@
 import * as z from 'zod';
 
+import { MAX_DEFAULT_LEAD_DAYS } from '../reminders/schedule';
+import { hmInput, leadDaysOf, timezoneInput, upiOrBlank } from '../reminders/schemas';
+
 const bool = z.boolean().nullish();
 const pct = z.number().int().min(50).max(95).nullish();
 
@@ -42,6 +45,19 @@ export const settingsPatchSchema = z.strictObject({
   report_roast_level: z.enum(['gentle', 'spicy', 'savage']).nullish(),
   /** Merged per screen with the stored layouts: patching `home` leaves `budgets` alone. */
   card_layouts: cardLayouts.nullish(),
+  reminders_enabled: bool,
+  /** Replaces the stored list (0..27: a monthly reminder's lead must stay inside one occurrence). */
+  reminder_default_lead_days: leadDaysOf(0, MAX_DEFAULT_LEAD_DAYS).nullish(),
+  reminder_time: hmInput.nullish(),
+  reminder_overdue_nudges: z.number().int().min(0).max(5).nullish(),
+  reminder_quiet_enabled: bool,
+  reminder_quiet_start: hmInput.nullish(),
+  reminder_quiet_end: hmInput.nullish(),
+  reminder_hide_amounts: bool,
+  /** The user's own UPI id; '' clears it (null means "unchanged" like everywhere else here). */
+  upi_id: upiOrBlank.nullish(),
+  /** IANA timezone, written by the app at bootstrap. */
+  timezone: timezoneInput.nullish(),
 });
 
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

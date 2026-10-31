@@ -23,6 +23,8 @@ export type NotificationDto = {
     transaction_id?: string | null;
     /** `YYYY-MM`, only on the `report` action. */
     period_key?: string | null;
+    /** Only on the `reminder` action, and absent for a recurring item's lead reminder. */
+    reminder_id?: string | null;
   } | null;
 };
 
@@ -43,6 +45,9 @@ function mapAction(
         return { type: "report", periodKey: action.period_key };
       }
       return { type: "none" };
+    case "reminder":
+      // Without an id the Reminders list simply opens.
+      return { type: "reminder", reminderId: action.reminder_id || null };
     case "home":
       return { type: "home" };
     case "manual_add":

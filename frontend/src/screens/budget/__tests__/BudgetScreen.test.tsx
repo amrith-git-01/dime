@@ -61,7 +61,7 @@ jest.mock("../useBudgetScreenModel", () => ({
   UNCATEGORIZED_SPEND_KEY: "uncategorized",
   useBudgetScreenModel: () => mockModel,
 }));
-const mockRecurring = { onSectionLayout: jest.fn(), income: {}, subscriptions: {}, today: new Date(0), onAdd: jest.fn(), onItemPress: jest.fn() };
+const mockRecurring = { onSectionLayout: jest.fn(), income: {}, subscriptions: {}, today: new Date(0), onAdd: jest.fn(), onItemPress: jest.fn(), onAddReminder: jest.fn(), onSeeReminders: jest.fn() };
 jest.mock("../useBudgetRecurringModel", () => ({
   useBudgetRecurringModel: () => mockRecurring,
 }));

@@ -12,6 +12,7 @@ import {
   invalidateTransactionDerivedQueries,
 } from "@/features/transactions/cache/invalidateTransactionQueries";
 import { applyTransactionInsertToListCaches } from "@/features/transactions/cache/transactionListCache";
+import { offerSettleForTransaction } from "@/features/reminders/utils/settleOffer";
 import { createIdempotencyKeyCache } from "@/features/transactions/utils/idempotencyKeyCache";
 import { recentTransactionMutations } from "@/features/transactions/utils/recentMutationTracker";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -81,6 +82,8 @@ export function useSubmitManualTransactionMutation() {
             row,
           });
           invalidateTransactionAggregates(qc);
+          // If a reminder now looks paid by this entry, offer to settle it. Never awaited, never throws.
+          void offerSettleForTransaction(qc, userId, row.id);
         } else {
           // An older server answers without the row.
           invalidateTransactionDerivedQueries(qc);

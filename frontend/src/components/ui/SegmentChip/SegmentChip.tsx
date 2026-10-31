@@ -14,6 +14,10 @@ export type SegmentChipProps = {
   onPress: () => void;
   /** Use onDark on violet bento headers (on-dark bento headers). */
   variant?: SegmentChipVariant;
+  /** Dimmed and not pressable (an option the current choices rule out). */
+  disabled?: boolean;
+  /** Spoken label when the visible one is not enough ("3 days" -> "3 days before"). */
+  accessibilityLabel?: string;
 };
 
 /**
@@ -25,6 +29,8 @@ export const SegmentChip = memo(function SegmentChip({
   selected,
   onPress,
   variant = "default",
+  disabled = false,
+  accessibilityLabel,
 }: SegmentChipProps) {
   const styles = useStyles();
   const onDark = variant === "onDark";
@@ -32,7 +38,9 @@ export const SegmentChip = memo(function SegmentChip({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={() => {
         void triggerHaptic();
         onPress();
@@ -43,6 +51,7 @@ export const SegmentChip = memo(function SegmentChip({
         !onDark && selected && styles.chipSelected,
         onDark && selected && styles.chipOnDarkSelected,
         pressed && styles.chipPressed,
+        disabled && styles.chipDisabled,
       ]}
     >
       <Text
@@ -78,6 +87,9 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   chipPressed: {
     opacity: 0.92,
+  },
+  chipDisabled: {
+    opacity: 0.4,
   },
   chipText: {
     fontFamily: fontFamilies.medium,

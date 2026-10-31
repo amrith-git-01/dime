@@ -13,7 +13,8 @@ export type DeepLinkIntent =
   | { kind: "budgets"; recurring: boolean }
   | { kind: "agent" }
   /** `periodKey` is a `YYYY-MM` month. */
-  | { kind: "report"; periodKey: string };
+  | { kind: "report"; periodKey: string }
+  | { kind: "reminders" };
 
 const URL_PATTERN = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?/i;
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -77,6 +78,8 @@ export function parseDeepLink(
     case "reports":
       // `dime://reports/2026-10`; a missing or malformed month is not a link the app can open.
       return isReportPeriodKey(path) ? { kind: "report", periodKey: path } : null;
+    case "reminders":
+      return { kind: "reminders" };
     default:
       return null;
   }

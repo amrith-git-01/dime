@@ -23,6 +23,33 @@ describe("resolvePushAction", () => {
     ).toEqual({ type: "inbox" });
   });
 
+  it("sends a reminder push to the Reminders list, highlighting its reminder", () => {
+    expect(
+      resolvePushAction({
+        action_type: "reminder",
+        reminder_id: "r1",
+        action_transaction_id: "",
+      }),
+    ).toEqual({ type: "reminder", reminderId: "r1" });
+  });
+
+  it("opens the plain Reminders list for a reminder push without a usable id", () => {
+    // A recurring item's lead reminder has no reminder id; its empty transaction id must not win.
+    expect(
+      resolvePushAction({ action_type: "reminder", action_transaction_id: "" }),
+    ).toEqual({ type: "reminder", reminderId: null });
+    expect(resolvePushAction({ action_type: "reminder" })).toEqual({
+      type: "reminder",
+      reminderId: null,
+    });
+    expect(
+      resolvePushAction({ action_type: "reminder", reminder_id: 12 as never }),
+    ).toEqual({ type: "reminder", reminderId: null });
+    expect(
+      resolvePushAction({ action_type: "reminder", reminder_id: "" }),
+    ).toEqual({ type: "reminder", reminderId: null });
+  });
+
   it("keeps the existing branches", () => {
     expect(resolvePushAction({ action_type: "manual_add" })).toEqual({
       type: "manual_add",

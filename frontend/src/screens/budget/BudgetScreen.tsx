@@ -147,6 +147,8 @@ export default function BudgetScreen() {
           today={recurring.today}
           onAdd={recurring.onAdd}
           onItemPress={recurring.onItemPress}
+          onAddReminder={recurring.onAddReminder}
+          onSeeReminders={recurring.onSeeReminders}
         />
       </TourTarget>
     ),

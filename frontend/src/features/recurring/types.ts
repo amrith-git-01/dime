@@ -20,6 +20,8 @@ export type RecurringItem = {
   next_due_date: string;
   active: boolean;
   note: string | null;
+  /** Days before the due date a reminder is sent (1..30); null or absent means off. */
+  remind_lead_days?: number[] | null;
   monthly_equivalent: string;
   created_at: string;
   updated_at: string;
@@ -47,17 +49,21 @@ export type CreateRecurringBody = {
   note?: string;
   active?: boolean;
   post_current_period?: boolean;
+  /** Omitted means no reminder. */
+  remind_lead_days?: number[];
 };
 
 export type UpdateRecurringBody = Partial<
   Omit<
     CreateRecurringBody,
-    "kind" | "post_current_period" | "category_id" | "note"
+    "kind" | "post_current_period" | "category_id" | "note" | "remind_lead_days"
   >
 > & {
   /** `null` clears the category / note. */
   category_id?: string | null;
   note?: string | null;
+  /** `null` turns the reminder off. */
+  remind_lead_days?: number[] | null;
 };
 
 /** Editable fields as typed on the add/edit screen. */
@@ -71,6 +77,8 @@ export type RecurringFormState = {
   note: string;
   active: boolean;
   postCurrentPeriod: boolean;
+  /** Days before the due date to be reminded; empty means no reminder. */
+  remindLeadDays: number[];
 };
 
 /** paid: posted this month; skipped: posted, then deleted; upcoming: active and not posted yet. */

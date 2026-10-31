@@ -75,6 +75,12 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink("dime://reports/2026-10/extra", NOW)).toBeNull();
   });
 
+  it("parses the reminders link", () => {
+    expect(parseDeepLink(deepLinkUrls.reminders, NOW)).toEqual({ kind: "reminders" });
+    expect(parseDeepLink("DIME://Reminders/", NOW)).toEqual({ kind: "reminders" });
+    expect(parseDeepLink("dime://reminders?utm=push", NOW)).toEqual({ kind: "reminders" });
+  });
+
   it("returns null for unknown targets, other schemes and empty input", () => {
     expect(parseDeepLink("dime://nope", NOW)).toBeNull();
     expect(parseDeepLink("dime://", NOW)).toBeNull();

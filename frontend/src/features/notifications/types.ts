@@ -7,6 +7,7 @@ export type NotificationKind =
   | "budget_threshold"
   | "capture_failed"
   | "report_ready"
+  | "reminder_due"
   | "unknown";
 
 export type NotificationAction =
@@ -14,6 +15,8 @@ export type NotificationAction =
   | { type: "home" }
   | { type: "manual_add" }
   | { type: "report"; periodKey: string }
+  /** `reminderId` is null for a recurring item's lead reminder: the list opens without a highlight. */
+  | { type: "reminder"; reminderId: string | null }
   | { type: "none" };
 
 export type AppNotification = {

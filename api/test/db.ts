@@ -23,7 +23,8 @@ const TABLES = [
   'user_feedback',
   'monthly_reports',
   'user_settings',
-  'notifications',
+  'notifications', // references reminders and transactions
+  'reminders', // after notifications, before transactions (completed_txn_id)
   'category_budgets',
   'budgets',
   'transactions',
@@ -193,6 +194,58 @@ export async function seedNotification(over: {
       over.read_at ?? null,
       over.deleted_at ?? null,
       over.created_at ?? '2026-10-04T10:00:00.000Z',
+    )
+    .run();
+  return id;
+}
+
+export async function seedReminder(over: {
+  id?: string;
+  user_id?: string;
+  direction?: 'pay' | 'receive';
+  title?: string;
+  /** Decimal string; null = no amount. */
+  amount?: string | null;
+  counterparty_name?: string | null;
+  due_date?: string;
+  cadence?: 'none' | 'weekly' | 'monthly' | 'yearly';
+  anchor_day?: number;
+  lead_days?: number[] | null;
+  remind_time?: string | null;
+  timezone?: string;
+  status?: 'open' | 'done' | 'dismissed';
+  completed_txn_id?: string | null;
+  fired_through?: string | null;
+  next_fire_at?: string | null;
+} = {}) {
+  const id = over.id ?? uid();
+  const name = over.counterparty_name === undefined ? null : over.counterparty_name;
+  const normalized = name ? normalizedOrNull(name) : null;
+  const due = over.due_date ?? '2026-11-10';
+  await testDb()
+    .prepare(
+      `INSERT INTO reminders (id, user_id, direction, title, amount, counterparty_name, payee_key, due_date, cadence, anchor_day, lead_days, remind_time,
+         timezone, status, completed_txn_id, fired_through, next_fire_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      over.user_id ?? USER_ID,
+      over.direction ?? 'pay',
+      over.title ?? 'Rent',
+      over.amount === undefined || over.amount === null ? null : decimalToCents(over.amount),
+      name,
+      normalized ? payeeKey(normalized, name) : null,
+      due,
+      over.cadence ?? 'none',
+      over.anchor_day ?? Number(due.slice(8, 10)),
+      over.lead_days ? JSON.stringify(over.lead_days) : null,
+      over.remind_time ?? null,
+      over.timezone ?? 'Asia/Kolkata',
+      over.status ?? 'open',
+      over.completed_txn_id ?? null,
+      over.fired_through ?? null,
+      over.next_fire_at ?? null,
     )
     .run();
   return id;

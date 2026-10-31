@@ -1,4 +1,6 @@
 import type { Db } from '../../core/db';
+import { log } from '../../core/logging';
+import { replanUserReminders } from '../reminders/replan';
 import * as repo from './repository';
 import type { SettingsPatch } from './schemas';
 import { settingsFromRow } from './snapshot';
@@ -17,8 +19,11 @@ const IGNORED_KEYS: ReadonlySet<string> = new Set(['budget_daily_alerts_enabled'
 function patchFields(body: SettingsPatch): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
-    if (value !== null && value !== undefined && key !== 'card_layouts' && !IGNORED_KEYS.has(key)) out[key] = value;
+    if (value !== null && value !== undefined && key !== 'card_layouts' && key !== 'reminder_default_lead_days' && !IGNORED_KEYS.has(key)) out[key] = value;
   }
+  // Stored as JSON text like card_layouts; the UPI id is cleared with '' (null would mean "unchanged"), stored as NULL.
+  if (body.reminder_default_lead_days) out['reminder_default_lead_days'] = JSON.stringify(body.reminder_default_lead_days);
+  if (out['upi_id'] === '') out['upi_id'] = null;
   return out;
 }
 
@@ -30,6 +35,9 @@ function cardLayoutsMergePatch(body: SettingsPatch): Record<string, string[] | n
   }
   return Object.keys(out).length > 0 ? out : null;
 }
+
+/** Changing any of these changes when reminders are due, so the next instants are re-planned from the new settings. */
+const affectsReminders = (key: string): boolean => key.startsWith('reminder_') || key === 'reminders_enabled' || key === 'timezone';
 
 /** Common case is one round trip: update-with-return. A missing row is created with the patch applied. */
 export async function patch(db: Db, userId: string, body: SettingsPatch): Promise<UserSettings> {
@@ -49,5 +57,10 @@ export async function patch(db: Db, userId: string, body: SettingsPatch): Promis
     // Lost a creation race: the row exists now, so apply the patch to it.
     row ??= await repo.update(db, userId, fields, mergePatch);
   }
-  return settingsFromRow(row);
+  const settings = settingsFromRow(row);
+  if (Object.keys(fields).some(affectsReminders)) {
+    // The settings are saved: a failing re-plan must not turn the PATCH into an error (each row re-plans itself when it fires).
+    await replanUserReminders(db, userId, settings, Date.now()).catch((err: unknown) => log.error('reminders_replan_failed', { err, userId }));
+  }
+  return settings;
 }

@@ -16,6 +16,9 @@ import type {
   UpdateRecurringBody,
 } from "../types";
 
+/** Days before the due date a recurring item may remind (1 to 7 are offered; the API takes 1 to 30). */
+export const MAX_REMIND_LEAD_ENTRIES = 5;
+
 /** The API stores money with at most 10 whole digits. */
 export const MAX_AMOUNT_WHOLE_DIGITS = 10;
 export const MAX_NAME_LENGTH = 80;
@@ -50,6 +53,7 @@ export function emptyRecurringForm(
     note: "",
     active: true,
     postCurrentPeriod: defaultPostCurrentPeriod(kind),
+    remindLeadDays: [],
   };
 }
 
@@ -64,7 +68,35 @@ export function formFromItem(item: RecurringItem): RecurringFormState {
     note: item.note ?? "",
     active: item.active,
     postCurrentPeriod: false,
+    remindLeadDays: sanitizeRemindLeadDays(item.remind_lead_days),
   };
+}
+
+/** Whole days 1..30, no repeats, at most five, largest first; null / junk reads as "off" (empty). */
+export function sanitizeRemindLeadDays(days: readonly unknown[] | null | undefined): number[] {
+  if (!Array.isArray(days)) {
+    return [];
+  }
+  const clean = days.filter(
+    (day, index): day is number =>
+      typeof day === "number" &&
+      Number.isInteger(day) &&
+      day >= 1 &&
+      day <= 30 &&
+      days.indexOf(day) === index,
+  );
+  return clean.sort((a, b) => b - a).slice(0, MAX_REMIND_LEAD_ENTRIES);
+}
+
+/** Adds or removes one day; never more than five. */
+export function toggleRemindLeadDay(current: readonly number[], day: number): number[] {
+  if (current.includes(day)) {
+    return current.filter((existing) => existing !== day);
+  }
+  if (current.length >= MAX_REMIND_LEAD_ENTRIES) {
+    return [...current];
+  }
+  return [...current, day].sort((a, b) => b - a);
 }
 
 /** Day typed by the user, or null when it is not a whole number from 1 to 31. */
@@ -275,6 +307,10 @@ export function buildCreateBody(
   if (offered && form.postCurrentPeriod) {
     body.post_current_period = true;
   }
+  const remind = sanitizeRemindLeadDays(form.remindLeadDays);
+  if (remind.length > 0) {
+    body.remind_lead_days = remind;
+  }
   return body;
 }
 
@@ -304,6 +340,11 @@ export function buildUpdateBody(
   }
   if (form.active !== item.active) {
     body.active = form.active;
+  }
+  const remind = sanitizeRemindLeadDays(form.remindLeadDays);
+  const savedRemind = sanitizeRemindLeadDays(item.remind_lead_days);
+  if (remind.join(",") !== savedRemind.join(",")) {
+    body.remind_lead_days = remind.length > 0 ? remind : null;
   }
 
   const monthChanged =

@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { uuidString } from '../../core/validation';
 
-export const NOTIFICATION_COLUMNS = 'id,kind,title,body,created_at,read_at,action_type,action_transaction_id,action_period_key';
+export const NOTIFICATION_COLUMNS = 'id,kind,title,body,created_at,read_at,action_type,action_transaction_id,action_period_key,action_reminder_id';
 
 const CURSOR_ID = /^[0-9a-fA-F-]{8,40}$/;
 
@@ -37,15 +37,17 @@ export const notificationIdParamSchema = z.object({ id: uuidString });
 
 export interface NotificationRow {
   id: string;
-  kind: 'transaction_auto' | 'budget_threshold' | 'capture_failed' | 'report_ready';
+  kind: 'transaction_auto' | 'budget_threshold' | 'capture_failed' | 'report_ready' | 'reminder_due';
   title: string;
   body: string;
   created_at: string;
   read_at: string | null;
-  action_type: 'transaction_detail' | 'home' | 'manual_add' | 'report' | 'none' | null;
+  action_type: 'transaction_detail' | 'home' | 'manual_add' | 'report' | 'reminder' | 'none' | null;
   action_transaction_id: string | null;
   /** `YYYY-MM` of the report to open; set only for `report` notifications. */
   action_period_key: string | null;
+  /** The reminder to open; set only for `reminder` notifications (null for a recurring item's lead reminder, which has no reminder row). */
+  action_reminder_id: string | null;
 }
 
 export interface NotificationResponse {
@@ -55,8 +57,8 @@ export interface NotificationResponse {
   body: string;
   created_at: string;
   read_at: string | null;
-  /** `period_key` is present only on `report` actions, so every other notification keeps its old shape. */
-  action: { type: NonNullable<NotificationRow['action_type']>; transaction_id: string | null; period_key?: string };
+  /** `period_key` is present only on `report` actions and `reminder_id` only on `reminder` actions that point at a reminder, so every other notification keeps its old shape. */
+  action: { type: NonNullable<NotificationRow['action_type']>; transaction_id: string | null; period_key?: string; reminder_id?: string };
 }
 
 export interface NotificationListResponse {
@@ -74,5 +76,6 @@ export interface NewNotification {
   action_type: NonNullable<NotificationRow['action_type']>;
   action_transaction_id: string | null;
   action_period_key?: string | null;
+  action_reminder_id?: string | null;
   dedupe_key: string;
 }

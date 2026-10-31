@@ -92,9 +92,12 @@ export const HomeContent = memo(function HomeContent(
     ),
     "home.upcoming": (
       <HomeUpcomingSection
-        items={props.upcomingItems}
+        entries={props.upcomingEntries}
         today={props.upcomingToday}
         onItemPress={props.onUpcomingPress}
+        onReminderPress={props.onReminderPress}
+        onSeeAll={props.onSeeAllReminders}
+        onAdd={props.onAddReminder}
       />
     ),
     "home.categories": (

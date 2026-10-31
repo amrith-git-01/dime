@@ -6,6 +6,7 @@ import { runDigestCron } from './features/email/digest';
 import { handleIngestBatch, handleIngestDlq } from './features/ingest/consumer';
 import { SWEEP_CRON, runSweep } from './features/ingest/sweep';
 import { postDueRecurring } from './features/recurring/poster';
+import { sendDueReminders } from './features/reminders/sender';
 
 export { UserHub } from './features/realtime/user-hub';
 
@@ -32,7 +33,11 @@ export default {
     switch (controller.cron) {
       case SWEEP_CRON:
         // Independent jobs on the same 5-minute tick: one failing must not skip the other.
-        for (const result of await Promise.allSettled([runSweep(env, controller.scheduledTime), postDueRecurring(env, controller.scheduledTime)])) {
+        for (const result of await Promise.allSettled([
+          runSweep(env, controller.scheduledTime),
+          postDueRecurring(env, controller.scheduledTime),
+          sendDueReminders(env, controller.scheduledTime),
+        ])) {
           if (result.status === 'rejected') throw result.reason;
         }
         return;

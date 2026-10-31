@@ -8,6 +8,10 @@ import { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 import { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 import { BentoEditorFooter } from "@/components/bento";
 import { SettingsFormCard } from "./SettingsFormCard";
+import {
+  SettingsRemindersCard,
+  type SettingsRemindersCardProps,
+} from "./SettingsRemindersCard";
 import { SettingsOptionRow } from "./SettingsOptionRow";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 import { REPORT_ROAST_LEVELS, type ReportRoastLevel } from "../types";
@@ -29,6 +33,8 @@ export type SettingsNotificationsEditorProps = {
   reportRoastLevel: ReportRoastLevel;
   onReportAlertsChange: (enabled: boolean) => void;
   onReportRoastLevelChange: (level: ReportRoastLevel) => void;
+  /** Money reminders card: when and how early, quiet hours, My UPI ID. */
+  reminders: Omit<SettingsRemindersCardProps, "disabled" | "onAnimationBusyChange">;
   togglesDisabled?: boolean;
   onBudgetMonthlyAlertsChange: (enabled: boolean) => void;
   onBudgetCategoryAlertsChange: (enabled: boolean) => void;
@@ -71,6 +77,7 @@ export const SettingsNotificationsEditor = memo(
     reportRoastLevel,
     onReportAlertsChange,
     onReportRoastLevelChange,
+    reminders,
     togglesDisabled = false,
     onBudgetMonthlyAlertsChange,
     onBudgetCategoryAlertsChange,
@@ -174,6 +181,12 @@ export const SettingsNotificationsEditor = memo(
             />
           ))}
         </SettingsFormCard>
+
+        <SettingsRemindersCard
+          {...reminders}
+          disabled={togglesDisabled}
+          onAnimationBusyChange={onAnimationBusyChange}
+        />
 
         <BentoEditorFooter
           onClear={() => {

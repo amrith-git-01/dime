@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import { useCallback, useEffect, useRef } from "react";
 
 import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
+import { reminderQueryKeys } from "@/features/reminders/queryKeys";
 import { notificationQueryKeys } from "@/features/notifications/queryKeys";
 import { findTransactionInCache } from "@/features/notifications/utils/findTransactionInCache";
 import {
@@ -42,6 +43,14 @@ function handleNotificationAction(
     navigationRef.navigate("Main", {
       screen: "BrokeReport",
       params: { periodKey: target.periodKey },
+    });
+    return true;
+  }
+
+  if (target.type === "reminder") {
+    navigationRef.navigate("Main", {
+      screen: "Reminders",
+      params: target.reminderId ? { highlightId: target.reminderId } : undefined,
     });
     return true;
   }
@@ -191,6 +200,8 @@ export function useNotificationOpenHandler(): {
       // A report-ready push means a new report: the list (and a period asked for before it existed) is
       // behind the server too. Snapshots already cached never change, so refetching them is cheap.
       void queryClient.invalidateQueries({ queryKey: reportQueryKeys.all });
+      // A reminder push: the list (and Home's Upcoming card) may have moved on.
+      void queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all });
     });
     return () => subscription.remove();
   }, [queryClient]);

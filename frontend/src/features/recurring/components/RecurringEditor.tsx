@@ -14,6 +14,8 @@ import { fontFamilies, radius, spacing } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import { useTourTarget } from "@/hooks/useTourTarget";
 import { SettingsToggleRow } from "@/features/settings/components";
+import { LeadDayChips } from "@/features/reminders/components";
+import { RECURRING_LEAD_DAY_OPTIONS } from "@/features/reminders/constants";
 import { ManualAddAmountSection } from "@/features/transactions/components/bento";
 
 import { useRecurringSheetModel } from "../hooks/useRecurringSheetModel";
@@ -168,6 +170,23 @@ export const RecurringEditor = memo(function RecurringEditor({
         {errors.category ? (
           <Text style={styles.errorText}>{errors.category}</Text>
         ) : null}
+      </View>
+
+      <View style={[styles.card, styles.cardShadow]}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionLabel}>REMIND ME</Text>
+          <Text style={styles.requiredHint}>(optional)</Text>
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.hint}>
+            Days before it is due. Pick none for no reminder.
+          </Text>
+          <LeadDayChips
+            options={RECURRING_LEAD_DAY_OPTIONS}
+            selected={form.remindLeadDays}
+            onToggle={model.onRemindLeadDayToggle}
+          />
+        </View>
       </View>
 
       {showStatusCard ? (

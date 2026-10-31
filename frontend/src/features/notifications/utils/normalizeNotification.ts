@@ -5,6 +5,7 @@ const KNOWN_KINDS: ReadonlySet<string> = new Set<NotificationKind>([
   "budget_threshold",
   "capture_failed",
   "report_ready",
+  "reminder_due",
 ]);
 
 /** A kind this build knows, else `unknown`: the row then shows the server's own title and body. */
@@ -28,6 +29,14 @@ function normalizeAction(action: unknown): NotificationAction {
       return typeof value.periodKey === "string" && value.periodKey
         ? { type: "report", periodKey: value.periodKey }
         : { type: "none" };
+    case "reminder":
+      return {
+        type: "reminder",
+        reminderId:
+          typeof value.reminderId === "string" && value.reminderId
+            ? value.reminderId
+            : null,
+      };
     default:
       return { type: "none" };
   }

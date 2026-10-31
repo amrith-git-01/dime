@@ -21,6 +21,7 @@ describe("normalizeNotificationKind", () => {
       "budget_threshold",
       "capture_failed",
       "report_ready",
+      "reminder_due",
     ]) {
       expect(normalizeNotificationKind(kind)).toBe(kind);
     }
@@ -57,6 +58,29 @@ describe("normalizeNotification (rows read back from the device)", () => {
     expect(withAction({ type: "report" })).toEqual({ type: "none" });
     expect(withAction({ type: "transaction_detail" })).toEqual({ type: "none" });
     expect(withAction(undefined)).toEqual({ type: "none" });
+  });
+
+  it("keeps a reminder action with its id, or without one", () => {
+    const withAction = (action: unknown) =>
+      normalizeNotification({
+        ...base,
+        kind: "reminder_due",
+        action,
+      } as unknown as AppNotification).action;
+    expect(withAction({ type: "reminder", reminderId: "r1" })).toEqual({
+      type: "reminder",
+      reminderId: "r1",
+    });
+    // A recurring item's lead reminder has no id: the list opens without a highlight.
+    expect(withAction({ type: "reminder", reminderId: null })).toEqual({
+      type: "reminder",
+      reminderId: null,
+    });
+    expect(withAction({ type: "reminder" })).toEqual({ type: "reminder", reminderId: null });
+    expect(withAction({ type: "reminder", reminderId: 7 })).toEqual({
+      type: "reminder",
+      reminderId: null,
+    });
   });
 
   it("keeps the simple actions", () => {

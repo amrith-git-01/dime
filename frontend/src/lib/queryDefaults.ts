@@ -29,3 +29,6 @@ export const REPORT_SNAPSHOT_STALE_MS = Number.POSITIVE_INFINITY;
 
 /** The reports list gains a row on the 1st and flips `viewed` when a report is opened. */
 export const REPORT_LIST_STALE_MS = 5 * 60 * 1000;
+
+/** Reminders change when the cron advances a repeat or another device edits one; two minutes is fresh enough. */
+export const REMINDER_LIST_STALE_MS = 2 * 60 * 1000;

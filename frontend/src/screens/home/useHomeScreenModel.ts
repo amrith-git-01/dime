@@ -9,8 +9,9 @@ import { useCallback, useEffect, useMemo } from "react";
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { categoryDefault } from "@/constants";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
-import { useUpcomingRecurring } from "@/features/recurring/hooks/useUpcomingRecurring";
 import type { RecurringItem } from "@/features/recurring/types";
+import { useUpcomingEntries } from "@/features/reminders/hooks/useUpcomingEntries";
+import type { Reminder } from "@/features/reminders/types";
 import type { HomeBentoContentProps } from "@/features/home/components";
 import { HOME_MAX_CATEGORIES, HOME_MAX_RECENT } from "@/features/home/components";
 import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
@@ -121,7 +122,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     now.getMonth(),
   );
   const { data: budgetResp } = useBudgetQuery();
-  const { items: upcomingItems, today: upcomingToday } = useUpcomingRecurring();
+  const { entries: upcomingEntries, today: upcomingToday } = useUpcomingEntries();
 
   const budget = budgetResp?.budget ?? null;
 
@@ -238,6 +239,19 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     [navigation],
   );
 
+  const onReminderPress = useCallback(
+    (reminder: Reminder) => {
+      navigation.navigate("Reminders", { highlightId: reminder.id });
+    },
+    [navigation],
+  );
+  const onSeeAllReminders = useCallback(() => {
+    navigation.navigate("Reminders");
+  }, [navigation]);
+  const onAddReminder = useCallback(() => {
+    navigation.navigate("ReminderEditor", {});
+  }, [navigation]);
+
   const onTransactionPress = useCallback(
     (tx: TransactionRow) => {
       // A waiting entry has no server row to open: show the pending list instead.
@@ -304,9 +318,12 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     spentMonthDisplay,
     spentMonthValue,
     topCategories,
-    upcomingItems,
+    upcomingEntries,
     upcomingToday,
     onUpcomingPress,
+    onReminderPress,
+    onSeeAllReminders,
+    onAddReminder,
     updatedLabel:
       !isOnline && dataUpdatedAt > 0
         ? `Updated ${formatDistanceToNowStrict(dataUpdatedAt, { addSuffix: true })}`

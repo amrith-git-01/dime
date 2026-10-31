@@ -62,6 +62,15 @@ export function useNotificationsScreenModel() {
             periodKey: notification.action.periodKey,
           });
           break;
+        case "reminder":
+          // No id (a recurring item's lead reminder) opens the list as it is.
+          navigation.navigate(
+            "Reminders",
+            notification.action.reminderId
+              ? { highlightId: notification.action.reminderId }
+              : undefined,
+          );
+          break;
         case "none":
           break;
         default:

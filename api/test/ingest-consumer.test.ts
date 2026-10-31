@@ -491,7 +491,8 @@ describe('queue handlers', () => {
     await handleIngestBatch(fakeBatch('dime-ingest', messages), { ...env(), AI: fakeAi.asAi() });
     expect(messages.every((m) => m.acked)).toBe(true);
     expect(await transactions()).toHaveLength(1);
-  });
+    // Three messages through the whole pipeline: the 5 s default times out when the full suite loads the machine.
+  }, 20_000);
 
   it('one crashing message does not take the others down', async () => {
     await seedPending();

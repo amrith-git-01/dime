@@ -9,6 +9,8 @@ import BrokeReportScreenBase from "@/screens/brokeReport/BrokeReportScreen";
 import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCompareScreen";
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import RecurringEditorScreenBase from "@/screens/recurring/RecurringEditorScreen";
+import ReminderEditorScreenBase from "@/screens/reminders/ReminderEditorScreen";
+import RemindersScreenBase from "@/screens/reminders/RemindersScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
 import NotificationsScreenBase from "@/screens/notifications/NotificationsScreen";
@@ -91,6 +93,12 @@ const CreateCustomCategoryScreen = withStackScreen(
 const EditCategoryScreen = withStackScreen(EditCategoryScreenBase);
 const EditMonthlyBudgetScreen = withStackScreen(EditMonthlyBudgetScreenBase);
 const RecurringEditorScreen = withStackScreen(RecurringEditorScreenBase);
+// The list owns its scroll view (it scrolls a highlighted reminder into view), so the shell must not wrap it.
+const RemindersScreen = withStackScreen(
+  RemindersScreenBase,
+  stackVirtualizedListShellConfig,
+);
+const ReminderEditorScreen = withStackScreen(ReminderEditorScreenBase);
 
 export default function MainStackNavigator() {
   const { colors } = useTheme();
@@ -217,6 +225,19 @@ export default function MainStackNavigator() {
             route.params?.mode === "edit"
               ? "Update budget limits"
               : "Budget limits",
+        })}
+      />
+      <Stack.Screen
+        name="Reminders"
+        component={RemindersScreen}
+        options={{ ...stackScreenOptions, title: "Reminders" }}
+      />
+      <Stack.Screen
+        name="ReminderEditor"
+        component={ReminderEditorScreen}
+        options={({ route }) => ({
+          ...stackScreenOptions,
+          title: route.params?.reminder ? "Edit reminder" : "Add reminder",
         })}
       />
       <Stack.Screen
