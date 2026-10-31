@@ -28,6 +28,16 @@ export const emptyStateCopy = {
     headline: "No notifications yet",
     subtext: "Capture and budget alerts will show up here.",
   },
+  reminders: {
+    headline: "No reminders yet",
+    subtext:
+      "Add a bill to pay or money to collect, and Dime reminds you before it is due.",
+    actionLabel: "Add reminder",
+  },
+  remindersError: {
+    headline: "Could not load reminders",
+    subtext: "Check your connection and try again.",
+  },
   notificationsError: {
     headline: "Could not load notifications",
     subtext: "Check your connection and pull to refresh from the tab bar.",

@@ -23,6 +23,8 @@ import { profileAvatarRoutes } from './features/profile-avatar/routes';
 import { realtimeRoutes } from './features/realtime/routes';
 import { pushTokenRoutes } from './features/push-tokens/routes';
 import { recurringRoutes } from './features/recurring/routes';
+import { payRoutes } from './features/reminders/pay';
+import { remindersRoutes } from './features/reminders/routes';
 import { reportsRoutes } from './features/reports/routes';
 import { transactionRoutes } from './features/transactions/routes';
 import { updatesRoutes } from './features/updates/routes';
@@ -51,6 +53,10 @@ export function createApp() {
   // R2 media (public avatars, HMAC-signed receipts and voice). Not under /api/v1: no auth, its own cache headers.
   app.route('/media', mediaRoutes);
 
+  // Public pay link page (hands the visitor to their UPI app). Not under /api/v1: no auth, its own headers. Not an asset path,
+  // so the Worker receives it (assets run_worker_first stays off and only real files in public/ are served statically).
+  app.route('/pay', payRoutes);
+
   // One router per feature, mounted under /api/v1. Add new features here.
   const api = app.basePath('/api/v1');
   api.route('/health', healthRoutes);
@@ -69,6 +75,7 @@ export function createApp() {
   api.route('/transactions', ingestRoutes); // receipt / voice capture (R3)
   api.route('/ingest', ingestJobRoutes); // capture job status (polled by the Android widget card)
   api.route('/recurring', recurringRoutes);
+  api.route('/reminders', remindersRoutes); // money to pay or receive (the cron sends the notifications)
   api.route('/reports', reportsRoutes); // Broke Report: monthly recap snapshots
   api.route('/limits', limitsRoutes);
   api.route('/feedback', userFeedbackRoutes);

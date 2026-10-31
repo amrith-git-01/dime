@@ -26,6 +26,17 @@ type UserSettingsDto = {
   report_roast_level?: string;
   /** Absent on servers from before Arrange. */
   card_layouts?: CardLayouts | null;
+  /** The reminder fields are absent on servers from before Reminders. */
+  reminders_enabled?: boolean;
+  reminder_default_lead_days?: number[];
+  reminder_time?: string;
+  reminder_overdue_nudges?: number;
+  reminder_quiet_enabled?: boolean;
+  reminder_quiet_start?: string;
+  reminder_quiet_end?: string;
+  reminder_hide_amounts?: boolean;
+  upi_id?: string | null;
+  timezone?: string | null;
 };
 
 export function mapDto(dto: UserSettingsDto): UserSettings {
@@ -47,13 +58,24 @@ export function mapDto(dto: UserSettingsDto): UserSettings {
       ? dto.report_roast_level
       : "spicy",
     cardLayouts: sanitizeCardLayouts(dto.card_layouts),
+    // Missing or malformed values read as the defaults inside `normalizeUserSettings`.
+    remindersEnabled: dto.reminders_enabled,
+    reminderDefaultLeadDays: dto.reminder_default_lead_days,
+    reminderTime: dto.reminder_time,
+    reminderOverdueNudges: dto.reminder_overdue_nudges,
+    reminderQuietEnabled: dto.reminder_quiet_enabled,
+    reminderQuietStart: dto.reminder_quiet_start,
+    reminderQuietEnd: dto.reminder_quiet_end,
+    reminderHideAmounts: dto.reminder_hide_amounts,
+    upiId: dto.upi_id ?? null,
+    timezone: dto.timezone ?? null,
   });
 }
 
 export function mapPatchToDto(
   patch: UserSettingsPatch,
-): Record<string, boolean | number | string | CardLayouts> {
-  const dto: Record<string, boolean | number | string | CardLayouts> = {};
+): Record<string, boolean | number | string | number[] | CardLayouts> {
+  const dto: Record<string, boolean | number | string | number[] | CardLayouts> = {};
   if (patch.budgetAlertsEnabled !== undefined) {
     dto.budget_alerts_enabled = patch.budgetAlertsEnabled;
   }
@@ -98,6 +120,37 @@ export function mapPatchToDto(
   }
   if (patch.cardLayouts !== undefined) {
     dto.card_layouts = patch.cardLayouts;
+  }
+  if (patch.remindersEnabled !== undefined) {
+    dto.reminders_enabled = patch.remindersEnabled;
+  }
+  if (patch.reminderDefaultLeadDays !== undefined) {
+    dto.reminder_default_lead_days = patch.reminderDefaultLeadDays;
+  }
+  if (patch.reminderTime !== undefined) {
+    dto.reminder_time = patch.reminderTime;
+  }
+  if (patch.reminderOverdueNudges !== undefined) {
+    dto.reminder_overdue_nudges = patch.reminderOverdueNudges;
+  }
+  if (patch.reminderQuietEnabled !== undefined) {
+    dto.reminder_quiet_enabled = patch.reminderQuietEnabled;
+  }
+  if (patch.reminderQuietStart !== undefined) {
+    dto.reminder_quiet_start = patch.reminderQuietStart;
+  }
+  if (patch.reminderQuietEnd !== undefined) {
+    dto.reminder_quiet_end = patch.reminderQuietEnd;
+  }
+  if (patch.reminderHideAmounts !== undefined) {
+    dto.reminder_hide_amounts = patch.reminderHideAmounts;
+  }
+  // `null` in a PATCH means "unchanged" on the server, so a cleared UPI ID is sent as ''.
+  if (patch.upiId !== undefined) {
+    dto.upi_id = patch.upiId ?? "";
+  }
+  if (patch.timezone != null) {
+    dto.timezone = patch.timezone;
   }
   return dto;
 }

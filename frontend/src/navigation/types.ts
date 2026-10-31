@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
 import type { RecurringItem, RecurringKind } from "@/features/recurring/types";
+import type { Reminder } from "@/features/reminders/types";
 import type { TransactionRow } from "@/features/transactions/types";
 
 export type MainTabParamList = {
@@ -27,6 +28,10 @@ export type MainStackParamList = {
   Notifications: undefined;
   /** `periodKey`: `YYYY-MM` of a stored Broke Report. */
   BrokeReport: { periodKey: string };
+  /** `highlightId`: a reminder to scroll to and tint (from a notification or Home). */
+  Reminders: { highlightId?: string } | undefined;
+  /** `reminder`: the one to edit; omit to add a new one. */
+  ReminderEditor: { reminder?: Reminder };
   ManualAddTransaction:
     | {
         /** `yyyy-MM-dd` day the new transaction is dated to (a past day opens at 12:00). */

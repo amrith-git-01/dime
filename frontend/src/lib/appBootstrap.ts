@@ -18,6 +18,7 @@ import {
   categoryBudgetsQueryKeys,
 } from "@/features/budgets/queryKeys";
 import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
+import { reminderQueryKeys } from "@/features/reminders/queryKeys";
 import { fetchCategories } from "@/features/categories/api/categoriesApi";
 import { categoriesQueryKeys } from "@/features/categories/queryKeys";
 import { hydrateNotificationsFromMmkv } from "@/features/notifications/cache/syncNotificationsMmkv";
@@ -27,6 +28,7 @@ import { hydrateUserSettingsFromMmkv } from "@/features/settings/cache/syncUserS
 import { settingsQueryKeys } from "@/features/settings/queryKeys";
 import type { UserSettings } from "@/features/settings/types";
 import { overlayPendingLayouts } from "@/features/settings/utils/settingsPatchRollback";
+import { syncDeviceTimezone } from "@/features/settings/utils/syncDeviceTimezone";
 import { readPendingCardLayoutScreens } from "@/lib/settings/userSettingsMmkv";
 import {
   PushPermissionDeniedError,
@@ -150,6 +152,8 @@ function invalidateServerDrivenQueries(queryClient: QueryClient): void {
     categoryBudgetsQueryKeys.all,
     // A report may have been built while the app slept (the 1st); snapshots themselves never change.
     reportQueryKeys.all,
+    // Reminders move on by themselves: a repeating one gets its next date, a push may have landed.
+    reminderQueryKeys.all,
   ]) {
     void queryClient.invalidateQueries({ queryKey });
   }
@@ -224,6 +228,9 @@ export function prefetchSiblingTabQueries(
             readPendingCardLayoutScreens(userId),
           ),
       });
+
+      // Reminders fire in the user's own clock: tell the server where this device is. Never awaited.
+      void syncDeviceTimezone(queryClient, userId, settings);
 
       if (settings.deviceNotificationsEnabled) {
         // Remote push registration must never block the local schedules below. Check-only: the

@@ -1,10 +1,10 @@
-import { all, first, newId, nowIso, run } from '../../core/db';
+import { all, first, newId, nowIso, run, stmt } from '../../core/db';
 import type { Db } from '../../core/db';
 import type { RecurringRow } from './schemas';
 
 /** Every query is scoped by `user_id`, except the cron's `listDue` (it serves all users, then acts per item owner). */
 const COLUMNS =
-  'id,user_id,kind,name,amount,category_id,cadence,day_of_month,month_of_year,timezone,next_due_date,active,note,created_at,updated_at';
+  'id,user_id,kind,name,amount,category_id,cadence,day_of_month,month_of_year,timezone,next_due_date,active,note,remind_lead_days,next_remind_at,created_at,updated_at';
 
 export const MAX_ITEMS_PER_USER = 100;
 
@@ -28,9 +28,9 @@ export async function insert(db: Db, row: NewRecurring): Promise<RecurringRow> {
   const stored = await first<RecurringRow>(
     db,
     `INSERT INTO recurring_items
-       (id, user_id, kind, name, amount, category_id, cadence, day_of_month, month_of_year, timezone, next_due_date, active, note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
-    [newId(), row.user_id, row.kind, row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, now, now],
+       (id, user_id, kind, name, amount, category_id, cadence, day_of_month, month_of_year, timezone, next_due_date, active, note, remind_lead_days, next_remind_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
+    [newId(), row.user_id, row.kind, row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, row.remind_lead_days, row.next_remind_at, now, now],
   );
   if (!stored) throw new Error('recurring insert returned no row');
   return stored;
@@ -41,9 +41,9 @@ export function update(db: Db, userId: string, row: RecurringRow): Promise<Recur
   return first<RecurringRow>(
     db,
     `UPDATE recurring_items SET name = ?, amount = ?, category_id = ?, cadence = ?, day_of_month = ?, month_of_year = ?,
-       timezone = ?, next_due_date = ?, active = ?, note = ?, updated_at = ?
+       timezone = ?, next_due_date = ?, active = ?, note = ?, remind_lead_days = ?, next_remind_at = ?, updated_at = ?
      WHERE user_id = ? AND id = ? RETURNING ${COLUMNS}`,
-    [row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, nowIso(), userId, row.id],
+    [row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, row.remind_lead_days, row.next_remind_at, nowIso(), userId, row.id],
   );
 }
 
@@ -89,7 +89,42 @@ export function listDue(db: Db, maxDate: string, limit: number): Promise<Recurri
   );
 }
 
-/** Move an item to its next period, only if it is still on the period just posted (a concurrent run or edit wins). */
-export async function advance(db: Db, id: string, fromDate: string, toDate: string): Promise<boolean> {
-  return (await run(db, 'UPDATE recurring_items SET next_due_date = ?, updated_at = ? WHERE id = ? AND next_due_date = ?', [toDate, nowIso(), id, fromDate])) > 0;
+/**
+ * Move an item to its next period, only if it is still on the period just posted (a concurrent run or edit wins).
+ * `nextRemindAt` is the lead-day reminder instant of the NEW period (null = reminders off or none left).
+ */
+export async function advance(db: Db, id: string, fromDate: string, toDate: string, nextRemindAt: string | null = null): Promise<boolean> {
+  return (
+    (await run(db, 'UPDATE recurring_items SET next_due_date = ?, next_remind_at = ?, updated_at = ? WHERE id = ? AND next_due_date = ?', [toDate, nextRemindAt, nowIso(), id, fromDate])) > 0
+  );
+}
+
+/** Active items with lead-day reminders whose next reminder instant has arrived, oldest first (all users: the reminders cron). */
+export function listRemindDue(db: Db, nowIsoText: string, limit: number): Promise<RecurringRow[]> {
+  return all<RecurringRow>(
+    db,
+    `SELECT ${COLUMNS} FROM recurring_items WHERE active = 1 AND next_remind_at IS NOT NULL AND next_remind_at <= ? ORDER BY next_remind_at, id LIMIT ?`,
+    [nowIsoText, limit],
+  );
+}
+
+/** The reminders cron's next instant for an item, only if it is still on the one it picked (an edit or the poster wins). */
+export async function setNextRemind(db: Db, id: string, expected: string, next: string | null): Promise<boolean> {
+  return (await run(db, 'UPDATE recurring_items SET next_remind_at = ? WHERE id = ? AND next_remind_at = ?', [next, id, expected])) > 0;
+}
+
+/** The user's active items with lead-day reminders on, for re-planning after a reminder-settings change. */
+export function listRemindableForUser(db: Db, userId: string): Promise<RecurringRow[]> {
+  return all<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND active = 1 AND remind_lead_days IS NOT NULL`, [userId]);
+}
+
+/** A statement for `db.batch` that re-plans one item's next reminder instant. */
+export function setNextRemindStatement(db: Db, userId: string, id: string, next: string | null): D1PreparedStatement {
+  return stmt(db, 'UPDATE recurring_items SET next_remind_at = ? WHERE user_id = ? AND id = ?', [next, userId, id]);
+}
+
+/** How many items are due a reminder (the cron logs what its per-tick cap left for the next run). */
+export async function countRemindDue(db: Db, nowIsoText: string): Promise<number> {
+  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recurring_items WHERE active = 1 AND next_remind_at IS NOT NULL AND next_remind_at <= ?', [nowIsoText]);
+  return row?.n ?? 0;
 }

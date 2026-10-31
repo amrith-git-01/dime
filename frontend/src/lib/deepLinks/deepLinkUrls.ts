@@ -11,6 +11,8 @@ export const deepLinkUrls = {
   budgets: `${DEEP_LINK_SCHEME}://budgets`,
   budgetsRecurring: `${DEEP_LINK_SCHEME}://budgets/recurring`,
   agent: `${DEEP_LINK_SCHEME}://agent`,
+  /** The Reminders list. */
+  reminders: `${DEEP_LINK_SCHEME}://reminders`,
 } as const;
 
 /** A Broke Report: `dime://reports/YYYY-MM`. Parsed by `parseDeepLink`. */

@@ -1,3 +1,5 @@
+import { parseLeadDays } from '../reminders/schedule';
+
 export const CARD_SCREENS = ['home', 'budgets', 'insights'] as const;
 export type CardScreen = (typeof CARD_SCREENS)[number];
 /** Saved card order per screen; a screen without a key keeps its default order. */
@@ -41,6 +43,19 @@ export interface UserSettings {
   report_alerts_enabled: boolean;
   report_roast_level: RoastLevel;
   card_layouts: CardLayouts;
+  /** Money reminders (features/reminders). The lead-days list is stored as JSON text. */
+  reminders_enabled: boolean;
+  reminder_default_lead_days: number[];
+  reminder_time: string;
+  reminder_overdue_nudges: number;
+  reminder_quiet_enabled: boolean;
+  reminder_quiet_start: string;
+  reminder_quiet_end: string;
+  reminder_hide_amounts: boolean;
+  /** The user's own UPI id (for "pay me" links); null = none. */
+  upi_id: string | null;
+  /** IANA timezone written by the app; null until it has. */
+  timezone: string | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -59,6 +74,16 @@ export const DEFAULT_SETTINGS: UserSettings = {
   report_alerts_enabled: true,
   report_roast_level: 'spicy',
   card_layouts: {},
+  reminders_enabled: true,
+  reminder_default_lead_days: [3, 1, 0],
+  reminder_time: '09:00',
+  reminder_overdue_nudges: 2,
+  reminder_quiet_enabled: false,
+  reminder_quiet_start: '22:00',
+  reminder_quiet_end: '08:00',
+  reminder_hide_amounts: false,
+  upi_id: null,
+  timezone: null,
 };
 
 export const SETTINGS_COLUMNS = Object.keys(DEFAULT_SETTINGS).join(',');
@@ -68,6 +93,14 @@ function clampPct(value: unknown, fallback = 80): number {
   if (!Number.isFinite(n)) return fallback;
   return Math.max(50, Math.min(95, n));
 }
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? Math.trunc(value) : Number.parseInt(String(value), 10);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+}
+
+/** `HH:MM` as stored, or the fallback for anything else. */
+const hm = (value: unknown, fallback: string): string => (typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : fallback);
 
 /** Build settings from a (possibly partial) row; absent keys get the default. */
 export function settingsFromRow(row: Record<string, unknown> | null | undefined): UserSettings {
@@ -90,5 +123,15 @@ export function settingsFromRow(row: Record<string, unknown> | null | undefined)
     report_alerts_enabled: bool('report_alerts_enabled'),
     report_roast_level: ROAST_LEVELS.find((level) => level === row['report_roast_level']) ?? DEFAULT_SETTINGS.report_roast_level,
     card_layouts: parseCardLayouts(row['card_layouts']),
+    reminders_enabled: bool('reminders_enabled'),
+    reminder_default_lead_days: parseLeadDays(row['reminder_default_lead_days'], DEFAULT_SETTINGS.reminder_default_lead_days),
+    reminder_time: hm(row['reminder_time'], DEFAULT_SETTINGS.reminder_time),
+    reminder_overdue_nudges: clampInt(row['reminder_overdue_nudges'], 0, 5, DEFAULT_SETTINGS.reminder_overdue_nudges),
+    reminder_quiet_enabled: bool('reminder_quiet_enabled'),
+    reminder_quiet_start: hm(row['reminder_quiet_start'], DEFAULT_SETTINGS.reminder_quiet_start),
+    reminder_quiet_end: hm(row['reminder_quiet_end'], DEFAULT_SETTINGS.reminder_quiet_end),
+    reminder_hide_amounts: bool('reminder_hide_amounts'),
+    upi_id: typeof row['upi_id'] === 'string' && row['upi_id'] !== '' ? row['upi_id'] : null,
+    timezone: typeof row['timezone'] === 'string' && row['timezone'] !== '' ? row['timezone'] : null,
   };
 }

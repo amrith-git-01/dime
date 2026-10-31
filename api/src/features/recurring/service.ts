@@ -1,3 +1,4 @@
+import type { Db } from '../../core/db';
 import { decimalToCents, formatCents } from '../../core/decimal';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors';
 import { isoUtc } from '../../core/timestamps';
@@ -5,6 +6,10 @@ import { dateKey, localDate, parseTimezone } from '../../core/timezone';
 import { unprocessable } from '../../core/validation';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
+import { nextRemindIso } from '../reminders/plan';
+import { parseLeadDays } from '../reminders/schedule';
+import { fetchByUserId } from '../user-settings/repository';
+import { settingsFromRow } from '../user-settings/snapshot';
 import type { TxContext } from '../transactions/service';
 import { postOccurrence } from './poster';
 import type { Later } from './poster';
@@ -24,6 +29,15 @@ import type {
 } from './schemas';
 
 const NOT_FOUND = 'Recurring item not found.';
+
+/**
+ * `next_remind_at` of an item: its first lead-day reminder instant after now, null when reminders are off, the item is paused or
+ * none is left. Reads the user's reminder settings (time, quiet hours) only when reminders are on.
+ */
+async function remindAt(db: Db, userId: string, item: Pick<RecurringRow, 'next_due_date' | 'timezone' | 'remind_lead_days' | 'active'>, nowMs: number): Promise<string | null> {
+  if (item.active !== 1 || item.remind_lead_days === null) return null;
+  return nextRemindIso(item, settingsFromRow(await fetchByUserId(db, userId)), nowMs);
+}
 
 /** Cents per month: monthly items as they are, yearly ones divided by 12 (rounded to the cent). */
 const monthlyCents = (row: Pick<RecurringRow, 'amount' | 'cadence'>): number => (row.cadence === 'yearly' ? Math.round(row.amount / 12) : row.amount);
@@ -46,6 +60,7 @@ function toResponse(row: RecurringRow, meta: Map<string, CategoryMeta>): Recurri
     next_due_date: row.next_due_date,
     active: row.active === 1,
     note: row.note,
+    remind_lead_days: parseLeadDays(row.remind_lead_days, null),
     monthly_equivalent: formatCents(monthlyCents(row)),
     created_at: isoUtc(row.created_at),
     updated_at: isoUtc(row.updated_at),
@@ -117,6 +132,9 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
     month_of_year: body.cadence === 'yearly' ? (body.month_of_year ?? null) : null,
   };
   const categoryId = await resolveItemCategory(ctx, body.kind, body.category_id);
+  const nextDueDate = dateKey(firstDueFrom(schedule, tz, nowMs));
+  const remindLeadDays = body.remind_lead_days ? JSON.stringify(body.remind_lead_days) : null;
+  const active = body.active ? 1 : 0;
 
   // Never backfill: the first posting is this period's due date if it is still ahead (or today), else the next period's.
   const row = await repo.insert(ctx.db, {
@@ -129,9 +147,11 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
     day_of_month: schedule.day_of_month,
     month_of_year: schedule.month_of_year,
     timezone: tz,
-    next_due_date: dateKey(firstDueFrom(schedule, tz, nowMs)),
-    active: body.active ? 1 : 0,
+    next_due_date: nextDueDate,
+    active,
     note: body.note ?? null,
+    remind_lead_days: remindLeadDays,
+    next_remind_at: await remindAt(ctx.db, ctx.userId, { next_due_date: nextDueDate, timezone: tz, remind_lead_days: remindLeadDays, active }, nowMs),
   });
 
   // The due day of this period already passed and the user asked for it: post it now. `next_due_date` is already the next period.
@@ -170,6 +190,7 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
     timezone: tz,
     active: body.active === undefined ? existing.active : body.active ? 1 : 0,
     note: body.note === undefined ? existing.note : body.note,
+    remind_lead_days: body.remind_lead_days === undefined ? existing.remind_lead_days : body.remind_lead_days === null ? null : JSON.stringify(body.remind_lead_days),
   };
 
   // Amount, name, category and note only matter at the next posting. A new schedule (or resuming) re-plans from today
@@ -184,6 +205,10 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
     const today = localDate(tz, nowMs);
     const posted = await repo.hasPostedIn(ctx.db, id, periodRange(merged, tz, dueInPeriod(merged, today.year, today.month)));
     merged.next_due_date = dateKey(firstDueFrom(merged, tz, nowMs, posted));
+  }
+  // The reminder instant follows the due date, the lead days, the timezone and whether the item is active.
+  if (replan || merged.remind_lead_days !== existing.remind_lead_days || merged.active !== existing.active) {
+    merged.next_remind_at = await remindAt(ctx.db, ctx.userId, merged, nowMs);
   }
 
   const row = await repo.update(ctx.db, ctx.userId, merged);

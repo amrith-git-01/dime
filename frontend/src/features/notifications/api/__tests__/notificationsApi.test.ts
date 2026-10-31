@@ -53,6 +53,30 @@ describe("mapNotificationDto", () => {
     expect(mapped.action).toEqual({ type: "report", periodKey: "2026-10" });
   });
 
+  it("maps reminder_due with its reminder id", () => {
+    const mapped = mapNotificationDto({
+      ...dto,
+      kind: "reminder_due",
+      title: "Rent due in 2 days",
+      action: { type: "reminder", transaction_id: null, reminder_id: "r1" },
+    });
+    expect(mapped.kind).toBe("reminder_due");
+    expect(mapped.action).toEqual({ type: "reminder", reminderId: "r1" });
+  });
+
+  it("maps a reminder action without an id (recurring lead reminder) to the plain list", () => {
+    for (const action of [
+      { type: "reminder", transaction_id: null },
+      { type: "reminder", transaction_id: null, reminder_id: null },
+      { type: "reminder", transaction_id: null, reminder_id: "" },
+    ]) {
+      expect(mapNotificationDto({ ...dto, kind: "reminder_due", action }).action).toEqual({
+        type: "reminder",
+        reminderId: null,
+      });
+    }
+  });
+
   it("falls back to none for a report action without a period key", () => {
     expect(
       mapNotificationDto({

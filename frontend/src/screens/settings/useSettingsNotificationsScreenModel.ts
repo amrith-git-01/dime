@@ -16,6 +16,10 @@ import { useToast } from "@/features/toast/useToast";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { syncDailyExpenseReminderSchedule } from "@/lib/notifications/dailyExpenseReminderSchedule";
 import { syncExpoPushTokenForUser } from "@/features/settings/utils/syncExpoPushToken";
+import {
+  parseUpiId,
+  toggleLeadDay,
+} from "@/features/reminders/utils/reminderForm";
 
 function patchDraft(
   prev: UserSettings | null,
@@ -55,14 +59,26 @@ export function useSettingsNotificationsScreenModel() {
     }
   }, [savedSettings]);
 
+  const upiError =
+    draft?.upiId && !parseUpiId(draft.upiId)
+      ? "Enter a UPI ID like name@bank."
+      : null;
+
   const handleSave = useCallback(async () => {
     if (!draft || !savedSettings) {
       return;
     }
 
+    if (upiError) {
+      return;
+    }
     const patch = buildSettingsPatch(savedSettings, draft);
     if (!patch) {
       return;
+    }
+    if (patch.upiId !== undefined) {
+      // A cleared field is "no UPI ID" (the API takes an empty string for that).
+      patch.upiId = patch.upiId?.trim() || null;
     }
 
     const deviceNotificationsEnabled = draft.deviceNotificationsEnabled;
@@ -118,7 +134,7 @@ export function useSettingsNotificationsScreenModel() {
           parseFastApiError(error) || "Could not save notification settings.",
       });
     }
-  }, [draft, savedSettings, showToast, updateMutation]);
+  }, [draft, savedSettings, showToast, updateMutation, upiError]);
 
   const isInitialLoading =
     settingsQuery.isPending && settingsQuery.data === undefined;
@@ -162,7 +178,7 @@ export function useSettingsNotificationsScreenModel() {
       captureFailedAlertsEnabled: editorDraft.captureFailedAlertsEnabled,
       togglesDisabled: busy,
       saveLoading: busy,
-      saveDisabled: !isDirty || busy,
+      saveDisabled: !isDirty || busy || upiError !== null,
       clearDisabled: !isDirty || busy,
       onBudgetMonthlyAlertsChange: (enabled: boolean) => {
         setDraft((prev) =>
@@ -213,6 +229,74 @@ export function useSettingsNotificationsScreenModel() {
         setDraft((prev) =>
           patchDraft(prev, savedSettings, { reportRoastLevel: level }),
         );
+      },
+      reminders: {
+        enabled: editorDraft.remindersEnabled,
+        defaultLeadDays: editorDraft.reminderDefaultLeadDays,
+        time: editorDraft.reminderTime,
+        overdueNudges: editorDraft.reminderOverdueNudges,
+        quietEnabled: editorDraft.reminderQuietEnabled,
+        quietStart: editorDraft.reminderQuietStart,
+        quietEnd: editorDraft.reminderQuietEnd,
+        hideAmounts: editorDraft.reminderHideAmounts,
+        upiId: editorDraft.upiId ?? "",
+        upiError,
+        onEnabledChange: (enabled: boolean) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { remindersEnabled: enabled }),
+          );
+        },
+        onDefaultLeadDayToggle: (day: number) => {
+          setDraft((prev) => {
+            const base = prev ?? savedSettings ?? DEFAULT_USER_SETTINGS;
+            return {
+              ...base,
+              // Default lead days run 0..27, so the monthly cap fits.
+              reminderDefaultLeadDays: toggleLeadDay(
+                base.reminderDefaultLeadDays,
+                day,
+                "monthly",
+              ),
+            };
+          });
+        },
+        onTimeChange: (time: string) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderTime: time }),
+          );
+        },
+        onOverdueNudgesChange: (count: number) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderOverdueNudges: count }),
+          );
+        },
+        onQuietEnabledChange: (enabled: boolean) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderQuietEnabled: enabled }),
+          );
+        },
+        onQuietStartChange: (time: string) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderQuietStart: time }),
+          );
+        },
+        onQuietEndChange: (time: string) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderQuietEnd: time }),
+          );
+        },
+        onHideAmountsChange: (hide: boolean) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, { reminderHideAmounts: hide }),
+          );
+        },
+        onUpiIdChange: (text: string) => {
+          setDraft((prev) =>
+            patchDraft(prev, savedSettings, {
+              upiId: text.trim() === "" ? null : text,
+            }),
+          );
+        },
       },
       onClear: handleClear,
       onSave: () => void handleSave(),

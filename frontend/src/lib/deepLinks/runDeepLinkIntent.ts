@@ -61,5 +61,8 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
         params: { periodKey: intent.periodKey },
       });
       return;
+    case "reminders":
+      navigationRef.navigate("Main", { screen: "Reminders" });
+      return;
   }
 }

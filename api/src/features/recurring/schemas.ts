@@ -1,6 +1,8 @@
 import * as z from 'zod';
 
 import { uuidString } from '../../core/validation';
+import { leadDaysOf } from '../reminders/schemas';
+import { MAX_LEAD_DAYS } from '../reminders/schedule';
 import { amountInput } from '../transactions/schemas';
 
 export const RECURRING_KINDS = ['income', 'subscription'] as const;
@@ -25,6 +27,8 @@ const fields = {
   month_of_year: z.number().int().min(1).max(12).nullish(),
   timezone: z.string().min(2).max(80),
   note: noteInput.optional(),
+  /** Days before each due date to remind (1..30: the poster posts the item at 06:00 on the day itself); null / omitted = reminders off. */
+  remind_lead_days: leadDaysOf(1, MAX_LEAD_DAYS).nullish(),
 };
 
 /** Yearly items need a month (422 `missing`, like a required field). */
@@ -56,6 +60,7 @@ export const recurringPatchSchema = z.object({
   timezone: fields.timezone.optional(),
   note: fields.note,
   active: z.boolean().optional(),
+  remind_lead_days: fields.remind_lead_days,
 });
 export type RecurringPatchBody = z.output<typeof recurringPatchSchema>;
 
@@ -81,6 +86,10 @@ export interface RecurringRow {
   next_due_date: string;
   active: number;
   note: string | null;
+  /** JSON int array of lead days, null = reminders off. */
+  remind_lead_days: string | null;
+  /** UTC ISO of the next lead-day reminder, null = none. */
+  next_remind_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -101,6 +110,8 @@ export interface RecurringResponse {
   next_due_date: string;
   active: boolean;
   note: string | null;
+  /** Lead days of the opt-in reminders, null = off. */
+  remind_lead_days: number[] | null;
   /** Amount per month as a decimal string: the amount for monthly items, amount / 12 for yearly ones. */
   monthly_equivalent: string;
   created_at: string;

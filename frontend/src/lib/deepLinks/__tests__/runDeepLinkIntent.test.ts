@@ -88,6 +88,14 @@ describe("runDeepLinkIntent", () => {
   });
 });
 
+describe("runDeepLinkIntent (reminders)", () => {
+  it("opens the Reminders list over the tabs", () => {
+    jest.clearAllMocks();
+    runDeepLinkIntent({ kind: "reminders" });
+    expect(navigationRef.navigate).toHaveBeenCalledWith("Main", { screen: "Reminders" });
+  });
+});
+
 describe("usePendingDeepLinkStore", () => {
   it("keeps only the latest link and hands it out once", () => {
     const store = usePendingDeepLinkStore.getState();

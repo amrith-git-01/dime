@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { EXPO_BATCH_SIZE, EXPO_PUSH_URL, sendExpoPush } from '../src/features/notifications/push';
 import { insertDeduped } from '../src/features/notifications/repository';
 import { USER_ID, call } from './helpers';
-import { oneRow, rowsOf, seedNotification, seedTransaction, seedUser, testDb } from './db';
+import { oneRow, rowsOf, seedNotification, seedReminder, seedTransaction, seedUser, testDb } from './db';
 import { json, useSupabaseStub } from './supabase-stub';
 
 // Notifications live in D1; the stub only serves the outbound Expo push endpoint.
@@ -245,6 +245,64 @@ describe('report_ready notifications (migration 0014 rebuilt the table)', () => 
     expect(await insertDeduped(testDb(), report)).not.toBeNull();
     expect(await insertDeduped(testDb(), report)).toBeNull();
     expect(await rowsOf('notifications')).toHaveLength(1);
+  });
+});
+
+describe('reminder_due notifications (migration 0015 rebuilt the table again)', () => {
+  const REMINDER = '44444444-4444-4444-4444-444444444444';
+  const reminder = {
+    user_id: USER_ID,
+    kind: 'reminder_due' as const,
+    title: 'Rent due today',
+    body: '₹15,000',
+    action_type: 'reminder' as const,
+    action_transaction_id: null,
+    action_reminder_id: REMINDER,
+    dedupe_key: `reminder:${REMINDER}:2026-11-10:l0`,
+  };
+
+  it('stores the reminder id and answers it only on the reminder action', async () => {
+    await seedReminder({ id: REMINDER });
+    expect(await insertDeduped(testDb(), reminder)).toMatchObject({ kind: 'reminder_due', action_type: 'reminder', action_reminder_id: REMINDER });
+    // A recurring item's reminder has no row to open.
+    await insertDeduped(testDb(), { ...reminder, action_reminder_id: null, dedupe_key: 'reminder:rec:x:2026-11-01:l3' });
+    await seedRow(1, { created_at: '2026-01-01T00:00:00.000Z' });
+    const body = await (await call('/api/v1/notifications')).json<{ items: { kind: string; action: Record<string, unknown> }[] }>();
+    expect(body.items.map((i) => i.action)).toEqual(
+      expect.arrayContaining([
+        { type: 'reminder', transaction_id: null },
+        { type: 'reminder', transaction_id: null, reminder_id: REMINDER },
+        { type: 'home', transaction_id: null },
+      ]),
+    );
+    expect(body.items).toHaveLength(3);
+  });
+
+  it('the old constraints and the report column survive; only the new values were added', async () => {
+    await seedReminder({ id: REMINDER });
+    const insert = (kind: string, actionType: string, reminderId: string | null, key: string, period: string | null = null) =>
+      testDb()
+        .prepare('INSERT INTO notifications (id, user_id, kind, title, body, action_type, action_reminder_id, action_period_key, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(`00000000-0000-4000-8000-${key.padStart(12, '0')}`, USER_ID, kind, 't', 'b', actionType, reminderId, period, key)
+        .run();
+    await insert('reminder_due', 'reminder', REMINDER, '1');
+    await insert('report_ready', 'report', null, '2', '2026-10');
+    await insert('capture_failed', 'manual_add', null, '3');
+    await expect(insert('reminder_overdue', 'reminder', null, '4')).rejects.toThrow(/CHECK/i);
+    await expect(insert('reminder_due', 'reminders', null, '5')).rejects.toThrow(/CHECK/i);
+    await expect(insert('report_ready', 'report', null, '6', '2026-1')).rejects.toThrow(/CHECK/i);
+    await expect(insert('reminder_due', 'reminder', REMINDER, '1')).rejects.toThrow(/UNIQUE/i);
+    const { results } = await testDb().prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'notifications' AND name = 'notifications_user_created_idx'").all();
+    expect(results).toHaveLength(1);
+  });
+
+  it('deleting the reminder keeps the notification and clears the pointer', async () => {
+    await seedReminder({ id: REMINDER });
+    await insertDeduped(testDb(), reminder);
+    await testDb().prepare('DELETE FROM reminders WHERE id = ?').bind(REMINDER).run();
+    const rows = await rowsOf<{ action_reminder_id: string | null }>('notifications');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.action_reminder_id).toBeNull();
   });
 });
 

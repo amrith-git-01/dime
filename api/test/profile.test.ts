@@ -117,6 +117,10 @@ describe('/me/settings', () => {
     budget_daily_alerts_enabled: false, budget_daily_warn_pct: 80,
     // Per-screen card order ("Arrange"); {} until somebody rearranges a screen.
     card_layouts: {},
+    // Money reminders, the user's own UPI id and the timezone the app writes.
+    reminders_enabled: true, reminder_default_lead_days: [3, 1, 0], reminder_time: '09:00', reminder_overdue_nudges: 2,
+    reminder_quiet_enabled: false, reminder_quiet_start: '22:00', reminder_quiet_end: '08:00', reminder_hide_amounts: false,
+    upi_id: null, timezone: null,
   };
 
   it('GET creates defaults when the row is missing', async () => {
@@ -272,6 +276,85 @@ describe('/me/settings', () => {
     expect(settingsFromRow({ report_alerts_enabled: 0 }).report_alerts_enabled).toBe(false);
     // The table refuses such a value in the first place.
     await expect(seedSettings({ report_roast_level: 'brutal' })).rejects.toThrow();
+  });
+
+  describe('reminder settings', () => {
+    // The write limiter is per file (60 a minute): these many PATCHes would starve the avatar tests further down.
+    const patch = (json: unknown) => call('/api/v1/me/settings', { method: 'PATCH', json, env: makeEnv({ WRITE_LIMITER: undefined }) });
+
+    it('PATCH stores every reminder field (the lead days as JSON) and answers them back', async () => {
+      const changed = {
+        reminders_enabled: false, reminder_default_lead_days: [7, 2, 0], reminder_time: '18:30', reminder_overdue_nudges: 5,
+        reminder_quiet_enabled: true, reminder_quiet_start: '23:00', reminder_quiet_end: '07:30', reminder_hide_amounts: true,
+        upi_id: 'me@okhdfc', timezone: 'Asia/Kolkata',
+      };
+      const res = await patch(changed);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ...full, ...changed });
+      expect(await oneRow('user_settings', 'user_id = ?', USER_ID)).toMatchObject({
+        reminders_enabled: 0, reminder_default_lead_days: '[7,2,0]', reminder_time: '18:30', reminder_overdue_nudges: 5,
+        reminder_quiet_enabled: 1, reminder_hide_amounts: 1, upi_id: 'me@okhdfc', timezone: 'Asia/Kolkata',
+      });
+      expect(await (await call('/api/v1/me/settings')).json()).toEqual({ ...full, ...changed });
+    });
+
+    it('an empty lead-days list is allowed (no lead reminders); null leaves everything unchanged', async () => {
+      expect(await (await patch({ reminder_default_lead_days: [] })).json()).toMatchObject({ reminder_default_lead_days: [] });
+      const same = await patch({ reminder_default_lead_days: null, reminder_time: null, upi_id: null, timezone: null, reminder_overdue_nudges: null });
+      expect(await same.json()).toMatchObject({ reminder_default_lead_days: [], reminder_time: '09:00', upi_id: null, timezone: null });
+    });
+
+    it("upi_id '' clears the stored id (NULL); null leaves it", async () => {
+      await patch({ upi_id: 'me@okhdfc' });
+      expect(await (await patch({ upi_id: null })).json()).toMatchObject({ upi_id: 'me@okhdfc' });
+      expect(await (await patch({ upi_id: '' })).json()).toMatchObject({ upi_id: null });
+      expect((await oneRow<Record<string, unknown>>('user_settings', 'user_id = ?', USER_ID))?.['upi_id']).toBeNull();
+      expect(await (await patch({ upi_id: '  me@okhdfc  ' })).json()).toMatchObject({ upi_id: 'me@okhdfc' });
+    });
+
+    it('creating the row with a reminder field applies it', async () => {
+      expect(await (await patch({ reminder_default_lead_days: [1], upi_id: 'me@okhdfc' })).json()).toMatchObject({ reminder_default_lead_days: [1], upi_id: 'me@okhdfc' });
+      expect(await rowsOf('user_settings')).toHaveLength(1);
+    });
+
+    it('rejects values outside the limits (422, nothing stored)', async () => {
+      const bad: Record<string, unknown>[] = [
+        { reminder_default_lead_days: [31] },
+        { reminder_default_lead_days: [-1] },
+        { reminder_default_lead_days: [1, 1] },
+        { reminder_default_lead_days: [0, 1, 2, 3, 4, 5] },
+        { reminder_default_lead_days: ['1'] },
+        { reminder_default_lead_days: 3 },
+        { reminder_time: '24:00' },
+        { reminder_time: '9:00' },
+        { reminder_overdue_nudges: 6 },
+        { reminder_overdue_nudges: -1 },
+        { reminder_overdue_nudges: 1.5 },
+        { reminder_quiet_start: '25:00' },
+        { reminder_quiet_end: 'late' },
+        { upi_id: 'nope' },
+        { upi_id: 'a@b' },
+        { upi_id: 'ra vi@okhdfc' },
+        { timezone: 'Mars/Olympus' },
+        { timezone: 'x' },
+        { reminders_enabled: 'yes' },
+      ];
+      for (const body of bad) expect((await patch(body)).status, JSON.stringify(body)).toBe(422);
+      expect(await rowsOf('user_settings')).toHaveLength(0);
+    });
+
+    it('a stored value the code cannot read falls back to the default; the table refuses such values', async () => {
+      expect(settingsFromRow({ reminder_default_lead_days: '{broken' }).reminder_default_lead_days).toEqual([3, 1, 0]);
+      expect(settingsFromRow({ reminder_default_lead_days: '[99]' }).reminder_default_lead_days).toEqual([3, 1, 0]);
+      expect(settingsFromRow({ reminder_default_lead_days: '[5]' }).reminder_default_lead_days).toEqual([5]);
+      expect(settingsFromRow({ reminder_time: 'soon' }).reminder_time).toBe('09:00');
+      expect(settingsFromRow({ reminder_overdue_nudges: 99 }).reminder_overdue_nudges).toBe(5);
+      expect(settingsFromRow({ upi_id: '' }).upi_id).toBeNull();
+      expect(settingsFromRow({}).timezone).toBeNull();
+      await expect(seedSettings({ reminder_default_lead_days: '{broken' })).rejects.toThrow();
+      await expect(seedSettings({ reminder_overdue_nudges: 6 })).rejects.toThrow();
+      await expect(seedSettings({ reminder_time: '24:00' })).rejects.toThrow();
+    });
   });
 
   it('clamps stored warn percentages like the Python snapshot', async () => {

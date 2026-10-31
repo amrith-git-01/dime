@@ -44,11 +44,11 @@ export async function insertDeduped(db: Db, row: NewNotification): Promise<Notif
   return first<NotificationRow>(
     db,
     `INSERT INTO notifications
-       (id, user_id, kind, title, body, action_type, action_transaction_id, action_period_key, dedupe_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, user_id, kind, title, body, action_type, action_transaction_id, action_period_key, action_reminder_id, dedupe_key, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id, dedupe_key) DO NOTHING
      RETURNING ${NOTIFICATION_COLUMNS}`,
-    [newId(), row.user_id, row.kind, row.title, row.body, row.action_type, row.action_transaction_id, row.action_period_key ?? null, row.dedupe_key, nowIso()],
+    [newId(), row.user_id, row.kind, row.title, row.body, row.action_type, row.action_transaction_id, row.action_period_key ?? null, row.action_reminder_id ?? null, row.dedupe_key, nowIso()],
   );
 }
 

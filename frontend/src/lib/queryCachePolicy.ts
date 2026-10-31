@@ -21,6 +21,7 @@ const MEDIA_URL_FIELDS: ReadonlySet<string> = new Set([
 ]);
 
 const REPORTS_ROOT = reportQueryKeys.all[0];
+const REMINDERS_ROOT = "reminders";
 const TRANSACTIONS_ROOT = transactionsQueryKeys.all[0];
 const INSIGHTS_ROOT = insightsQueryKeys.all[0];
 
@@ -54,6 +55,7 @@ function isRecentMonth(
  * beyond the previous month, detail rows, notifications (own snapshot), daily limits, onboarding progress and payee search stay in memory only.
  * Broke Reports are persisted on purpose: the list and each snapshot are small and a stored snapshot never
  * changes, so a report opens offline. A "no such report" answer (`null`) is not: it may exist tomorrow.
+ * Reminders are never persisted: they carry payee names and UPI IDs, so they are fetched fresh and live in memory only.
  */
 export function shouldDehydrateQuery(
   query: Query,
@@ -83,6 +85,10 @@ export function shouldDehydrateQuery(
     return String(kind).startsWith("period")
       ? isReportSnapshot(query.state.data)
       : Array.isArray(query.state.data);
+  }
+  // Reminders hold payee names and UPI IDs: memory only, never the on-disk blob.
+  if (root === REMINDERS_ROOT) {
+    return false;
   }
   if (root === TRANSACTIONS_ROOT) {
     if (kind === "detail" || kind === "rangePages" || kind === "filteredMonthPages") {

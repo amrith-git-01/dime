@@ -1,5 +1,13 @@
 import type { UserSettings, UserSettingsPatch } from "../types";
 
+function sameList(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((day, index) => day === b[index]);
+}
+
+/**
+ * Whether two drafts hold the same editable settings. `timezone` and `cardLayouts` are not edited
+ * on the notifications screen (launch and Arrange write them), so they are left out.
+ */
 export function settingsEqual(a: UserSettings, b: UserSettings): boolean {
   return (
     a.budgetMonthlyAlertsEnabled === b.budgetMonthlyAlertsEnabled &&
@@ -14,7 +22,16 @@ export function settingsEqual(a: UserSettings, b: UserSettings): boolean {
     a.weeklyEmailEnabled === b.weeklyEmailEnabled &&
     a.monthlyEmailEnabled === b.monthlyEmailEnabled &&
     a.reportAlertsEnabled === b.reportAlertsEnabled &&
-    a.reportRoastLevel === b.reportRoastLevel
+    a.reportRoastLevel === b.reportRoastLevel &&
+    a.remindersEnabled === b.remindersEnabled &&
+    sameList(a.reminderDefaultLeadDays, b.reminderDefaultLeadDays) &&
+    a.reminderTime === b.reminderTime &&
+    a.reminderOverdueNudges === b.reminderOverdueNudges &&
+    a.reminderQuietEnabled === b.reminderQuietEnabled &&
+    a.reminderQuietStart === b.reminderQuietStart &&
+    a.reminderQuietEnd === b.reminderQuietEnd &&
+    a.reminderHideAmounts === b.reminderHideAmounts &&
+    a.upiId === b.upiId
   );
 }
 
@@ -63,6 +80,33 @@ export function buildSettingsPatch(
   }
   if (draft.reportRoastLevel !== saved.reportRoastLevel) {
     patch.reportRoastLevel = draft.reportRoastLevel;
+  }
+  if (draft.remindersEnabled !== saved.remindersEnabled) {
+    patch.remindersEnabled = draft.remindersEnabled;
+  }
+  if (!sameList(draft.reminderDefaultLeadDays, saved.reminderDefaultLeadDays)) {
+    patch.reminderDefaultLeadDays = draft.reminderDefaultLeadDays;
+  }
+  if (draft.reminderTime !== saved.reminderTime) {
+    patch.reminderTime = draft.reminderTime;
+  }
+  if (draft.reminderOverdueNudges !== saved.reminderOverdueNudges) {
+    patch.reminderOverdueNudges = draft.reminderOverdueNudges;
+  }
+  if (draft.reminderQuietEnabled !== saved.reminderQuietEnabled) {
+    patch.reminderQuietEnabled = draft.reminderQuietEnabled;
+  }
+  if (draft.reminderQuietStart !== saved.reminderQuietStart) {
+    patch.reminderQuietStart = draft.reminderQuietStart;
+  }
+  if (draft.reminderQuietEnd !== saved.reminderQuietEnd) {
+    patch.reminderQuietEnd = draft.reminderQuietEnd;
+  }
+  if (draft.reminderHideAmounts !== saved.reminderHideAmounts) {
+    patch.reminderHideAmounts = draft.reminderHideAmounts;
+  }
+  if (draft.upiId !== saved.upiId) {
+    patch.upiId = draft.upiId;
   }
 
   return Object.keys(patch).length > 0 ? patch : null;

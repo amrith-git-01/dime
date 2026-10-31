@@ -46,6 +46,11 @@ export interface Emitter {
   categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
   /** The monthly Broke Report is ready (`periodKey` = the report's `YYYY-MM`). */
   reportReady(input: { periodKey: string; title: string; body: string }): Promise<void>;
+  /**
+   * A money reminder is due (`dedupeKey` per reminder, due date and step, see features/reminders/sender.ts). `reminderId`
+   * is the reminder to open, or null for a recurring item's lead reminder (the app then opens the reminders list).
+   */
+  reminderDue(input: { reminderId: string | null; dedupeKey: string; title: string; body: string }): Promise<void>;
 }
 
 /**
@@ -76,6 +81,8 @@ export function createEmitter(
           action_transaction_id: row.action_transaction_id,
           // Only report notifications carry it (the app opens that month's Broke Report).
           ...(row.action_period_key ? { period_key: row.action_period_key } : {}),
+          // Only reminder notifications carry it (the app opens that reminder).
+          ...(row.action_reminder_id ? { reminder_id: row.action_reminder_id } : {}),
         },
         onInvalidToken: (token) => deleteByToken(db, token),
       });
@@ -146,6 +153,18 @@ export function createEmitter(
         action_transaction_id: null,
         action_period_key: periodKey,
         dedupe_key: `report:${periodKey}`,
+      });
+    },
+    async reminderDue({ reminderId, dedupeKey, title, body }) {
+      if (!settings.reminders_enabled) return;
+      await emit({
+        kind: 'reminder_due',
+        title,
+        body,
+        action_type: 'reminder',
+        action_transaction_id: null,
+        action_reminder_id: reminderId,
+        dedupe_key: dedupeKey,
       });
     },
   };

@@ -11,6 +11,8 @@ import { createTestQueryClient } from "@/test-utils/testQueryClient";
 import { renderHookWithClient } from "@/test-utils/renderHookWithClient";
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 
+import { offerSettleForTransaction } from "@/features/reminders/utils/settleOffer";
+
 import { useSubmitManualTransactionMutation } from "../useSubmitManualTransactionMutation";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
@@ -29,6 +31,9 @@ jest.mock("@/features/transactions/api/submitTransactionApi", () => ({
   submitVoice: jest.fn(),
 }));
 jest.mock("@/lib/outbox/outboxSync", () => ({ requestOutboxDrain: jest.fn() }));
+jest.mock("@/features/reminders/utils/settleOffer", () => ({
+  offerSettleForTransaction: jest.fn(() => Promise.resolve()),
+}));
 jest.mock("@/features/appTour/store/appTourStore", () => ({
   useAppTourStore: { getState: () => ({ onTransactionSaved: jest.fn() }) },
 }));
@@ -98,6 +103,17 @@ describe("useSubmitManualTransactionMutation", () => {
     expect(queryClient.getQueryState(transactionsQueryKeys.monthSummary("u1", 2026, 10, "Asia/Kolkata"))?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(transactionsQueryKeys.monthPages("u1", 2026, 10, "Asia/Kolkata"))?.isInvalidated).toBe(false);
     expect(useOutboxStore.getState().items).toEqual([]);
+    // A reminder that now looks paid by this entry is offered for settling (fire and forget).
+    expect(offerSettleForTransaction).toHaveBeenCalledWith(queryClient, "u1", "srv-1");
+  });
+
+  it("does not look for a reminder to settle when the entry only waits in the outbox", async () => {
+    onlineManager.setOnline(false);
+    const hook = renderHookWithClient(queryClient, useSubmitManualTransactionMutation);
+    await hook.act(async () => {
+      await hook.current.mutateAsync({ body: MANUAL_BODY, preview });
+    });
+    expect(offerSettleForTransaction).not.toHaveBeenCalled();
   });
 
   it("an older server without `transaction` falls back to the full invalidation", async () => {

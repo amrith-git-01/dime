@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { reportQueryKeys } from "@/features/brokeReport/queryKeys";
+import { reminderQueryKeys } from "@/features/reminders/queryKeys";
 import { realtimeClient } from "@/lib/realtime";
 
 import { notificationQueryKeys } from "../queryKeys";
@@ -23,6 +24,8 @@ export function useNotificationsRealtimeSync(userId: string | null) {
       void queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all });
       // A "report ready" row arrives here too: show the new report without a restart.
       void queryClient.invalidateQueries({ queryKey: reportQueryKeys.all });
+      // A "reminder due" row arrives here too: a repeating reminder has moved to its next date.
+      void queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all });
     };
 
     // Rows inserted while the socket was down were never delivered: onResync refetches.

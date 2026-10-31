@@ -78,6 +78,15 @@ export function useBudgetRecurringModel(
     [navigation],
   );
 
+  const onAddReminder = useCallback(
+    () => navigation.navigate("ReminderEditor", {}),
+    [navigation],
+  );
+  const onSeeReminders = useCallback(
+    () => navigation.navigate("Reminders"),
+    [navigation],
+  );
+
   // Scroll to the section when asked to, then clear the param so the next visit scrolls again.
   const [sectionY, setSectionY] = useState<number | null>(null);
   // Fed the layout of the recurring block's wrapper, whose y is measured in the scroll content.
@@ -99,6 +108,8 @@ export function useBudgetRecurringModel(
     subscriptions,
     onAdd,
     onItemPress,
+    onAddReminder,
+    onSeeReminders,
     onSectionLayout,
   };
 }

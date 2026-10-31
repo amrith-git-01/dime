@@ -8,6 +8,7 @@ const KINDS: NotificationKind[] = [
   "budget_threshold",
   "capture_failed",
   "report_ready",
+  "reminder_due",
   "unknown",
 ];
 

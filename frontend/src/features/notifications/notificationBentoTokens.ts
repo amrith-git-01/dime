@@ -1,5 +1,11 @@
 import type { LucideIcon } from "lucide-react-native";
-import { AlertTriangle, Bell, FileBarChart, ScanLine } from "lucide-react-native";
+import {
+  AlertTriangle,
+  Bell,
+  CalendarClock,
+  FileBarChart,
+  ScanLine,
+} from "lucide-react-native";
 
 import type { ThemeColors } from "@/theme";
 
@@ -58,6 +64,12 @@ export function getNotificationRowVisual(
         icon: FileBarChart,
         backgroundColor: colors.accentTint,
         iconColor: colors.accent,
+      };
+    case "reminder_due":
+      return {
+        icon: CalendarClock,
+        backgroundColor: colors.warningTint,
+        iconColor: colors.warning,
       };
     case "unknown":
     default:

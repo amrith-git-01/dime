@@ -27,7 +27,13 @@ export async function insertDefaults(
   overrides: Record<string, unknown> = {},
 ): Promise<SettingsRow | null> {
   // `card_layouts` is stored as JSON text (NULL = nothing rearranged); a caller passes it as a ready string.
-  const values: Record<string, unknown> = { ...DEFAULT_SETTINGS, ...overrides, card_layouts: overrides['card_layouts'] ?? null };
+  // `reminder_default_lead_days` is JSON text too (a ready string from the service, else the default list).
+  const values: Record<string, unknown> = {
+    ...DEFAULT_SETTINGS,
+    ...overrides,
+    card_layouts: overrides['card_layouts'] ?? null,
+    reminder_default_lead_days: overrides['reminder_default_lead_days'] ?? JSON.stringify(DEFAULT_SETTINGS.reminder_default_lead_days),
+  };
   const columns = Object.keys(values);
   const now = nowIso();
   const row = await first<SettingsRow>(
