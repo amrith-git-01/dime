@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { SpendSplitBar } from "@/components/shared";
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -27,6 +28,9 @@ export type InsightsMonthSummary = {
   hasFixed: boolean;
   fixedDisplay: string;
   flexibleDisplay: string;
+  /** Fixed / flexible spend in rupees, for the split bar. */
+  fixedValue: number;
+  flexibleValue: number;
   /** Fixed income still to come this month; null when none (or a closed month). */
   expectedIncomeDisplay: string | null;
 };
@@ -146,11 +150,10 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
           <View style={styles.divider} />
           <View style={styles.splitSection}>
             {summary.hasFixed ? (
-              <View style={styles.splitRow}>
-                <Text style={styles.splitText}>
-                  {`Recurring ${summary.fixedDisplay} · Flexible ${summary.flexibleDisplay}`}
-                </Text>
-              </View>
+              <SpendSplitBar
+                fixed={summary.fixedValue}
+                flexible={summary.flexibleValue}
+              />
             ) : null}
             {summary.expectedIncomeDisplay ? (
               <Text style={styles.splitText}>
@@ -284,10 +287,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     gap: spacing.xs,
-  },
-  splitRow: {
-    flexDirection: "row",
-    alignItems: "center",
   },
   splitText: {
     fontFamily: fontFamilies.regular,

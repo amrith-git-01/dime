@@ -216,10 +216,6 @@ export function useBudgetScreenModel() {
   const upcomingPaise = toPaise(
     recurringMonthQuery.data?.totals.fixed_expense_upcoming,
   );
-  const splitLine =
-    fixedPaise > 0
-      ? `Recurring ${formatInrCompact(fixedPaise / 100)} · Flexible ${formatInrCompact(flexiblePaise / 100)}`
-      : null;
   const upcomingLine =
     upcomingPaise > 0
       ? `${formatInrCompact(upcomingPaise / 100)} recurring still to come`
@@ -242,7 +238,8 @@ export function useBudgetScreenModel() {
           usagePct,
           usagePercentUsed,
           usageLabel,
-          splitLine,
+          fixedSpent: fixedPaise / 100,
+          flexibleSpent: flexiblePaise / 100,
           upcomingLine,
         };
 
