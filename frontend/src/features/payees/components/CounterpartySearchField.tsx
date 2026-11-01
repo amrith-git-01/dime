@@ -48,6 +48,8 @@ export type CounterpartySearchFieldProps = {
 
 const ATTRIBUTION = "Brand data © OpenStreetMap contributors, Wikidata";
 const BLUR_CLOSE_MS = 150;
+/** Safety net: release the keyboard room even if no keyboard-hidden event arrives (focus moved to another field). */
+const KEYBOARD_ROOM_RELEASE_MS = 600;
 const DROPDOWN_MAX_HEIGHT = 300;
 /** Share of the window the dropdown may take, so the input still fits above it on short screens. */
 const DROPDOWN_WINDOW_SHARE = 0.25;
@@ -181,9 +183,21 @@ export const CounterpartySearchField = memo(function CounterpartySearchField({
     return () => subscription.remove();
   }, [open]);
 
-  // While focused, the screen keeps room for the dropdown between the input and the keyboard.
+  // While focused, the screen keeps room for the dropdown between the input and the keyboard. Releasing it re-scrolls
+  // the screen, so after a blur wait until the keyboard is gone instead of fighting its hide animation (picking a
+  // result dismisses the keyboard and blurs at once, which made the screen stagger).
   useEffect(() => {
-    setKeyboardRoom(focused ? dropdownMaxHeight + spacing.xs : 0);
+    if (focused) {
+      setKeyboardRoom(dropdownMaxHeight + spacing.xs);
+      return;
+    }
+    const release = () => setKeyboardRoom(0);
+    const subscription = KeyboardEvents.addListener("keyboardDidHide", release);
+    const fallback = setTimeout(release, KEYBOARD_ROOM_RELEASE_MS);
+    return () => {
+      subscription.remove();
+      clearTimeout(fallback);
+    };
   }, [dropdownMaxHeight, focused, setKeyboardRoom]);
 
   useEffect(() => () => setKeyboardRoom(0), [setKeyboardRoom]);
