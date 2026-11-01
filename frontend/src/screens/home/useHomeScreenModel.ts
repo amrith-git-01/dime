@@ -153,10 +153,10 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     : "\u2014";
   const monthLabel = format(now, "MMM yyyy");
   const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
-  const monthSplitLine =
-    overview && fixedSpentPaise > 0
-      ? `Recurring ${formatInrCompact(fixedSpentPaise / 100)} · Flexible ${formatInrCompact(toPaise(overview.flexible_spent_this_month) / 100)}`
-      : null;
+  const monthFixedSpent = overview ? fixedSpentPaise / 100 : 0;
+  const monthFlexibleSpent = overview
+    ? toPaise(overview.flexible_spent_this_month) / 100
+    : 0;
 
   const monthSummaryData = monthSummaryQuery.data
     ? { ...monthSummaryQuery.data, ...addPendingToMonthTotals(monthSummaryQuery.data, pendingThisMonth) }
@@ -296,7 +296,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     isPending,
     last7DaysSpend,
     monthLabel,
-    monthSplitLine,
+    monthFixedSpent,
+    monthFlexibleSpent,
     monthlyBudgetAmount,
     monthlyProgress,
     monthlyRemainingDisplay,

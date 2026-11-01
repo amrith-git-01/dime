@@ -1,4 +1,5 @@
 import {
+  AlarmClock,
   Bell,
   BookOpen,
   Compass,
@@ -49,7 +50,7 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
-      <SettingsSection title="Preferences">
+      <SettingsSection title="Appearance & feel">
         <View style={styles.preferencesInner}>
           <SettingsNavRow
             icon={SunMoon}
@@ -63,20 +64,17 @@ export default function SettingsScreen() {
             label="Haptic feedback"
             subtitle="Tap feedback on buttons and actions"
             onPress={() => openDestination("SettingsHaptic")}
-            showSeparator
           />
+        </View>
+      </SettingsSection>
+
+      <SettingsSection title="Notifications">
+        <View style={styles.preferencesInner}>
           <SettingsNavRow
             icon={Bell}
             label="Notifications & alerts"
             subtitle="Device permission, budget limits, and capture alerts"
             onPress={() => openDestination("SettingsNotifications")}
-            showSeparator
-          />
-          <SettingsNavRow
-            icon={Sparkles}
-            label="Broke Reports"
-            subtitle="Your monthly recaps, newest first"
-            onPress={() => openDestination("SettingsBrokeReports")}
             showSeparator
           />
           <SettingsNavRow
@@ -88,9 +86,27 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
+      <SettingsSection title="Reports & reminders">
+        <View style={styles.preferencesInner}>
+          <SettingsNavRow
+            icon={Sparkles}
+            label="Broke Reports"
+            subtitle="Your monthly recaps, newest first"
+            onPress={() => openDestination("SettingsBrokeReports")}
+            showSeparator
+          />
+          <SettingsNavRow
+            icon={AlarmClock}
+            label="Reminders"
+            subtitle="Bills to pay and money to collect"
+            onPress={() => openDestination("Reminders")}
+          />
+        </View>
+      </SettingsSection>
+
       <TodaysLimitsSection />
 
-      <SettingsSection title="Help">
+      <SettingsSection title="Help & support">
         <View style={styles.preferencesInner}>
           <SettingsNavRow
             icon={BookOpen}
@@ -111,12 +127,8 @@ export default function SettingsScreen() {
             label="Tours"
             subtitle={model.toursSubtitle}
             onPress={() => openDestination("SettingsTours")}
+            showSeparator
           />
-        </View>
-      </SettingsSection>
-
-      <SettingsSection title="Feedback">
-        <View style={styles.preferencesInner}>
           <SettingsNavRow
             icon={MessageSquareText}
             label="Send feedback"
@@ -126,28 +138,12 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
-      <SettingsSection title="Data">
-        <View style={styles.dataInner}>
-          <Text style={styles.dataHint}>
-            Clear offline cache and download the latest transactions, insights,
-            and notifications from the server.
-          </Text>
-          <Button
-            title="Refresh from server"
-            variant="ghost"
-            loading={model.refreshLoading}
-            disabled={model.refreshLoading || model.signOutLoading}
-            onPress={model.onRefreshPress}
-          />
-        </View>
-      </SettingsSection>
-
       <View style={styles.signOutWrap}>
         <Button
           title="Sign out"
           variant="danger"
           loading={model.signOutLoading}
-          disabled={model.signOutLoading || model.refreshLoading}
+          disabled={model.signOutLoading}
           onPress={model.onSignOut}
         />
         <Text style={styles.versionLabel}>{VERSION_LABEL}</Text>
@@ -172,10 +168,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xs,
   },
-  dataInner: {
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
   preferencesInner: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xs,
@@ -189,12 +181,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
     fontFamily: fontFamilies.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.inkSoft,
-  },
-  dataHint: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
     color: colors.inkSoft,
   },
 }));

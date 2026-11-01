@@ -4,7 +4,6 @@ import { useCallback } from "react";
 
 import { toursProgressLabel, useTourProgress } from "@/features/appTour";
 import { useConfirmSignOut } from "@/features/auth/hooks/useConfirmSignOut";
-import { useRefreshAppData } from "@/features/settings/hooks/useRefreshAppData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { MainStackParamList } from "@/navigation/types";
 import { THEME_PREFERENCE_LABELS, useThemePreference } from "@/theme";
@@ -19,7 +18,8 @@ type SettingsHubDestination =
   | "SettingsGlossary"
   | "SettingsPermissions"
   | "SettingsTours"
-  | "SettingsFeedback";
+  | "SettingsFeedback"
+  | "Reminders";
 
 export function useSettingsScreenModel() {
   const navigation =
@@ -28,8 +28,6 @@ export function useSettingsScreenModel() {
   const { preference } = useThemePreference();
   const { confirmSignOut, signOutLoading, signOutConfirmModalProps } =
     useConfirmSignOut();
-  const { confirmRefreshAppData, loading: refreshLoading } =
-    useRefreshAppData();
 
   const openDestination = useCallback(
     (destination: SettingsHubDestination) => navigation.navigate(destination),
@@ -46,10 +44,8 @@ export function useSettingsScreenModel() {
     appearanceLabel: THEME_PREFERENCE_LABELS[preference],
     signOutLoading,
     signOutConfirmModalProps,
-    refreshLoading,
     openDestination,
     toursSubtitle,
     onSignOut: confirmSignOut,
-    onRefreshPress: confirmRefreshAppData,
   };
 }

@@ -20,8 +20,10 @@ export type HomeBentoContentProps = {
   hasMonthlyBudget: boolean;
   /** "₹1.2k left of ₹5k" compact remaining/total — used as hero subtitle. */
   monthlySubtext: string;
-  /** "Recurring ₹X · Flexible ₹Y" under the hero amount; null/absent when none of the spend is recurring. */
-  monthSplitLine?: string | null;
+  /** Recurring spend this month (rupees), for the split bar under the hero amount; 0/absent hides it. */
+  monthFixedSpent?: number;
+  /** Flexible spend this month (rupees). */
+  monthFlexibleSpent?: number;
 
   // Stat row
   netDisplay: string;

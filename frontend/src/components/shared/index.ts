@@ -42,6 +42,7 @@ export {
   type ScreenSectionHeaderProps,
 } from "./ScreenSectionHeader";
 export { SkeletonListRow } from "./SkeletonListRow";
+export { SpendSplitBar, type SpendSplitBarProps } from "./SpendSplitBar";
 export { TransactionRowListSkeleton } from "./TransactionRowListSkeleton";
 export {
   OptionalTourTarget,

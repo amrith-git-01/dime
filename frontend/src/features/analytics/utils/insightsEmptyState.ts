@@ -39,6 +39,8 @@ export function buildEmptyInsightsMonthSummary(
     hasFixed: false,
     fixedDisplay: ZERO,
     flexibleDisplay: ZERO,
+    fixedValue: 0,
+    flexibleValue: 0,
     expectedIncomeDisplay: null,
   };
 }

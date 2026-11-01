@@ -94,6 +94,8 @@ export function buildInsightsMonthSummary(
     hasFixed: fixedSpent > 0,
     fixedDisplay: formatInrCompact(fixedSpent),
     flexibleDisplay: formatInrCompact(flexibleSpent),
+    fixedValue: fixedSpent,
+    flexibleValue: flexibleSpent,
     expectedIncomeDisplay:
       expectedIncome > 0 ? formatInrCompact(expectedIncome) : null,
   };

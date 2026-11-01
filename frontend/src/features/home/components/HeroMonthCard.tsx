@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
+import { SpendSplitBar } from "@/components/shared";
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -17,8 +18,9 @@ type HeroMonthCardProps = {
   /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
-  /** "Recurring ₹X · Flexible ₹Y"; omitted when none of the spend is recurring. */
-  splitLine?: string | null;
+  /** Recurring / flexible spend (rupees) for the split bar; hidden when there is no recurring spend. */
+  fixedSpent?: number;
+  flexibleSpent?: number;
   isLoading?: boolean;
   onAddBudget: () => void;
 };
@@ -29,7 +31,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   hasBudget,
   subtext,
   progress,
-  splitLine,
+  fixedSpent = 0,
+  flexibleSpent = 0,
   isLoading = false,
   onAddBudget,
 }: HeroMonthCardProps) {
@@ -52,8 +55,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
         </Text>
       )}
 
-      {!isLoading && splitLine ? (
-        <Text style={styles.splitLine}>{splitLine}</Text>
+      {!isLoading ? (
+        <SpendSplitBar fixed={fixedSpent} flexible={flexibleSpent} />
       ) : null}
 
       {/* Status line */}
@@ -139,13 +142,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.inkSoft,
-  },
-  splitLine: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.inkSoft,
-    fontVariant: ["tabular-nums"],
   },
   statusLineMuted: {
     color: colors.inkFaint,

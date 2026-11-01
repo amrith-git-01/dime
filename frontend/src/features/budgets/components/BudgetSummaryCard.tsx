@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
+import { SpendSplitBar } from "@/components/shared";
 import { Button, ProgressBar } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -31,7 +32,11 @@ type BudgetSummaryCardProps = {
   suggestedBudget?: number;
 };
 
-/** "Recurring ₹X · Flexible ₹Y" plus "₹Z recurring still to come", under the month's totals. */
+function hasSplit(summary: BudgetMonthBentoSummary | null): boolean {
+  return (summary?.fixedSpent ?? 0) > 0;
+}
+
+/** The recurring vs flexible split bar plus "₹Z recurring still to come", under the month's totals. */
 function SplitLines({
   summary,
   centered = false,
@@ -40,17 +45,18 @@ function SplitLines({
   centered?: boolean;
 }) {
   const styles = useStyles();
-  if (!summary?.splitLine && !summary?.upcomingLine) {
+  if (!hasSplit(summary) && !summary?.upcomingLine) {
     return null;
   }
   return (
     <View style={centered ? styles.splitCentered : styles.split}>
-      {summary.splitLine ? (
-        <Text style={[styles.splitText, centered && styles.splitTextCentered]}>
-          {summary.splitLine}
-        </Text>
+      {hasSplit(summary) ? (
+        <SpendSplitBar
+          fixed={summary?.fixedSpent ?? 0}
+          flexible={summary?.flexibleSpent ?? 0}
+        />
       ) : null}
-      {summary.upcomingLine ? (
+      {summary?.upcomingLine ? (
         <Text style={[styles.splitText, centered && styles.splitTextCentered]}>
           {summary.upcomingLine}
         </Text>
@@ -207,7 +213,7 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           <Text
             style={[
               styles.noBudgetSub,
-              (summary?.splitLine || summary?.upcomingLine) &&
+              (hasSplit(summary) || summary?.upcomingLine) &&
                 styles.noBudgetSubTight,
             ]}
           >
@@ -369,11 +375,11 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   split: {
     marginTop: spacing.md,
-    gap: 2,
+    gap: spacing.sm,
   },
   splitCentered: {
     marginBottom: spacing.lg,
-    gap: 2,
+    gap: spacing.sm,
   },
   splitText: {
     fontFamily: fontFamilies.regular,
