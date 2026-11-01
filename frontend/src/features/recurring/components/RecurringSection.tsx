@@ -85,6 +85,8 @@ export const RecurringSection = memo(function RecurringSection({
                 Bills to pay and money to collect, with a nudge before they are due.
               </Text>
             </View>
+          </View>
+          <View style={styles.reminderActions}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Add reminder"
@@ -97,16 +99,16 @@ export const RecurringSection = memo(function RecurringSection({
               <Plus size={14} color={colors.accentText} strokeWidth={2.5} />
               <Text style={styles.addBtnText}>Add reminder</Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="See all reminders"
+              hitSlop={8}
+              onPress={onSeeReminders}
+              style={({ pressed }) => pressed && styles.addBtnPressed}
+            >
+              <Text style={styles.retry}>See all reminders</Text>
+            </Pressable>
           </View>
-          <View style={styles.divider} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="See all reminders"
-            onPress={onSeeReminders}
-            style={({ pressed }) => [styles.seeAll, pressed && styles.addBtnPressed]}
-          >
-            <Text style={styles.retry}>See all reminders</Text>
-          </Pressable>
         </View>
       </View>
     </View>
@@ -313,10 +315,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     lineHeight: 16,
     color: colors.inkSoft,
   },
-  seeAll: {
-    minHeight: 44,
-    justifyContent: "center",
+  reminderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
   },
   retry: {
     fontFamily: fontFamilies.medium,
