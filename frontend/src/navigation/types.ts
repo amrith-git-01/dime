@@ -3,10 +3,24 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { RecurringItem, RecurringKind } from "@/features/recurring/types";
 import type { Reminder } from "@/features/reminders/types";
 import type { TransactionRow } from "@/features/transactions/types";
+import type { MonthListKind } from "@/features/transactions/utils/monthListFilter";
+
+export type TransactionsTabParams = {
+  mode?: "calendar" | "list";
+  year?: number;
+  monthIndex0?: number;
+  kind?: MonthListKind;
+  categoryId?: string;
+  payee?: string;
+};
 
 export type MainTabParamList = {
   Home: undefined;
-  Transactions: undefined;
+  /**
+   * `mode: "list"` opens the list view (the default is the calendar), seeded with the month and
+   * optional filters; they only seed it and the user can change all of them. `payee` is a text search.
+   */
+  Transactions: TransactionsTabParams | undefined;
   /** `recurringKind`: scroll to the Recurring section (from Home). */
   Budgets: { recurringKind?: RecurringKind } | undefined;
   Insights: undefined;

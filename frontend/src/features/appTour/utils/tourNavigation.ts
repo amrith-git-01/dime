@@ -4,6 +4,7 @@ import { navigationRef } from "@/navigation/navigationRef";
 import { runTourCommand } from "@/lib/tour/tourCommandRegistry";
 import { useAddTransactionFabStore } from "@/stores/addTransactionFabStore";
 import { useAgentChatUiStore } from "@/stores/agentChatUiStore";
+import { useTransactionsViewStore } from "@/stores/transactionsViewStore";
 
 import { getStepScreen, getTour, getTourOwnedScreens } from "../constants/tourRegistry";
 import type {
@@ -48,6 +49,10 @@ export function getFocusedTourTab(): TourTab | null {
 export function navigateToTourTab(tab: TourTab): void {
   if (!navigationRef.isReady()) {
     return;
+  }
+  // The Transactions tour spotlights the calendar, so it never runs on the tab's list view.
+  if (tab === "Transactions") {
+    useTransactionsViewStore.getState().setMode("calendar");
   }
   navigationRef.navigate("Main", {
     screen: "MainTabs",

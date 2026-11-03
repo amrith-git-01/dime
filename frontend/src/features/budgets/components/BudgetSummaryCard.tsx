@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { SpendSplitBar } from "@/components/shared";
+import { SpendSplitBar, type SpendSplitKind } from "@/components/shared";
 import { Button, ProgressBar } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -30,6 +30,10 @@ type BudgetSummaryCardProps = {
   spentValue?: number;
   /** Amount from the goal step of profile setup; offered in the set-budget button while no budget is set. */
   suggestedBudget?: number;
+  /** Split bar "View": the selected month's full list. */
+  onViewSplit?: () => void;
+  /** Split bar legend tap: the selected month's list narrowed to recurring or flexible. */
+  onPressSplitKind?: (kind: SpendSplitKind) => void;
 };
 
 function hasSplit(summary: BudgetMonthBentoSummary | null): boolean {
@@ -40,9 +44,13 @@ function hasSplit(summary: BudgetMonthBentoSummary | null): boolean {
 function SplitLines({
   summary,
   centered = false,
+  onViewSplit,
+  onPressSplitKind,
 }: {
   summary: BudgetMonthBentoSummary | null;
   centered?: boolean;
+  onViewSplit?: () => void;
+  onPressSplitKind?: (kind: SpendSplitKind) => void;
 }) {
   const styles = useStyles();
   if (!hasSplit(summary) && !summary?.upcomingLine) {
@@ -54,6 +62,8 @@ function SplitLines({
         <SpendSplitBar
           fixed={summary?.fixedSpent ?? 0}
           flexible={summary?.flexibleSpent ?? 0}
+          onView={onViewSplit}
+          onPressKind={onPressSplitKind}
         />
       ) : null}
       {summary?.upcomingLine ? (
@@ -79,6 +89,8 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   onSetBudget,
   spentValue = 0,
   suggestedBudget,
+  onViewSplit,
+  onPressSplitKind,
 }: BudgetSummaryCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -199,7 +211,11 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
               </Text>
             </View>
           </View>
-          <SplitLines summary={summary} />
+          <SplitLines
+            summary={summary}
+            onViewSplit={onViewSplit}
+            onPressSplitKind={onPressSplitKind}
+          />
         </>
       ) : (
         /* ── STATE B: No budget set ─────────────── */
@@ -219,7 +235,12 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           >
             spent so far · no budget set
           </Text>
-          <SplitLines summary={summary} centered />
+          <SplitLines
+            summary={summary}
+            centered
+            onViewSplit={onViewSplit}
+            onPressSplitKind={onPressSplitKind}
+          />
           <Button
             title={setBudgetTitle}
             onPress={onSetBudget}

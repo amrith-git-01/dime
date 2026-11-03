@@ -59,6 +59,8 @@ export default function BudgetScreen() {
     handleEditBudget,
     handleEditCategory,
     openCategoryTransactions,
+    openMonthList,
+    viewMonthSplit,
     handleSetBudget,
     hasMonthlyBudget,
     isListLoading,
@@ -136,6 +138,8 @@ export default function BudgetScreen() {
           onSetBudget={handleSetBudget}
           spentValue={monthSummary?.spentValue ?? 0}
           suggestedBudget={suggestedBudget}
+          onViewSplit={viewMonthSplit}
+          onPressSplitKind={openMonthList}
         />
       </TourTarget>
     ),

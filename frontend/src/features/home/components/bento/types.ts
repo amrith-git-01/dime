@@ -1,4 +1,5 @@
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
+import type { SpendSplitKind } from "@/components/shared";
 import type { RecurringItem } from "@/features/recurring/types";
 import type { Reminder } from "@/features/reminders/types";
 import type { UpcomingEntry } from "@/features/reminders/utils/upcomingMerge";
@@ -24,6 +25,10 @@ export type HomeBentoContentProps = {
   monthFixedSpent?: number;
   /** Flexible spend this month (rupees). */
   monthFlexibleSpent?: number;
+  /** Split bar "View": this month's full list. */
+  onViewMonthSplit?: () => void;
+  /** Split bar legend tap: this month's list narrowed to recurring or flexible. */
+  onPressMonthSplitKind?: (kind: SpendSplitKind) => void;
 
   // Stat row
   netDisplay: string;

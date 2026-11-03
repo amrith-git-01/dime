@@ -1,8 +1,11 @@
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { CompositeNavigationProp } from "@react-navigation/native";
-import { useNavigation } from "@react-navigation/native";
+import type {
+  CompositeNavigationProp,
+  RouteProp,
+} from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
 import {
@@ -31,6 +34,11 @@ import {
 } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { resolveDaySummary } from "@/features/transactions/utils/daySummaries";
 import { parseTransactionAmount } from "@/features/transactions/utils/transactionDisplay";
+import {
+  criteriaFromSeed,
+  DEFAULT_LIST_CRITERIA,
+  type ListCriteria,
+} from "@/features/transactions/utils/monthListFilter";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { useTourCommand } from "@/hooks/useTourCommand";
 import { useTourRestorable } from "@/hooks/useTourRestorable";
@@ -38,6 +46,10 @@ import { useTransactionQuickAddActions } from "@/hooks/useTransactionQuickAddAct
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { emitTourEvent, tourEventNames } from "@/lib/tour/tourEvents";
 import { usePendingSheetStore } from "@/stores/pendingSheetStore";
+import {
+  useTransactionsViewStore,
+  type TransactionsViewMode,
+} from "@/stores/transactionsViewStore";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
   formatInrCompact,
@@ -45,6 +57,7 @@ import {
   formatSpendMagnitude,
 } from "@/utils/currency";
 import { toPaise } from "@/utils/paise";
+
 
 type TransactionsScreenNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Transactions">,
@@ -278,6 +291,53 @@ export function useTransactionsScreenModel() {
     [navigation, openPendingSheet],
   );
 
+  // Calendar | List. Both views share the month (the calendar's selection) and the list keeps its
+  // filters while the user switches back and forth; only a link from elsewhere (Home / Budgets /
+  // Insights split bar) replaces them.
+  const route = useRoute<RouteProp<MainTabParamList, "Transactions">>();
+  const viewMode = useTransactionsViewStore((state) => state.mode);
+  const setViewMode = useTransactionsViewStore((state) => state.setMode);
+  const [listCriteria, setListCriteria] = useState<ListCriteria>(
+    DEFAULT_LIST_CRITERIA,
+  );
+
+  const routeParams = route.params;
+  useEffect(() => {
+    if (!routeParams?.mode) {
+      return;
+    }
+    if (routeParams.mode === "list") {
+      const { year, monthIndex0, kind, categoryId, payee } = routeParams;
+      setListCriteria(criteriaFromSeed({ kind, categoryId, payee }));
+      // A month outside the calendar's window keeps the one on show.
+      const index = monthOptions.findIndex(
+        (option) => option.year === year && option.monthIndex0 === monthIndex0,
+      );
+      if (index >= 0) {
+        calendarSelectMonth(index);
+      }
+    }
+    setViewMode(routeParams.mode);
+    // Consumed: clear it so the same link works again later (as the Budgets tab does).
+    navigation.setParams({
+      mode: undefined,
+      year: undefined,
+      monthIndex0: undefined,
+      kind: undefined,
+      categoryId: undefined,
+      payee: undefined,
+    });
+  }, [calendarSelectMonth, monthOptions, navigation, routeParams, setViewMode]);
+
+  const selectViewMode = useCallback(
+    (mode: TransactionsViewMode) => {
+      if (mode === viewMode) return;
+      void triggerHaptic();
+      setViewMode(mode);
+    },
+    [setViewMode, viewMode],
+  );
+
   const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
@@ -417,11 +477,15 @@ export function useTransactionsScreenModel() {
     onManualAddForDay,
     onReceipt,
     onVoice,
+    listCriteria,
+    setListCriteria,
     openTransactionDetail,
     selectedDayKey,
     selectedMonth,
     selectedMonthIndex,
     selectDay,
+    selectViewMode,
+    viewMode,
     showListFooter,
     showMonthLoading,
     spendByDay,
