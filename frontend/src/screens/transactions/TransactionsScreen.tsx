@@ -4,12 +4,12 @@ import {
   type ListRenderItem,
 } from "@shopify/flash-list";
 import { useMemo, useRef } from "react";
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { CARD_SEGMENT_SHADOW_TOP_BLEED } from "@/components/shared";
-import { FLOATING_BUTTONS_CLEARANCE, radius, spacing } from "@/constants";
-import { fontFamilies } from "@/constants/fonts";
+import { SlidingSegmentedControl } from "@/components/ui";
+import { FLOATING_BUTTONS_CLEARANCE, spacing } from "@/constants";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   TransactionCalendarCard,
@@ -27,11 +27,14 @@ import TransactionsMonthList from "./TransactionsMonthList";
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
 import { createThemedStyles } from "@/theme";
 
+const VIEW_TOGGLE_WIDTH = 240;
+
 const NO_ROWS: TransactionFlashListItem[] = [];
 
-const VIEW_MODES: readonly { mode: TransactionsViewMode; label: string }[] = [
-  { mode: "calendar", label: "Calendar" },
-  { mode: "list", label: "List" },
+// The list is the default view, so it comes first.
+const VIEW_MODES: readonly { value: TransactionsViewMode; label: string }[] = [
+  { value: "list", label: "List" },
+  { value: "calendar", label: "Calendar" },
 ];
 
 function keyExtractor(item: TransactionFlashListItem): string {
@@ -119,26 +122,12 @@ export default function TransactionsScreen() {
     );
 
   const viewToggle = (
-    <View style={styles.viewToggle} accessibilityRole="tablist">
-      {VIEW_MODES.map((option) => {
-        const selected = option.mode === viewMode;
-        return (
-          <Pressable
-            key={option.mode}
-            onPress={() => selectViewMode(option.mode)}
-            style={[styles.viewToggleOption, selected && styles.viewToggleOptionSelected]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            accessibilityLabel={`${option.label} view`}
-          >
-            <Text
-              style={[styles.viewToggleText, selected && styles.viewToggleTextSelected]}
-            >
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View style={styles.viewToggle}>
+      <SlidingSegmentedControl
+        options={VIEW_MODES}
+        value={viewMode}
+        onChange={selectViewMode}
+      />
     </View>
   );
 
@@ -248,29 +237,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
     gap: spacing.xs,
   },
   viewToggle: {
-    flexDirection: "row",
     alignSelf: "center",
-    padding: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceSunken,
-  },
-  viewToggleOption: {
-    minWidth: 96,
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.full,
-  },
-  viewToggleOptionSelected: {
-    backgroundColor: colors.surface,
-  },
-  viewToggleText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.inkSoft,
-  },
-  viewToggleTextSelected: {
-    color: colors.ink,
+    width: VIEW_TOGGLE_WIDTH,
   },
 }));

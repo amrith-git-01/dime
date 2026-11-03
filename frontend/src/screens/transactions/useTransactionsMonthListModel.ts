@@ -3,16 +3,26 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
-import { pendingInMonth } from "@/features/outbox/utils/pendingMerge";
-import { useTransactionsMonthInfiniteQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import {
+  addPendingToMonthTotals,
+  pendingInMonth,
+  pendingTotals,
+} from "@/features/outbox/utils/pendingMerge";
+import {
+  useMonthSummaryQuery,
+  useTransactionsMonthInfiniteQuery,
+} from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import { flattenTransactionListSections } from "@/features/transactions/utils/buildTransactionFlashListData";
 import {
-  activeKindChip,
-  applyKindChip,
   applyListCriteria,
   buildListSections,
+  buildPayeeOptions,
+  computeListTotals,
   countActiveFilters,
   criteriaNeedAllRows,
+  DEFAULT_LIST_CRITERIA,
+  formatListTotalsLine,
+  monthListKindOfType,
   withCategoryScopes,
   type ListCriteria,
   type MonthListKind,
@@ -20,8 +30,7 @@ import {
 } from "@/features/transactions/utils/monthListFilter";
 import type { CategoryScope } from "@/features/transactions/types";
 import { signedAmountPaise } from "@/features/transactions/utils/transactionDisplay";
-import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
-import { paiseToRupees } from "@/utils/paise";
+import { paiseToRupees, toPaise } from "@/utils/paise";
 
 /** Keep fetching until at least this many rows survive the filters. */
 const MIN_LOADED_ROWS = 20;
@@ -30,7 +39,7 @@ const MIN_LOADED_ROWS = 20;
  * The Transactions tab's list view: the selected month's rows (drained through the month query,
  * plus entries still waiting to sync), filtered and sorted in memory, grouped by day with net totals.
  * The month is the calendar's (the tab owns it and the stepper moves it); the filters live in the
- * tab too, so they survive switching between Calendar and List.
+ * tab too, so they survive switching between Calendar and List and revisiting the tab.
  */
 export type TransactionsMonthListArgs = {
   month: MonthRef;
@@ -99,6 +108,8 @@ export function useTransactionsMonthListModel({
     () => applyListCriteria(displayRows, criteria),
     [criteria, displayRows],
   );
+  // Every payee in the month (not only those left after the other filters), for the Payee picker.
+  const payeeOptions = useMemo(() => buildPayeeOptions(displayRows), [displayRows]);
   const sections = useMemo(
     () => buildListSections(filteredRows, criteria.sort),
     [criteria.sort, filteredRows],
@@ -144,26 +155,41 @@ export function useTransactionsMonthListModel({
     }
   }, [fetchNextPage, isFetchNextPageError, refetch]);
 
-  /** Quick chips are shortcuts for the Type and Kind filters. */
-  const selectKindChip = useCallback((kind: MonthListKind) => {
-    void triggerHaptic();
-    onCriteriaChange(applyKindChip(criteria, kind));
-  }, [criteria, onCriteriaChange]);
-
-  const kindChip = activeKindChip(criteria);
-  // Empty-state copy: the chip's own, or the generic one once categories or a search narrow it.
+  const activeFilterCount = countActiveFilters(criteria);
+  // Empty-state copy: the type's own when it is the only filter, else the generic one.
   const emptyKind: MonthListKind | "filtered" =
-    kindChip === null ||
-    criteria.categoryIds.length > 0 ||
-    criteria.search.trim().length > 0
-      ? "filtered"
-      : kindChip;
+    activeFilterCount === 1 && criteria.type !== "all" && criteria.type !== "spent"
+      ? monthListKindOfType(criteria.type)
+      : activeFilterCount > 0
+        ? "filtered"
+        : "all";
+  const clearFilters = useCallback(
+    () => onCriteriaChange(DEFAULT_LIST_CRITERIA),
+    [onCriteriaChange],
+  );
+
+  // The unfiltered month reads its totals off the month summary (exact while the list is still
+  // paging); a filtered one adds up the rows, which are all loaded by then.
+  const summaryQuery = useMonthSummaryQuery(month.year, month.monthIndex0);
+  const totalsLine = useMemo(() => {
+    const summary = summaryQuery.data;
+    if (!needsAllRows && summary) {
+      const totals = addPendingToMonthTotals(summary, pendingTotals(monthPending));
+      return formatListTotalsLine({
+        count: totals.transaction_count,
+        spentPaise: Math.abs(toPaise(totals.debit_total)),
+        receivedPaise: Math.abs(toPaise(totals.credit_total)),
+      });
+    }
+    return formatListTotalsLine(computeListTotals(filteredRows), hasMore);
+  }, [filteredRows, hasMore, monthPending, needsAllRows, summaryQuery.data]);
 
   return {
-    activeFilterCount: countActiveFilters(criteria),
-    kindChip,
+    activeFilterCount,
+    clearFilters,
     emptyKind,
-    selectKindChip,
+    payeeOptions,
+    totalsLine,
     monthLabel: format(new Date(month.year, month.monthIndex0, 1), "MMM yyyy"),
     canGoPrevMonth,
     canGoNextMonth,
@@ -171,8 +197,6 @@ export function useTransactionsMonthListModel({
     goNextMonth: onNextMonth,
     listItems,
     transactionCount,
-    transactionCountLabel: `${transactionCount}${hasMore ? "+" : ""}`,
-    transactionCountIsPlural: transactionCount !== 1 || hasMore,
     showInitialLoading: isPending && flatRows.length === 0 && monthPending.length === 0,
     showLoadingMore: hasMore && isFetchingNextPage,
     isError,

@@ -156,10 +156,10 @@ export function loadPeriodSummary(ctx: DbScope, range: IsoRange): Promise<Period
 
 export async function listTransactions(ctx: TxContext, q: ListQuery): Promise<TransactionListResponse> {
   const payee = q.payee?.trim() || undefined;
-  const filters = { from: q.from?.iso, to: q.to?.iso, categoryId: q.category_id, payee };
+  const filters = { from: q.from?.iso, to: q.to?.iso, categoryId: q.category_id, payee, recurringItemId: q.recurring_item_id };
   // Per-day totals describe the whole requested range, so they are only meaningful (and only
   // computed) for the first page of an unfiltered range query.
-  const wantSummaries = q.offset === 0 && filters.from && filters.to && q.timezone && !filters.categoryId && !payee;
+  const wantSummaries = q.offset === 0 && filters.from && filters.to && q.timezone && !filters.categoryId && !payee && !filters.recurringItemId;
   const tz = wantSummaries ? parseTimezone(q.timezone ?? '') : undefined;
 
   const [rows, totals] = await Promise.all([

@@ -20,6 +20,8 @@ export interface ListFilters {
   to?: string | undefined;
   categoryId?: string | undefined;
   payee?: string | undefined;
+  /** The recurring item that posted the rows (uses `transactions_recurring_idx`). */
+  recurringItemId?: string | undefined;
 }
 
 export interface PayeeLikePatterns {
@@ -67,6 +69,10 @@ export async function listPage(
   if (filters.categoryId) {
     where.push('category_id = ?');
     params.push(filters.categoryId.toLowerCase());
+  }
+  if (filters.recurringItemId) {
+    where.push('recurring_item_id = ?');
+    params.push(filters.recurringItemId.toLowerCase());
   }
   const patterns = filters.payee ? payeeLikePatterns(filters.payee) : null;
   if (patterns) {

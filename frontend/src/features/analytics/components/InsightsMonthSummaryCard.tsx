@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { SpendSplitBar, type SpendSplitKind } from "@/components/shared";
+import { SpendSplitBar } from "@/components/shared";
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -40,10 +40,6 @@ export type InsightsMonthSummaryCardProps = {
   summaryLoading: boolean;
   summaryFailed: boolean;
   hasMonthlyBudget?: boolean;
-  /** Split bar "View": the selected month's full list. */
-  onViewSplit?: () => void;
-  /** Split bar legend tap: the selected month's list narrowed to recurring or flexible. */
-  onPressSplitKind?: (kind: SpendSplitKind) => void;
 };
 
 function heroColor(
@@ -81,8 +77,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   summaryLoading,
   summaryFailed,
   hasMonthlyBudget,
-  onViewSplit,
-  onPressSplitKind,
 }: InsightsMonthSummaryCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -159,8 +153,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
               <SpendSplitBar
                 fixed={summary.fixedValue}
                 flexible={summary.flexibleValue}
-                onView={onViewSplit}
-                onPressKind={onPressSplitKind}
               />
             ) : null}
             {summary.expectedIncomeDisplay ? (

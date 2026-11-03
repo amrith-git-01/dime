@@ -415,15 +415,50 @@ describe('the cron', () => {
     expect(replanned.next_due_date).toBe('2026-10-20');
   });
 
-  it('delete keeps the posted transactions and stops the item', async () => {
+  it('delete archives the item: the posted transactions keep their recurring_item_id and it stops posting', async () => {
     setNow(NOW);
     const { item } = await create(salary({ day_of_month: 5, post_current_period: true }));
     expect((await call(`/api/v1/recurring/${item.id}`, { method: 'DELETE' })).status).toBe(204);
     const rows = await txs();
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.recurring_item_id).toBeNull();
+    expect(rows[0]?.recurring_item_id).toBe(item.id);
+    // Archived, not deleted: the row stays but is inactive with no reminder instant.
+    expect(await oneRow('recurring_items', 'id = ? AND archived_at IS NOT NULL AND active = 0 AND next_remind_at IS NULL', item.id)).not.toBeNull();
     await cron(at(2026, 11, 5));
     expect(await txs()).toHaveLength(1);
+  });
+
+  it('an archived item is gone from the list and the month view, cannot be edited and deleting it again is a 404', async () => {
+    setNow(NOW);
+    const { item } = await create(salary({ day_of_month: 5, post_current_period: true }));
+    const keep = await create({ kind: 'subscription', name: 'Netflix', amount: '649', cadence: 'monthly', day_of_month: 12, timezone: IST });
+    expect((await call(`/api/v1/recurring/${item.id}`, { method: 'DELETE' })).status).toBe(204);
+
+    const listing = await (await call('/api/v1/recurring')).json<Listing>();
+    expect(listing.items.map((i) => i.id)).toEqual([keep.item.id]);
+    expect(listing.summary.monthly_income_total).toBe('0.00');
+    const month = await (await call('/api/v1/recurring/month?year=2026&month=10')).json<{ items: { id: string }[] }>();
+    expect(month.items.map((i) => i.id)).toEqual([keep.item.id]);
+
+    expect((await call(`/api/v1/recurring/${item.id}`, { method: 'PATCH', json: { name: 'x' } })).status).toBe(404);
+    expect((await call(`/api/v1/recurring/${item.id}`, { method: 'DELETE' })).status).toBe(404);
+  });
+
+  it('an archived item no longer counts towards the item limit', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 100; i += 1) ids.push(await seedItem({ name: `Item ${i}` }));
+    const full = await create({ kind: 'subscription', name: 'One more', amount: '10', cadence: 'monthly', day_of_month: 3, timezone: IST });
+    expect(full.res.status).toBe(409);
+    expect((await call(`/api/v1/recurring/${ids[0] ?? ''}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await create({ kind: 'subscription', name: 'One more', amount: '10', cadence: 'monthly', day_of_month: 3, timezone: IST })).res.status).toBe(201);
+  });
+
+  it('an item archived before its due date is never posted, even when the cron is far past it', async () => {
+    const id = await seedItem();
+    expect((await call(`/api/v1/recurring/${id}`, { method: 'DELETE' })).status).toBe(204);
+    await cron(at(2026, 10, 15));
+    await cron(at(2026, 12, 31));
+    expect(await txs()).toHaveLength(0);
   });
 
   it('a posted transaction the user deleted is not posted again', async () => {

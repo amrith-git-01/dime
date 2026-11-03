@@ -91,7 +91,12 @@ export function shouldDehydrateQuery(
     return false;
   }
   if (root === TRANSACTIONS_ROOT) {
-    if (kind === "detail" || kind === "rangePages" || kind === "filteredMonthPages") {
+    if (
+      kind === "detail" ||
+      kind === "rangePages" ||
+      kind === "filteredMonthPages" ||
+      kind === "historyPages"
+    ) {
       return false;
     }
   }

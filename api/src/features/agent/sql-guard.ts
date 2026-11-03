@@ -70,7 +70,7 @@ const VIEWS = [
   `categories AS (SELECT id, name, is_system, scope FROM main.categories WHERE user_id IS NULL OR user_id = ?1)`,
   `budgets AS (SELECT monthly_budget / 100.0 AS monthly_budget FROM main.budgets WHERE user_id = ?1)`,
   `category_budgets AS (SELECT category_id, monthly_amount / 100.0 AS monthly_amount FROM main.category_budgets WHERE user_id = ?1)`,
-  `recurring_items AS (SELECT id, kind, name, amount / 100.0 AS amount, category_id, cadence, day_of_month, month_of_year, next_due_date, active FROM main.recurring_items WHERE user_id = ?1)`,
+  `recurring_items AS (SELECT id, kind, name, amount / 100.0 AS amount, category_id, cadence, day_of_month, month_of_year, next_due_date, active FROM main.recurring_items WHERE user_id = ?1 AND archived_at IS NULL)`,
 ];
 const SHADOWS = SHADOWED_TABLES.map((name) => `${name} AS (SELECT NULL AS x WHERE 0)`);
 const SCOPE = [...VIEWS, ...SHADOWS].join(', ');

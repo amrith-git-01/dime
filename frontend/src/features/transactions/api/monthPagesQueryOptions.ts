@@ -14,7 +14,9 @@ import {
 export function hasListFilters(
   filters: TransactionListFilters | undefined,
 ): boolean {
-  return Boolean(filters?.payee || filters?.categoryId);
+  return Boolean(
+    filters?.payee || filters?.categoryId || filters?.recurringItemId,
+  );
 }
 
 /**

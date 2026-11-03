@@ -58,6 +58,20 @@ export const transactionsQueryKeys = {
       filters.payee ?? "",
       filters.categoryId ?? "",
     ] as const,
+  /**
+   * Every page of a server-filtered list with no date range (a recurring item's whole history).
+   * Realtime patches only touch `monthPages`, so this one is refetched after writes instead.
+   */
+  historyPages: (
+    userId: string | undefined,
+    filters: { recurringItemId?: string },
+  ) =>
+    [
+      ...transactionsQueryKeys.all,
+      "historyPages",
+      userId ?? "none",
+      filters.recurringItemId ?? "",
+    ] as const,
   rangePages: (
     userId: string | undefined,
     fromIso: string,

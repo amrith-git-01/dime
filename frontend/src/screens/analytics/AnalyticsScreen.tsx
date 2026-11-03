@@ -80,8 +80,6 @@ function AnalyticsInsightsScroll() {
     openTransactionsListForDay,
     openTransactionsListForPayee,
     openTransactionsListForPayer,
-    openMonthList,
-    viewMonthSplit,
     onManualAdd,
     canGoPrevMonth,
     canGoNextMonth,
@@ -126,8 +124,6 @@ function AnalyticsInsightsScroll() {
           summaryLoading={summaryLoading}
           summaryFailed={summaryFailed}
           hasMonthlyBudget={hasMonthlyBudget}
-          onViewSplit={viewMonthSplit}
-          onPressSplitKind={openMonthList}
         />
       </TourTarget>
     ),

@@ -23,7 +23,7 @@ type HomeUpcomingSectionProps = {
   today: Date;
   onItemPress: (item: RecurringItem) => void;
   onReminderPress: (reminder: Reminder) => void;
-  /** Opens the Reminders list. */
+  /** Opens the Recurring section of Budgets. */
   onSeeAll: () => void;
   /** Opens the new-reminder form. */
   onAdd: () => void;
@@ -58,7 +58,7 @@ export const HomeUpcomingSection = memo(function HomeUpcomingSection({
           <>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="See all reminders"
+              accessibilityLabel="See all upcoming"
               hitSlop={8}
               onPress={() => {
                 void triggerHaptic();

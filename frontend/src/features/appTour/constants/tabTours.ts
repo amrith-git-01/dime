@@ -181,7 +181,7 @@ export const transactionsTour: TourDefinition = {
       shape: "rounded",
       radius: 32,
       padding: 2,
-      enter: ["closeFab"],
+      enter: ["closeFab", "showCalendar"],
       backExits: true,
     },
     {
@@ -200,6 +200,7 @@ export const transactionsTour: TourDefinition = {
       advanceOn: "daySelected",
       action: "txPickDay",
       actionLabel: "Pick one for me",
+      enter: ["showCalendar"],
     },
     {
       id: "dayCard",
@@ -213,6 +214,7 @@ export const transactionsTour: TourDefinition = {
       shape: "rounded",
       radius: 24,
       padding: 2,
+      enter: ["showCalendar"],
     },
     {
       id: "openRow",
@@ -231,6 +233,7 @@ export const transactionsTour: TourDefinition = {
       action: "txOpenTransaction",
       actionLabel: "Open it for me",
       optional: true,
+      enter: ["showCalendar"],
     },
     {
       id: "detail",
@@ -263,6 +266,7 @@ export const transactionsTour: TourDefinition = {
       advanceOn: "monthChanged",
       action: "txSwitchMonth",
       actionLabel: "Switch it for me",
+      enter: ["showCalendar"],
     },
     finale("Transactions tour done", "Now you can find any payment, on any day."),
   ],
@@ -316,8 +320,8 @@ export const budgetsTour: TourDefinition = {
       cardId: "budgets.recurring",
       icon: Pointer,
       title: "Peek at one",
-      body: "Tap a recurring item to see how it's set up.",
-      hint: DO_HINT,
+      body: "Tap the pencil on a recurring item to see how it's set up. Tapping the item itself lists its payments.",
+      hint: "Try it: tap the pencil on an item",
       placement: "auto",
       shape: "rounded",
       radius: 16,

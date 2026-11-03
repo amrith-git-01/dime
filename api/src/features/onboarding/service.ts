@@ -29,7 +29,7 @@ const PROGRESS_SQL = `
     EXISTS (SELECT 1 FROM transactions WHERE user_id = ?1 AND deleted_at IS NULL AND detected_via IN ('voice', 'scan')) AS voice_or_scan,
     (EXISTS (SELECT 1 FROM budgets WHERE user_id = ?1 AND monthly_budget > 0)
       OR EXISTS (SELECT 1 FROM category_budgets WHERE user_id = ?1 AND monthly_amount > 0)) AS budget,
-    EXISTS (SELECT 1 FROM recurring_items WHERE user_id = ?1) AS recurring,
+    EXISTS (SELECT 1 FROM recurring_items WHERE user_id = ?1 AND archived_at IS NULL) AS recurring,
     EXISTS (SELECT 1 FROM users WHERE id = ?1 AND first_agent_question_at IS NOT NULL) AS asked_ai`;
 
 export async function onboardingProgress(db: Db, userId: string): Promise<OnboardingProgress> {

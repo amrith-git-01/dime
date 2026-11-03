@@ -73,7 +73,7 @@ export function groupTransactionsByCalendarDay(
   }));
 }
 
-export type TransactionListFilter = "day" | "payee" | "category";
+export type TransactionListFilter = "day" | "payee" | "category" | "recurring";
 
 export function buildTransactionListSections(
   transactions: TransactionRow[],

@@ -30,6 +30,7 @@ import { useTourCommand } from "@/hooks/useTourCommand";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
+import { useBudgetSectionScroll } from "./useBudgetSectionScroll";
 import {
   UNCATEGORIZED_SPEND_KEY,
   useBudgetScreenModel,
@@ -59,8 +60,6 @@ export default function BudgetScreen() {
     handleEditBudget,
     handleEditCategory,
     openCategoryTransactions,
-    openMonthList,
-    viewMonthSplit,
     handleSetBudget,
     hasMonthlyBudget,
     isListLoading,
@@ -69,21 +68,24 @@ export default function BudgetScreen() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
+    showCurrentMonth,
     suggestedBudget,
     summaryLoading,
   } = useBudgetScreenModel();
   const cardOrder = useCardOrder("budgets");
   const scrollRef = useRef<ScrollView>(null);
-  const recurring = useBudgetRecurringModel(scrollRef);
+  const recurring = useBudgetRecurringModel();
+  const { onCardLayout } = useBudgetSectionScroll(scrollRef, showCurrentMonth);
   // Lets the guided tour scroll the screen so each spotlighted part is in view.
   const { onScroll } = useTourScroller("budgets", (y, animated) =>
     scrollRef.current?.scrollTo({ y, animated }),
   );
-  // "Open one for me" on the Budgets tour's steps: the first recurring item, the first category.
+  // "Open one for me" on the Budgets tour's steps: the first recurring item's editor (what the
+  // pencil opens), the first category.
   useTourCommand("budgetsOpenRecurring", () => {
     const first = recurring.income.items[0] ?? recurring.subscriptions.items[0];
     if (first) {
-      recurring.onItemPress(first);
+      recurring.onItemEdit(first);
     }
   });
   useTourCommand("budgetsOpenCategory", () => {
@@ -138,8 +140,6 @@ export default function BudgetScreen() {
           onSetBudget={handleSetBudget}
           spentValue={monthSummary?.spentValue ?? 0}
           suggestedBudget={suggestedBudget}
-          onViewSplit={viewMonthSplit}
-          onPressSplitKind={openMonthList}
         />
       </TourTarget>
     ),
@@ -151,6 +151,7 @@ export default function BudgetScreen() {
           today={recurring.today}
           onAdd={recurring.onAdd}
           onItemPress={recurring.onItemPress}
+          onItemEdit={recurring.onItemEdit}
           onAddReminder={recurring.onAddReminder}
           onSeeReminders={recurring.onSeeReminders}
         />
@@ -195,12 +196,7 @@ export default function BudgetScreen() {
           order={cardOrder.order}
           cards={cards}
           ready={cardOrder.ready}
-          onCardLayout={(id, event) => {
-            // The recurring block's top, for "scroll to Recurring" (measured in the scroll content).
-            if (id === "budgets.recurring") {
-              recurring.onSectionLayout(event);
-            }
-          }}
+          onCardLayout={onCardLayout}
         />
 
         <ArrangeCards screen="budgets" cardOrder={cardOrder} />

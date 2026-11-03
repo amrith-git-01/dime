@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 
 import {
+  useTransactionsHistoryInfiniteQuery,
   useTransactionsMonthInfiniteQuery,
   useTransactionsRangeInfiniteQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
@@ -34,6 +35,11 @@ const MIN_LOADED_ROWS = 20;
 /** Payee keys that cannot be expressed as a server-side "contains" filter. */
 const CLIENT_ONLY_PAYEE_KEYS = new Set(["__other__", "unknown"]);
 
+type RecurringListParams = Extract<
+  MainStackParamList["TransactionsList"],
+  { filter: "recurring" }
+>;
+
 function listParamsUseRange(
   params: MainStackParamList["TransactionsList"],
 ): params is Extract<
@@ -55,6 +61,13 @@ export function useTransactionsListScreenModel() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { params } = useRoute<TransactionsListRoute>();
+  // A recurring item's list is its whole history: no month, no range, filtered by the server.
+  const isRecurring = params.filter === "recurring";
+  const recurringParams: RecurringListParams | null =
+    params.filter === "recurring" ? params : null;
+  const now = new Date();
+  const listYear = "year" in params ? params.year : now.getFullYear();
+  const listMonthIndex0 = "monthIndex0" in params ? params.monthIndex0 : now.getMonth();
 
   const usesRange = listParamsUseRange(params);
   // A day is fetched server-side as a half-open [from, to) range so it is never cut off by paging.
@@ -68,6 +81,9 @@ export function useTransactionsListScreenModel() {
   // filter; the exact match is still re-applied client-side below. "Other"/unknown payees and
   // uncategorized rows have no server equivalent, so those lists page through everything.
   const serverFilters = useMemo((): TransactionListFilters | undefined => {
+    if (params.filter === "recurring") {
+      return { recurringItemId: params.recurringItemId };
+    }
     if (params.filter === "payee") {
       const payeeId = resolvePayeeFilterId(params);
       return payeeId && !CLIENT_ONLY_PAYEE_KEYS.has(payeeId)
@@ -86,9 +102,14 @@ export function useTransactionsListScreenModel() {
     params.filter !== "day" && serverFilters === undefined;
 
   const monthQuery = useTransactionsMonthInfiniteQuery(
-    params.year,
-    params.monthIndex0,
-    { enabled: !usesServerRange, filters: serverFilters },
+    listYear,
+    listMonthIndex0,
+    { enabled: !usesServerRange && !isRecurring, filters: serverFilters },
+  );
+
+  const historyQuery = useTransactionsHistoryInfiniteQuery(
+    { recurringItemId: recurringParams?.recurringItemId },
+    { enabled: isRecurring },
   );
 
   const rangeFromIso = usesRange ? params.fromIso : (dayRange?.from ?? "");
@@ -100,7 +121,11 @@ export function useTransactionsListScreenModel() {
     { enabled: usesServerRange, filters: serverFilters },
   );
 
-  const activeQuery = usesServerRange ? rangeQuery : monthQuery;
+  const activeQuery = isRecurring
+    ? historyQuery
+    : usesServerRange
+      ? rangeQuery
+      : monthQuery;
 
   const {
     data: infiniteData,
@@ -126,6 +151,10 @@ export function useTransactionsListScreenModel() {
           new Date(b.transaction_at).getTime() -
           new Date(a.transaction_at).getTime(),
       );
+    }
+    if (params.filter === "recurring") {
+      // The server already returns exactly this item's rows, newest first.
+      return flatRows;
     }
     if (params.filter === "category") {
       return filterTransactionsByCategory(flatRows, params.categoryId);
@@ -193,6 +222,9 @@ export function useTransactionsListScreenModel() {
     if (params.filter === "payee" && params.payeeDisplayName) {
       return params.payeeDisplayName;
     }
+    if (params.filter === "recurring") {
+      return params.recurringDisplayName;
+    }
     const label = transactionCountIsPlural ? "Transactions" : "Transaction";
     return `${transactionCountLabel} ${label}`;
   }, [transactionCountLabel, transactionCountIsPlural, params]);
@@ -216,9 +248,12 @@ export function useTransactionsListScreenModel() {
     [navigation],
   );
 
-  const monthLabel = useMemo(() => {
-    return format(new Date(params.year, params.monthIndex0, 1), "MMM yyyy");
-  }, [params.year, params.monthIndex0]);
+  const monthLabel = useMemo(
+    () => (isRecurring ? "" : format(new Date(listYear, listMonthIndex0, 1), "MMM yyyy")),
+    [isRecurring, listYear, listMonthIndex0],
+  );
+  // "12 transactions · Oct 2026"; a recurring item's list has no month ("12 transactions").
+  const subtitle = `${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""}${monthLabel ? ` · ${monthLabel}` : ""}`;
 
   const sectionNetTotals = useMemo(() => {
     const result: Record<string, number> = {};
@@ -262,5 +297,7 @@ export function useTransactionsListScreenModel() {
     transactionCountLabel,
     transactionCountIsPlural,
     monthLabel,
+    subtitle,
+    recurringName: recurringParams?.recurringDisplayName ?? "",
   };
 }

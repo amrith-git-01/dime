@@ -2,8 +2,8 @@ import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { SpendSplitBar, type SpendSplitKind } from "@/components/shared";
-import { Button, ProgressBar } from "@/components/ui";
+import { SpendSplitBar } from "@/components/shared";
+import { Button } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
@@ -30,49 +30,10 @@ type BudgetSummaryCardProps = {
   spentValue?: number;
   /** Amount from the goal step of profile setup; offered in the set-budget button while no budget is set. */
   suggestedBudget?: number;
-  /** Split bar "View": the selected month's full list. */
-  onViewSplit?: () => void;
-  /** Split bar legend tap: the selected month's list narrowed to recurring or flexible. */
-  onPressSplitKind?: (kind: SpendSplitKind) => void;
 };
 
 function hasSplit(summary: BudgetMonthBentoSummary | null): boolean {
   return (summary?.fixedSpent ?? 0) > 0;
-}
-
-/** The recurring vs flexible split bar plus "₹Z recurring still to come", under the month's totals. */
-function SplitLines({
-  summary,
-  centered = false,
-  onViewSplit,
-  onPressSplitKind,
-}: {
-  summary: BudgetMonthBentoSummary | null;
-  centered?: boolean;
-  onViewSplit?: () => void;
-  onPressSplitKind?: (kind: SpendSplitKind) => void;
-}) {
-  const styles = useStyles();
-  if (!hasSplit(summary) && !summary?.upcomingLine) {
-    return null;
-  }
-  return (
-    <View style={centered ? styles.splitCentered : styles.split}>
-      {hasSplit(summary) ? (
-        <SpendSplitBar
-          fixed={summary?.fixedSpent ?? 0}
-          flexible={summary?.flexibleSpent ?? 0}
-          onView={onViewSplit}
-          onPressKind={onPressSplitKind}
-        />
-      ) : null}
-      {summary?.upcomingLine ? (
-        <Text style={[styles.splitText, centered && styles.splitTextCentered]}>
-          {summary.upcomingLine}
-        </Text>
-      ) : null}
-    </View>
-  );
 }
 
 export const BudgetSummaryCard = memo(function BudgetSummaryCard({
@@ -89,34 +50,28 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   onSetBudget,
   spentValue = 0,
   suggestedBudget,
-  onViewSplit,
-  onPressSplitKind,
 }: BudgetSummaryCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
   const isOverBudget = summary?.isOverBudget ?? false;
   const heroColor = isOverBudget ? colors.danger : colors.accentText;
-  const usagePct = summary?.usagePct ?? 0;
   const usagePercentUsed = summary?.usagePercentUsed ?? 0;
   const setBudgetTitle = suggestedBudget
     ? `Set ${formatInrCompact(suggestedBudget)} as your monthly budget`
     : "Set monthly budget";
 
-  const pillBg = isOverBudget
-    ? colors.dangerTint
-    : usagePercentUsed > 80 && usagePercentUsed < 100
-      ? colors.warningTint
-      : colors.line;
-  const pillTextColor = isOverBudget
+  const isWatching = usagePercentUsed > 80 && usagePercentUsed < 100;
+  const metaColor = isOverBudget
     ? colors.danger
-    : usagePercentUsed > 80 && usagePercentUsed < 100
+    : isWatching
       ? colors.warning
       : colors.inkSoft;
-  const pillText = isOverBudget
+  const metaPercent = isOverBudget
     ? `${usagePercentUsed}% — over budget`
-    : usagePercentUsed > 80 && usagePercentUsed < 100
+    : isWatching
       ? `${usagePercentUsed}% — watch it`
       : `${usagePercentUsed}% used`;
+  const upcomingRecurring = summary?.upcomingRecurring ?? 0;
 
   return (
     <View style={styles.card}>
@@ -179,43 +134,25 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
               : (summary?.remainingDisplay ?? "—")}
           </Text>
 
-          <View style={styles.progressWrap}>
-            <ProgressBar
-              progress={usagePct}
-              fillColor={isOverBudget ? colors.danger : colors.accent}
-              backgroundColor={colors.line}
-              height={8}
+          <View style={styles.barWrap}>
+            <SpendSplitBar
+              budget={summary?.budgetValue ?? 0}
+              fixed={summary?.fixedSpent ?? 0}
+              flexible={summary?.flexibleSpent ?? 0}
+              committed={upcomingRecurring}
             />
           </View>
 
-          <View style={[styles.pill, { backgroundColor: pillBg }]}>
-            <Text style={[styles.pillText, { color: pillTextColor }]}>
-              {pillText}
+          <Text style={[styles.meta, { color: metaColor }]}>
+            {`${summary?.spentDisplay ?? "—"} spent of ${summary?.budgetDisplay ?? "—"} · `}
+            <Text
+              style={
+                isOverBudget || isWatching ? undefined : styles.metaPercentMuted
+              }
+            >
+              {metaPercent}
             </Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Budget</Text>
-              <Text style={styles.statValue}>
-                {summary?.budgetDisplay ?? "—"}
-              </Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>Spent</Text>
-              <Text style={styles.statValue}>
-                {summary?.spentDisplay ?? "—"}
-              </Text>
-            </View>
-          </View>
-          <SplitLines
-            summary={summary}
-            onViewSplit={onViewSplit}
-            onPressSplitKind={onPressSplitKind}
-          />
+          </Text>
         </>
       ) : (
         /* ── STATE B: No budget set ─────────────── */
@@ -229,18 +166,28 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           <Text
             style={[
               styles.noBudgetSub,
-              (hasSplit(summary) || summary?.upcomingLine) &&
+              (hasSplit(summary) || upcomingRecurring > 0) &&
                 styles.noBudgetSubTight,
             ]}
           >
             spent so far · no budget set
           </Text>
-          <SplitLines
-            summary={summary}
-            centered
-            onViewSplit={onViewSplit}
-            onPressSplitKind={onPressSplitKind}
-          />
+          {hasSplit(summary) || upcomingRecurring > 0 ? (
+            <View style={styles.splitCentered}>
+              {hasSplit(summary) ? (
+                <SpendSplitBar
+                  fixed={summary?.fixedSpent ?? 0}
+                  flexible={summary?.flexibleSpent ?? 0}
+                  centered
+                />
+              ) : null}
+              {upcomingRecurring > 0 ? (
+                <Text style={styles.splitText}>
+                  {`${formatInrCompact(upcomingRecurring)} recurring still to come`}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <Button
             title={setBudgetTitle}
             onPress={onSetBudget}
@@ -308,53 +255,17 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontVariant: ["tabular-nums"],
     marginBottom: spacing.md,
   },
-  progressWrap: {
+  barWrap: {
     marginBottom: spacing.sm,
   },
-  pill: {
-    alignSelf: "flex-start",
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    marginBottom: spacing.md,
-  },
-  pillText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.line,
-    marginBottom: spacing.md,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  stat: {
-    flex: 1,
-    alignItems: "center",
-    gap: 3,
-  },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: colors.line,
-    marginHorizontal: spacing.md,
-  },
-  statLabel: {
+  meta: {
     fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.inkSoft,
-  },
-  statValue: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.ink,
+    fontSize: 13,
+    lineHeight: 18,
     fontVariant: ["tabular-nums"],
+  },
+  metaPercentMuted: {
+    color: colors.inkFaint,
   },
   errorText: {
     fontFamily: fontFamilies.regular,
@@ -394,10 +305,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   noBudgetSubTight: {
     marginBottom: spacing.xs,
   },
-  split: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
   splitCentered: {
     marginBottom: spacing.lg,
     gap: spacing.sm,
@@ -408,8 +315,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     lineHeight: 16,
     color: colors.inkSoft,
     fontVariant: ["tabular-nums"],
-  },
-  splitTextCentered: {
     textAlign: "center",
   },
 }));

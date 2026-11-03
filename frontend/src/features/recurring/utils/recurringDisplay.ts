@@ -132,7 +132,7 @@ export const RECURRING_COPY = {
     namePlaceholder: "e.g. Salary, Rent received",
     deleteTitle: "Delete this recurring income?",
     deleteMessage:
-      "It stops repeating. Transactions already added stay in your history.",
+      "It is removed from Budgets and stops repeating. Payments already recorded stay in your transactions.",
     activeSubtitle: "Turn off to pause this without deleting it.",
     createdToast: "Recurring income added",
     updatedToast: "Recurring income updated",
@@ -150,7 +150,7 @@ export const RECURRING_COPY = {
     namePlaceholder: "e.g. Netflix, Gym, Rent",
     deleteTitle: "Delete this recurring expense?",
     deleteMessage:
-      "It stops repeating. Transactions already added stay in your history.",
+      "It is removed from Budgets and stops repeating. Payments already recorded stay in your transactions.",
     activeSubtitle: "Turn off to pause this without deleting it.",
     createdToast: "Recurring expense added",
     updatedToast: "Recurring expense updated",

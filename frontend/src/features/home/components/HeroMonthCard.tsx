@@ -1,14 +1,14 @@
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { SpendSplitBar, type SpendSplitKind } from "@/components/shared";
-import { ProgressBar, SkeletonBlock } from "@/components/ui";
+import { SpendSplitBar } from "@/components/shared";
+import { SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import { useTourTarget } from "@/hooks/useTourTarget";
-import { createThemedStyles, useTheme } from "@/theme";
+import { createThemedStyles } from "@/theme";
 
 type HeroMonthCardProps = {
   monthLabel: string;
@@ -18,13 +18,13 @@ type HeroMonthCardProps = {
   /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
   subtext: string;
   progress: number;
-  /** Recurring / flexible spend (rupees) for the split bar; hidden when there is no recurring spend. */
+  /** Monthly budget (rupees); 0 when none is set. The bar is the budget when there is one. */
+  budgetAmount?: number;
+  /** Recurring / flexible spend (rupees) for the bar; hidden when there is no budget and no recurring spend. */
   fixedSpent?: number;
   flexibleSpent?: number;
   isLoading?: boolean;
   onAddBudget: () => void;
-  onViewSplit?: () => void;
-  onPressSplitKind?: (kind: SpendSplitKind) => void;
 };
 
 export const HeroMonthCard = memo(function HeroMonthCard({
@@ -33,14 +33,12 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   hasBudget,
   subtext,
   progress,
+  budgetAmount = 0,
   fixedSpent = 0,
   flexibleSpent = 0,
   isLoading = false,
   onAddBudget,
-  onViewSplit,
-  onPressSplitKind,
 }: HeroMonthCardProps) {
-  const { colors } = useTheme();
   const styles = useStyles();
   const tourTarget = useTourTarget(tourTargetIds.homeMonthCard);
   return (
@@ -50,29 +48,31 @@ export const HeroMonthCard = memo(function HeroMonthCard({
         <Text style={styles.monthLabel}>{monthLabel}</Text>
       </View>
 
-      {/* Hero amount */}
+      {/* Hero amount: what was spent, with a quiet "spent" label */}
       {isLoading ? (
         <SkeletonBlock style={styles.heroSkeleton} />
       ) : (
-        <Text style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
-          {heroAmount}
-        </Text>
+        <View style={styles.heroRow}>
+          <Text style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
+            {heroAmount}
+          </Text>
+          <Text style={styles.heroSuffix}>spent</Text>
+        </View>
       )}
 
       {!isLoading ? (
         <SpendSplitBar
           fixed={fixedSpent}
           flexible={flexibleSpent}
-          onView={onViewSplit}
-          onPressKind={onPressSplitKind}
+          budget={hasBudget ? budgetAmount : 0}
         />
       ) : null}
 
-      {/* Status line */}
+      {/* Meta line */}
       {isLoading ? (
         <SkeletonBlock style={styles.subtextSkeleton} />
       ) : hasBudget ? (
-        <Text style={styles.statusLine}>
+        <Text style={[styles.statusLine, progress >= 1 ? styles.statusLineOver : null]}>
           {subtext}
           <Text style={styles.statusLineMuted}>
             {" "}
@@ -87,18 +87,6 @@ export const HeroMonthCard = memo(function HeroMonthCard({
         >
           <Text style={styles.ctaLine}>Set a budget ›</Text>
         </Pressable>
-      )}
-
-      {/* Progress bar */}
-      {hasBudget && (
-        <View style={styles.progressWrap}>
-          <ProgressBar
-            progress={isLoading ? 0 : progress}
-            fillColor={colors.accent}
-            backgroundColor={colors.surfaceSunken}
-            height={5}
-          />
-        </View>
       )}
     </View>
   );
@@ -131,14 +119,26 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     lineHeight: 16,
     color: colors.inkSoft,
   },
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
+    marginTop: 4,
+  },
   heroAmount: {
+    flexShrink: 1,
     fontFamily: fontFamilies.bold,
     fontSize: 40,
     lineHeight: 48,
     letterSpacing: -0.8,
     color: colors.accentText,
     fontVariant: ["tabular-nums"],
-    marginTop: 4,
+  },
+  heroSuffix: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.inkSoft,
   },
   heroSkeleton: {
     height: 48,
@@ -155,6 +155,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   statusLineMuted: {
     color: colors.inkFaint,
   },
+  statusLineOver: {
+    color: colors.danger,
+  },
   ctaLine: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
@@ -165,8 +168,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     height: 14,
     width: "50%",
     borderRadius: 4,
-  },
-  progressWrap: {
-    marginTop: spacing.xs,
   },
 }));

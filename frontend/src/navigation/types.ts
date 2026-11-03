@@ -14,6 +14,13 @@ export type TransactionsTabParams = {
   payee?: string;
 };
 
+export type BudgetsScrollTarget = "recurring" | "categories";
+
+export type BudgetsTabParams = {
+  recurringKind?: RecurringKind;
+  scrollTo?: BudgetsScrollTarget;
+};
+
 export type MainTabParamList = {
   Home: undefined;
   /**
@@ -21,8 +28,11 @@ export type MainTabParamList = {
    * optional filters; they only seed it and the user can change all of them. `payee` is a text search.
    */
   Transactions: TransactionsTabParams | undefined;
-  /** `recurringKind`: scroll to the Recurring section (from Home). */
-  Budgets: { recurringKind?: RecurringKind } | undefined;
+  /**
+   * `scrollTo`: scroll to the Recurring or "All categories" section and show the current month
+   * (from Home). `recurringKind` is the older form of `scrollTo: "recurring"` and still works.
+   */
+  Budgets: BudgetsTabParams | undefined;
   Insights: undefined;
 };
 
@@ -104,6 +114,13 @@ export type MainStackParamList = {
         categoryDisplayName: string;
         fromIso?: string;
         toIso?: string;
+      }
+    | {
+        /** Every transaction a recurring item posted, all time (no month). */
+        filter: "recurring";
+        recurringItemId: string;
+        recurringDisplayName: string;
+        kind: RecurringKind;
       };
   InsightsMonthCompare: {
     monthA: {

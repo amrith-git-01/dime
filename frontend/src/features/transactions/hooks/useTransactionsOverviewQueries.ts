@@ -10,6 +10,7 @@ import {
 } from "@/features/tourPreview";
 import {
   filterSamplePages,
+  sampleHistoryRows,
   sampleRowsInRange,
 } from "@/features/tourPreview/utils/sampleLists";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
@@ -144,6 +145,36 @@ export function useTransactionsMonthInfiniteQuery(
         }
       );
     },
+  });
+}
+
+/**
+ * Every transaction a server filter matches, newest first, with no date range (a recurring item's
+ * whole history). The filters must narrow the list: this is never an "all transactions" query.
+ */
+export function useTransactionsHistoryInfiniteQuery(
+  filters: TransactionListFilters,
+  options?: { enabled?: boolean },
+) {
+  const { userId } = useSessionUserId();
+
+  const query = useInfiniteQuery({
+    queryKey: transactionsQueryKeys.historyPages(userId, filters),
+    queryFn: ({ pageParam }) =>
+      fetchTransactionsPage({ limit: TX_PAGE_LIMIT, offset: pageParam, filters }),
+    initialPageParam: 0,
+    staleTime: TRANSACTIONS_QUERY_STALE_MS,
+    getNextPageParam: (lastPage, _pages, lastOffset) => {
+      if (!lastPage.has_more) return undefined;
+      return lastOffset + lastPage.items.length;
+    },
+    enabled: (options?.enabled ?? true) && Boolean(userId),
+  });
+  // The tour's sample data has the item's rows in this month and the last one.
+  return usePreviewable(query, {
+    domain: "transactions",
+    isEmpty: isMonthPagesEmpty,
+    select: (set) => sampleHistoryRows(set, filters),
   });
 }
 

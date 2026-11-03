@@ -288,5 +288,5 @@ export async function monthOccurrences(ctx: TxContext, year: number, month: numb
 }
 
 export async function deleteRecurring(ctx: TxContext, id: string): Promise<void> {
-  if (!(await repo.remove(ctx.db, ctx.userId, id))) throw new NotFoundError(NOT_FOUND);
+  if (!(await repo.archive(ctx.db, ctx.userId, id))) throw new NotFoundError(NOT_FOUND);
 }

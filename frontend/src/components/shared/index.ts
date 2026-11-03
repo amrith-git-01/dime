@@ -45,7 +45,6 @@ export { SkeletonListRow } from "./SkeletonListRow";
 export {
   SpendSplitBar,
   type SpendSplitBarProps,
-  type SpendSplitKind,
 } from "./SpendSplitBar";
 export { TransactionRowListSkeleton } from "./TransactionRowListSkeleton";
 export {

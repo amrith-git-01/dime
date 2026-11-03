@@ -50,10 +50,6 @@ export function navigateToTourTab(tab: TourTab): void {
   if (!navigationRef.isReady()) {
     return;
   }
-  // The Transactions tour spotlights the calendar, so it never runs on the tab's list view.
-  if (tab === "Transactions") {
-    useTransactionsViewStore.getState().setMode("calendar");
-  }
   navigationRef.navigate("Main", {
     screen: "MainTabs",
     params: { screen: tab },
@@ -118,6 +114,8 @@ const ENTER_ACTIONS: Record<TourEnterAction, () => void> = {
   openAgent: () => useAgentChatUiStore.getState().open(),
   closeAgent: () => useAgentChatUiStore.getState().close(),
   openCompare: openCompareFromTour,
+  // The Transactions tour spotlights the calendar; the tab's own view is put back when the tour ends.
+  showCalendar: () => useTransactionsViewStore.getState().setMode("calendar"),
 };
 
 export function runTourEnterActions(actions: readonly TourEnterAction[]): void {
