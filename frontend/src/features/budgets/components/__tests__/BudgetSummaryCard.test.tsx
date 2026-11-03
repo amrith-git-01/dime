@@ -76,16 +76,16 @@ async function textOf(over: Record<string, unknown> = {}) {
 }
 
 describe("BudgetSummaryCard", () => {
-  it("leads with what is left, then one meta line and one legend line", async () => {
+  it("leads with what is left, then one row of columns under the bar", async () => {
     const text = await textOf();
     expect(text).toContain("MONTHLY REMAINING");
     expect(text).toContain(money(48491));
-    expect(text).toContain(`${money(9509)} spent of ${money(58000)} · `);
-    expect(text).toContain("16% used");
     expect(text).toContain("Recurring");
     expect(text).toContain("Flexible");
-    expect(text).toContain("Still to come");
-    expect(text).toContain(money(36953));
+    expect(text).toContain(`+${money(36953)} due`);
+    expect(text).toContain(`Left of ${money(58000)}`);
+    expect(text).not.toContain("spent of");
+    expect(text).not.toContain("% used");
   });
 
   it("drops the old Budget / Spent columns, the percent pill and the View link", async () => {
@@ -95,23 +95,27 @@ describe("BudgetSummaryCard", () => {
     expect(text).not.toContain("View");
   });
 
-  it("leaves 'Still to come' out when nothing recurring is left", async () => {
+  it("leaves the due caption out when nothing recurring is left", async () => {
     const text = await textOf({ summary: summary({ upcomingRecurring: 0 }) });
-    expect(text).not.toContain("Still to come");
+    expect(text).not.toContain("due");
   });
 
-  it("over budget: shows the overage and the over-budget wording in the meta line", async () => {
+  it("over budget: shows the overage on top and Over by in the columns", async () => {
     const text = await textOf({
       summary: summary({
         isOverBudget: true,
         overageDisplay: money(2000),
         spentDisplay: money(60000),
+        fixedSpent: 10000,
+        flexibleSpent: 50000,
         usagePercentUsed: 103,
         usagePct: 1,
       }),
     });
     expect(text).toContain(`${money(2000)} over`);
-    expect(text).toContain("103% — over budget");
+    expect(text).toContain("Over by");
+    expect(text).not.toContain("Left of");
+    expect(text).not.toContain("watch it");
   });
 
   it("warns at 80 to 99 percent", async () => {
@@ -119,12 +123,20 @@ describe("BudgetSummaryCard", () => {
     expect(text).toContain("91% — watch it");
   });
 
-  it("without a budget it keeps the set-budget button and shows the shared legend", async () => {
+  it("stays quiet below 80 percent", async () => {
+    const text = await textOf();
+    expect(text).not.toContain("watch it");
+  });
+
+  it("without a budget it keeps the set-budget button and shows two columns with what is due", async () => {
     const text = await textOf({ hasMonthlyBudget: false, summary: summary({ budgetValue: 0 }) });
     expect(text).toContain("spent so far · no budget set");
     expect(text).toContain("Set monthly budget");
     expect(text).toContain("Recurring");
-    expect(text).toContain("recurring still to come");
+    expect(text).toContain("Flexible");
+    expect(text).toContain(`+${money(36953)} due`);
+    expect(text).not.toContain("Left of");
+    expect(text).not.toContain("Over by");
     expect(text).not.toContain("View");
   });
 });

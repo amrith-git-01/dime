@@ -24,6 +24,7 @@ export function buildEmptyInsightsMonthSummary(
     budgetDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
       : EM_DASH,
+    budgetValue: hasMonthlyBudget ? monthlyBudgetAmount : 0,
     usedPctDisplay: hasMonthlyBudget ? "0%" : EM_DASH,
     remainingValue: 0,
     remainingLabel: "Remaining",

@@ -12,6 +12,7 @@ import {
   useMonthSummaryQuery,
   useTransactionsMonthInfiniteQuery,
 } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
+import { buildAmountDomain } from "@/features/transactions/utils/amountRange";
 import { flattenTransactionListSections } from "@/features/transactions/utils/buildTransactionFlashListData";
 import {
   applyListCriteria,
@@ -110,6 +111,13 @@ export function useTransactionsMonthListModel({
   );
   // Every payee in the month (not only those left after the other filters), for the Payee picker.
   const payeeOptions = useMemo(() => buildPayeeOptions(displayRows), [displayRows]);
+  // The Amount slider's scale: the month's expenses (whatever the other filters leave), widened
+  // to hold any amount bound already set.
+  const { amountMinPaise, amountMaxPaise } = criteria;
+  const amountDomain = useMemo(
+    () => buildAmountDomain(displayRows, { amountMinPaise, amountMaxPaise }),
+    [amountMaxPaise, amountMinPaise, displayRows],
+  );
   const sections = useMemo(
     () => buildListSections(filteredRows, criteria.sort),
     [criteria.sort, filteredRows],
@@ -158,7 +166,7 @@ export function useTransactionsMonthListModel({
   const activeFilterCount = countActiveFilters(criteria);
   // Empty-state copy: the type's own when it is the only filter, else the generic one.
   const emptyKind: MonthListKind | "filtered" =
-    activeFilterCount === 1 && criteria.type !== "all" && criteria.type !== "spent"
+    activeFilterCount === 1 && criteria.type !== "all" && criteria.type !== "expense"
       ? monthListKindOfType(criteria.type)
       : activeFilterCount > 0
         ? "filtered"
@@ -186,6 +194,7 @@ export function useTransactionsMonthListModel({
 
   return {
     activeFilterCount,
+    amountDomain,
     clearFilters,
     emptyKind,
     payeeOptions,

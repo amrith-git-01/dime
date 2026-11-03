@@ -12,12 +12,9 @@ import { createThemedStyles } from "@/theme";
 
 type HeroMonthCardProps = {
   monthLabel: string;
-  /** Month spent — leftover and % used live in the subtitle when a budget exists. */
+  /** Month spent; what is left of the budget is the third column under the bar. */
   heroAmount: string;
   hasBudget: boolean;
-  /** "₹1.2k left of ₹5k" compact remaining/total. Empty when no budget. */
-  subtext: string;
-  progress: number;
   /** Monthly budget (rupees); 0 when none is set. The bar is the budget when there is one. */
   budgetAmount?: number;
   /** Recurring / flexible spend (rupees) for the bar; hidden when there is no budget and no recurring spend. */
@@ -31,8 +28,6 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   monthLabel,
   heroAmount,
   hasBudget,
-  subtext,
-  progress,
   budgetAmount = 0,
   fixedSpent = 0,
   flexibleSpent = 0,
@@ -68,18 +63,10 @@ export const HeroMonthCard = memo(function HeroMonthCard({
         />
       ) : null}
 
-      {/* Meta line */}
+      {/* The breakdown (with what is left) lives in the bar; without a budget there is a link to set one. */}
       {isLoading ? (
         <SkeletonBlock style={styles.subtextSkeleton} />
-      ) : hasBudget ? (
-        <Text style={[styles.statusLine, progress >= 1 ? styles.statusLineOver : null]}>
-          {subtext}
-          <Text style={styles.statusLineMuted}>
-            {" "}
-            · {Math.round(progress * 100)}% used
-          </Text>
-        </Text>
-      ) : (
+      ) : hasBudget ? null : (
         <Pressable
           accessibilityRole="button"
           onPress={onAddBudget}
@@ -145,18 +132,6 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     width: "65%",
     borderRadius: 6,
     marginTop: 4,
-  },
-  statusLine: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.inkSoft,
-  },
-  statusLineMuted: {
-    color: colors.inkFaint,
-  },
-  statusLineOver: {
-    color: colors.danger,
   },
   ctaLine: {
     fontFamily: fontFamilies.regular,

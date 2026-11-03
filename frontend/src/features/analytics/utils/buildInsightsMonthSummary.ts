@@ -73,6 +73,7 @@ export function buildInsightsMonthSummary(
     budgetDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
       : "\u2014",
+    budgetValue: hasMonthlyBudget ? monthlyBudgetAmount : 0,
     usedPctDisplay,
     remainingValue,
     remainingLabel: isOverBudget

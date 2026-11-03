@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 
+import { lightColors } from "@/theme/palettes";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { formatInrCompact } from "@/utils/currency";
 
@@ -43,6 +44,10 @@ function render(
     );
   });
   return tree;
+}
+
+function allText(tree: ReturnType<typeof create>): string {
+  return JSON.stringify(tree.toJSON());
 }
 
 function grow(tree: ReturnType<typeof create>, testID: string): number {
@@ -92,16 +97,37 @@ describe("SpendSplitBar", () => {
     expect(tree.root.findAllByProps({ onPress: expect.any(Function) })).toHaveLength(0);
   });
 
-  it("draws one quiet legend line: dots, labels and amounts", () => {
+  it("draws one row of columns: dot, label and amount, with two columns and no budget", () => {
     const tree = render(350, 9159);
-    const legend = tree.root.findAllByProps({ testID: "spend-split-legend" })[0];
-    expect(legend).toBeDefined();
-    const text = JSON.stringify(tree.toJSON());
+    expect(tree.root.findAllByProps({ testID: "spend-split-breakdown" })[0]).toBeDefined();
+    const text = allText(tree);
     expect(text).toContain("Recurring");
     expect(text).toContain(formatInrCompact(350));
     expect(text).toContain("Flexible");
     expect(text).toContain(formatInrCompact(9159));
+    expect(text).not.toContain("Left of");
+    expect(text).not.toContain("Over by");
+    expect(text).not.toContain("due");
     expect(text).not.toContain("Still to come");
+  });
+
+  it("can hide the breakdown and keep the bar", () => {
+    const tree = render(350, 9159, { showBreakdown: false });
+    expect(tree.root.findAllByProps({ testID: "spend-split-breakdown" })).toHaveLength(0);
+    expect(grow(tree, "spend-split-fixed")).toBeGreaterThan(0);
+  });
+
+  it("without a budget, names the recurring still to come in a caption but draws no pale segment", () => {
+    const tree = render(350, 9159, { committed: 2000 });
+    expect(allText(tree)).toContain(`+${formatInrCompact(2000)} due`);
+    expect(tree.root.findAllByProps({ testID: "spend-split-committed" })).toHaveLength(0);
+  });
+
+  it("without a budget and without recurring spend, still shows what is due", () => {
+    const tree = render(0, 500, { committed: 2000 });
+    const text = allText(tree);
+    expect(text).toContain(`+${formatInrCompact(2000)} due`);
+    expect(tree.root.findAllByProps({ testID: "spend-split-fixed" })).toHaveLength(0);
   });
 
   describe("with a budget", () => {
@@ -120,7 +146,24 @@ describe("SpendSplitBar", () => {
       const node = tree.root.findAllByProps({ testID: "spend-split-committed" })[0];
       const style = StyleSheet.flatten(node.props.style as object) as { opacity: number };
       expect(style.opacity).toBeLessThan(1);
-      expect(JSON.stringify(tree.toJSON())).toContain("Still to come");
+      expect(allText(tree)).toContain(`+${formatInrCompact(3000)} due`);
+    });
+
+    it("adds a third column: the label names the budget and the amount is what is left", () => {
+      const tree = render(1500, 500, { budget: 10000 });
+      const text = allText(tree);
+      expect(text).toContain(`Left of ${formatInrCompact(10000)}`);
+      expect(text).toContain(formatInrCompact(8000));
+      expect(text).not.toContain("Over by");
+      expect(text).not.toContain("due");
+    });
+
+    it("draws the left amount in the accent text colour", () => {
+      const tree = render(1500, 500, { budget: 10000 });
+      const style = StyleSheet.flatten(
+        tree.root.findAllByProps({ children: formatInrCompact(8000) })[0].props.style as object,
+      ) as { color: string };
+      expect(style.color).toBe(lightColors.accentText);
     });
 
     it("clamps the committed part to what is left of the budget", () => {
@@ -146,12 +189,52 @@ describe("SpendSplitBar", () => {
       expect(grow(tree, "spend-split-flexible")).toBeCloseTo(75);
       expect(tree.root.findAllByProps({ testID: "spend-split-track" })).toHaveLength(0);
       expect(tree.root.findAllByProps({ testID: "spend-split-committed" })).toHaveLength(0);
+      const text = allText(tree);
+      expect(text).toContain("Over by");
+      expect(text).toContain(formatInrCompact(2000));
+      expect(text).not.toContain("Left of");
+    });
+
+    it("over budget: the overage is drawn in the danger colour", () => {
+      const tree = render(3000, 9000, { budget: 10000 });
+      const style = StyleSheet.flatten(
+        tree.root.findAllByProps({ children: formatInrCompact(2000) })[0].props.style as object,
+      ) as { color: string };
+      expect(style.color).toBe(lightColors.danger);
+    });
+
+    it("spending exactly the budget is not over: nothing left, a full bar and the normal colour", () => {
+      const tree = render(6000, 4000, { budget: 10000, committed: 2000 });
+      const text = allText(tree);
+      expect(text).toContain(`Left of ${formatInrCompact(10000)}`);
+      expect(text).not.toContain("Over by");
+      expect(grow(tree, "spend-split-fixed")).toBeCloseTo(60);
+      expect(grow(tree, "spend-split-flexible")).toBeCloseTo(40);
+      expect(tree.root.findAllByProps({ testID: "spend-split-track" })).toHaveLength(0);
+      expect(tree.root.findAllByProps({ testID: "spend-split-committed" })).toHaveLength(0);
+      const style = StyleSheet.flatten(
+        tree.root.findAllByProps({ children: formatInrCompact(0) })[0].props.style as object,
+      ) as { color: string };
+      expect(style.color).toBe(lightColors.accentText);
+      expect(
+        tree.root.findAllByProps({
+          accessibilityLabel: `Recurring ${formatInrCompact(6000)}, Flexible ${formatInrCompact(4000)}, Still to come ${formatInrCompact(2000)}, ${formatInrCompact(0)} left of ${formatInrCompact(10000)}`,
+        }).length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("over budget: the screen-reader summary says how far over", () => {
+      const tree = render(3000, 9000, { budget: 10000 });
+      const labelled = tree.root.findAllByProps({
+        accessibilityLabel: `Recurring ${formatInrCompact(3000)}, Flexible ${formatInrCompact(9000)}, Over budget by ${formatInrCompact(2000)}`,
+      });
+      expect(labelled.length).toBeGreaterThan(0);
     });
 
     it("summarises everything for screen readers", () => {
       const tree = render(1500, 500, { budget: 10000, committed: 3000 });
       const labelled = tree.root.findAllByProps({
-        accessibilityLabel: `Recurring ${formatInrCompact(1500)}, Flexible ${formatInrCompact(500)}, Still to come ${formatInrCompact(3000)}`,
+        accessibilityLabel: `Recurring ${formatInrCompact(1500)}, Flexible ${formatInrCompact(500)}, Still to come ${formatInrCompact(3000)}, ${formatInrCompact(8000)} left of ${formatInrCompact(10000)}`,
       });
       expect(labelled.length).toBeGreaterThan(0);
     });

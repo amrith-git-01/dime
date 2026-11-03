@@ -1,19 +1,21 @@
 import { Check } from "lucide-react-native";
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 
 import { TextField } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
-import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 import { formatInrCompact } from "@/utils/currency";
-import { parseAmountInputToPaise } from "@/utils/paise";
 
 import {
-  activeAmountPreset,
-  AMOUNT_PRESETS,
+  amountBoundsFromValues,
+  amountValuesFromBounds,
+  type AmountDomain,
+} from "../../utils/amountRange";
+import {
+  hasAmountFilter,
   LIST_SORT_LABELS,
   LIST_TYPE_FILTERS,
   LIST_TYPE_LABELS,
@@ -23,8 +25,12 @@ import {
   type PayeeOption,
 } from "../../utils/monthListFilter";
 
+import { AmountRangeSlider } from "./AmountRangeSlider";
+
 /** A payee list this long gets a search box of its own. */
 const PAYEE_SEARCH_THRESHOLD = 8;
+/** A long option list scrolls inside its panel past this height. */
+const PICKER_MAX_HEIGHT = 264;
 
 type OptionRowProps = {
   label: string;
@@ -98,7 +104,10 @@ function SingleChoice<T extends string>({
 
 const SORT_OPTIONS: readonly ListSort[] = ["newest", "oldest", "amount"];
 
-/** Type: one of All / Spent / Recurring / Flexible / Received. */
+/** The Type choices: every type but "all", which is the state of having none picked. */
+const TYPE_OPTIONS = LIST_TYPE_FILTERS.filter((type) => type !== "all");
+
+/** Type: Expense, Income, Recurring or Flexible; picking the active one again clears it. */
 export function TypePicker({
   value,
   onSelect,
@@ -108,10 +117,10 @@ export function TypePicker({
 }) {
   return (
     <SingleChoice
-      options={LIST_TYPE_FILTERS}
+      options={TYPE_OPTIONS}
       labels={LIST_TYPE_LABELS}
       value={value}
-      onSelect={onSelect}
+      onSelect={(next) => onSelect(next === value ? "all" : next)}
     />
   );
 }
@@ -225,99 +234,71 @@ export function PayeePicker({
   );
 }
 
-function paiseToInputText(paise: number | null): string {
-  if (paise === null) return "";
-  const rupees = paise / 100;
-  return Number.isInteger(rupees) ? String(rupees) : rupees.toFixed(2);
-}
-
-/** Amount: quick ranges, or a minimum and/or maximum in rupees (both inclusive). */
+/**
+ * Amount: a two-thumb range over the month's expenses. A thumb at the end of the scale leaves that
+ * side unbounded, so the full range is no filter. Without a usable range (no expenses, or all the
+ * same amount) it only says so, and still offers Reset for a filter carried over from elsewhere.
+ */
 export function AmountPicker({
+  domain,
   criteria,
   onChange,
 }: {
+  domain: AmountDomain | null;
   criteria: ListCriteria;
   onChange: (minPaise: number | null, maxPaise: number | null) => void;
 }) {
   const styles = useStyles();
-  const [minText, setMinText] = useState(paiseToInputText(criteria.amountMinPaise));
-  const [maxText, setMaxText] = useState(paiseToInputText(criteria.amountMaxPaise));
-  const preset = activeAmountPreset(criteria);
-
-  const parse = (text: string) => (text.trim().length === 0 ? null : parseAmountInputToPaise(text));
-  const changeMin = (text: string) => {
-    setMinText(text);
-    onChange(parse(text), criteria.amountMaxPaise);
-  };
-  const changeMax = (text: string) => {
-    setMaxText(text);
-    onChange(criteria.amountMinPaise, parse(text));
-  };
-  const pickPreset = (id: string) => {
+  const active = hasAmountFilter(criteria);
+  const values = useMemo(
+    () =>
+      domain
+        ? amountValuesFromBounds(domain, {
+            amountMinPaise: criteria.amountMinPaise,
+            amountMaxPaise: criteria.amountMaxPaise,
+          })
+        : null,
+    [criteria.amountMaxPaise, criteria.amountMinPaise, domain],
+  );
+  const handleChange = useCallback(
+    (low: number, high: number) => {
+      if (!domain) return;
+      const bounds = amountBoundsFromValues(domain, low, high);
+      onChange(bounds.amountMinPaise, bounds.amountMaxPaise);
+    },
+    [domain, onChange],
+  );
+  const reset = () => {
     void triggerHaptic();
-    const next = AMOUNT_PRESETS.find((p) => p.id === id);
-    if (!next || preset?.id === id) {
-      setMinText("");
-      setMaxText("");
-      onChange(null, null);
-      return;
-    }
-    setMinText(paiseToInputText(next.minPaise));
-    setMaxText(paiseToInputText(next.maxPaise));
-    onChange(next.minPaise, next.maxPaise);
+    onChange(null, null);
   };
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.amountInputs}>
-        <View style={styles.amountField}>
-          <TextField
-            label="Minimum amount"
-            hideLabel
-            value={minText}
-            onChangeText={changeMin}
-            placeholder="Min ₹"
-            keyboardType="decimal-pad"
-            showClear
-          />
-        </View>
-        <Text style={styles.amountDash}>to</Text>
-        <View style={styles.amountField}>
-          <TextField
-            label="Maximum amount"
-            hideLabel
-            value={maxText}
-            onChangeText={changeMax}
-            placeholder="Max ₹"
-            keyboardType="decimal-pad"
-            showClear
-          />
-        </View>
-      </View>
-      <View style={styles.presetWrap}>
-        {AMOUNT_PRESETS.map((option) => {
-          const selected = preset?.id === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              onPress={() => pickPreset(option.id)}
-              style={[styles.preset, selected && styles.presetSelected]}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={option.label}
-            >
-              <Text style={[styles.presetText, selected && styles.presetTextSelected]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </ScrollView>
+    <View style={styles.amountBody}>
+      {domain && values ? (
+        <AmountRangeSlider
+          domain={domain}
+          lowPaise={values.low}
+          highPaise={values.high}
+          onChange={handleChange}
+        />
+      ) : (
+        <Text style={styles.emptyText}>
+          Nothing to slide yet: this month needs expenses of different amounts.
+        </Text>
+      )}
+      {active ? (
+        <Pressable
+          onPress={reset}
+          hitSlop={8}
+          style={styles.resetButton}
+          accessibilityRole="button"
+          accessibilityLabel="Reset amount range"
+        >
+          <Text style={styles.resetText}>Reset</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -325,6 +306,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
   scroll: {
     flexGrow: 0,
     flexShrink: 1,
+    maxHeight: PICKER_MAX_HEIGHT,
   },
   row: {
     flexDirection: "row",
@@ -369,43 +351,19 @@ const useStyles = createThemedStyles(({ colors }) => ({
     color: colors.inkSoft,
     paddingVertical: spacing.lg,
   },
-  amountInputs: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+  amountBody: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  amountField: {
-    flex: 1,
+  resetButton: {
+    alignSelf: "flex-end",
+    minHeight: 44,
+    justifyContent: "center",
   },
-  amountDash: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.inkSoft,
-  },
-  presetWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  preset: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceSunken,
-  },
-  presetSelected: {
-    backgroundColor: colors.accent,
-  },
-  presetText: {
-    fontFamily: fontFamilies.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.inkSoft,
-  },
-  presetTextSelected: {
-    color: colors.onAccent,
+  resetText: {
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.accentText,
   },
 }));
