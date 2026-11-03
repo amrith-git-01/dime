@@ -100,7 +100,9 @@ export function useInsightsMonthCompareScreenModel() {
     budgetResp === undefined,
   );
 
-  const screenTitle = `${params.monthA.label} vs ${params.monthB.label}`;
+  // The header is narrow: two full month names ("September 2026 vs August 2026") would be cut off.
+  const shortMonth = (label: string) => label.replace(/^([A-Za-z]{3})[A-Za-z]*/, "$1");
+  const screenTitle = `${shortMonth(params.monthA.label)} vs ${shortMonth(params.monthB.label)}`;
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: screenTitle });

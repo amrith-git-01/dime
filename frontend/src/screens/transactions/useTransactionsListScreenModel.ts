@@ -249,10 +249,10 @@ export function useTransactionsListScreenModel() {
   );
 
   const monthLabel = useMemo(
-    () => (isRecurring ? "" : format(new Date(listYear, listMonthIndex0, 1), "MMM yyyy")),
+    () => (isRecurring ? "" : format(new Date(listYear, listMonthIndex0, 1), "MMMM yyyy")),
     [isRecurring, listYear, listMonthIndex0],
   );
-  // "12 transactions · Oct 2026"; a recurring item's list has no month ("12 transactions").
+  // "12 transactions · October 2026"; a recurring item's list has no month ("12 transactions").
   const subtitle = `${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""}${monthLabel ? ` · ${monthLabel}` : ""}`;
 
   const sectionNetTotals = useMemo(() => {

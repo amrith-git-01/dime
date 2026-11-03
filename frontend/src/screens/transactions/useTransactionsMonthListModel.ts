@@ -199,7 +199,7 @@ export function useTransactionsMonthListModel({
     emptyKind,
     payeeOptions,
     totalsLine,
-    monthLabel: format(new Date(month.year, month.monthIndex0, 1), "MMM yyyy"),
+    monthLabel: format(new Date(month.year, month.monthIndex0, 1), "MMMM yyyy"),
     canGoPrevMonth,
     canGoNextMonth,
     goPrevMonth: onPrevMonth,

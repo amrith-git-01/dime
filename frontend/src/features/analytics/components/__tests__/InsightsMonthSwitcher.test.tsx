@@ -37,9 +37,9 @@ const render = async (overrides: Partial<Parameters<typeof InsightsMonthSwitcher
   await act(async () => {
     rendered = create(
       <InsightsMonthSwitcher
-        selectedMonth="Oct 2026"
-        prevMonthLabel="Sep 2026"
-        nextMonthLabel="Nov 2026"
+        selectedMonth="October 2026"
+        prevMonthLabel="September 2026"
+        nextMonthLabel="November 2026"
         canGoPrevMonth
         canGoNextMonth
         onPrevMonth={onPrevMonth}
@@ -60,8 +60,8 @@ const render = async (overrides: Partial<Parameters<typeof InsightsMonthSwitcher
 describe("InsightsMonthSwitcher", () => {
   it("fires the previous and next handlers from the labelled arrows", async () => {
     const { rendered, byLabel, onPrevMonth, onNextMonth } = await render();
-    (byLabel("Previous month, Sep 2026")?.props.onPress as () => void)();
-    (byLabel("Next month, Nov 2026")?.props.onPress as () => void)();
+    (byLabel("Previous month, September 2026")?.props.onPress as () => void)();
+    (byLabel("Next month, November 2026")?.props.onPress as () => void)();
     expect(onPrevMonth).toHaveBeenCalledTimes(1);
     expect(onNextMonth).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -71,8 +71,8 @@ describe("InsightsMonthSwitcher", () => {
 
   it("disables an arrow when that direction is unavailable", async () => {
     const { rendered, byLabel } = await render({ canGoNextMonth: false });
-    expect(byLabel("Next month, Nov 2026")?.props.disabled).toBe(true);
-    expect(byLabel("Previous month, Sep 2026")?.props.disabled).toBe(false);
+    expect(byLabel("Next month, November 2026")?.props.disabled).toBe(true);
+    expect(byLabel("Previous month, September 2026")?.props.disabled).toBe(false);
     await act(async () => {
       rendered.unmount();
     });
@@ -80,8 +80,8 @@ describe("InsightsMonthSwitcher", () => {
 
   it("gives the arrows a 48dp target and announces month changes", async () => {
     const { rendered, byLabel } = await render();
-    expect(byLabel("Previous month, Sep 2026")?.props.hitSlop).toBeGreaterThanOrEqual(12);
-    expect(byLabel("Next month, Nov 2026")?.props.hitSlop).toBeGreaterThanOrEqual(12);
+    expect(byLabel("Previous month, September 2026")?.props.hitSlop).toBeGreaterThanOrEqual(12);
+    expect(byLabel("Next month, November 2026")?.props.hitSlop).toBeGreaterThanOrEqual(12);
     const live = rendered.root.findAll(
       (node) => node.props.accessibilityLiveRegion === "polite",
     );

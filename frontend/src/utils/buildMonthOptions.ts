@@ -15,7 +15,7 @@ export function buildMonthOptions(
   return Array.from({ length: count }, (_, index) => {
     const d = subMonths(startCurrent, index);
     return {
-      label: format(d, "MMM yyyy"),
+      label: format(d, "MMMM yyyy"),
       year: d.getFullYear(),
       monthIndex0: d.getMonth(),
     };

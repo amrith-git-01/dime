@@ -81,7 +81,7 @@ function openCompareFromTour(): void {
   const param = (date: Date) => ({
     year: date.getFullYear(),
     monthIndex0: date.getMonth(),
-    label: format(date, "MMM yyyy"),
+    label: format(date, "MMMM yyyy"),
   });
   navigationRef.navigate("Main", {
     screen: "InsightsMonthCompare",

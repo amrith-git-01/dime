@@ -37,7 +37,7 @@ export function defaultCompareMonthBIndex(
     return Math.min(1, Math.max(0, monthOptions.length - 1));
   }
   const previous = subMonths(new Date(monthA.year, monthA.monthIndex0, 1), 1);
-  const previousLabel = format(previous, "MMM yyyy");
+  const previousLabel = format(previous, "MMMM yyyy");
   const previousIndex = monthOptions.findIndex(
     (month) => month.label === previousLabel,
   );
