@@ -9,15 +9,15 @@ const COLUMNS =
 export const MAX_ITEMS_PER_USER = 100;
 
 export function listForUser(db: Db, userId: string): Promise<RecurringRow[]> {
-  return all<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? ORDER BY kind, next_due_date, name COLLATE NOCASE`, [userId]);
+  return all<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND archived_at IS NULL ORDER BY kind, next_due_date, name COLLATE NOCASE`, [userId]);
 }
 
 export function fetchForUser(db: Db, userId: string, id: string): Promise<RecurringRow | null> {
-  return first<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND id = ?`, [userId, id]);
+  return first<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND id = ? AND archived_at IS NULL`, [userId, id]);
 }
 
 export async function countForUser(db: Db, userId: string): Promise<number> {
-  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recurring_items WHERE user_id = ?', [userId]);
+  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recurring_items WHERE user_id = ? AND archived_at IS NULL', [userId]);
   return row?.n ?? 0;
 }
 
@@ -42,14 +42,25 @@ export function update(db: Db, userId: string, row: RecurringRow): Promise<Recur
     db,
     `UPDATE recurring_items SET name = ?, amount = ?, category_id = ?, cadence = ?, day_of_month = ?, month_of_year = ?,
        timezone = ?, next_due_date = ?, active = ?, note = ?, remind_lead_days = ?, next_remind_at = ?, updated_at = ?
-     WHERE user_id = ? AND id = ? RETURNING ${COLUMNS}`,
+     WHERE user_id = ? AND id = ? AND archived_at IS NULL RETURNING ${COLUMNS}`,
     [row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, row.remind_lead_days, row.next_remind_at, nowIso(), userId, row.id],
   );
 }
 
-/** Deletes the item; its posted transactions stay (their `recurring_item_id` becomes NULL by the foreign key). */
+/** Hard-deletes an item (only for undoing a create that failed half way; the user's delete is {@link archive}). */
 export async function remove(db: Db, userId: string, id: string): Promise<boolean> {
   return (await run(db, 'DELETE FROM recurring_items WHERE user_id = ? AND id = ?', [userId, id])) > 0;
+}
+
+/**
+ * The user's delete: archives the item (hidden everywhere, never posted or reminded again) and keeps it, so the transactions it
+ * posted keep their `recurring_item_id` and the app can still show their history. False when there is no such live item.
+ */
+export async function archive(db: Db, userId: string, id: string): Promise<boolean> {
+  const now = nowIso();
+  return (
+    (await run(db, 'UPDATE recurring_items SET archived_at = ?, active = 0, next_remind_at = NULL, updated_at = ? WHERE user_id = ? AND id = ? AND archived_at IS NULL', [now, now, userId, id])) > 0
+  );
 }
 
 /** True when the item already produced a transaction (deleted or not) inside `[from, to)`: that period is done. */
@@ -84,7 +95,7 @@ export function listPostedIn(db: Db, userId: string, range: { from: string; to: 
 export function listDue(db: Db, maxDate: string, limit: number): Promise<RecurringRow[]> {
   return all<RecurringRow>(
     db,
-    `SELECT ${COLUMNS} FROM recurring_items WHERE active = 1 AND next_due_date <= ? ORDER BY next_due_date, id LIMIT ?`,
+    `SELECT ${COLUMNS} FROM recurring_items WHERE active = 1 AND archived_at IS NULL AND next_due_date <= ? ORDER BY next_due_date, id LIMIT ?`,
     [maxDate, limit],
   );
 }
@@ -103,7 +114,7 @@ export async function advance(db: Db, id: string, fromDate: string, toDate: stri
 export function listRemindDue(db: Db, nowIsoText: string, limit: number): Promise<RecurringRow[]> {
   return all<RecurringRow>(
     db,
-    `SELECT ${COLUMNS} FROM recurring_items WHERE active = 1 AND next_remind_at IS NOT NULL AND next_remind_at <= ? ORDER BY next_remind_at, id LIMIT ?`,
+    `SELECT ${COLUMNS} FROM recurring_items WHERE active = 1 AND archived_at IS NULL AND next_remind_at IS NOT NULL AND next_remind_at <= ? ORDER BY next_remind_at, id LIMIT ?`,
     [nowIsoText, limit],
   );
 }
@@ -115,7 +126,7 @@ export async function setNextRemind(db: Db, id: string, expected: string, next: 
 
 /** The user's active items with lead-day reminders on, for re-planning after a reminder-settings change. */
 export function listRemindableForUser(db: Db, userId: string): Promise<RecurringRow[]> {
-  return all<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND active = 1 AND remind_lead_days IS NOT NULL`, [userId]);
+  return all<RecurringRow>(db, `SELECT ${COLUMNS} FROM recurring_items WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND remind_lead_days IS NOT NULL`, [userId]);
 }
 
 /** A statement for `db.batch` that re-plans one item's next reminder instant. */
@@ -125,6 +136,6 @@ export function setNextRemindStatement(db: Db, userId: string, id: string, next:
 
 /** How many items are due a reminder (the cron logs what its per-tick cap left for the next run). */
 export async function countRemindDue(db: Db, nowIsoText: string): Promise<number> {
-  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recurring_items WHERE active = 1 AND next_remind_at IS NOT NULL AND next_remind_at <= ?', [nowIsoText]);
+  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recurring_items WHERE active = 1 AND archived_at IS NULL AND next_remind_at IS NOT NULL AND next_remind_at <= ?', [nowIsoText]);
   return row?.n ?? 0;
 }

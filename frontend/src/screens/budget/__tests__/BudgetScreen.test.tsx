@@ -61,9 +61,13 @@ jest.mock("../useBudgetScreenModel", () => ({
   UNCATEGORIZED_SPEND_KEY: "uncategorized",
   useBudgetScreenModel: () => mockModel,
 }));
-const mockRecurring = { onSectionLayout: jest.fn(), income: {}, subscriptions: {}, today: new Date(0), onAdd: jest.fn(), onItemPress: jest.fn(), onAddReminder: jest.fn(), onSeeReminders: jest.fn() };
+const mockRecurring = { income: {}, subscriptions: {}, today: new Date(0), onAdd: jest.fn(), onItemPress: jest.fn(), onItemEdit: jest.fn(), onAddReminder: jest.fn(), onSeeReminders: jest.fn() };
 jest.mock("../useBudgetRecurringModel", () => ({
   useBudgetRecurringModel: () => mockRecurring,
+}));
+const mockSectionScroll = { onCardLayout: jest.fn() };
+jest.mock("../useBudgetSectionScroll", () => ({
+  useBudgetSectionScroll: () => mockSectionScroll,
 }));
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the renderer ships without types */
@@ -108,6 +112,7 @@ function resetModel(over: Record<string, unknown> = {}) {
     monthSummaryFailed: false,
     monthlyBudgetAmount: 1000,
     selectedMonth: { label: "October 2026" },
+    showCurrentMonth: jest.fn(),
     suggestedBudget: 0,
     summaryLoading: false,
     ...over,
@@ -137,7 +142,7 @@ beforeEach(() => {
     ready: true,
     commit: jest.fn(),
   };
-  mockRecurring.onSectionLayout.mockReset();
+  mockSectionScroll.onCardLayout.mockReset();
 });
 
 describe("BudgetScreen", () => {
@@ -181,7 +186,7 @@ describe("BudgetScreen", () => {
     act(() => tree.unmount());
   });
 
-  it("is a scroll view the tour can drive, and reports the recurring block's y for scroll-to", () => {
+  it("is a scroll view the tour can drive, and reports every card's layout for scroll-to", () => {
     const tree = render();
     const scroll = tree.root.findAll((n) => n.props.contentContainerStyle !== undefined && typeof n.props.onScroll === "function");
     expect(scroll.length).toBeGreaterThan(0);
@@ -191,12 +196,14 @@ describe("BudgetScreen", () => {
     );
     expect(wrappers.length).toBeGreaterThanOrEqual(3);
     const event = { nativeEvent: { layout: { x: 0, y: 200, width: 360, height: 120 } } };
-    // Only the recurring block's wrapper feeds the scroll-to measurement.
     for (const wrapper of wrappers) {
       (wrapper.props.onLayout as (e: unknown) => void)(event);
     }
-    expect(mockRecurring.onSectionLayout).toHaveBeenCalledTimes(1);
-    expect(mockRecurring.onSectionLayout).toHaveBeenCalledWith(event);
+    // The section scroll hook gets the id of each card (it keeps the recurring and categories ones).
+    const ids = mockSectionScroll.onCardLayout.mock.calls.map((call) => call[0] as string);
+    expect(ids).toEqual(expect.arrayContaining(["budgets.summary", "budgets.recurring", "budgets.categories"]));
+    expect(mockSectionScroll.onCardLayout).toHaveBeenCalledWith("budgets.recurring", event);
+    expect(mockSectionScroll.onCardLayout).toHaveBeenCalledWith("budgets.categories", event);
     act(() => tree.unmount());
   });
 

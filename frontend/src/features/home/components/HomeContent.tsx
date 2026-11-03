@@ -50,12 +50,11 @@ export const HomeContent = memo(function HomeContent(
           hasBudget={props.hasMonthlyBudget}
           subtext={props.monthlySubtext}
           progress={props.monthlyProgress}
+          budgetAmount={props.monthlyBudgetAmount}
           fixedSpent={props.monthFixedSpent}
           flexibleSpent={props.monthFlexibleSpent}
           isLoading={isLoading}
           onAddBudget={props.onAddMonthlyBudget}
-          onViewSplit={props.onViewMonthSplit}
-          onPressSplitKind={props.onPressMonthSplitKind}
         />
         {hasSyncStatus ? (
           <View style={styles.syncStatus}>
@@ -99,7 +98,7 @@ export const HomeContent = memo(function HomeContent(
         today={props.upcomingToday}
         onItemPress={props.onUpcomingPress}
         onReminderPress={props.onReminderPress}
-        onSeeAll={props.onSeeAllReminders}
+        onSeeAll={props.onSeeAllUpcoming}
         onAdd={props.onAddReminder}
       />
     ),

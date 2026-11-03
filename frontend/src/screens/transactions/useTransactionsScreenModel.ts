@@ -291,9 +291,9 @@ export function useTransactionsScreenModel() {
     [navigation, openPendingSheet],
   );
 
-  // Calendar | List. Both views share the month (the calendar's selection) and the list keeps its
-  // filters while the user switches back and forth; only a link from elsewhere (Home / Budgets /
-  // Insights split bar) replaces them.
+  // List | Calendar. Both views share the month (the calendar's selection) and the list keeps its
+  // filters while the user switches back and forth or leaves and comes back (they live in this
+  // tab, for the session); only a link from elsewhere (Home, a deep link) replaces them.
   const route = useRoute<RouteProp<MainTabParamList, "Transactions">>();
   const viewMode = useTransactionsViewStore((state) => state.mode);
   const setViewMode = useTransactionsViewStore((state) => state.setMode);
@@ -328,6 +328,12 @@ export function useTransactionsScreenModel() {
       payee: undefined,
     });
   }, [calendarSelectMonth, monthOptions, navigation, routeParams, setViewMode]);
+
+  // The tour spotlights the calendar and switches to it; it puts the user's view back when it ends.
+  useTourRestorable("transactions.viewMode", {
+    snapshot: () => viewMode,
+    restore: (mode) => setViewMode(mode as TransactionsViewMode),
+  });
 
   const selectViewMode = useCallback(
     (mode: TransactionsViewMode) => {

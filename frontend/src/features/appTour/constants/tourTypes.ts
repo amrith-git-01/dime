@@ -33,7 +33,9 @@ export type TourEnterAction =
   | "openFab"
   | "openAgent"
   | "closeAgent"
-  | "openCompare";
+  | "openCompare"
+  /** Shows the Transactions tab as the calendar (the list is its default view). */
+  | "showCalendar";
 
 /**
  * What a "Do" step's card button does on the user's behalf, for people who cannot find or reach

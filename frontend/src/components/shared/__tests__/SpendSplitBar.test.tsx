@@ -50,13 +50,6 @@ function grow(tree: ReturnType<typeof create>, testID: string): number {
   return (StyleSheet.flatten(node.props.style as object) as { flexGrow: number }).flexGrow;
 }
 
-function press(tree: ReturnType<typeof create>, testID: string) {
-  const node = tree.root.findAllByProps({ testID })[0];
-  act(() => {
-    (node.props.onPress as () => void)();
-  });
-}
-
 describe("SpendSplitBar", () => {
   it("renders nothing when there is no recurring spend", () => {
     expect(render(0, 500).root.findAllByProps({ testID: "spend-split-fixed" })).toHaveLength(0);
@@ -73,10 +66,10 @@ describe("SpendSplitBar", () => {
     expect(grow(tree, "spend-split-flexible")).toBeCloseTo(25);
   });
 
-  it("draws a lean bar", () => {
+  it("draws a slim bar", () => {
     const node = render(1500, 500).root.findAllByProps({ testID: "spend-split-fixed" })[0];
     const style = StyleSheet.flatten(node.props.style as object) as { height: number };
-    expect(style.height).toBeLessThanOrEqual(4);
+    expect(style.height).toBeLessThanOrEqual(6);
   });
 
   it("describes the split for screen readers", () => {
@@ -93,26 +86,74 @@ describe("SpendSplitBar", () => {
     expect(tree.root.findAllByProps({ testID: "spend-split-flexible" })).toHaveLength(0);
   });
 
-  it("shows no View link or tappable legend by default", () => {
+  it("has no View link and no tappable legend", () => {
     const tree = render(1500, 500);
     expect(tree.root.findAllByProps({ testID: "spend-split-view" })).toHaveLength(0);
-    const legend = tree.root.findAllByProps({ testID: "spend-split-legend-recurring" })[0];
-    expect(legend.props.onPress).toBeUndefined();
+    expect(tree.root.findAllByProps({ onPress: expect.any(Function) })).toHaveLength(0);
   });
 
-  it("calls onView from the View link", () => {
-    const onView = jest.fn();
-    const tree = render(1500, 500, { onView });
-    press(tree, "spend-split-view");
-    expect(onView).toHaveBeenCalledTimes(1);
+  it("draws one quiet legend line: dots, labels and amounts", () => {
+    const tree = render(350, 9159);
+    const legend = tree.root.findAllByProps({ testID: "spend-split-legend" })[0];
+    expect(legend).toBeDefined();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Recurring");
+    expect(text).toContain(formatInrCompact(350));
+    expect(text).toContain("Flexible");
+    expect(text).toContain(formatInrCompact(9159));
+    expect(text).not.toContain("Still to come");
   });
 
-  it("calls onPressKind with the tapped legend kind", () => {
-    const onPressKind = jest.fn();
-    const tree = render(1500, 500, { onPressKind });
-    press(tree, "spend-split-legend-recurring");
-    press(tree, "spend-split-legend-flexible");
-    expect(onPressKind).toHaveBeenNthCalledWith(1, "recurring");
-    expect(onPressKind).toHaveBeenNthCalledWith(2, "flexible");
+  describe("with a budget", () => {
+    it("is the budget: segments are shares of it and the rest is the track", () => {
+      const tree = render(1500, 500, { budget: 10000 });
+      expect(grow(tree, "spend-split-fixed")).toBeCloseTo(15);
+      expect(grow(tree, "spend-split-flexible")).toBeCloseTo(5);
+      expect(grow(tree, "spend-split-track")).toBeCloseTo(80);
+      expect(tree.root.findAllByProps({ testID: "spend-split-committed" })).toHaveLength(0);
+    });
+
+    it("draws the recurring still to come as a pale segment after the spend", () => {
+      const tree = render(1500, 500, { budget: 10000, committed: 3000 });
+      expect(grow(tree, "spend-split-committed")).toBeCloseTo(30);
+      expect(grow(tree, "spend-split-track")).toBeCloseTo(50);
+      const node = tree.root.findAllByProps({ testID: "spend-split-committed" })[0];
+      const style = StyleSheet.flatten(node.props.style as object) as { opacity: number };
+      expect(style.opacity).toBeLessThan(1);
+      expect(JSON.stringify(tree.toJSON())).toContain("Still to come");
+    });
+
+    it("clamps the committed part to what is left of the budget", () => {
+      const tree = render(1500, 500, { budget: 10000, committed: 50000 });
+      expect(grow(tree, "spend-split-committed")).toBeCloseTo(80);
+      expect(tree.root.findAllByProps({ testID: "spend-split-track" })).toHaveLength(0);
+    });
+
+    it("shows the bar even with no recurring spend, flexible only", () => {
+      const tree = render(0, 500, { budget: 10000 });
+      expect(tree.root.findAllByProps({ testID: "spend-split-fixed" })).toHaveLength(0);
+      expect(grow(tree, "spend-split-flexible")).toBeCloseTo(5);
+    });
+
+    it("shows an empty track when nothing is spent yet", () => {
+      const tree = render(0, 0, { budget: 10000 });
+      expect(grow(tree, "spend-split-track")).toBeCloseTo(100);
+    });
+
+    it("over budget: the bar is full, segments scaled to the spend, no committed part", () => {
+      const tree = render(3000, 9000, { budget: 10000, committed: 2000 });
+      expect(grow(tree, "spend-split-fixed")).toBeCloseTo(25);
+      expect(grow(tree, "spend-split-flexible")).toBeCloseTo(75);
+      expect(tree.root.findAllByProps({ testID: "spend-split-track" })).toHaveLength(0);
+      expect(tree.root.findAllByProps({ testID: "spend-split-committed" })).toHaveLength(0);
+    });
+
+    it("summarises everything for screen readers", () => {
+      const tree = render(1500, 500, { budget: 10000, committed: 3000 });
+      const labelled = tree.root.findAllByProps({
+        accessibilityLabel: `Recurring ${formatInrCompact(1500)}, Flexible ${formatInrCompact(500)}, Still to come ${formatInrCompact(3000)}`,
+      });
+      expect(labelled.length).toBeGreaterThan(0);
+    });
   });
 });

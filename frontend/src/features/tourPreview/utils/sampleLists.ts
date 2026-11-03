@@ -8,12 +8,15 @@ import type {
 
 import type { TourSampleSet } from "./buildSampleMonth";
 
-/** The same narrowing the server does for `payee` ("contains", case-insensitive) and `category_id`. */
+/** The same narrowing the server does for `payee` ("contains", case-insensitive), `category_id` and `recurring_item_id`. */
 export function sampleRowMatchesFilters(
   row: TransactionRow,
   filters: TransactionListFilters | undefined,
 ): boolean {
   if (filters?.categoryId && row.category_id !== filters.categoryId) {
+    return false;
+  }
+  if (filters?.recurringItemId && row.recurring_item_id !== filters.recurringItemId) {
     return false;
   }
   const payee = filters?.payee?.trim().toLowerCase();
@@ -32,7 +35,7 @@ export function filterSamplePages(
   pages: InfiniteData<TransactionListPage, number>,
   filters: TransactionListFilters | undefined,
 ): InfiniteData<TransactionListPage, number> {
-  if (!filters?.categoryId && !filters?.payee) {
+  if (!filters?.categoryId && !filters?.payee && !filters?.recurringItemId) {
     return pages;
   }
   return {
@@ -41,6 +44,26 @@ export function filterSamplePages(
       items: page.items.filter((row) => sampleRowMatchesFilters(row, filters)),
       has_more: false,
     })),
+  };
+}
+
+/**
+ * Every sample row a filter matches (this month's and last month's), newest first, as one page: a
+ * list with no date range, such as a recurring item's history.
+ */
+export function sampleHistoryRows(
+  set: TourSampleSet,
+  filters: TransactionListFilters | undefined,
+): { data: InfiniteData<TransactionListPage, number>; past: boolean } {
+  const matches = (row: TransactionRow) => sampleRowMatchesFilters(row, filters);
+  const current = set.current.monthPages.pages[0].items.filter(matches);
+  const previous = set.previous.monthPages.pages[0].items.filter(matches);
+  const items = [...current, ...previous].sort((a, b) =>
+    a.transaction_at < b.transaction_at ? 1 : -1,
+  );
+  return {
+    data: { pageParams: [0], pages: [{ items, has_more: false }] },
+    past: previous.length > 0,
   };
 }
 

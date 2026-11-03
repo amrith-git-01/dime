@@ -350,6 +350,20 @@ describe('sendDueReminders: recurring items with lead-day reminders', () => {
     expect((await sendDueReminders(makeEnv(), at('2026-11-01T00:00:00Z'), { pushSend: push.send })).recurring.due).toBe(0);
   });
 
+  it('an archived (deleted) item sends no more lead-day reminders and is not re-planned', async () => {
+    setNow('2026-10-25T05:00:00Z');
+    const { id } = await createItem();
+    expect((await call(`/api/v1/recurring/${id}`, { method: 'DELETE' })).status).toBe(204);
+    expect(await nextRemind(id)).toBeNull();
+
+    // Even if a reminder instant were left behind, the archived row is skipped by the cron.
+    await testDb().prepare("UPDATE recurring_items SET next_remind_at = '2026-10-29T03:30:00.000Z' WHERE id = ?").bind(id).run();
+    const push = fakePush();
+    const result = await sendDueReminders(makeEnv(), at('2026-10-29T03:31:00Z'), { pushSend: push.send });
+    expect(result.recurring.due).toBe(0);
+    expect(await notifications()).toEqual([]);
+  });
+
   it('income reads as expected money; the push data carries no reminder id', async () => {
     setNow('2026-10-25T05:00:00Z');
     await createItem(item({ kind: 'income', name: 'Salary', amount: '50000', remind_lead_days: [3] }));

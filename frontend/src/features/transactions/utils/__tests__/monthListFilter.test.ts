@@ -1,20 +1,29 @@
+import { formatInrCompact } from "@/utils/currency";
+
 import type { TransactionRow } from "../../types";
 import {
-  activeKindChip,
-  applyKindChip,
+  activeAmountPreset,
+  AMOUNT_PRESETS,
+  amountFilterLabel,
   applyListCriteria,
   buildListSections,
+  buildPayeeOptions,
+  computeListTotals,
   countActiveFilters,
   criteriaFromKind,
   criteriaFromSeed,
   criteriaNeedAllRows,
   DEFAULT_LIST_CRITERIA,
+  describeSelection,
   filterTransactionsByMonthListKind,
+  formatListTotalsLine,
+  listTypeFromKind,
+  matchesListType,
   matchesMonthListKind,
-  setListKind,
-  setListType,
+  monthListKindOfType,
   stepMonthWithinBounds,
   toggleListCategory,
+  toggleListPayee,
   withCategoryScopes,
 } from "../monthListFilter";
 
@@ -124,12 +133,16 @@ function tx(
 }
 
 describe("list criteria", () => {
-  it("maps chips to type and kind and back", () => {
+  it("maps a deep link's old kind onto the merged type", () => {
+    expect(listTypeFromKind(undefined)).toBe("all");
+    expect(listTypeFromKind("all")).toBe("all");
+    expect(listTypeFromKind("recurring")).toBe("recurring");
+    expect(listTypeFromKind("flexible")).toBe("flexible");
+    expect(listTypeFromKind("income")).toBe("received");
     expect(criteriaFromKind(undefined)).toEqual(DEFAULT_LIST_CRITERIA);
-    expect(criteriaFromKind("recurring")).toMatchObject({ type: "debit", kind: "recurring" });
-    expect(criteriaFromKind("income")).toMatchObject({ type: "credit", kind: "all" });
-    expect(activeKindChip(criteriaFromKind("flexible"))).toBe("flexible");
-    expect(activeKindChip(setListType(DEFAULT_LIST_CRITERIA, "debit"))).toBeNull();
+    expect(criteriaFromKind("income")).toEqual({ ...DEFAULT_LIST_CRITERIA, type: "received" });
+    expect(monthListKindOfType("received")).toBe("income");
+    expect(monthListKindOfType("spent")).toBe("all");
   });
 
   it("seeds the filters from a category and payee", () => {
@@ -138,79 +151,229 @@ describe("list criteria", () => {
       criteriaFromSeed({ kind: "flexible", categoryId: "c1", payee: " Swiggy " }),
     ).toEqual({
       ...DEFAULT_LIST_CRITERIA,
-      type: "debit",
-      kind: "flexible",
+      type: "flexible",
       categoryIds: ["c1"],
       search: "Swiggy",
     });
   });
 
-  it("keeps categories, search and sort when a chip is picked", () => {
-    const base = { ...DEFAULT_LIST_CRITERIA, categoryIds: ["c1"], search: "tea", sort: "oldest" as const };
-    expect(applyKindChip(base, "income")).toEqual({
-      ...base,
-      type: "credit",
-      kind: "all",
-    });
-  });
-
-  it("keeps type and kind consistent", () => {
-    const received = setListType(
-      { ...DEFAULT_LIST_CRITERIA, kind: "recurring" },
-      "credit",
-    );
-    expect(received.kind).toBe("all");
-    expect(setListKind(received, "flexible")).toMatchObject({
-      type: "all",
-      kind: "flexible",
-    });
-    expect(setListKind(setListType(DEFAULT_LIST_CRITERIA, "debit"), "recurring").type).toBe("debit");
-  });
-
-  it("toggles categories", () => {
+  it("toggles categories and payees", () => {
     const one = toggleListCategory(DEFAULT_LIST_CRITERIA, "a");
     expect(one.categoryIds).toEqual(["a"]);
     expect(toggleListCategory(one, "a").categoryIds).toEqual([]);
+    const payee = toggleListPayee(DEFAULT_LIST_CRITERIA, "swiggy");
+    expect(payee.payeeKeys).toEqual(["swiggy"]);
+    expect(toggleListPayee(payee, "swiggy").payeeKeys).toEqual([]);
   });
 
   it("counts the filters that differ from the default", () => {
     expect(countActiveFilters(DEFAULT_LIST_CRITERIA)).toBe(0);
     expect(
       countActiveFilters({
-        type: "debit",
-        kind: "flexible",
+        type: "spent",
         categoryIds: ["a", "b"],
+        payeeKeys: ["x"],
+        amountMinPaise: 100,
+        amountMaxPaise: null,
         search: "  ",
         sort: "amount",
       }),
-    ).toBe(4);
+    ).toBe(5);
   });
 
   it("needs every page of the month only when a filter or sort is set", () => {
     expect(criteriaNeedAllRows(DEFAULT_LIST_CRITERIA)).toBe(false);
     expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, categoryIds: ["a"] })).toBe(true);
+    expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, payeeKeys: ["a"] })).toBe(true);
+    expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, amountMaxPaise: 5 })).toBe(true);
     expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, search: "x" })).toBe(true);
     expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, sort: "oldest" })).toBe(true);
     expect(criteriaNeedAllRows(criteriaFromKind("income"))).toBe(true);
     expect(criteriaNeedAllRows({ ...DEFAULT_LIST_CRITERIA, search: "  " })).toBe(false);
   });
 
-  it("filters rows by type, kind, category and search together", () => {
+  describe("matchesListType", () => {
+    it("Spent is every debit, Received every credit, All everything", () => {
+      for (const row of [rent, coffee, uncategorised]) {
+        expect(matchesListType(row, "spent")).toBe(true);
+        expect(matchesListType(row, "received")).toBe(false);
+        expect(matchesListType(row, "all")).toBe(true);
+      }
+      expect(matchesListType(salary, "spent")).toBe(false);
+      expect(matchesListType(salary, "received")).toBe(true);
+    });
+
+    it("Recurring and Flexible are the two kinds of debit, so they cannot contradict Received", () => {
+      expect(matchesListType(rent, "recurring")).toBe(true);
+      expect(matchesListType(rent, "flexible")).toBe(false);
+      expect(matchesListType(coffee, "flexible")).toBe(true);
+      expect(matchesListType(salary, "recurring")).toBe(false);
+      expect(matchesListType(salary, "flexible")).toBe(false);
+    });
+  });
+
+  describe("applyListCriteria", () => {
     const rows = [
-      tx("rent", { category_id: "c-rent", category_scope: "recurring_expense", merchant: "Landlord" }),
-      tx("tea", { category_id: "c-food", category_scope: "spend", note: "Masala TEA" }),
-      tx("loose", { category_scope: null }),
-      tx("pay", { type: "credit", category_id: "c-sal", category_scope: "recurring_income" }),
+      tx("rent", { category_id: "c-rent", category_scope: "recurring_expense", merchant: "Landlord", counterparty_name: "Landlord", amount: "15000.00" }),
+      tx("tea", { category_id: "c-food", category_scope: "spend", note: "Masala TEA", counterparty_name: "Chai Point", amount: "120.00" }),
+      tx("loose", { category_scope: null, counterparty_name: "Swiggy", amount: "500.00" }),
+      tx("swiggy2", { category_scope: "spend", counterparty_name: "Swiggy India", counterparty_normalized: "swiggy", amount: "2000.00" }),
+      tx("pay", { type: "credit", category_id: "c-sal", category_scope: "recurring_income", counterparty_name: "Acme", amount: "50000.00" }),
     ];
     const ids = (c: Partial<typeof DEFAULT_LIST_CRITERIA>) =>
       applyListCriteria(rows, { ...DEFAULT_LIST_CRITERIA, ...c }).map((r) => r.id);
-    expect(ids({})).toEqual(["rent", "tea", "loose", "pay"]);
-    expect(ids({ type: "credit" })).toEqual(["pay"]);
-    expect(ids({ kind: "recurring" })).toEqual(["rent"]);
-    expect(ids({ kind: "flexible" })).toEqual(["tea", "loose"]);
-    expect(ids({ categoryIds: ["c-food", "__uncategorized__"] })).toEqual(["tea", "loose"]);
-    expect(ids({ search: " tea " })).toEqual(["tea"]);
-    expect(ids({ search: "landlord", type: "debit" })).toEqual(["rent"]);
+
+    it("filters by the merged type", () => {
+      expect(ids({})).toEqual(["rent", "tea", "loose", "swiggy2", "pay"]);
+      expect(ids({ type: "spent" })).toEqual(["rent", "tea", "loose", "swiggy2"]);
+      expect(ids({ type: "received" })).toEqual(["pay"]);
+      expect(ids({ type: "recurring" })).toEqual(["rent"]);
+      expect(ids({ type: "flexible" })).toEqual(["tea", "loose", "swiggy2"]);
+    });
+
+    it("filters by category, including uncategorized", () => {
+      expect(ids({ categoryIds: ["c-food", "__uncategorized__"] })).toEqual(["tea", "loose", "swiggy2"]);
+    });
+
+    it("filters by payee key, matching with the shared payee key helper", () => {
+      // "Swiggy" has no stored key (derived), "Swiggy India" carries counterparty_normalized "swiggy".
+      expect(ids({ payeeKeys: ["swiggy"] })).toEqual(["loose", "swiggy2"]);
+      expect(ids({ payeeKeys: ["landlord", "acme"] })).toEqual(["rent", "pay"]);
+      expect(ids({ payeeKeys: ["nobody"] })).toEqual([]);
+    });
+
+    it("filters by an inclusive amount range, either side optional", () => {
+      expect(ids({ amountMinPaise: 50_000 })).toEqual(["rent", "loose", "swiggy2", "pay"]);
+      expect(ids({ amountMaxPaise: 50_000 })).toEqual(["tea", "loose"]);
+      expect(ids({ amountMinPaise: 50_000, amountMaxPaise: 200_000 })).toEqual(["loose", "swiggy2"]);
+      expect(ids({ amountMinPaise: 12_000, amountMaxPaise: 12_000 })).toEqual(["tea"]);
+    });
+
+    it("searches the payee and the note, ignoring case and surrounding spaces", () => {
+      expect(ids({ search: " tea " })).toEqual(["tea"]);
+      expect(ids({ search: "LANDLORD" })).toEqual(["rent"]);
+      expect(ids({ search: "chai" })).toEqual(["tea"]);
+      expect(ids({ search: "swiggy" })).toEqual(["loose", "swiggy2"]);
+    });
+
+    it("combines the filters", () => {
+      expect(ids({ type: "spent", search: "swiggy", amountMinPaise: 100_000 })).toEqual(["swiggy2"]);
+      expect(ids({ type: "received", search: "landlord" })).toEqual([]);
+    });
+  });
+
+  describe("amount presets", () => {
+    it("are inclusive ranges that name themselves", () => {
+      const [under, mid, high, over] = AMOUNT_PRESETS;
+      expect([under.label, mid.label, high.label, over.label]).toEqual([
+        "Under ₹500",
+        "₹500–2,000",
+        "₹2,000–10,000",
+        "Over ₹10,000",
+      ]);
+      const apply = (preset: (typeof AMOUNT_PRESETS)[number], amount: string) =>
+        applyListCriteria([tx("x", { amount })], {
+          ...DEFAULT_LIST_CRITERIA,
+          amountMinPaise: preset.minPaise,
+          amountMaxPaise: preset.maxPaise,
+        }).length === 1;
+      expect(apply(under, "499.99")).toBe(true);
+      expect(apply(under, "500.00")).toBe(false);
+      expect(apply(mid, "500.00")).toBe(true);
+      expect(apply(mid, "2000.00")).toBe(true);
+      expect(apply(mid, "2000.01")).toBe(false);
+      expect(apply(high, "2000.00")).toBe(false);
+      expect(apply(high, "2000.01")).toBe(true);
+      expect(apply(high, "10000.00")).toBe(true);
+      expect(apply(over, "10000.00")).toBe(false);
+      expect(apply(over, "10000.01")).toBe(true);
+    });
+
+    it("finds the preset the bounds match, and labels custom ranges", () => {
+      const mid = AMOUNT_PRESETS[1];
+      const criteria = { ...DEFAULT_LIST_CRITERIA, amountMinPaise: mid.minPaise, amountMaxPaise: mid.maxPaise };
+      expect(activeAmountPreset(criteria)?.id).toBe(mid.id);
+      expect(amountFilterLabel(criteria)).toBe("₹500–2,000");
+      expect(activeAmountPreset({ ...criteria, amountMaxPaise: 300_000 })).toBeNull();
+      expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMinPaise: 50_000 })).toBe(`${formatInrCompact(500)}+`);
+      expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMinPaise: 70_000, amountMaxPaise: 300_000 })).toBe(`${formatInrCompact(700)} – ${formatInrCompact(3000)}`);
+      expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMaxPaise: 100_000 })).toBe(`Up to ${formatInrCompact(1000)}`);
+    });
+  });
+
+  it("describes a multi-select for the chip and for screen readers", () => {
+    expect(describeSelection([])).toEqual({ label: "", spoken: "" });
+    expect(describeSelection(["Food"])).toEqual({ label: "Food", spoken: "Food" });
+    expect(describeSelection(["Food", "Rent", "Fun"])).toEqual({
+      label: "Food +2",
+      spoken: "Food and 2 more",
+    });
+  });
+});
+
+describe("payee options", () => {
+  it("lists the payees in the rows, most transactions first, then the larger total", () => {
+    const rows = [
+      tx("a", { counterparty_name: "Swiggy", amount: "100.00" }),
+      tx("b", { counterparty_name: "Swiggy", amount: "50.00" }),
+      tx("c", { counterparty_name: "Uber", amount: "900.00" }),
+      tx("d", { counterparty_name: "Chai Point", amount: "20.00" }),
+      tx("e", { counterparty_name: "Uber Eats", counterparty_normalized: "uber", amount: "1.00" }),
+    ];
+    expect(buildPayeeOptions(rows)).toEqual([
+      { key: "uber", name: "Uber", count: 2, totalPaise: 90_100 },
+      { key: "swiggy", name: "Swiggy", count: 2, totalPaise: 15_000 },
+      { key: "chai point", name: "Chai Point", count: 1, totalPaise: 2_000 },
+    ].sort((a, b) => b.count - a.count || b.totalPaise - a.totalPaise));
+  });
+
+  it("falls back to the merchant, then Unknown", () => {
+    const rows = [
+      tx("a", { counterparty_name: null, merchant: "Corner Shop" }),
+      tx("b", { counterparty_name: null, merchant: "" }),
+    ];
+    expect(buildPayeeOptions(rows).map((o) => o.name).sort()).toEqual(["Corner Shop", "Unknown"]);
+  });
+});
+
+describe("list totals", () => {
+  const rows = [
+    tx("a", { amount: "100.50" }),
+    tx("b", { amount: "399.50" }),
+    tx("c", { type: "credit", amount: "1000.00" }),
+  ];
+
+  it("adds up what was spent and what was received", () => {
+    expect(computeListTotals(rows)).toEqual({ count: 3, spentPaise: 50_000, receivedPaise: 100_000 });
+    expect(computeListTotals([])).toEqual({ count: 0, spentPaise: 0, receivedPaise: 0 });
+  });
+
+  it("formats the line, leaving out zero parts", () => {
+    expect(formatListTotalsLine({ count: 24, spentPaise: 950_900, receivedPaise: 5_833_300 })).toBe(
+      `24 transactions · ${formatInrCompact(9509)} spent · ${formatInrCompact(58333)} received`,
+    );
+    expect(formatListTotalsLine({ count: 3, spentPaise: 50_000, receivedPaise: 0 })).toBe(
+      `3 transactions · ${formatInrCompact(500)} spent`,
+    );
+    expect(formatListTotalsLine({ count: 2, spentPaise: 0, receivedPaise: 100_000 })).toBe(
+      `2 transactions · ${formatInrCompact(1000)} received`,
+    );
+    expect(formatListTotalsLine({ count: 0, spentPaise: 0, receivedPaise: 0 })).toBe("0 transactions");
+  });
+
+  it("says '1 transaction' for one", () => {
+    expect(formatListTotalsLine({ count: 1, spentPaise: 12_000, receivedPaise: 0 })).toBe(
+      `1 transaction · ${formatInrCompact(120)} spent`,
+    );
+  });
+
+  it("marks a partial count with + and leaves the money out until every page is loaded", () => {
+    expect(formatListTotalsLine({ count: 20, spentPaise: 10_000, receivedPaise: 0 }, true)).toBe(
+      "20+ transactions",
+    );
+    expect(formatListTotalsLine({ count: 1, spentPaise: 0, receivedPaise: 0 }, true)).toBe(
+      "1+ transactions",
+    );
   });
 });
 

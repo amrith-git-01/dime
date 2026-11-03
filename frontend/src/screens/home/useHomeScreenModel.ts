@@ -154,8 +154,12 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const monthLabel = format(now, "MMM yyyy");
   const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
   const monthFixedSpent = overview ? fixedSpentPaise / 100 : 0;
+  // Entries saved offline are flexible until the server has them, so the bar matches the hero amount.
   const monthFlexibleSpent = overview
-    ? toPaise(overview.flexible_spent_this_month) / 100
+    ? Math.max(
+        toPaise(overview.flexible_spent_this_month) / 100,
+        (toPaise(spentThisMonth) - fixedSpentPaise) / 100,
+      )
     : 0;
 
   const monthSummaryData = monthSummaryQuery.data
@@ -218,23 +222,27 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     !isPending && recentTransactions.length === 0 && !isError;
 
   const onNavigateBudgets = useCallback(() => {
-    navigation.navigate("Budgets");
+    navigation.navigate("Budgets", { scrollTo: "categories" });
   }, [navigation]);
   const onAddMonthlyBudget = useCallback(() => {
     navigation.navigate("EditMonthlyBudget", { mode: "create" });
   }, [navigation]);
   const onNavigateTransactions = useCallback(() => {
-    navigation.navigate("Transactions");
-  }, [navigation]);
+    navigation.navigate("Transactions", {
+      mode: "list",
+      year: now.getFullYear(),
+      monthIndex0: now.getMonth(),
+    });
+  }, [navigation, now]);
 
   const onAddRecurring = useCallback(() => {
-    navigation.navigate("Budgets", { recurringKind: "subscription" });
+    navigation.navigate("Budgets", { recurringKind: "subscription", scrollTo: "recurring" });
   }, [navigation]);
   const openAgentChat = useAgentChatUiStore((s) => s.open);
 
   const onUpcomingPress = useCallback(
     (item: RecurringItem) => {
-      navigation.navigate("Budgets", { recurringKind: item.kind });
+      navigation.navigate("Budgets", { recurringKind: item.kind, scrollTo: "recurring" });
     },
     [navigation],
   );
@@ -245,8 +253,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     },
     [navigation],
   );
-  const onSeeAllReminders = useCallback(() => {
-    navigation.navigate("Reminders");
+  const onSeeAllUpcoming = useCallback(() => {
+    navigation.navigate("Budgets", { scrollTo: "recurring" });
   }, [navigation]);
   const onAddReminder = useCallback(() => {
     navigation.navigate("ReminderEditor", {});
@@ -286,26 +294,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     [navigation, now],
   );
 
-  const openMonthList = useCallback(
-    (kind: "all" | "recurring" | "flexible") => {
-      navigation.navigate("MainTabs", {
-        screen: "Transactions",
-        params: {
-          mode: "list",
-          year: now.getFullYear(),
-          monthIndex0: now.getMonth(),
-          kind,
-        },
-        pop: true,
-      });
-    },
-    [navigation, now],
-  );
-  const onViewMonthSplit = useCallback(() => openMonthList("all"), [openMonthList]);
-
   return {
-    onViewMonthSplit,
-    onPressMonthSplitKind: openMonthList,
     creditedDisplay,
     incomeValue,
     debitedDisplay,
@@ -342,7 +331,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     upcomingToday,
     onUpcomingPress,
     onReminderPress,
-    onSeeAllReminders,
+    onSeeAllUpcoming,
     onAddReminder,
     updatedLabel:
       !isOnline && dataUpdatedAt > 0

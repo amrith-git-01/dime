@@ -203,6 +203,45 @@ describe('GET /transactions', () => {
     expect((await res.json<{ day_summaries: unknown }>()).day_summaries).toEqual({});
   });
 
+  it('recurring_item_id filter: only that item\'s rows (archived items too), user-scoped, no day summaries', async () => {
+    const RENT_ITEM = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const GYM_ITEM = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const THEIRS = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const OTHER_USER = '99999999-9999-4999-8999-999999999999';
+    await seedUser(OTHER_USER);
+    const item = (id: string, userId: string, name: string, archivedAt: string | null) =>
+      testDb()
+        .prepare(
+          `INSERT INTO recurring_items (id, user_id, kind, name, amount, cadence, day_of_month, timezone, next_due_date, active, archived_at)
+           VALUES (?, ?, 'subscription', ?, 100000, 'monthly', 1, 'Asia/Kolkata', '2026-11-01', ?, ?)`,
+        )
+        .bind(id, userId, name, archivedAt ? 0 : 1, archivedAt)
+        .run();
+    await item(RENT_ITEM, USER_ID, 'Rent', null);
+    await item(GYM_ITEM, USER_ID, 'Gym', '2026-10-20T00:00:00.000Z'); // archived: its history is still readable
+    await item(THEIRS, OTHER_USER, 'Theirs', null);
+    const tx = (n: number, over: Parameters<typeof seedTransaction>[0]) =>
+      seedTransaction({ id: `00000000-0000-4000-8000-00000000000${n}`, transaction_at: `2026-10-0${n}T00:00:00.000Z`, ...over });
+    await tx(1, { recurring_item_id: RENT_ITEM });
+    await tx(2, { recurring_item_id: GYM_ITEM });
+    await tx(3, { recurring_item_id: RENT_ITEM });
+    await tx(4, { recurring_item_id: null });
+    await tx(5, { recurring_item_id: THEIRS, user_id: OTHER_USER });
+    const ids = async (query: string) => (await (await call(`/api/v1/transactions?${query}`)).json<{ items: { id: string }[] }>()).items.map((i) => i.id.slice(-1));
+
+    expect(await ids(`recurring_item_id=${RENT_ITEM}`)).toEqual(['3', '1']);
+    expect(await ids(`recurring_item_id=${GYM_ITEM}`)).toEqual(['2']);
+    // Another user's item matches nothing for the caller.
+    expect(await ids(`recurring_item_id=${THEIRS}`)).toEqual([]);
+    // An empty value is ignored, like the other filters.
+    expect(await ids('recurring_item_id=')).toEqual(['4', '3', '2', '1']);
+    expect((await call('/api/v1/transactions?recurring_item_id=nope')).status).toBe(422);
+    // Filtered lists carry no day summaries, even for a range query.
+    const res = await call(`/api/v1/transactions?recurring_item_id=${RENT_ITEM}&from=2026-10-01T00:00:00Z&to=2026-11-01T00:00:00Z&${TZ}`);
+    expect(res.status).toBe(200);
+    expect((await res.json<{ day_summaries: unknown }>()).day_summaries).toEqual({});
+  });
+
   it('ignores empty filter params', async () => {
     await seedTx();
     const res = await call('/api/v1/transactions?payee=&category_id=');

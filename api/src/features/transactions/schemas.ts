@@ -159,6 +159,8 @@ export const listQuerySchema = z.object({
   category_id: z.preprocess((v) => (v === '' ? undefined : v), uuidString.optional()),
   /** C3: case-insensitive "contains" on the payee (normalized key or name). */
   payee: z.string().max(200).optional(),
+  /** Only the transactions a recurring item posted (its history; archived items too). */
+  recurring_item_id: z.preprocess((v) => (v === '' ? undefined : v), uuidString.optional()),
 });
 export type ListQuery = z.output<typeof listQuerySchema>;
 

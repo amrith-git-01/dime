@@ -138,7 +138,7 @@ describe("HomeUpcomingSection", () => {
     const tree = await renderTree(
       wrap(<HomeUpcomingSection entries={entries} today={TODAY} {...props} />),
     );
-    press(tree, "See all reminders");
+    press(tree, "See all upcoming");
     expect(props.onSeeAll).toHaveBeenCalledTimes(1);
     press(tree, "Add a reminder");
     expect(props.onAdd).toHaveBeenCalledTimes(1);

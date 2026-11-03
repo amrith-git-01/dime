@@ -33,6 +33,7 @@ const AGGREGATE_TRANSACTION_GROUPS: ReadonlySet<unknown> = new Set([
   "home",
   "monthSummary",
   "filteredMonthPages",
+  "historyPages",
   "rangePages",
 ]);
 

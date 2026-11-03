@@ -15,6 +15,6 @@ export type BudgetMonthBentoSummary = {
   fixedSpent?: number;
   /** Flexible spend this month, in rupees. */
   flexibleSpent?: number;
-  /** "₹Z recurring still to come"; null when nothing recurring is left this month. */
-  upcomingLine?: string | null;
+  /** Recurring still to come this month, in rupees; 0 or absent when nothing recurring is left. */
+  upcomingRecurring?: number;
 };

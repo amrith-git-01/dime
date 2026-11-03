@@ -35,6 +35,8 @@ export type TransactionListFilters = {
   /** Case-insensitive "contains" match on the payee. */
   payee?: string;
   categoryId?: string;
+  /** Only the transactions this recurring item posted (its whole history). */
+  recurringItemId?: string;
 };
 
 export async function fetchTransactionsPage(input: {
@@ -56,6 +58,7 @@ export async function fetchTransactionsPage(input: {
         timezone: input.timezone ?? undefined,
         payee: input.filters?.payee || undefined,
         category_id: input.filters?.categoryId || undefined,
+        recurring_item_id: input.filters?.recurringItemId || undefined,
       },
     },
   );

@@ -53,4 +53,13 @@ describe("resolveListEmptyCopy", () => {
       emptyStateCopy.transactionsListCategoryRange,
     );
   });
+
+  it("names the recurring item for its history", () => {
+    expect(resolveListEmptyCopy("recurring", false, "debit", "all", "Netflix").headline).toBe(
+      "No payments recorded for Netflix yet",
+    );
+    expect(resolveListEmptyCopy("recurring", false, "debit").headline).toBe(
+      "No payments recorded yet",
+    );
+  });
 });

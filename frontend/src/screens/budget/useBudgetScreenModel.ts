@@ -58,6 +58,11 @@ export function useBudgetScreenModel() {
     if (canGoNextMonth) handleSelectBudgetMonth(selectedMonthIndex - 1);
   }, [canGoNextMonth, handleSelectBudgetMonth, selectedMonthIndex]);
 
+  const showCurrentMonth = useCallback(
+    () => handleSelectBudgetMonth(0),
+    [handleSelectBudgetMonth],
+  );
+
   // The tour may change the month; it puts it back when it ends.
   useTourRestorable("budgets.month", {
     snapshot: () => selectedMonthIndex,
@@ -166,23 +171,6 @@ export function useBudgetScreenModel() {
     [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
   );
 
-  const openMonthList = useCallback(
-    (kind: "all" | "recurring" | "flexible") => {
-      stackNavigation.navigate("MainTabs", {
-        screen: "Transactions",
-        params: {
-          mode: "list",
-          year: selectedMonth.year,
-          monthIndex0: selectedMonth.monthIndex0,
-          kind,
-        },
-        pop: true,
-      });
-    },
-    [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
-  );
-  const viewMonthSplit = useCallback(() => openMonthList("all"), [openMonthList]);
-
   const spentMonthNum = monthSummaryQuery.data
     ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
     : Number.NaN;
@@ -233,10 +221,6 @@ export function useBudgetScreenModel() {
   const upcomingPaise = toPaise(
     recurringMonthQuery.data?.totals.fixed_expense_upcoming,
   );
-  const upcomingLine =
-    upcomingPaise > 0
-      ? `${formatInrCompact(upcomingPaise / 100)} recurring still to come`
-      : null;
 
   const monthSummary: BudgetMonthBentoSummary | null =
     summaryLoading || monthSummaryFailed
@@ -257,7 +241,7 @@ export function useBudgetScreenModel() {
           usageLabel,
           fixedSpent: fixedPaise / 100,
           flexibleSpent: flexiblePaise / 100,
-          upcomingLine,
+          upcomingRecurring: upcomingPaise / 100,
         };
 
   const categoriesStillLoading = categoriesLoading && categories.length === 0;
@@ -307,8 +291,6 @@ export function useBudgetScreenModel() {
     handleEditBudget,
     handleEditCategory,
     openCategoryTransactions,
-    openMonthList,
-    viewMonthSplit,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,
@@ -320,6 +302,7 @@ export function useBudgetScreenModel() {
     monthSummaryFailed,
     monthlyBudgetAmount,
     selectedMonth,
+    showCurrentMonth,
     suggestedBudget,
     summaryLoading,
   };

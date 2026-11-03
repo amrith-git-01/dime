@@ -1,7 +1,10 @@
+import { formatInrCompact } from "@/utils/currency";
 import { toPaise } from "@/utils/paise";
 
 import { UNCATEGORIZED_CATEGORY_KEY } from "../constants/uncategorizedCategoryKey";
 import type { CategoryScope, TransactionRow } from "../types";
+
+import { transactionPayeeKey } from "./payeeKey";
 
 import {
   groupTransactionsByCalendarDay,
@@ -10,20 +13,6 @@ import {
 
 /** What the month list narrows to: everything, or one slice of the month's money. */
 export type MonthListKind = "all" | "recurring" | "flexible" | "income";
-
-export const MONTH_LIST_KINDS: readonly MonthListKind[] = [
-  "all",
-  "recurring",
-  "flexible",
-  "income",
-];
-
-export const MONTH_LIST_KIND_LABELS: Record<MonthListKind, string> = {
-  all: "All",
-  recurring: "Recurring",
-  flexible: "Flexible",
-  income: "Income",
-};
 
 /**
  * Whether a row belongs to the kind. Mirrors the API's split (IS_FIXED =
@@ -81,47 +70,71 @@ export function filterTransactionsByMonthListKind(
 }
 
 // ---------------------------------------------------------------------------
-// The general list's filters: type, kind, categories, text search and sort.
+// The general list's filters: type, categories, payees, amount, text search and sort.
 // ---------------------------------------------------------------------------
 
-export type ListTypeFilter = "all" | "debit" | "credit";
-export type ListKindFilter = "all" | "recurring" | "flexible";
+/**
+ * One merged "type": Spent is every debit, Recurring and Flexible are the two kinds of debit,
+ * Received is every credit. A single value, so contradictory combinations cannot exist.
+ */
+export type ListTypeFilter = "all" | "spent" | "recurring" | "flexible" | "received";
 export type ListSort = "newest" | "oldest" | "amount";
+
+export const LIST_TYPE_FILTERS: readonly ListTypeFilter[] = [
+  "all",
+  "spent",
+  "recurring",
+  "flexible",
+  "received",
+];
+
+export const LIST_TYPE_LABELS: Record<ListTypeFilter, string> = {
+  all: "All",
+  spent: "Spent",
+  recurring: "Recurring",
+  flexible: "Flexible",
+  received: "Received",
+};
+
+export const LIST_SORT_LABELS: Record<ListSort, string> = {
+  newest: "Newest",
+  oldest: "Oldest",
+  amount: "Highest amount",
+};
 
 export type ListCriteria = {
   type: ListTypeFilter;
-  /** Recurring / flexible only ever match debits. */
-  kind: ListKindFilter;
   /** Category ids (or {@link UNCATEGORIZED_CATEGORY_KEY}); empty = every category. */
   categoryIds: string[];
+  /** Payee keys (see `transactionPayeeKey`); empty = every payee. */
+  payeeKeys: string[];
+  /** Inclusive amount bounds in paise (absolute amounts); null = no bound on that side. */
+  amountMinPaise: number | null;
+  amountMaxPaise: number | null;
   search: string;
   sort: ListSort;
 };
 
 export const DEFAULT_LIST_CRITERIA: ListCriteria = {
   type: "all",
-  kind: "all",
   categoryIds: [],
+  payeeKeys: [],
+  amountMinPaise: null,
+  amountMaxPaise: null,
   search: "",
   sort: "newest",
 };
 
-/** The quick chips are shortcuts for a type + kind pair. */
-const CHIP_CRITERIA: Record<
-  MonthListKind,
-  Pick<ListCriteria, "type" | "kind">
-> = {
-  all: { type: "all", kind: "all" },
-  recurring: { type: "debit", kind: "recurring" },
-  flexible: { type: "debit", kind: "flexible" },
-  income: { type: "credit", kind: "all" },
-};
-
-export function criteriaFromKind(kind: MonthListKind | undefined): ListCriteria {
-  return { ...DEFAULT_LIST_CRITERIA, ...CHIP_CRITERIA[kind ?? "all"] };
+/** The type a deep link's old `kind` value (all / recurring / flexible / income) stands for. */
+export function listTypeFromKind(kind: MonthListKind | undefined): ListTypeFilter {
+  return kind === "income" ? "received" : (kind ?? "all");
 }
 
-/** The starting filters for a list opened from elsewhere (a split bar, a category, a payee). */
+export function criteriaFromKind(kind: MonthListKind | undefined): ListCriteria {
+  return { ...DEFAULT_LIST_CRITERIA, type: listTypeFromKind(kind) };
+}
+
+/** The starting filters for a list opened from elsewhere (a link, a category, a payee). */
 export function criteriaFromSeed(seed: {
   kind?: MonthListKind;
   categoryId?: string;
@@ -131,49 +144,6 @@ export function criteriaFromSeed(seed: {
     ...criteriaFromKind(seed.kind),
     categoryIds: seed.categoryId ? [seed.categoryId] : [],
     search: seed.payee?.trim() ?? "",
-  };
-}
-
-/** Selects a chip: replaces type and kind, keeps categories, search and sort. */
-export function applyKindChip(
-  criteria: ListCriteria,
-  kind: MonthListKind,
-): ListCriteria {
-  return { ...criteria, ...CHIP_CRITERIA[kind] };
-}
-
-/** The chip whose type + kind the criteria match exactly, or null (e.g. type Spent with any kind). */
-export function activeKindChip(criteria: ListCriteria): MonthListKind | null {
-  return (
-    MONTH_LIST_KINDS.find(
-      (kind) =>
-        CHIP_CRITERIA[kind].type === criteria.type &&
-        CHIP_CRITERIA[kind].kind === criteria.kind,
-    ) ?? null
-  );
-}
-
-/** Received money is never recurring or flexible spend, so Received clears the kind. */
-export function setListType(
-  criteria: ListCriteria,
-  type: ListTypeFilter,
-): ListCriteria {
-  return {
-    ...criteria,
-    type,
-    kind: type === "credit" ? "all" : criteria.kind,
-  };
-}
-
-/** A kind is a kind of spend, so picking one moves Received back to All. */
-export function setListKind(
-  criteria: ListCriteria,
-  kind: ListKindFilter,
-): ListCriteria {
-  return {
-    ...criteria,
-    kind,
-    type: kind !== "all" && criteria.type === "credit" ? "all" : criteria.type,
   };
 }
 
@@ -190,12 +160,30 @@ export function toggleListCategory(
   };
 }
 
-/** How many filters differ from the default (the badge on the Filters button). */
+export function toggleListPayee(
+  criteria: ListCriteria,
+  payeeKey: string,
+): ListCriteria {
+  const has = criteria.payeeKeys.includes(payeeKey);
+  return {
+    ...criteria,
+    payeeKeys: has
+      ? criteria.payeeKeys.filter((key) => key !== payeeKey)
+      : [...criteria.payeeKeys, payeeKey],
+  };
+}
+
+export function hasAmountFilter(criteria: ListCriteria): boolean {
+  return criteria.amountMinPaise !== null || criteria.amountMaxPaise !== null;
+}
+
+/** How many filters differ from the default (search and sort count as one each). */
 export function countActiveFilters(criteria: ListCriteria): number {
   return (
     (criteria.type !== "all" ? 1 : 0) +
-    (criteria.kind !== "all" ? 1 : 0) +
     (criteria.categoryIds.length > 0 ? 1 : 0) +
+    (criteria.payeeKeys.length > 0 ? 1 : 0) +
+    (hasAmountFilter(criteria) ? 1 : 0) +
     (criteria.search.trim().length > 0 ? 1 : 0) +
     (criteria.sort !== "newest" ? 1 : 0)
   );
@@ -207,6 +195,64 @@ export function countActiveFilters(criteria: ListCriteria): number {
  */
 export function criteriaNeedAllRows(criteria: ListCriteria): boolean {
   return countActiveFilters(criteria) > 0;
+}
+
+/** The old kind a type filter alone stands for, for the empty-state copy; null for Spent / All. */
+export function monthListKindOfType(type: ListTypeFilter): MonthListKind {
+  if (type === "received") return "income";
+  if (type === "recurring" || type === "flexible") return type;
+  return "all";
+}
+
+/** Whether a row belongs to the type. Spent is any debit; the rest follow {@link matchesMonthListKind}. */
+export function matchesListType(
+  row: Pick<TransactionRow, "type" | "category_scope">,
+  type: ListTypeFilter,
+): boolean {
+  if (type === "all") return true;
+  if (type === "spent") return row.type === "debit";
+  return matchesMonthListKind(row, monthListKindOfType(type));
+}
+
+// Amount presets of the Amount filter (rupees; the upper bound of a preset is inclusive).
+export type AmountPreset = {
+  id: string;
+  label: string;
+  minPaise: number | null;
+  maxPaise: number | null;
+};
+
+export const AMOUNT_PRESETS: readonly AmountPreset[] = [
+  { id: "under-500", label: "Under ₹500", minPaise: null, maxPaise: 49_999 },
+  { id: "500-2000", label: "₹500–2,000", minPaise: 50_000, maxPaise: 200_000 },
+  { id: "2000-10000", label: "₹2,000–10,000", minPaise: 200_001, maxPaise: 1_000_000 },
+  { id: "over-10000", label: "Over ₹10,000", minPaise: 1_000_001, maxPaise: null },
+];
+
+/** The preset whose bounds the criteria carry exactly, or null. */
+export function activeAmountPreset(criteria: ListCriteria): AmountPreset | null {
+  return (
+    AMOUNT_PRESETS.find(
+      (preset) =>
+        preset.minPaise === criteria.amountMinPaise &&
+        preset.maxPaise === criteria.amountMaxPaise,
+    ) ?? null
+  );
+}
+
+function formatRupees(paise: number): string {
+  return formatInrCompact(paise / 100);
+}
+
+/** The Amount chip's value: a preset's label, "₹700 – ₹3,000", "₹500+" or "Up to ₹2,000". */
+export function amountFilterLabel(criteria: ListCriteria): string {
+  const preset = activeAmountPreset(criteria);
+  if (preset) return preset.label;
+  const { amountMinPaise: min, amountMaxPaise: max } = criteria;
+  if (min !== null && max !== null) return `${formatRupees(min)} – ${formatRupees(max)}`;
+  if (min !== null) return `${formatRupees(min)}+`;
+  if (max !== null) return `Up to ${formatRupees(max)}`;
+  return "Amount";
 }
 
 function rowCategoryKey(row: TransactionRow): string {
@@ -227,16 +273,94 @@ export function applyListCriteria(
 ): TransactionRow[] {
   const needle = criteria.search.trim().toLowerCase();
   const categories = new Set(criteria.categoryIds);
+  const payees = new Set(criteria.payeeKeys);
+  const { amountMinPaise: min, amountMaxPaise: max } = criteria;
   return rows.filter((row) => {
-    if (criteria.type !== "all" && row.type !== criteria.type) return false;
-    if (criteria.kind !== "all" && !matchesMonthListKind(row, criteria.kind)) {
-      return false;
-    }
+    if (!matchesListType(row, criteria.type)) return false;
     if (categories.size > 0 && !categories.has(rowCategoryKey(row))) {
       return false;
     }
+    if (payees.size > 0 && !payees.has(transactionPayeeKey(row))) {
+      return false;
+    }
+    if (min !== null || max !== null) {
+      const paise = Math.abs(toPaise(row.amount));
+      if (min !== null && paise < min) return false;
+      if (max !== null && paise > max) return false;
+    }
     return needle.length === 0 || rowMatchesSearch(row, needle);
   });
+}
+
+export type PayeeOption = {
+  key: string;
+  name: string;
+  count: number;
+  /** Sum of the payee's absolute amounts, in paise. */
+  totalPaise: number;
+};
+
+/** The payees present in the rows, most transactions first (then the larger total, then by name). */
+export function buildPayeeOptions(rows: readonly TransactionRow[]): PayeeOption[] {
+  const byKey = new Map<string, PayeeOption>();
+  for (const row of rows) {
+    const key = transactionPayeeKey(row);
+    const existing = byKey.get(key);
+    const paise = Math.abs(toPaise(row.amount));
+    if (existing) {
+      existing.count += 1;
+      existing.totalPaise += paise;
+    } else {
+      const name = row.counterparty_name?.trim() || row.merchant?.trim() || "Unknown";
+      byKey.set(key, { key, name, count: 1, totalPaise: paise });
+    }
+  }
+  return [...byKey.values()].sort(
+    (a, b) =>
+      b.count - a.count ||
+      b.totalPaise - a.totalPaise ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+/** A multi-select's chip value: "Food", "Food +2" (spoken: "Food and 2 more"); "" when none. */
+export function describeSelection(names: readonly string[]): { label: string; spoken: string } {
+  if (names.length === 0) return { label: "", spoken: "" };
+  const [first] = names;
+  if (names.length === 1) return { label: first, spoken: first };
+  const more = names.length - 1;
+  return { label: `${first} +${more}`, spoken: `${first} and ${more} more` };
+}
+
+export type ListTotals = {
+  count: number;
+  spentPaise: number;
+  receivedPaise: number;
+};
+
+export function computeListTotals(rows: readonly TransactionRow[]): ListTotals {
+  let spentPaise = 0;
+  let receivedPaise = 0;
+  for (const row of rows) {
+    const paise = Math.abs(toPaise(row.amount));
+    if (row.type === "credit") receivedPaise += paise;
+    else spentPaise += paise;
+  }
+  return { count: rows.length, spentPaise, receivedPaise };
+}
+
+/**
+ * "24 transactions · ₹9,509 spent · ₹58,333 received": zero parts are left out and one row is
+ * "1 transaction". `partial` (more pages still to load) marks the count with a "+".
+ */
+export function formatListTotalsLine(totals: ListTotals, partial = false): string {
+  const plural = totals.count !== 1 || partial;
+  const parts = [`${totals.count}${partial ? "+" : ""} transaction${plural ? "s" : ""}`];
+  if (!partial) {
+    if (totals.spentPaise > 0) parts.push(`${formatRupees(totals.spentPaise)} spent`);
+    if (totals.receivedPaise > 0) parts.push(`${formatRupees(totals.receivedPaise)} received`);
+  }
+  return parts.join(" · ");
 }
 
 function rowTime(row: TransactionRow): number {

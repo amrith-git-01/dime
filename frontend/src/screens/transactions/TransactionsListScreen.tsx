@@ -38,9 +38,8 @@ export default function TransactionsListScreen() {
     showInitialLoading,
     showLoadingMore,
     loadMore,
-    transactionCountLabel,
-    transactionCountIsPlural,
-    monthLabel,
+    subtitle,
+    recurringName,
   } = useTransactionsListScreenModel();
   const insets = useSafeAreaInsets();
   const listTourTarget = useTourTarget(tourTargetIds.transactionsListHeader);
@@ -77,7 +76,7 @@ export default function TransactionsListScreen() {
   }
 
   if (isEmpty) {
-    const copy = resolveListEmptyCopy(filter, usesRange, direction);
+    const copy = resolveListEmptyCopy(filter, usesRange, direction, "all", recurringName);
     return (
       <View style={styles.fill}>
         <EmptyState
@@ -109,7 +108,7 @@ export default function TransactionsListScreen() {
         ListHeaderComponent={
           <View style={styles.subtitleRow}>
             <Text style={styles.subtitle}>
-              {`${transactionCountLabel} transaction${transactionCountIsPlural ? "s" : ""} · ${monthLabel}`}
+              {subtitle}
             </Text>
           </View>
         }

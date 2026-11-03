@@ -37,3 +37,5 @@ export {
 export type { TransactionRowProps } from "./TransactionRow";
 export { VoiceCaptureBar } from "./VoiceCaptureBar";
 export { VoiceMiniWaveform } from "./VoiceMiniWaveform";
+export { TransactionFilterBar } from "./filters/TransactionFilterBar";
+export type { TransactionFilterBarProps } from "./filters/TransactionFilterBar";

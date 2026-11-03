@@ -5,11 +5,21 @@ import type { PayeeDirection } from "@/features/transactions/utils/payeeKey";
 
 /** Empty-state copy for the transactions list, by what it was filtered on. */
 export function resolveListEmptyCopy(
-  filter: "day" | "category" | "payee" | "month",
+  filter: "day" | "category" | "payee" | "month" | "recurring",
   usesRange: boolean,
   direction: PayeeDirection,
   monthKind: MonthListKind | "filtered" = "all",
+  /** The recurring item's name, for its empty list. */
+  recurringName = "",
 ) {
+  if (filter === "recurring") {
+    return {
+      headline: recurringName
+        ? `No payments recorded for ${recurringName} yet`
+        : "No payments recorded yet",
+      subtext: "Payments show up here once this recurring item has posted.",
+    };
+  }
   if (filter === "month") {
     switch (monthKind) {
       case "recurring":

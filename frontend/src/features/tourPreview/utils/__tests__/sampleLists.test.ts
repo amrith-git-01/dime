@@ -1,6 +1,7 @@
 import { buildSampleSet } from "../buildSampleMonth";
 import {
   filterSamplePages,
+  sampleHistoryRows,
   sampleRowMatchesFilters,
   sampleRowsInRange,
 } from "../sampleLists";
@@ -99,5 +100,43 @@ describe("sampleRowsInRange", () => {
         .data.pages[0].items,
     ).toEqual([]);
     expect(sampleRowsInRange(set, "", "", undefined).data.pages[0].items).toEqual([]);
+  });
+});
+
+describe("recurring item history", () => {
+  const posted = rows.find((row) => row.recurring_item_id);
+
+  it("matches a row by the recurring item that posted it", () => {
+    expect(posted).toBeDefined();
+    const id = posted!.recurring_item_id!;
+    expect(sampleRowMatchesFilters(posted!, { recurringItemId: id })).toBe(true);
+    expect(sampleRowMatchesFilters(posted!, { recurringItemId: "another-item" })).toBe(false);
+    const manual = rows.find((row) => !row.recurring_item_id)!;
+    expect(sampleRowMatchesFilters(manual, { recurringItemId: id })).toBe(false);
+  });
+
+  it("narrows month pages by recurring item", () => {
+    const id = posted!.recurring_item_id!;
+    const narrowed = filterSamplePages(set.current.monthPages, { recurringItemId: id });
+    expect(narrowed.pages[0].items.length).toBeGreaterThan(0);
+    expect(narrowed.pages[0].items.every((row) => row.recurring_item_id === id)).toBe(true);
+  });
+
+  it("lists every sample row of the item (this month and last), newest first, in one page", () => {
+    const id = posted!.recurring_item_id!;
+    const { data } = sampleHistoryRows(set, { recurringItemId: id });
+    const items = data.pages[0].items;
+    expect(data.pages).toHaveLength(1);
+    expect(data.pages[0].has_more).toBe(false);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((row) => row.recurring_item_id === id)).toBe(true);
+    const times = items.map((row) => row.transaction_at);
+    expect([...times].sort().reverse()).toEqual(times);
+  });
+
+  it("is empty for an item the sample does not have", () => {
+    const { data, past } = sampleHistoryRows(set, { recurringItemId: "nope" });
+    expect(data.pages[0].items).toEqual([]);
+    expect(past).toBe(false);
   });
 });

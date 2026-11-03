@@ -1,5 +1,5 @@
 import { transactionsQueryKeys } from "../../queryKeys";
-import { transactionsMonthPagesQueryOptions } from "../monthPagesQueryOptions";
+import { hasListFilters, transactionsMonthPagesQueryOptions } from "../monthPagesQueryOptions";
 import { dimeApi } from "@/lib/api/dimeApi";
 
 jest.mock("@/lib/api/dimeApi", () => ({
@@ -56,5 +56,15 @@ describe("transactionsMonthPagesQueryOptions", () => {
         payee: "swiggy",
       }),
     );
+  });
+});
+
+describe("hasListFilters", () => {
+  it("counts a payee, a category and a recurring item as server filters", () => {
+    expect(hasListFilters(undefined)).toBe(false);
+    expect(hasListFilters({})).toBe(false);
+    expect(hasListFilters({ payee: "swiggy" })).toBe(true);
+    expect(hasListFilters({ categoryId: "c1" })).toBe(true);
+    expect(hasListFilters({ recurringItemId: "r1" })).toBe(true);
   });
 });

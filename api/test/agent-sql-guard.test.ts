@@ -95,6 +95,20 @@ describe('sql guard: the exposed views', () => {
     expect(await rows('SELECT c.name, cb.monthly_amount FROM category_budgets cb JOIN categories c ON c.id = cb.category_id')).toEqual([['My Gadgets', 1500]]);
   });
 
+  it('recurring_items hides archived (deleted) items', async () => {
+    const insert = (name: string, archivedAt: string | null) =>
+      testDb()
+        .prepare(
+          `INSERT INTO recurring_items (id, user_id, kind, name, amount, cadence, day_of_month, timezone, next_due_date, active, archived_at)
+           VALUES (?, ?, 'subscription', ?, 64900, 'monthly', 1, 'Asia/Kolkata', '2026-11-01', ?, ?)`,
+        )
+        .bind(uid(), USER_ID, name, archivedAt ? 0 : 1, archivedAt)
+        .run();
+    await insert('Netflix', null);
+    await insert('Old gym', '2026-10-20T00:00:00.000Z');
+    expect(await rows('SELECT name, amount FROM recurring_items')).toEqual([['Netflix', 649]]);
+  });
+
   it('joins a transaction to its category and groups by payee', async () => {
     expect(await rows("SELECT COALESCE(c.name, 'Uncategorized') AS category, SUM(t.amount) FROM transactions t LEFT JOIN categories c ON c.id = t.category_id WHERE t.type = 'debit' GROUP BY t.category_id ORDER BY 2 DESC")).toEqual([
       ['Uncategorized', 250.5],

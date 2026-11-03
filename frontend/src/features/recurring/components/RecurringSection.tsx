@@ -33,7 +33,10 @@ export type RecurringSectionProps = {
   /** Start of the current local day, for the due-date wording. */
   today: Date;
   onAdd: (kind: RecurringKind) => void;
+  /** Row tap: the item's transaction history. */
   onItemPress: (item: RecurringItem) => void;
+  /** The pencil on a row's icon: the item's editor. */
+  onItemEdit: (item: RecurringItem) => void;
   /** Opens the new-reminder form. */
   onAddReminder: () => void;
   /** Opens the Reminders list. */
@@ -49,6 +52,7 @@ export const RecurringSection = memo(function RecurringSection({
   today,
   onAdd,
   onItemPress,
+  onItemEdit,
   onAddReminder,
   onSeeReminders,
 }: RecurringSectionProps) {
@@ -67,6 +71,7 @@ export const RecurringSection = memo(function RecurringSection({
           today={today}
           onAdd={onAdd}
           onItemPress={onItemPress}
+          onItemEdit={onItemEdit}
           firstItemIsTourTarget={firstItemKind === "income"}
         />
         <RecurringKindCard
@@ -75,6 +80,7 @@ export const RecurringSection = memo(function RecurringSection({
           today={today}
           onAdd={onAdd}
           onItemPress={onItemPress}
+          onItemEdit={onItemEdit}
           firstItemIsTourTarget={firstItemKind === "subscription"}
         />
         <View style={styles.card}>
@@ -121,6 +127,7 @@ type RecurringKindCardProps = {
   today: Date;
   onAdd: (kind: RecurringKind) => void;
   onItemPress: (item: RecurringItem) => void;
+  onItemEdit: (item: RecurringItem) => void;
   firstItemIsTourTarget: boolean;
 };
 
@@ -130,6 +137,7 @@ function RecurringKindCard({
   today,
   onAdd,
   onItemPress,
+  onItemEdit,
   firstItemIsTourTarget,
 }: RecurringKindCardProps) {
   const { colors } = useTheme();
@@ -220,7 +228,12 @@ function RecurringKindCard({
                   : undefined
               }
             >
-              <RecurringListRow item={item} today={today} onPress={onItemPress} />
+              <RecurringListRow
+                item={item}
+                today={today}
+                onPress={onItemPress}
+                onEdit={onItemEdit}
+              />
             </OptionalTourTarget>
           </View>
         ))
