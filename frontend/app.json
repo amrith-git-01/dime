@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dime",
     "slug": "frontend",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dime",
@@ -19,7 +19,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 6,
+      "versionCode": 7,
       "allowBackup": false,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",
@@ -126,7 +126,7 @@
       "url": "https://dime-api.selvarajamrith958.workers.dev/api/v1/updates/manifest",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0,
+      "fallbackToCacheTimeout": 5000,
       "requestHeaders": {
         "expo-channel-name": "production"
       },

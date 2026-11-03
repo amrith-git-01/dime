@@ -286,7 +286,26 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     [navigation, now],
   );
 
+  const openMonthList = useCallback(
+    (kind: "all" | "recurring" | "flexible") => {
+      navigation.navigate("MainTabs", {
+        screen: "Transactions",
+        params: {
+          mode: "list",
+          year: now.getFullYear(),
+          monthIndex0: now.getMonth(),
+          kind,
+        },
+        pop: true,
+      });
+    },
+    [navigation, now],
+  );
+  const onViewMonthSplit = useCallback(() => openMonthList("all"), [openMonthList]);
+
   return {
+    onViewMonthSplit,
+    onPressMonthSplitKind: openMonthList,
     creditedDisplay,
     incomeValue,
     debitedDisplay,

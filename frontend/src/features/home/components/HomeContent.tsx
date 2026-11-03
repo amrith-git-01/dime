@@ -54,6 +54,8 @@ export const HomeContent = memo(function HomeContent(
           flexibleSpent={props.monthFlexibleSpent}
           isLoading={isLoading}
           onAddBudget={props.onAddMonthlyBudget}
+          onViewSplit={props.onViewMonthSplit}
+          onPressSplitKind={props.onPressMonthSplitKind}
         />
         {hasSyncStatus ? (
           <View style={styles.syncStatus}>

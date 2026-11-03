@@ -50,6 +50,26 @@ export const emptyStateCopy = {
     headline: "No transactions on this day",
     subtext: "Nothing was recorded for this date in the selected month.",
   },
+  transactionsListMonth: {
+    headline: "No transactions this month",
+    subtext: "Nothing was recorded in the selected month.",
+  },
+  transactionsListMonthFiltered: {
+    headline: "No transactions found",
+    subtext: "Nothing matches this period and these filters. Try changing or resetting them.",
+  },
+  transactionsListMonthRecurring: {
+    headline: "No recurring spend this month",
+    subtext: "No debits in recurring categories were recorded in the selected month.",
+  },
+  transactionsListMonthFlexible: {
+    headline: "No flexible spend this month",
+    subtext: "No everyday debits were recorded in the selected month.",
+  },
+  transactionsListMonthIncome: {
+    headline: "No income this month",
+    subtext: "No credits were recorded in the selected month.",
+  },
   transactionsListCategory: {
     headline: "No transactions in this category",
     subtext: "No debits were recorded in this category for the selected month.",

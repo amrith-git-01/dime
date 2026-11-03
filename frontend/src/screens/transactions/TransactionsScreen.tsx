@@ -4,11 +4,12 @@ import {
   type ListRenderItem,
 } from "@shopify/flash-list";
 import { useMemo, useRef } from "react";
-import { View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { TabScreenShell } from "@/components/layout/TabScreenShell";
 import { CARD_SEGMENT_SHADOW_TOP_BLEED } from "@/components/shared";
-import { FLOATING_BUTTONS_CLEARANCE, spacing } from "@/constants";
+import { FLOATING_BUTTONS_CLEARANCE, radius, spacing } from "@/constants";
+import { fontFamilies } from "@/constants/fonts";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import {
   TransactionCalendarCard,
@@ -20,11 +21,18 @@ import {
 } from "@/features/transactions/components";
 import type { TransactionFlashListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
 import { useTourScroller } from "@/hooks/useTourScroller";
+import type { TransactionsViewMode } from "@/stores/transactionsViewStore";
 
+import TransactionsMonthList from "./TransactionsMonthList";
 import { useTransactionsScreenModel } from "./useTransactionsScreenModel";
 import { createThemedStyles } from "@/theme";
 
 const NO_ROWS: TransactionFlashListItem[] = [];
+
+const VIEW_MODES: readonly { mode: TransactionsViewMode; label: string }[] = [
+  { mode: "calendar", label: "Calendar" },
+  { mode: "list", label: "List" },
+];
 
 function keyExtractor(item: TransactionFlashListItem): string {
   return item.id;
@@ -46,6 +54,10 @@ export default function TransactionsScreen() {
     flashListData,
     goPrevMonth,
     goNextMonth,
+    listCriteria,
+    setListCriteria,
+    selectViewMode,
+    viewMode,
     openTransactionDetail,
     onManualAddForDay,
     selectDay,
@@ -106,6 +118,51 @@ export default function TransactionsScreen() {
       />
     );
 
+  const viewToggle = (
+    <View style={styles.viewToggle} accessibilityRole="tablist">
+      {VIEW_MODES.map((option) => {
+        const selected = option.mode === viewMode;
+        return (
+          <Pressable
+            key={option.mode}
+            onPress={() => selectViewMode(option.mode)}
+            style={[styles.viewToggleOption, selected && styles.viewToggleOptionSelected]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${option.label} view`}
+          >
+            <Text
+              style={[styles.viewToggleText, selected && styles.viewToggleTextSelected]}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  if (viewMode === "list") {
+    return (
+      <TabScreenShell>
+        <View style={styles.listMode}>
+          {viewToggle}
+          <TransactionsMonthList
+            month={selectedMonth}
+            canGoPrevMonth={canGoPrevMonth}
+            canGoNextMonth={canGoNextMonth}
+            onPrevMonth={goPrevMonth}
+            onNextMonth={goNextMonth}
+            criteria={listCriteria}
+            onCriteriaChange={setListCriteria}
+            onTransactionPress={openTransactionDetail}
+            onAddForDay={onManualAddForDay}
+          />
+        </View>
+      </TabScreenShell>
+    );
+  }
+
   return (
     <TabScreenShell>
       <FlashList
@@ -121,6 +178,7 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View style={styles.header}>
+            {viewToggle}
             <TransactionCalendarCard
               year={selectedMonth.year}
               monthIndex0={selectedMonth.monthIndex0}
@@ -182,5 +240,37 @@ const useStyles = createThemedStyles(({ colors }) => ({
   header: {
     // The day-card header segment reserves top room for its card shadow.
     gap: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
+  },
+  listMode: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    gap: spacing.xs,
+  },
+  viewToggle: {
+    flexDirection: "row",
+    alignSelf: "center",
+    padding: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSunken,
+  },
+  viewToggleOption: {
+    minWidth: 96,
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.full,
+  },
+  viewToggleOptionSelected: {
+    backgroundColor: colors.surface,
+  },
+  viewToggleText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  viewToggleTextSelected: {
+    color: colors.ink,
   },
 }));

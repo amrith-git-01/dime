@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { SpendSplitBar } from "@/components/shared";
+import { SpendSplitBar, type SpendSplitKind } from "@/components/shared";
 import { ProgressBar, SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -23,6 +23,8 @@ type HeroMonthCardProps = {
   flexibleSpent?: number;
   isLoading?: boolean;
   onAddBudget: () => void;
+  onViewSplit?: () => void;
+  onPressSplitKind?: (kind: SpendSplitKind) => void;
 };
 
 export const HeroMonthCard = memo(function HeroMonthCard({
@@ -35,6 +37,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   flexibleSpent = 0,
   isLoading = false,
   onAddBudget,
+  onViewSplit,
+  onPressSplitKind,
 }: HeroMonthCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -56,7 +60,12 @@ export const HeroMonthCard = memo(function HeroMonthCard({
       )}
 
       {!isLoading ? (
-        <SpendSplitBar fixed={fixedSpent} flexible={flexibleSpent} />
+        <SpendSplitBar
+          fixed={fixedSpent}
+          flexible={flexibleSpent}
+          onView={onViewSplit}
+          onPressKind={onPressSplitKind}
+        />
       ) : null}
 
       {/* Status line */}

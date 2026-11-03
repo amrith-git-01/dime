@@ -166,6 +166,23 @@ export function useBudgetScreenModel() {
     [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
   );
 
+  const openMonthList = useCallback(
+    (kind: "all" | "recurring" | "flexible") => {
+      stackNavigation.navigate("MainTabs", {
+        screen: "Transactions",
+        params: {
+          mode: "list",
+          year: selectedMonth.year,
+          monthIndex0: selectedMonth.monthIndex0,
+          kind,
+        },
+        pop: true,
+      });
+    },
+    [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
+  );
+  const viewMonthSplit = useCallback(() => openMonthList("all"), [openMonthList]);
+
   const spentMonthNum = monthSummaryQuery.data
     ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
     : Number.NaN;
@@ -290,6 +307,8 @@ export function useBudgetScreenModel() {
     handleEditBudget,
     handleEditCategory,
     openCategoryTransactions,
+    openMonthList,
+    viewMonthSplit,
     handleSelectBudgetMonth,
     handleSetBudget,
     hasMonthlyBudget,

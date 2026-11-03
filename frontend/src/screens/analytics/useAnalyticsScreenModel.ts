@@ -175,6 +175,23 @@ export function useAnalyticsScreenModel() {
     [navigation, selectedMonth.monthIndex0, selectedMonth.year],
   );
 
+  const openMonthList = useCallback(
+    (kind: "all" | "recurring" | "flexible") => {
+      navigation.navigate("MainTabs", {
+        screen: "Transactions",
+        params: {
+          mode: "list",
+          year: selectedMonth.year,
+          monthIndex0: selectedMonth.monthIndex0,
+          kind,
+        },
+        pop: true,
+      });
+    },
+    [navigation, selectedMonth.monthIndex0, selectedMonth.year],
+  );
+  const viewMonthSplit = useCallback(() => openMonthList("all"), [openMonthList]);
+
   const openPayee = useCallback(
     (payeeKey: string, displayName: string) => {
       navigation.navigate("TransactionsList", {
@@ -252,6 +269,8 @@ export function useAnalyticsScreenModel() {
     openTransactionsListForDay,
     openTransactionsListForPayee,
     openTransactionsListForPayer,
+    openMonthList,
+    viewMonthSplit,
     summary,
     summaryLoading,
     summaryFailed,

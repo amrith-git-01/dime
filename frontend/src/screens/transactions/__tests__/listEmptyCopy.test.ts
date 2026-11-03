@@ -21,6 +21,30 @@ describe("resolveListEmptyCopy", () => {
     );
   });
 
+  it("has copy for each month list kind", () => {
+    expect(resolveListEmptyCopy("month", false, "debit")).toBe(
+      emptyStateCopy.transactionsListMonth,
+    );
+    expect(resolveListEmptyCopy("month", false, "debit", "all")).toBe(
+      emptyStateCopy.transactionsListMonth,
+    );
+    expect(resolveListEmptyCopy("month", false, "debit", "recurring")).toBe(
+      emptyStateCopy.transactionsListMonthRecurring,
+    );
+    expect(resolveListEmptyCopy("month", false, "debit", "flexible")).toBe(
+      emptyStateCopy.transactionsListMonthFlexible,
+    );
+    expect(resolveListEmptyCopy("month", false, "debit", "income")).toBe(
+      emptyStateCopy.transactionsListMonthIncome,
+    );
+  });
+
+  it("has generic copy once other filters narrow the month list", () => {
+    expect(resolveListEmptyCopy("month", false, "debit", "filtered")).toBe(
+      emptyStateCopy.transactionsListMonthFiltered,
+    );
+  });
+
   it("ignores the direction for day and category lists", () => {
     expect(resolveListEmptyCopy("day", false, "credit")).toBe(
       emptyStateCopy.transactionsListDay,
