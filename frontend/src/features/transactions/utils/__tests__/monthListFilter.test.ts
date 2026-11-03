@@ -2,10 +2,9 @@ import { formatInrCompact } from "@/utils/currency";
 
 import type { TransactionRow } from "../../types";
 import {
-  activeAmountPreset,
-  AMOUNT_PRESETS,
   amountFilterLabel,
   applyListCriteria,
+  buildCategoryOptions,
   buildListSections,
   buildPayeeOptions,
   computeListTotals,
@@ -17,6 +16,8 @@ import {
   describeSelection,
   filterTransactionsByMonthListKind,
   formatListTotalsLine,
+  LIST_TYPE_FILTERS,
+  LIST_TYPE_LABELS,
   listTypeFromKind,
   matchesListType,
   matchesMonthListKind,
@@ -138,11 +139,18 @@ describe("list criteria", () => {
     expect(listTypeFromKind("all")).toBe("all");
     expect(listTypeFromKind("recurring")).toBe("recurring");
     expect(listTypeFromKind("flexible")).toBe("flexible");
-    expect(listTypeFromKind("income")).toBe("received");
+    expect(listTypeFromKind("income")).toBe("income");
+    expect(LIST_TYPE_FILTERS.map((type) => LIST_TYPE_LABELS[type])).toEqual([
+      "All",
+      "Expense",
+      "Income",
+      "Recurring",
+      "Flexible",
+    ]);
     expect(criteriaFromKind(undefined)).toEqual(DEFAULT_LIST_CRITERIA);
-    expect(criteriaFromKind("income")).toEqual({ ...DEFAULT_LIST_CRITERIA, type: "received" });
-    expect(monthListKindOfType("received")).toBe("income");
-    expect(monthListKindOfType("spent")).toBe("all");
+    expect(criteriaFromKind("income")).toEqual({ ...DEFAULT_LIST_CRITERIA, type: "income" });
+    expect(monthListKindOfType("income")).toBe("income");
+    expect(monthListKindOfType("expense")).toBe("all");
   });
 
   it("seeds the filters from a category and payee", () => {
@@ -170,7 +178,7 @@ describe("list criteria", () => {
     expect(countActiveFilters(DEFAULT_LIST_CRITERIA)).toBe(0);
     expect(
       countActiveFilters({
-        type: "spent",
+        type: "expense",
         categoryIds: ["a", "b"],
         payeeKeys: ["x"],
         amountMinPaise: 100,
@@ -193,17 +201,17 @@ describe("list criteria", () => {
   });
 
   describe("matchesListType", () => {
-    it("Spent is every debit, Received every credit, All everything", () => {
+    it("Expense is every debit, Income every credit, All everything", () => {
       for (const row of [rent, coffee, uncategorised]) {
-        expect(matchesListType(row, "spent")).toBe(true);
-        expect(matchesListType(row, "received")).toBe(false);
+        expect(matchesListType(row, "expense")).toBe(true);
+        expect(matchesListType(row, "income")).toBe(false);
         expect(matchesListType(row, "all")).toBe(true);
       }
-      expect(matchesListType(salary, "spent")).toBe(false);
-      expect(matchesListType(salary, "received")).toBe(true);
+      expect(matchesListType(salary, "expense")).toBe(false);
+      expect(matchesListType(salary, "income")).toBe(true);
     });
 
-    it("Recurring and Flexible are the two kinds of debit, so they cannot contradict Received", () => {
+    it("Recurring and Flexible are the two kinds of debit, so they cannot contradict Income", () => {
       expect(matchesListType(rent, "recurring")).toBe(true);
       expect(matchesListType(rent, "flexible")).toBe(false);
       expect(matchesListType(coffee, "flexible")).toBe(true);
@@ -225,8 +233,8 @@ describe("list criteria", () => {
 
     it("filters by the merged type", () => {
       expect(ids({})).toEqual(["rent", "tea", "loose", "swiggy2", "pay"]);
-      expect(ids({ type: "spent" })).toEqual(["rent", "tea", "loose", "swiggy2"]);
-      expect(ids({ type: "received" })).toEqual(["pay"]);
+      expect(ids({ type: "expense" })).toEqual(["rent", "tea", "loose", "swiggy2"]);
+      expect(ids({ type: "income" })).toEqual(["pay"]);
       expect(ids({ type: "recurring" })).toEqual(["rent"]);
       expect(ids({ type: "flexible" })).toEqual(["tea", "loose", "swiggy2"]);
     });
@@ -257,47 +265,46 @@ describe("list criteria", () => {
     });
 
     it("combines the filters", () => {
-      expect(ids({ type: "spent", search: "swiggy", amountMinPaise: 100_000 })).toEqual(["swiggy2"]);
-      expect(ids({ type: "received", search: "landlord" })).toEqual([]);
+      expect(ids({ type: "expense", search: "swiggy", amountMinPaise: 100_000 })).toEqual(["swiggy2"]);
+      expect(ids({ type: "income", search: "landlord" })).toEqual([]);
     });
   });
 
-  describe("amount presets", () => {
-    it("are inclusive ranges that name themselves", () => {
-      const [under, mid, high, over] = AMOUNT_PRESETS;
-      expect([under.label, mid.label, high.label, over.label]).toEqual([
-        "Under ₹500",
-        "₹500–2,000",
-        "₹2,000–10,000",
-        "Over ₹10,000",
-      ]);
-      const apply = (preset: (typeof AMOUNT_PRESETS)[number], amount: string) =>
-        applyListCriteria([tx("x", { amount })], {
-          ...DEFAULT_LIST_CRITERIA,
-          amountMinPaise: preset.minPaise,
-          amountMaxPaise: preset.maxPaise,
-        }).length === 1;
-      expect(apply(under, "499.99")).toBe(true);
-      expect(apply(under, "500.00")).toBe(false);
-      expect(apply(mid, "500.00")).toBe(true);
-      expect(apply(mid, "2000.00")).toBe(true);
-      expect(apply(mid, "2000.01")).toBe(false);
-      expect(apply(high, "2000.00")).toBe(false);
-      expect(apply(high, "2000.01")).toBe(true);
-      expect(apply(high, "10000.00")).toBe(true);
-      expect(apply(over, "10000.00")).toBe(false);
-      expect(apply(over, "10000.01")).toBe(true);
-    });
-
-    it("finds the preset the bounds match, and labels custom ranges", () => {
-      const mid = AMOUNT_PRESETS[1];
-      const criteria = { ...DEFAULT_LIST_CRITERIA, amountMinPaise: mid.minPaise, amountMaxPaise: mid.maxPaise };
-      expect(activeAmountPreset(criteria)?.id).toBe(mid.id);
-      expect(amountFilterLabel(criteria)).toBe("₹500–2,000");
-      expect(activeAmountPreset({ ...criteria, amountMaxPaise: 300_000 })).toBeNull();
+  describe("amount filter label", () => {
+    it("names the range, or the one open side", () => {
+      expect(amountFilterLabel(DEFAULT_LIST_CRITERIA)).toBe("Amount");
       expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMinPaise: 50_000 })).toBe(`${formatInrCompact(500)}+`);
       expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMinPaise: 70_000, amountMaxPaise: 300_000 })).toBe(`${formatInrCompact(700)} – ${formatInrCompact(3000)}`);
       expect(amountFilterLabel({ ...DEFAULT_LIST_CRITERIA, amountMaxPaise: 100_000 })).toBe(`Up to ${formatInrCompact(1000)}`);
+    });
+  });
+
+  describe("buildCategoryOptions", () => {
+    it("offers Uncategorized and the given spending categories only, once each", () => {
+      expect(
+        buildCategoryOptions([
+          { id: "c-food", name: "Food" },
+          { id: "c-food", name: "Food again" },
+          { id: "c-fun", name: "Fun" },
+        ]),
+      ).toEqual([
+        { id: "__uncategorized__", name: "Uncategorized" },
+        { id: "c-food", name: "Food" },
+        { id: "c-fun", name: "Fun" },
+      ]);
+      expect(buildCategoryOptions([])).toEqual([{ id: "__uncategorized__", name: "Uncategorized" }]);
+    });
+
+    it("adds a selected id outside the list, once, so it can be unticked", () => {
+      const names: Record<string, string> = { "c-rent": "Rent" };
+      expect(
+        buildCategoryOptions([{ id: "c-food", name: "Food" }], ["c-food", "c-rent", "c-gone"], (id) => names[id]),
+      ).toEqual([
+        { id: "__uncategorized__", name: "Uncategorized" },
+        { id: "c-food", name: "Food" },
+        { id: "c-rent", name: "Rent" },
+        { id: "c-gone", name: "Category" },
+      ]);
     });
   });
 

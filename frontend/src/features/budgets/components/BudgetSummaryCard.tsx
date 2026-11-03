@@ -61,16 +61,6 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
     : "Set monthly budget";
 
   const isWatching = usagePercentUsed > 80 && usagePercentUsed < 100;
-  const metaColor = isOverBudget
-    ? colors.danger
-    : isWatching
-      ? colors.warning
-      : colors.inkSoft;
-  const metaPercent = isOverBudget
-    ? `${usagePercentUsed}% — over budget`
-    : isWatching
-      ? `${usagePercentUsed}% — watch it`
-      : `${usagePercentUsed}% used`;
   const upcomingRecurring = summary?.upcomingRecurring ?? 0;
 
   return (
@@ -143,16 +133,10 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
             />
           </View>
 
-          <Text style={[styles.meta, { color: metaColor }]}>
-            {`${summary?.spentDisplay ?? "—"} spent of ${summary?.budgetDisplay ?? "—"} · `}
-            <Text
-              style={
-                isOverBudget || isWatching ? undefined : styles.metaPercentMuted
-              }
-            >
-              {metaPercent}
-            </Text>
-          </Text>
+          {/* The bar's breakdown has the amounts; this nudge is the only part it does not say. */}
+          {isWatching ? (
+            <Text style={styles.watchNote}>{`${usagePercentUsed}% — watch it`}</Text>
+          ) : null}
         </>
       ) : (
         /* ── STATE B: No budget set ─────────────── */
@@ -174,18 +158,12 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           </Text>
           {hasSplit(summary) || upcomingRecurring > 0 ? (
             <View style={styles.splitCentered}>
-              {hasSplit(summary) ? (
-                <SpendSplitBar
-                  fixed={summary?.fixedSpent ?? 0}
-                  flexible={summary?.flexibleSpent ?? 0}
-                  centered
-                />
-              ) : null}
-              {upcomingRecurring > 0 ? (
-                <Text style={styles.splitText}>
-                  {`${formatInrCompact(upcomingRecurring)} recurring still to come`}
-                </Text>
-              ) : null}
+              <SpendSplitBar
+                fixed={summary?.fixedSpent ?? 0}
+                flexible={summary?.flexibleSpent ?? 0}
+                committed={upcomingRecurring}
+                centered
+              />
             </View>
           ) : null}
           <Button
@@ -258,14 +236,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   barWrap: {
     marginBottom: spacing.sm,
   },
-  meta: {
+  watchNote: {
     fontFamily: fontFamilies.regular,
     fontSize: 13,
     lineHeight: 18,
+    color: colors.warning,
     fontVariant: ["tabular-nums"],
-  },
-  metaPercentMuted: {
-    color: colors.inkFaint,
   },
   errorText: {
     fontFamily: fontFamilies.regular,
@@ -307,14 +283,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   splitCentered: {
     marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  splitText: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.inkSoft,
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
   },
 }));

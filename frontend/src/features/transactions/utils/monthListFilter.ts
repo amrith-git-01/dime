@@ -74,26 +74,27 @@ export function filterTransactionsByMonthListKind(
 // ---------------------------------------------------------------------------
 
 /**
- * One merged "type": Spent is every debit, Recurring and Flexible are the two kinds of debit,
- * Received is every credit. A single value, so contradictory combinations cannot exist.
+ * One merged "type": Expense is every debit, Recurring and Flexible are the two kinds of debit,
+ * Income is every credit. A single value, so contradictory combinations cannot exist; "all" is
+ * the no-filter state.
  */
-export type ListTypeFilter = "all" | "spent" | "recurring" | "flexible" | "received";
+export type ListTypeFilter = "all" | "expense" | "recurring" | "flexible" | "income";
 export type ListSort = "newest" | "oldest" | "amount";
 
 export const LIST_TYPE_FILTERS: readonly ListTypeFilter[] = [
   "all",
-  "spent",
+  "expense",
+  "income",
   "recurring",
   "flexible",
-  "received",
 ];
 
 export const LIST_TYPE_LABELS: Record<ListTypeFilter, string> = {
   all: "All",
-  spent: "Spent",
+  expense: "Expense",
+  income: "Income",
   recurring: "Recurring",
   flexible: "Flexible",
-  received: "Received",
 };
 
 export const LIST_SORT_LABELS: Record<ListSort, string> = {
@@ -127,7 +128,7 @@ export const DEFAULT_LIST_CRITERIA: ListCriteria = {
 
 /** The type a deep link's old `kind` value (all / recurring / flexible / income) stands for. */
 export function listTypeFromKind(kind: MonthListKind | undefined): ListTypeFilter {
-  return kind === "income" ? "received" : (kind ?? "all");
+  return kind ?? "all";
 }
 
 export function criteriaFromKind(kind: MonthListKind | undefined): ListCriteria {
@@ -197,57 +198,28 @@ export function criteriaNeedAllRows(criteria: ListCriteria): boolean {
   return countActiveFilters(criteria) > 0;
 }
 
-/** The old kind a type filter alone stands for, for the empty-state copy; null for Spent / All. */
+/** The old kind a type filter alone stands for, for the empty-state copy; "all" for Expense / All. */
 export function monthListKindOfType(type: ListTypeFilter): MonthListKind {
-  if (type === "received") return "income";
-  if (type === "recurring" || type === "flexible") return type;
+  if (type === "income" || type === "recurring" || type === "flexible") return type;
   return "all";
 }
 
-/** Whether a row belongs to the type. Spent is any debit; the rest follow {@link matchesMonthListKind}. */
+/** Whether a row belongs to the type. Expense is any debit; the rest follow {@link matchesMonthListKind}. */
 export function matchesListType(
   row: Pick<TransactionRow, "type" | "category_scope">,
   type: ListTypeFilter,
 ): boolean {
   if (type === "all") return true;
-  if (type === "spent") return row.type === "debit";
+  if (type === "expense") return row.type === "debit";
   return matchesMonthListKind(row, monthListKindOfType(type));
-}
-
-// Amount presets of the Amount filter (rupees; the upper bound of a preset is inclusive).
-export type AmountPreset = {
-  id: string;
-  label: string;
-  minPaise: number | null;
-  maxPaise: number | null;
-};
-
-export const AMOUNT_PRESETS: readonly AmountPreset[] = [
-  { id: "under-500", label: "Under ₹500", minPaise: null, maxPaise: 49_999 },
-  { id: "500-2000", label: "₹500–2,000", minPaise: 50_000, maxPaise: 200_000 },
-  { id: "2000-10000", label: "₹2,000–10,000", minPaise: 200_001, maxPaise: 1_000_000 },
-  { id: "over-10000", label: "Over ₹10,000", minPaise: 1_000_001, maxPaise: null },
-];
-
-/** The preset whose bounds the criteria carry exactly, or null. */
-export function activeAmountPreset(criteria: ListCriteria): AmountPreset | null {
-  return (
-    AMOUNT_PRESETS.find(
-      (preset) =>
-        preset.minPaise === criteria.amountMinPaise &&
-        preset.maxPaise === criteria.amountMaxPaise,
-    ) ?? null
-  );
 }
 
 function formatRupees(paise: number): string {
   return formatInrCompact(paise / 100);
 }
 
-/** The Amount chip's value: a preset's label, "₹700 – ₹3,000", "₹500+" or "Up to ₹2,000". */
+/** The Amount chip's value: "₹700 – ₹3,000", "₹500+" or "Up to ₹2,000". */
 export function amountFilterLabel(criteria: ListCriteria): string {
-  const preset = activeAmountPreset(criteria);
-  if (preset) return preset.label;
   const { amountMinPaise: min, amountMaxPaise: max } = criteria;
   if (min !== null && max !== null) return `${formatRupees(min)} – ${formatRupees(max)}`;
   if (min !== null) return `${formatRupees(min)}+`;
@@ -290,6 +262,36 @@ export function applyListCriteria(
     }
     return needle.length === 0 || rowMatchesSearch(row, needle);
   });
+}
+
+/** Id and name of a category the Category picker offers. */
+export type CategoryOption = { id: string; name: string };
+
+/**
+ * The Category picker's options: Uncategorized, then the user's own spending categories (the
+ * recurring ones belong to the Recurring type), then any selected id that is none of those (a
+ * recurring category a link seeded) so it can still be unticked.
+ */
+export function buildCategoryOptions(
+  spendCategories: readonly CategoryOption[],
+  selectedIds: readonly string[] = [],
+  nameOf: (id: string) => string | undefined = () => undefined,
+): CategoryOption[] {
+  const seen = new Set<string>([UNCATEGORIZED_CATEGORY_KEY]);
+  const options: CategoryOption[] = [{ id: UNCATEGORIZED_CATEGORY_KEY, name: "Uncategorized" }];
+  for (const category of spendCategories) {
+    if (!seen.has(category.id)) {
+      seen.add(category.id);
+      options.push({ id: category.id, name: category.name });
+    }
+  }
+  for (const id of selectedIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      options.push({ id, name: nameOf(id) ?? "Category" });
+    }
+  }
+  return options;
 }
 
 export type PayeeOption = {

@@ -23,27 +23,34 @@ export type SpendSplitBarProps = {
    * only the recurring / flexible proportions of the spend.
    */
   budget?: number;
-  /** Recurring still to come this month, in rupees; drawn pale after the spend, clamped to the budget. */
+  /**
+   * Recurring still to come this month, in rupees. Drawn pale after the spend (clamped to the
+   * budget) and named in a "+₹ due" caption under Recurring.
+   */
   committed?: number;
-  /** Centres the legend line (for centred cards). */
+  /** Draws the breakdown row under the bar: Recurring, Flexible and, with a budget, what is left. */
+  showBreakdown?: boolean;
+  /** Centres the breakdown text (for centred cards). */
   centered?: boolean;
 };
 
-/**
- * The month's single bar: spend split into recurring and flexible, optionally inside the budget
- * (with the recurring still to come as a pale segment), and one quiet legend line under it.
- * Without a budget it renders nothing when there is no recurring spend.
- */
 /** A finite amount, at least 0 (a not-yet-loaded NaN reads as 0). */
 function nonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+/**
+ * The month's single bar: spend split into recurring and flexible, optionally inside the budget
+ * (with the recurring still to come as a pale segment), and one row of equal columns under it:
+ * Recurring, Flexible and, with a budget, what is left (or how far over). Without a budget it
+ * renders nothing when there is no recurring spend and none still to come.
+ */
 export const SpendSplitBar = memo(function SpendSplitBar({
   fixed,
   flexible,
   budget = 0,
   committed = 0,
+  showBreakdown = true,
   centered = false,
 }: SpendSplitBarProps) {
   const { colors } = useTheme();
@@ -51,19 +58,21 @@ export const SpendSplitBar = memo(function SpendSplitBar({
   const fixedValue = nonNegative(fixed);
   const flexibleValue = nonNegative(flexible);
   const budgetValue = nonNegative(budget);
+  const dueValue = nonNegative(committed);
   const hasBudget = budgetValue > 0;
   const spent = fixedValue + flexibleValue;
-  if (!hasBudget && (fixedValue <= 0 || spent <= 0)) {
+  if (!hasBudget && fixedValue <= 0 && dueValue <= 0) {
     return null;
   }
 
-  const overBudget = hasBudget && spent >= budgetValue;
+  const showBar = hasBudget || fixedValue > 0;
+  const overBudget = hasBudget && spent > budgetValue;
   // Percent shares keep the flex-grow sum well above 1 (a sum under 1 would not fill the bar).
   const scale = hasBudget && !overBudget ? budgetValue : spent;
   const fixedShare = scale > 0 ? (fixedValue / scale) * 100 : 0;
   const flexibleShare = scale > 0 ? (flexibleValue / scale) * 100 : 0;
   const committedValue =
-    hasBudget && !overBudget ? Math.min(nonNegative(committed), budgetValue - spent) : 0;
+    hasBudget && !overBudget ? Math.min(dueValue, budgetValue - spent) : 0;
   const committedShare = hasBudget && committedValue > 0 ? (committedValue / budgetValue) * 100 : 0;
   const trackShare = hasBudget && !overBudget
     ? Math.max(0, 100 - fixedShare - flexibleShare - committedShare)
@@ -75,31 +84,22 @@ export const SpendSplitBar = memo(function SpendSplitBar({
   const committedColor = colors.accent;
   const fixedDisplay = formatInrCompact(fixedValue);
   const flexibleDisplay = formatInrCompact(flexibleValue);
-  const committedDisplay = formatInrCompact(committedValue);
+  const dueDisplay = formatInrCompact(dueValue);
+  const budgetDisplay = formatInrCompact(budgetValue);
+  const leftDisplay = formatInrCompact(overBudget ? spent - budgetValue : budgetValue - spent);
 
-  const legendItems: {
-    key: string;
-    label: string;
-    display: string;
-    color: string;
-    opacity?: number;
-  }[] = [];
-  if (fixedValue > 0) {
-    legendItems.push({ key: "recurring", label: "Recurring", display: fixedDisplay, color: fixedColor });
+  const summaryParts = [`Recurring ${fixedDisplay}`, `Flexible ${flexibleDisplay}`];
+  if (dueValue > 0) {
+    summaryParts.push(`Still to come ${dueDisplay}`);
   }
-  if (flexibleValue > 0) {
-    legendItems.push({ key: "flexible", label: "Flexible", display: flexibleDisplay, color: flexibleColor });
+  if (hasBudget) {
+    summaryParts.push(
+      overBudget ? `Over budget by ${leftDisplay}` : `${leftDisplay} left of ${budgetDisplay}`,
+    );
   }
-  if (committedValue > 0) {
-    legendItems.push({
-      key: "committed",
-      label: "Still to come",
-      display: committedDisplay,
-      color: committedColor,
-      opacity: COMMITTED_OPACITY,
-    });
-  }
-  const summaryLabel = legendItems.map((item) => `${item.label} ${item.display}`).join(", ");
+  const summaryLabel = summaryParts.join(", ");
+  const textAlign = centered ? styles.centeredText : null;
+  const columnStyle = [styles.column, centered ? styles.columnCentered : null];
 
   return (
     <View
@@ -107,57 +107,87 @@ export const SpendSplitBar = memo(function SpendSplitBar({
       accessible
       accessibilityLabel={summaryLabel}
     >
-      <View
-        style={[
-          styles.bar,
-          hasBudget ? { backgroundColor: colors.surfaceSunken } : null,
-        ]}
-      >
-        {fixedValue > 0 ? (
-          <View
-            testID="spend-split-fixed"
-            style={[styles.segment, { flexGrow: fixedShare, backgroundColor: fixedColor }]}
-          />
-        ) : null}
-        {flexibleValue > 0 ? (
-          <View
-            testID="spend-split-flexible"
-            style={[styles.segment, { flexGrow: flexibleShare, backgroundColor: flexibleColor }]}
-          />
-        ) : null}
-        {committedShare > 0 ? (
-          <View
-            testID="spend-split-committed"
-            style={[
-              styles.segment,
-              { flexGrow: committedShare, backgroundColor: committedColor, opacity: COMMITTED_OPACITY },
-            ]}
-          />
-        ) : null}
-        {trackShare > 0 ? (
-          <View testID="spend-split-track" style={[styles.track, { flexGrow: trackShare }]} />
-        ) : null}
-      </View>
-      {legendItems.length === 0 ? null : (
+      {showBar ? (
         <View
-          style={[styles.legend, centered ? styles.legendCentered : null]}
-          testID="spend-split-legend"
+          style={[
+            styles.bar,
+            hasBudget ? { backgroundColor: colors.surfaceSunken } : null,
+          ]}
         >
-          {legendItems.map((item) => (
-            <View key={item.key} style={styles.legendItem}>
-              <View
-                style={[styles.dot, { backgroundColor: item.color, opacity: item.opacity ?? 1 }]}
-              />
+          {fixedValue > 0 ? (
+            <View
+              testID="spend-split-fixed"
+              style={[styles.segment, { flexGrow: fixedShare, backgroundColor: fixedColor }]}
+            />
+          ) : null}
+          {flexibleValue > 0 ? (
+            <View
+              testID="spend-split-flexible"
+              style={[styles.segment, { flexGrow: flexibleShare, backgroundColor: flexibleColor }]}
+            />
+          ) : null}
+          {committedShare > 0 ? (
+            <View
+              testID="spend-split-committed"
+              style={[
+                styles.segment,
+                { flexGrow: committedShare, backgroundColor: committedColor, opacity: COMMITTED_OPACITY },
+              ]}
+            />
+          ) : null}
+          {trackShare > 0 ? (
+            <View testID="spend-split-track" style={[styles.track, { flexGrow: trackShare }]} />
+          ) : null}
+        </View>
+      ) : null}
+      {showBreakdown ? (
+        <View style={styles.columns} testID="spend-split-breakdown">
+          <View style={columnStyle}>
+            <View style={styles.labelRow}>
+              <View style={[styles.dot, { backgroundColor: fixedColor }]} />
               <Text style={styles.label} numberOfLines={1}>
-                {item.label}
-              </Text>
-              <Text style={styles.amount} numberOfLines={1}>
-                {item.display}
+                Recurring
               </Text>
             </View>
-          ))}
+            <Text style={[styles.amount, textAlign]} numberOfLines={1}>
+              {fixedDisplay}
+            </Text>
+            {dueValue > 0 ? (
+              <Text style={[styles.caption, textAlign]} numberOfLines={1}>
+                {`+${dueDisplay} due`}
+              </Text>
+            ) : null}
+          </View>
+          <View style={columnStyle}>
+            <View style={styles.labelRow}>
+              <View style={[styles.dot, { backgroundColor: flexibleColor }]} />
+              <Text style={styles.label} numberOfLines={1}>
+                Flexible
+              </Text>
+            </View>
+            <Text style={[styles.amount, textAlign]} numberOfLines={1}>
+              {flexibleDisplay}
+            </Text>
+          </View>
+          {hasBudget ? (
+            <View style={[styles.column, centered ? styles.columnCentered : styles.columnEnd]}>
+              <Text style={[styles.label, centered ? styles.centeredText : styles.endText]} numberOfLines={1}>
+                {overBudget ? "Over by" : `Left of ${budgetDisplay}`}
+              </Text>
+              <Text
+                style={[
+                  styles.amount,
+                  centered ? styles.centeredText : styles.endText,
+                  { color: overBudget ? colors.danger : colors.accentText },
+                ]}
+                numberOfLines={1}
+              >
+                {leftDisplay}
+              </Text>
+            </View>
+          ) : null}
         </View>
-      )}
+      ) : null}
     </View>
   );
 });
@@ -183,17 +213,28 @@ const useStyles = createThemedStyles(({ colors }) => ({
     flexBasis: 0,
     height: BAR_HEIGHT,
   },
-  legend: {
+  columns: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    columnGap: spacing.sm,
+  },
+  column: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  columnCentered: {
     alignItems: "center",
-    columnGap: spacing.md,
-    rowGap: 2,
   },
-  legendCentered: {
-    justifyContent: "center",
+  columnEnd: {
+    alignItems: "flex-end",
   },
-  legendItem: {
+  centeredText: {
+    textAlign: "center",
+  },
+  endText: {
+    textAlign: "right",
+  },
+  labelRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
@@ -205,15 +246,22 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   label: {
     fontFamily: fontFamilies.regular,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 15,
     color: colors.inkSoft,
   },
   amount: {
     fontFamily: fontFamilies.medium,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 20,
     color: colors.ink,
+    fontVariant: ["tabular-nums"],
+  },
+  caption: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.inkFaint,
     fontVariant: ["tabular-nums"],
   },
 }));

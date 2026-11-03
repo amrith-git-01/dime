@@ -2,11 +2,14 @@ import {
   press,
   pressables,
   renderTree,
+  runAct,
   textsOf,
   unmountTree,
 } from "@/features/brokeReport/components/__tests__/testHarness";
 import { ThemeProvider } from "@/theme/ThemeProvider";
+import { formatInrCompact } from "@/utils/currency";
 
+import type { AmountDomain } from "../../../utils/amountRange";
 import { DEFAULT_LIST_CRITERIA, type ListCriteria } from "../../../utils/monthListFilter";
 import { TransactionFilterBar } from "../TransactionFilterBar";
 
@@ -22,6 +25,18 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("@/lib/haptics/nativeHaptics", () => ({
   triggerHaptic: jest.fn(() => Promise.resolve()),
 }));
+jest.mock("react-native-reanimated", () => ({
+  ...jest.requireActual("react-native-reanimated/mock"),
+}));
+jest.mock("react-native-gesture-handler", () => {
+  const { View } = jest.requireActual("react-native");
+  // Every builder method returns the same chainable object; detectors just render children.
+  const chain: Record<string, unknown> = new Proxy({}, { get: () => () => chain });
+  return {
+    Gesture: { Pan: () => chain },
+    GestureDetector: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
+  };
+});
 jest.mock("@/features/categories/hooks/useCategories", () => ({
   useCategories: (scope: string) => ({
     categories:
@@ -29,9 +44,10 @@ jest.mock("@/features/categories/hooks/useCategories", () => ({
         ? [
             { id: "c-food", name: "Food" },
             { id: "c-fun", name: "Fun" },
-            { id: "c-rent", name: "Rent" },
           ]
-        : [],
+        : scope === "recurring_expense"
+          ? [{ id: "c-rent", name: "Rent" }]
+          : [{ id: "c-salary", name: "Salary" }],
   }),
 }));
 
@@ -40,7 +56,12 @@ const PAYEES = [
   { key: "uber", name: "Uber", count: 2, totalPaise: 90_000 },
 ];
 
-async function render(criteria: ListCriteria = DEFAULT_LIST_CRITERIA) {
+const DOMAIN: AmountDomain = { minPaise: 10_000, maxPaise: 60_000, stepPaise: 5_000, steps: 10 };
+
+async function render(
+  criteria: ListCriteria = DEFAULT_LIST_CRITERIA,
+  amountDomain: AmountDomain | null = DOMAIN,
+) {
   const onCriteriaChange = jest.fn();
   const tree = await renderTree(
     <ThemeProvider>
@@ -48,6 +69,7 @@ async function render(criteria: ListCriteria = DEFAULT_LIST_CRITERIA) {
         criteria={criteria}
         onCriteriaChange={onCriteriaChange}
         payeeOptions={PAYEES}
+        amountDomain={amountDomain}
       />
     </ThemeProvider>,
   );
@@ -69,7 +91,7 @@ describe("TransactionFilterBar", () => {
   it("active chips show their value and a clear button of their own", async () => {
     const { tree } = await render({
       ...DEFAULT_LIST_CRITERIA,
-      type: "spent",
+      type: "expense",
       categoryIds: ["c-food", "c-fun", "c-rent"],
       payeeKeys: ["swiggy"],
       amountMinPaise: 50_000,
@@ -77,7 +99,9 @@ describe("TransactionFilterBar", () => {
       sort: "oldest",
     });
     const texts = textsOf(tree);
-    expect(texts).toEqual(expect.arrayContaining(["Spent", "Food +2", "Swiggy", "₹500–2,000", "Oldest"]));
+    expect(texts).toEqual(
+      expect.arrayContaining(["Expense", "Food +2", "Swiggy", `${formatInrCompact(500)} – ${formatInrCompact(2000)}`, "Oldest"]),
+    );
     expect(pressables(tree, "Category filter, Food and 2 more, double tap to change").length).toBeGreaterThan(0);
     for (const name of ["type", "category", "payee", "amount", "sort"]) {
       expect(pressables(tree, `Clear ${name} filter`).length).toBeGreaterThan(0);
@@ -104,7 +128,7 @@ describe("TransactionFilterBar", () => {
   it("Clear resets everything, search included", async () => {
     const { tree, onCriteriaChange } = await render({
       ...DEFAULT_LIST_CRITERIA,
-      type: "received",
+      type: "income",
       search: "salary",
     });
     press(tree, "Clear all filters");
@@ -112,34 +136,168 @@ describe("TransactionFilterBar", () => {
     unmountTree(tree);
   });
 
-  it("a chip opens its picker, and picking applies at once", async () => {
+  it("a chip opens its picker under the row, and picking applies at once and closes it", async () => {
     const { tree, onCriteriaChange } = await render();
     press(tree, "Type filter, double tap to choose");
-    expect(textsOf(tree)).toEqual(
-      expect.arrayContaining(["All", "Spent", "Recurring", "Flexible", "Received"]),
-    );
-    press(tree, "Received");
-    expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, type: "received" });
-    // A single-select picker closes after the choice.
-    expect(textsOf(tree)).not.toContain("Done");
+    const texts = textsOf(tree);
+    expect(texts).toEqual(expect.arrayContaining(["Expense", "Income", "Recurring", "Flexible"]));
+    expect(texts).not.toContain("All");
+    press(tree, "Income");
+    expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, type: "income" });
+    // A single-select picker collapses after the choice.
+    expect(textsOf(tree)).not.toContain("Recurring");
     unmountTree(tree);
   });
 
-  it("the category picker is a multi-select that stays open", async () => {
+  it("picking the active type again clears it", async () => {
+    const { tree, onCriteriaChange } = await render({ ...DEFAULT_LIST_CRITERIA, type: "expense" });
+    press(tree, "Type filter, Expense, double tap to change");
+    press(tree, "Expense");
+    expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, type: "all" });
+    unmountTree(tree);
+  });
+
+  it("tapping the open chip again collapses its panel", async () => {
+    const { tree } = await render();
+    press(tree, "Type filter, double tap to choose");
+    expect(textsOf(tree)).toContain("Flexible");
+    press(tree, "Type filter, double tap to choose");
+    expect(textsOf(tree)).not.toContain("Flexible");
+    unmountTree(tree);
+  });
+
+  it("shows one panel at a time", async () => {
+    const { tree } = await render();
+    press(tree, "Type filter, double tap to choose");
+    press(tree, "Sort filter, double tap to choose");
+    const texts = textsOf(tree);
+    expect(texts).toContain("Highest amount");
+    expect(texts).not.toContain("Flexible");
+    unmountTree(tree);
+  });
+
+  it("the category picker lists the spending categories and Uncategorized, not recurring ones", async () => {
     const { tree, onCriteriaChange } = await render();
     press(tree, "Category filter, double tap to choose");
+    const texts = textsOf(tree);
+    expect(texts).toEqual(expect.arrayContaining(["Uncategorized", "Food", "Fun"]));
+    expect(texts).not.toContain("Rent");
+    expect(texts).not.toContain("Salary");
     press(tree, "Food");
     expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, categoryIds: ["c-food"] });
-    expect(textsOf(tree)).toContain("Done");
+    // A multi-select stays open.
+    expect(textsOf(tree)).toContain("Fun");
     unmountTree(tree);
   });
 
-  it("the payee picker lists the month's payees with their counts", async () => {
+  it("a seeded recurring category gets a ticked row so it can be unticked", async () => {
+    const { tree, onCriteriaChange } = await render({ ...DEFAULT_LIST_CRITERIA, categoryIds: ["c-rent"] });
+    press(tree, "Category filter, Rent, double tap to change");
+    const row = pressables(tree, "Rent").find((node) => node.props.accessibilityState);
+    expect(row?.props.accessibilityState).toEqual({ selected: true });
+    expect(textsOf(tree)).not.toContain("Salary");
+    press(tree, "Rent");
+    expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, categoryIds: [] });
+    unmountTree(tree);
+  });
+
+  it("a seeded recurring category still shows its name on the chip", async () => {
+    const { tree } = await render({ ...DEFAULT_LIST_CRITERIA, categoryIds: ["c-rent"] });
+    expect(textsOf(tree)).toContain("Rent");
+    unmountTree(tree);
+  });
+
+  it("the payee picker lists the month payees with their counts", async () => {
     const { tree, onCriteriaChange } = await render();
     press(tree, "Payee filter, double tap to choose");
     expect(textsOf(tree)).toEqual(expect.arrayContaining(["Swiggy", "Uber"]));
     press(tree, "Swiggy, 4 transactions");
     expect(onCriteriaChange).toHaveBeenCalledWith({ ...DEFAULT_LIST_CRITERIA, payeeKeys: ["swiggy"] });
+    unmountTree(tree);
+  });
+
+  it("the amount panel shows the range slider with a thumb for each end", async () => {
+    const { tree } = await render();
+    press(tree, "Amount filter, double tap to choose");
+    const thumbs = tree.root.findAll((node) => node.props.accessibilityRole === "adjustable");
+    const labels = thumbs.map((node) => node.props.accessibilityLabel);
+    expect(labels).toEqual(expect.arrayContaining(["Minimum amount", "Maximum amount"]));
+    const min = thumbs.find((node) => node.props.accessibilityLabel === "Minimum amount");
+    expect(min?.props.accessibilityValue).toEqual({ text: formatInrCompact(100) });
+    expect(textsOf(tree)).not.toContain("Reset");
+    unmountTree(tree);
+  });
+
+  it("a thumb accessibility action moves it a step and sets only that side", async () => {
+    const { tree, onCriteriaChange } = await render();
+    press(tree, "Amount filter, double tap to choose");
+    const min = tree.root.findAll(
+      (node) =>
+        node.props.accessibilityLabel === "Minimum amount" &&
+        typeof node.props.onAccessibilityAction === "function",
+    )[0];
+    runAct(() => {
+      (min.props.onAccessibilityAction as (e: unknown) => void)({
+        nativeEvent: { actionName: "increment" },
+      });
+    });
+    expect(onCriteriaChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_LIST_CRITERIA,
+      amountMinPaise: 15_000,
+      amountMaxPaise: null,
+    });
+    unmountTree(tree);
+  });
+
+  it("nudging one thumb keeps the other bound exactly, and shows the real value", async () => {
+    const { tree, onCriteriaChange } = await render({
+      ...DEFAULT_LIST_CRITERIA,
+      amountMinPaise: 21_234,
+      amountMaxPaise: 47_321,
+    });
+    press(tree, `Amount filter, ${formatInrCompact(212)} – ${formatInrCompact(473)}, double tap to change`);
+    const thumb = (label: string) =>
+      tree.root.findAll(
+        (node) =>
+          node.props.accessibilityLabel === label &&
+          typeof node.props.onAccessibilityAction === "function",
+      )[0];
+    expect(thumb("Minimum amount").props.accessibilityValue).toEqual({ text: formatInrCompact(212.34) });
+    expect(thumb("Maximum amount").props.accessibilityValue).toEqual({ text: formatInrCompact(473.21) });
+    runAct(() => {
+      (thumb("Maximum amount").props.onAccessibilityAction as (e: unknown) => void)({
+        nativeEvent: { actionName: "decrement" },
+      });
+    });
+    expect(onCriteriaChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_LIST_CRITERIA,
+      amountMinPaise: 21_234,
+      amountMaxPaise: 45_000,
+    });
+    unmountTree(tree);
+  });
+
+  it("Reset in the amount panel clears the range", async () => {
+    const { tree, onCriteriaChange } = await render({
+      ...DEFAULT_LIST_CRITERIA,
+      amountMinPaise: 20_000,
+      amountMaxPaise: 45_000,
+    });
+    press(tree, `Amount filter, ${formatInrCompact(200)} – ${formatInrCompact(450)}, double tap to change`);
+    press(tree, "Reset amount range");
+    expect(onCriteriaChange).toHaveBeenCalledWith({
+      ...DEFAULT_LIST_CRITERIA,
+      amountMinPaise: null,
+      amountMaxPaise: null,
+    });
+    unmountTree(tree);
+  });
+
+  it("without a usable range the amount panel says so instead of showing a slider", async () => {
+    const { tree } = await render(DEFAULT_LIST_CRITERIA, null);
+    press(tree, "Amount filter, double tap to choose");
+    expect(textsOf(tree).some((text) => text.startsWith("Nothing to slide yet"))).toBe(true);
+    expect(tree.root.findAll((node) => node.props.accessibilityRole === "adjustable")).toHaveLength(0);
     unmountTree(tree);
   });
 });

@@ -1,18 +1,41 @@
-import { ChevronDown, Search, X } from "lucide-react-native";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ChevronDown, ChevronUp, Search, X } from "lucide-react-native";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  type LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
-import { UNCATEGORIZED_CATEGORY_KEY } from "../../constants/uncategorizedCategoryKey";
+import type { AmountDomain } from "../../utils/amountRange";
 import {
   amountFilterLabel,
+  buildCategoryOptions,
   countActiveFilters,
   DEFAULT_LIST_CRITERIA,
   describeSelection,
@@ -25,7 +48,6 @@ import {
   type PayeeOption,
 } from "../../utils/monthListFilter";
 
-import { FilterPickerSheet } from "./FilterPickerSheet";
 import {
   AmountPicker,
   CategoryPicker,
@@ -35,45 +57,47 @@ import {
 } from "./FilterPickers";
 
 const SEARCH_DEBOUNCE_MS = 200;
+const PANEL_OPEN_MS = 180;
+const PANEL_CLOSE_MS = 140;
 
 type FilterId = "type" | "category" | "payee" | "amount" | "sort";
-
-const FILTER_TITLES: Record<FilterId, string> = {
-  type: "Type",
-  category: "Category",
-  payee: "Payee",
-  amount: "Amount",
-  sort: "Sort",
-};
 
 type FilterChipProps = {
   /** The dimension's name ("Category"): shown while the filter is off, and in the labels. */
   name: string;
   /** What the filter is set to; null while off. */
   value: { label: string; spoken: string } | null;
-  onOpen: () => void;
+  /** Whether this chip's panel is the one showing under the row. */
+  open: boolean;
+  onToggle: () => void;
   onClear: () => void;
 };
 
-/** Inactive: name + chevron. Active: filled, shows its value, with an ✕ that clears just this filter. */
+/**
+ * Inactive: name + chevron. Active: filled, shows its value, with an ✕ that clears just this
+ * filter. Tapping it opens or closes its panel under the row.
+ */
 const FilterChip = memo(function FilterChip({
   name,
   value,
-  onOpen,
+  open,
+  onToggle,
   onClear,
 }: FilterChipProps) {
   const { colors } = useTheme();
   const styles = useStyles();
   const active = value !== null;
+  const Chevron = open ? ChevronUp : ChevronDown;
   return (
-    <View style={[styles.chip, active && styles.chipActive]}>
+    <View style={[styles.chip, active && styles.chipActive, open && styles.chipOpen]}>
       <Pressable
         onPress={() => {
           void triggerHaptic();
-          onOpen();
+          onToggle();
         }}
         style={[styles.chipMain, active && styles.chipMainActive]}
         accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
         accessibilityLabel={
           active
             ? `${name} filter, ${value.spoken}, double tap to change`
@@ -87,7 +111,7 @@ const FilterChip = memo(function FilterChip({
           {active ? value.label : name}
         </Text>
         {active ? null : (
-          <ChevronDown size={14} color={colors.inkSoft} strokeWidth={2.25} />
+          <Chevron size={14} color={colors.inkSoft} strokeWidth={2.25} />
         )}
       </Pressable>
       {active ? (
@@ -174,42 +198,117 @@ const SearchField = memo(function SearchField({ value, onChange }: SearchFieldPr
   );
 });
 
+type FilterPanelProps = {
+  /** False while collapsing; the panel then calls `onCollapsed` so its owner can unmount it. */
+  open: boolean;
+  reduceMotion: boolean;
+  onCollapsed: () => void;
+  children: ReactNode;
+};
+
+/**
+ * The picker area under the chip row. Its height follows the content (measured) and its opacity
+ * fades with it, so the list below is pushed down and back gently; with reduce motion it just
+ * appears and disappears.
+ */
+function FilterPanel({ open, reduceMotion, onCollapsed, children }: FilterPanelProps) {
+  const styles = useStyles();
+  const height = useSharedValue(0);
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
+  const contentHeight = useSharedValue(0);
+  const openRef = useRef(open);
+
+  useEffect(() => {
+    openRef.current = open;
+    if (open) {
+      opacity.value = reduceMotion ? 1 : withTiming(1, { duration: PANEL_OPEN_MS });
+      if (contentHeight.value > 0) {
+        height.value = reduceMotion
+          ? contentHeight.value
+          : withTiming(contentHeight.value, { duration: PANEL_OPEN_MS });
+      }
+      return;
+    }
+    if (reduceMotion) {
+      opacity.value = 0;
+      height.value = 0;
+      onCollapsed();
+      return;
+    }
+    opacity.value = withTiming(0, { duration: PANEL_CLOSE_MS });
+    height.value = withTiming(0, { duration: PANEL_CLOSE_MS }, (finished) => {
+      if (finished) runOnJS(onCollapsed)();
+    });
+  }, [contentHeight, height, onCollapsed, open, opacity, reduceMotion]);
+
+  const onContentLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = event.nativeEvent.layout.height;
+      contentHeight.value = next;
+      if (!openRef.current) return;
+      height.value = reduceMotion ? next : withTiming(next, { duration: PANEL_OPEN_MS });
+    },
+    [contentHeight, height, reduceMotion],
+  );
+
+  const frameStyle = useAnimatedStyle(() => ({
+    height: height.value,
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[styles.panelFrame, frameStyle]}>
+      <View style={styles.panelMeasure} onLayout={onContentLayout}>
+        <View style={styles.panel}>{children}</View>
+      </View>
+    </Animated.View>
+  );
+}
+
 export type TransactionFilterBarProps = {
   criteria: ListCriteria;
   onCriteriaChange: (criteria: ListCriteria) => void;
   /** The payees present in the month, for the Payee picker. */
   payeeOptions: readonly PayeeOption[];
+  /** The Amount slider's scale (the month's expenses); null when there is no range to slide. */
+  amountDomain: AmountDomain | null;
 };
 
 /**
  * The list's filters: a search field, then one scrolling row of chips (Type, Category, Payee,
- * Amount, Sort) that each open a small picker applying at once, and a Clear at the end when any
- * filter is on.
+ * Amount, Sort). A chip opens its picker right under the row (one at a time, pushing the list
+ * down) and every choice applies at once; tapping the chip again closes it, as does picking a
+ * single-select value. A Clear at the end of the row shows when any filter is on.
  */
 export const TransactionFilterBar = memo(function TransactionFilterBar({
   criteria,
   onCriteriaChange,
   payeeOptions,
+  amountDomain,
 }: TransactionFilterBarProps) {
   const styles = useStyles();
+  const reduceMotion = useReduceMotion();
+  // `open` is the chip whose panel is wanted; `panelId` is the panel on screen, which outlives it
+  // for the length of the collapse.
   const [open, setOpen] = useState<FilterId | null>(null);
+  const [panelId, setPanelId] = useState<FilterId | null>(null);
 
   const spend = useCategories("spend").categories;
   const recurringExpense = useCategories("recurring_expense").categories;
   const recurringIncome = useCategories("recurring_income").categories;
-  const categoryOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const options: { id: string; name: string }[] = [
-      { id: UNCATEGORIZED_CATEGORY_KEY, name: "Uncategorized" },
-    ];
-    for (const category of [...spend, ...recurringExpense, ...recurringIncome]) {
-      if (!seen.has(category.id)) {
-        seen.add(category.id);
-        options.push({ id: category.id, name: category.name });
-      }
+  // The picker offers the user's own spending categories, plus any selected id outside them (a
+  // recurring one a link seeded) so it can be unticked; every id gets its name on the chip.
+  const categoryNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const category of [...recurringIncome, ...recurringExpense, ...spend]) {
+      names.set(category.id, category.name);
     }
-    return options;
+    return names;
   }, [recurringExpense, recurringIncome, spend]);
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(spend, criteria.categoryIds, (id) => categoryNames.get(id)),
+    [categoryNames, criteria.categoryIds, spend],
+  );
 
   const set = (patch: Partial<ListCriteria>) => onCriteriaChange({ ...criteria, ...patch });
 
@@ -242,9 +341,18 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
 
   const anyActive = countActiveFilters(criteria) > 0;
   const close = () => setOpen(null);
+  const toggle = (id: FilterId) => {
+    if (open === id) {
+      setOpen(null);
+      return;
+    }
+    setOpen(id);
+    setPanelId(id);
+  };
+  const onCollapsed = useCallback(() => setPanelId(null), []);
 
   let picker = null;
-  switch (open) {
+  switch (panelId) {
     case "type":
       picker = (
         <TypePicker
@@ -288,6 +396,7 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
     case "amount":
       picker = (
         <AmountPicker
+          domain={amountDomain}
           criteria={criteria}
           onChange={(amountMinPaise, amountMaxPaise) =>
             set({ amountMinPaise, amountMaxPaise })
@@ -300,7 +409,7 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
   }
 
   return (
-    <View style={styles.root}>
+    <View>
       <SearchField value={criteria.search} onChange={(search) => set({ search })} />
       <ScrollView
         horizontal
@@ -311,31 +420,36 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
         <FilterChip
           name="Type"
           value={typeValue}
-          onOpen={() => setOpen("type")}
+          open={open === "type"}
+          onToggle={() => toggle("type")}
           onClear={() => set({ type: DEFAULT_LIST_CRITERIA.type })}
         />
         <FilterChip
           name="Category"
           value={categoryValue}
-          onOpen={() => setOpen("category")}
+          open={open === "category"}
+          onToggle={() => toggle("category")}
           onClear={() => set({ categoryIds: [] })}
         />
         <FilterChip
           name="Payee"
           value={payeeValue}
-          onOpen={() => setOpen("payee")}
+          open={open === "payee"}
+          onToggle={() => toggle("payee")}
           onClear={() => set({ payeeKeys: [] })}
         />
         <FilterChip
           name="Amount"
           value={amountValue}
-          onOpen={() => setOpen("amount")}
+          open={open === "amount"}
+          onToggle={() => toggle("amount")}
           onClear={() => set({ amountMinPaise: null, amountMaxPaise: null })}
         />
         <FilterChip
           name="Sort"
           value={sortValue}
-          onOpen={() => setOpen("sort")}
+          open={open === "sort"}
+          onToggle={() => toggle("sort")}
           onClear={() => set({ sort: DEFAULT_LIST_CRITERIA.sort })}
         />
         {anyActive ? (
@@ -353,24 +467,26 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
           </Pressable>
         ) : null}
       </ScrollView>
-      {open !== null ? (
-        <FilterPickerSheet title={FILTER_TITLES[open]} onClose={close}>
-          {picker}
-        </FilterPickerSheet>
+      {panelId !== null ? (
+        <FilterPanel
+          open={open !== null}
+          reduceMotion={reduceMotion}
+          onCollapsed={onCollapsed}
+        >
+          <View key={panelId}>{picker}</View>
+        </FilterPanel>
       ) : null}
     </View>
   );
 });
 
 const useStyles = createThemedStyles(({ colors }) => ({
-  root: {
-    gap: spacing.sm,
-  },
   search: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     minHeight: 40,
+    marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     backgroundColor: colors.surfaceSunken,
@@ -392,18 +508,23 @@ const useStyles = createThemedStyles(({ colors }) => ({
     flexDirection: "row",
     alignItems: "center",
     maxWidth: 220,
+    borderWidth: 1,
+    borderColor: "transparent",
     borderRadius: radius.full,
     backgroundColor: colors.surfaceSunken,
   },
   chipActive: {
     backgroundColor: colors.accent,
   },
+  chipOpen: {
+    borderColor: colors.accentText,
+  },
   chipMain: {
     flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    minHeight: 34,
+    minHeight: 32,
     paddingHorizontal: spacing.md,
   },
   chipMainActive: {
@@ -420,7 +541,7 @@ const useStyles = createThemedStyles(({ colors }) => ({
     color: colors.onAccent,
   },
   chipClear: {
-    minHeight: 34,
+    minHeight: 32,
     paddingLeft: spacing.xs,
     paddingRight: spacing.sm,
     justifyContent: "center",
@@ -435,5 +556,22 @@ const useStyles = createThemedStyles(({ colors }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.accentText,
+  },
+  panelFrame: {
+    overflow: "hidden",
+  },
+  panelMeasure: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: spacing.sm,
+  },
+  panel: {
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
 }));

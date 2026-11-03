@@ -2,7 +2,7 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { SpendSplitBar } from "@/components/shared";
-import { ProgressBar, SkeletonBlock } from "@/components/ui";
+import { SkeletonBlock } from "@/components/ui";
 import { radius, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
 import { createThemedStyles, useTheme, type ThemeColors } from "@/theme";
@@ -13,6 +13,8 @@ export type InsightsMonthSummary = {
   hasIncome: boolean;
   isOverBudget: boolean;
   budgetDisplay: string;
+  /** Monthly budget in rupees; 0 when none is set. */
+  budgetValue: number;
   usedPctDisplay: string;
   remainingValue: number;
   remainingLabel: string;
@@ -65,13 +67,6 @@ function buildSubtitle(summary: InsightsMonthSummary): string {
   return parts.join(" · ");
 }
 
-function budgetUsedProgress(summary: InsightsMonthSummary): number {
-  if (!summary.hasMonthlyBudget || !summary.budgetDisplay) return 0;
-  const used = summary.usedPctDisplay.replace("%", "");
-  const pct = Number.parseInt(used, 10);
-  return Number.isFinite(pct) ? Math.min(pct / 100, 1) : 0;
-}
-
 export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   summary,
   summaryLoading,
@@ -83,7 +78,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
   const heroCol = heroColor(summary, summaryLoading, colors);
   const subtitle = summary ? buildSubtitle(summary) : "";
   const showBudgetBar = Boolean(hasMonthlyBudget ?? summary?.hasMonthlyBudget);
-  const budgetProgress = summary ? budgetUsedProgress(summary) : 0;
   const hasIncome = Boolean(summary?.hasIncome);
 
   return (
@@ -144,15 +138,18 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         ) : null}
       </View>
 
-      {/* Recurring vs flexible split + what is still expected */}
-      {summary && !summaryLoading && (summary.hasFixed || summary.expectedIncomeDisplay) ? (
+      {/* Recurring / flexible / left breakdown (inside the budget when there is one) + what is still expected */}
+      {summary &&
+      !summaryLoading &&
+      (summary.hasFixed || showBudgetBar || summary.expectedIncomeDisplay) ? (
         <>
           <View style={styles.divider} />
           <View style={styles.splitSection}>
-            {summary.hasFixed ? (
+            {summary.hasFixed || showBudgetBar ? (
               <SpendSplitBar
                 fixed={summary.fixedValue}
                 flexible={summary.flexibleValue}
+                budget={showBudgetBar ? summary.budgetValue : 0}
               />
             ) : null}
             {summary.expectedIncomeDisplay ? (
@@ -160,24 +157,6 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
                 {`Expected income ${summary.expectedIncomeDisplay}`}
               </Text>
             ) : null}
-          </View>
-        </>
-      ) : null}
-
-      {/* Budget bar */}
-      {showBudgetBar && summary ? (
-        <>
-          <View style={styles.divider} />
-          <View style={styles.budgetSection}>
-            <ProgressBar
-              progress={budgetProgress}
-              height={8}
-              fillColor={summary.isOverBudget ? colors.danger : colors.accent}
-              backgroundColor={colors.surfaceSunken}
-            />
-            <Text style={styles.budgetMeta}>
-              {`Budget ${summary.budgetDisplay} · ${summary.remainingLabel} ${summary.remainingDisplay} · ${summary.usedPctDisplay} used`}
-            </Text>
           </View>
         </>
       ) : null}
@@ -294,16 +273,5 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     lineHeight: 16,
     color: colors.inkSoft,
     fontVariant: ["tabular-nums"],
-  },
-  budgetSection: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.xs,
-  },
-  budgetMeta: {
-    fontFamily: fontFamilies.regular,
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.inkFaint,
   },
 }));

@@ -64,6 +64,18 @@ describe("buildInsightsMonthSummary", () => {
     expect(summary.fixedDisplay).toBe(formatInrCompact(15000));
     expect(summary.flexibleDisplay).toBe(formatInrCompact(1000));
     expect(summary.expectedIncomeDisplay).toBeNull();
+    expect(summary.budgetValue).toBe(0);
+  });
+
+  it("carries the budget amount for the split bar", () => {
+    const summary = buildInsightsMonthSummary(
+      { credit_total: "0", debit_total: "1000", net: "-1000", transaction_count: 1 },
+      true,
+      30000,
+      false,
+    );
+    expect(summary.budgetValue).toBe(30000);
+    expect(buildInsightsMonthSummary(undefined, true, 30000, false).budgetValue).toBe(30000);
   });
 
   it("shows the fixed income still to come", () => {

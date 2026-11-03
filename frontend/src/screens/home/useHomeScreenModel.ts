@@ -45,7 +45,6 @@ import { useConnectivityStore } from "@/stores/connectivityStore";
 import { usePendingSheetStore } from "@/stores/pendingSheetStore";
 import type { MainStackParamList, MainTabParamList } from "@/navigation/types";
 import {
-  formatInrCompact,
   formatNetDisplay,
   formatSpendMagnitude,
 } from "@/utils/currency";
@@ -139,14 +138,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     monthlyBudget,
     spentMonthNum,
     hasMonthlyBudget,
-    hasSpentMonth,
     monthlyLeft,
-    monthlyProgress,
   } = computeMonthlyBudgetMath(budget?.monthly_budget, spentThisMonth);
-  const monthlySubtext =
-    hasMonthlyBudget && hasSpentMonth
-      ? `${formatInrCompact(monthlyLeft)} left of ${formatInrCompact(monthlyBudget)}`
-      : "";
 
   const spentMonthDisplay = overview
     ? formatSpendMagnitude(spentThisMonth ?? overview.spent_this_month)
@@ -307,9 +300,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     monthFixedSpent,
     monthFlexibleSpent,
     monthlyBudgetAmount,
-    monthlyProgress,
     monthlyRemainingDisplay,
-    monthlySubtext,
     netDisplay,
     netValue,
     onAddMonthlyBudget,

@@ -183,6 +183,7 @@ export default function TransactionsMonthList({
           criteria={modelArgs.criteria}
           onCriteriaChange={modelArgs.onCriteriaChange}
           payeeOptions={model.payeeOptions}
+          amountDomain={model.amountDomain}
         />
         {model.showInitialLoading ||
         model.isEmpty ||
