@@ -57,3 +57,11 @@ On Xiaomi/MIUI the widget's background refresh (it settles a receipt the card le
 - **Backend:** deploys through CI on merge to `main` (`api/DEPLOY.md`); no app release needed.
 
 The server side is `api/src/features/updates` (R2 layout in `storage.ts`). Debug builds never check for updates and load the bundle straight from Metro (`npm start`). There is no `expo-dev-client`: it shipped ~10 MB of dev tools (and an ML Kit scanner) in release APKs, and Expo's Gradle plugin cannot exclude it per build type. Use React Native's dev menu (`adb shell input keyevent 82`) to reload or change the bundler address.
+
+## Automatic OTA on push to main
+
+`.github/workflows/publish-ota.yml` runs after **Deploy API** succeeds on `main` (so migrations and the Worker are live first) and runs `npm run publish:update` with the commit subject as the message. It skips pushes that touch nothing under `frontend/`, and **fails** when native-affecting files (`frontend/android/`, `frontend/plugins/`, `app.config.js`, `package.json`) changed without a `version` bump in `app.json`: bump it and ship a new APK, or run the workflow manually with `allow_native_changes`.
+
+Set up once in GitHub: secret `DIME_UPDATES_PRIVATE_KEY` (contents of `keys/private-key.pem`; put it on the `production` environment and restrict that environment to `main`; add required reviewers there if you want a manual approval before every publish) and repository variables `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_SENTRY_DSN`. `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are shared with Deploy API (the token needs R2 edit).
+
+Rollback or re-publish: Actions -> Publish OTA -> Run workflow with `ref` set to the commit. `--rollback-to-embedded` still runs locally.
