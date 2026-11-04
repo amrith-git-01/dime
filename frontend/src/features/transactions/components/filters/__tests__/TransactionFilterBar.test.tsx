@@ -34,6 +34,7 @@ jest.mock("react-native-gesture-handler", () => {
   const chain: Record<string, unknown> = new Proxy({}, { get: () => () => chain });
   return {
     Gesture: { Pan: () => chain },
+    GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
     GestureDetector: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
   };
 });
@@ -136,7 +137,7 @@ describe("TransactionFilterBar", () => {
     unmountTree(tree);
   });
 
-  it("a chip opens its picker under the row, and picking applies at once and closes it", async () => {
+  it("a chip opens its picker in a modal, and picking applies at once and closes it", async () => {
     const { tree, onCriteriaChange } = await render();
     press(tree, "Type filter, double tap to choose");
     const texts = textsOf(tree);
@@ -157,11 +158,14 @@ describe("TransactionFilterBar", () => {
     unmountTree(tree);
   });
 
-  it("tapping the open chip again collapses its panel", async () => {
+  it("the close button and the scrim close the modal", async () => {
     const { tree } = await render();
     press(tree, "Type filter, double tap to choose");
     expect(textsOf(tree)).toContain("Flexible");
+    press(tree, "Close");
+    expect(textsOf(tree)).not.toContain("Flexible");
     press(tree, "Type filter, double tap to choose");
+    press(tree, "Close filter");
     expect(textsOf(tree)).not.toContain("Flexible");
     unmountTree(tree);
   });

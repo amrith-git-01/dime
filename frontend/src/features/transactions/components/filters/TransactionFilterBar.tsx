@@ -1,34 +1,14 @@
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react-native";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  type LayoutChangeEvent,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
+import { ChevronDown, Search, X } from "lucide-react-native";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { Button } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { useCategories } from "@/features/categories/hooks/useCategories";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
 import { createThemedStyles, useTheme } from "@/theme";
 
@@ -57,8 +37,6 @@ import {
 } from "./FilterPickers";
 
 const SEARCH_DEBOUNCE_MS = 200;
-const PANEL_OPEN_MS = 180;
-const PANEL_CLOSE_MS = 140;
 
 type FilterId = "type" | "category" | "payee" | "amount" | "sort";
 
@@ -67,7 +45,7 @@ type FilterChipProps = {
   name: string;
   /** What the filter is set to; null while off. */
   value: { label: string; spoken: string } | null;
-  /** Whether this chip's panel is the one showing under the row. */
+  /** Whether this chip's picker is the one showing. */
   open: boolean;
   onToggle: () => void;
   onClear: () => void;
@@ -75,7 +53,7 @@ type FilterChipProps = {
 
 /**
  * Inactive: name + chevron. Active: filled, shows its value, with an ✕ that clears just this
- * filter. Tapping it opens or closes its panel under the row.
+ * filter. Tapping it opens its picker in a modal.
  */
 const FilterChip = memo(function FilterChip({
   name,
@@ -87,7 +65,6 @@ const FilterChip = memo(function FilterChip({
   const { colors } = useTheme();
   const styles = useStyles();
   const active = value !== null;
-  const Chevron = open ? ChevronUp : ChevronDown;
   return (
     <View style={[styles.chip, active && styles.chipActive, open && styles.chipOpen]}>
       <Pressable
@@ -111,7 +88,7 @@ const FilterChip = memo(function FilterChip({
           {active ? value.label : name}
         </Text>
         {active ? null : (
-          <Chevron size={14} color={colors.inkSoft} strokeWidth={2.25} />
+          <ChevronDown size={14} color={colors.inkSoft} strokeWidth={2.25} />
         )}
       </Pressable>
       {active ? (
@@ -198,70 +175,70 @@ const SearchField = memo(function SearchField({ value, onChange }: SearchFieldPr
   );
 });
 
-type FilterPanelProps = {
-  /** False while collapsing; the panel then calls `onCollapsed` so its owner can unmount it. */
-  open: boolean;
-  reduceMotion: boolean;
-  onCollapsed: () => void;
+const FILTER_TITLES: Record<FilterId, string> = {
+  type: "Type",
+  category: "Category",
+  payee: "Payee",
+  amount: "Amount",
+  sort: "Sort",
+};
+
+type FilterModalProps = {
+  visible: boolean;
+  title: string;
+  /** Multi-select pickers get a Done button; single-select ones close on the choice. */
+  showDone: boolean;
+  onClose: () => void;
   children: ReactNode;
 };
 
 /**
- * The picker area under the chip row. Its height follows the content (measured) and its opacity
- * fades with it, so the list below is pushed down and back gently; with reduce motion it just
- * appears and disappears.
+ * A picker over a light scrim, the same surface as the transaction detail: a centred card with a
+ * title and a close button. Tapping the scrim or Back closes it; choices apply as they are made.
  */
-function FilterPanel({ open, reduceMotion, onCollapsed, children }: FilterPanelProps) {
+function FilterModal({ visible, title, showDone, onClose, children }: FilterModalProps) {
+  const { colors, shadows } = useTheme();
   const styles = useStyles();
-  const height = useSharedValue(0);
-  const opacity = useSharedValue(reduceMotion ? 1 : 0);
-  const contentHeight = useSharedValue(0);
-  const openRef = useRef(open);
-
-  useEffect(() => {
-    openRef.current = open;
-    if (open) {
-      opacity.value = reduceMotion ? 1 : withTiming(1, { duration: PANEL_OPEN_MS });
-      if (contentHeight.value > 0) {
-        height.value = reduceMotion
-          ? contentHeight.value
-          : withTiming(contentHeight.value, { duration: PANEL_OPEN_MS });
-      }
-      return;
-    }
-    if (reduceMotion) {
-      opacity.value = 0;
-      height.value = 0;
-      onCollapsed();
-      return;
-    }
-    opacity.value = withTiming(0, { duration: PANEL_CLOSE_MS });
-    height.value = withTiming(0, { duration: PANEL_CLOSE_MS }, (finished) => {
-      if (finished) runOnJS(onCollapsed)();
-    });
-  }, [contentHeight, height, onCollapsed, open, opacity, reduceMotion]);
-
-  const onContentLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const next = event.nativeEvent.layout.height;
-      contentHeight.value = next;
-      if (!openRef.current) return;
-      height.value = reduceMotion ? next : withTiming(next, { duration: PANEL_OPEN_MS });
-    },
-    [contentHeight, height, reduceMotion],
-  );
-
-  const frameStyle = useAnimatedStyle(() => ({
-    height: height.value,
-    opacity: opacity.value,
-  }));
-
   return (
-    <Animated.View style={[styles.panelFrame, frameStyle]}>
-      <View style={styles.panelMeasure} onLayout={onContentLayout}>
-        <View style={styles.panel}>{children}</View>
-      </View>
-    </Animated.View>
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <GestureHandlerRootView style={styles.modalRoot}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close filter"
+        >
+          <Pressable
+            style={styles.cardShell}
+            onPress={(event) => event.stopPropagation()}
+            accessibilityViewIsModal
+          >
+            <View style={[styles.card, shadows.modal]}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle} numberOfLines={1}>
+                  {title}
+                </Text>
+                <Pressable
+                  onPress={onClose}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.closeButton, pressed && styles.closePressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <X size={20} color={colors.inkSoft} strokeWidth={1.5} />
+                </Pressable>
+              </View>
+              {children}
+              {showDone ? (
+                <View style={styles.cardFooter}>
+                  <Button title="Done" onPress={onClose} />
+                </View>
+              ) : null}
+            </View>
+          </Pressable>
+        </Pressable>
+      </GestureHandlerRootView>
+    </Modal>
   );
 }
 
@@ -276,9 +253,9 @@ export type TransactionFilterBarProps = {
 
 /**
  * The list's filters: a search field, then one scrolling row of chips (Type, Category, Payee,
- * Amount, Sort). A chip opens its picker right under the row (one at a time, pushing the list
- * down) and every choice applies at once; tapping the chip again closes it, as does picking a
- * single-select value. A Clear at the end of the row shows when any filter is on.
+ * Amount, Sort). A chip opens its picker in a modal over a scrim, so the page behind does not
+ * move; every choice applies at once, and picking a single-select value closes it. A Clear at the
+ * end of the row shows when any filter is on.
  */
 export const TransactionFilterBar = memo(function TransactionFilterBar({
   criteria,
@@ -287,9 +264,8 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
   amountDomain,
 }: TransactionFilterBarProps) {
   const styles = useStyles();
-  const reduceMotion = useReduceMotion();
-  // `open` is the chip whose panel is wanted; `panelId` is the panel on screen, which outlives it
-  // for the length of the collapse.
+  // `open` is the picker showing; `panelId` is the last one opened, which the modal keeps
+  // rendering while it fades out.
   const [open, setOpen] = useState<FilterId | null>(null);
   const [panelId, setPanelId] = useState<FilterId | null>(null);
 
@@ -341,15 +317,10 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
 
   const anyActive = countActiveFilters(criteria) > 0;
   const close = () => setOpen(null);
-  const toggle = (id: FilterId) => {
-    if (open === id) {
-      setOpen(null);
-      return;
-    }
+  const openPicker = (id: FilterId) => {
     setOpen(id);
     setPanelId(id);
   };
-  const onCollapsed = useCallback(() => setPanelId(null), []);
 
   let picker = null;
   switch (panelId) {
@@ -421,35 +392,35 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
           name="Type"
           value={typeValue}
           open={open === "type"}
-          onToggle={() => toggle("type")}
+          onToggle={() => openPicker("type")}
           onClear={() => set({ type: DEFAULT_LIST_CRITERIA.type })}
         />
         <FilterChip
           name="Category"
           value={categoryValue}
           open={open === "category"}
-          onToggle={() => toggle("category")}
+          onToggle={() => openPicker("category")}
           onClear={() => set({ categoryIds: [] })}
         />
         <FilterChip
           name="Payee"
           value={payeeValue}
           open={open === "payee"}
-          onToggle={() => toggle("payee")}
+          onToggle={() => openPicker("payee")}
           onClear={() => set({ payeeKeys: [] })}
         />
         <FilterChip
           name="Amount"
           value={amountValue}
           open={open === "amount"}
-          onToggle={() => toggle("amount")}
+          onToggle={() => openPicker("amount")}
           onClear={() => set({ amountMinPaise: null, amountMaxPaise: null })}
         />
         <FilterChip
           name="Sort"
           value={sortValue}
           open={open === "sort"}
-          onToggle={() => toggle("sort")}
+          onToggle={() => openPicker("sort")}
           onClear={() => set({ sort: DEFAULT_LIST_CRITERIA.sort })}
         />
         {anyActive ? (
@@ -468,13 +439,14 @@ export const TransactionFilterBar = memo(function TransactionFilterBar({
         ) : null}
       </ScrollView>
       {panelId !== null ? (
-        <FilterPanel
-          open={open !== null}
-          reduceMotion={reduceMotion}
-          onCollapsed={onCollapsed}
+        <FilterModal
+          visible={open !== null}
+          title={FILTER_TITLES[panelId]}
+          showDone={panelId === "category" || panelId === "payee" || panelId === "amount"}
+          onClose={close}
         >
-          <View key={panelId}>{picker}</View>
-        </FilterPanel>
+          {picker}
+        </FilterModal>
       ) : null}
     </View>
   );
@@ -557,21 +529,49 @@ const useStyles = createThemedStyles(({ colors }) => ({
     lineHeight: 18,
     color: colors.accentText,
   },
-  panelFrame: {
-    overflow: "hidden",
+  modalRoot: {
+    flex: 1,
   },
-  panelMeasure: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: spacing.sm,
+  backdrop: {
+    flex: 1,
+    backgroundColor: colors.overlays.scrim,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.xl,
   },
-  panel: {
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
+  cardShell: {
+    width: "100%",
+    maxWidth: 360,
+  },
+  card: {
     backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  cardTitle: {
+    flex: 1,
+    fontFamily: fontFamilies.semiBold,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.ink,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closePressed: {
+    opacity: 0.6,
+  },
+  cardFooter: {
+    marginTop: spacing.xs,
   },
 }));
