@@ -1,9 +1,8 @@
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
-import { memo, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import type { ReactNode } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
 
-import { EmptyState, emptyStateCopy } from "@/components/shared";
+import { EmptyState, MonthNavigator, emptyStateCopy } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { FLOATING_BUTTONS_CLEARANCE, spacing } from "@/constants";
 import { fontFamilies } from "@/constants/fonts";
@@ -24,66 +23,13 @@ import {
   type TransactionsMonthListArgs,
 } from "./useTransactionsMonthListModel";
 
-type MonthStepperProps = {
-  monthLabel: string;
-  canGoPrevMonth: boolean;
-  canGoNextMonth: boolean;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-};
-
-/** The month stepper; stays above the list in every state. */
-const MonthStepper = memo(function MonthStepper({
-  monthLabel,
-  canGoPrevMonth,
-  canGoNextMonth,
-  onPrevMonth,
-  onNextMonth,
-}: MonthStepperProps) {
-  const { colors } = useTheme();
-  const styles = useStyles();
-  return (
-    <View style={styles.stepper}>
-      <Pressable
-        onPress={onPrevMonth}
-        disabled={!canGoPrevMonth}
-        style={styles.stepperButton}
-        accessibilityRole="button"
-        accessibilityLabel="Previous month"
-        accessibilityState={{ disabled: !canGoPrevMonth }}
-      >
-        <ChevronLeft
-          size={20}
-          color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
-          strokeWidth={2}
-        />
-      </Pressable>
-      <Text style={styles.stepperLabel}>{monthLabel}</Text>
-      <Pressable
-        onPress={onNextMonth}
-        disabled={!canGoNextMonth}
-        style={styles.stepperButton}
-        accessibilityRole="button"
-        accessibilityLabel="Next month"
-        accessibilityState={{ disabled: !canGoNextMonth }}
-      >
-        <ChevronRight
-          size={20}
-          color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
-          strokeWidth={2}
-        />
-      </Pressable>
-    </View>
-  );
-});
-
 export type TransactionsMonthListProps = TransactionsMonthListArgs & {
   onTransactionPress: (transaction: TransactionRow) => void;
   onAddForDay: (dayKey: string) => void;
 };
 
 /**
- * The Transactions tab's list view: a month's transactions grouped by day, with a month stepper,
+ * The Transactions tab's list view: a month's transactions grouped by day, with a month navigator,
  * a search field, filter chips and a totals line. The month and the filters are owned by the tab.
  */
 export default function TransactionsMonthList({
@@ -172,12 +118,12 @@ export default function TransactionsMonthList({
   return (
     <View style={styles.fill}>
       <View style={styles.header}>
-        <MonthStepper
-          monthLabel={model.monthLabel}
-          canGoPrevMonth={model.canGoPrevMonth}
-          canGoNextMonth={model.canGoNextMonth}
-          onPrevMonth={model.goPrevMonth}
-          onNextMonth={model.goNextMonth}
+        <MonthNavigator
+          label={model.monthLabel}
+          canGoPrev={model.canGoPrevMonth}
+          canGoNext={model.canGoNextMonth}
+          onPrev={model.goPrevMonth}
+          onNext={model.goNextMonth}
         />
         <TransactionFilterBar
           criteria={modelArgs.criteria}
@@ -211,23 +157,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
     gap: spacing.sm,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
-  },
-  stepper: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  stepperButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepperLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.ink,
   },
   content: {
     paddingTop: spacing.sm,

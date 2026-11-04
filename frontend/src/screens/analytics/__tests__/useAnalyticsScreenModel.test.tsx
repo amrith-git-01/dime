@@ -8,8 +8,8 @@ jest.mock("@react-navigation/native", () => ({
 }));
 jest.mock("@/components/bento", () => ({
   useBentoMonthSelection: () => ({
-    monthOptions: [{ label: "Oct 2026", year: 2026, monthIndex0: 9 }],
-    selectedMonth: { label: "Oct 2026", year: 2026, monthIndex0: 9 },
+    monthOptions: [{ label: "October 2026", year: 2026, monthIndex0: 9 }],
+    selectedMonth: { label: "October 2026", year: 2026, monthIndex0: 9 },
     selectMonth: jest.fn(),
   }),
 }));

@@ -49,7 +49,7 @@ function summary(over: Partial<BudgetMonthBentoSummary> = {}): BudgetMonthBentoS
 
 function props(over: Record<string, unknown> = {}) {
   return {
-    selectedMonth: "Nov 2026",
+    selectedMonth: "November 2026",
     canGoPrevMonth: true,
     canGoNextMonth: false,
     onPrevMonth: jest.fn(),

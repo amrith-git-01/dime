@@ -27,7 +27,7 @@ describe("HeroMonthCard", () => {
     const tree = await renderTree(
       wrap(
         <HeroMonthCard
-          monthLabel="Nov 2026"
+          monthLabel="November 2026"
           heroAmount={money(9509)}
           hasBudget
           budgetAmount={58000}
@@ -39,7 +39,7 @@ describe("HeroMonthCard", () => {
     );
     const texts = textsOf(tree);
     expect(texts).toContain("THIS MONTH");
-    expect(texts).toContain("Nov 2026");
+    expect(texts).toContain("November 2026");
     expect(texts).toContain(money(9509));
     expect(texts).toContain("spent");
     expect(texts).toContain("Recurring");
@@ -59,7 +59,7 @@ describe("HeroMonthCard", () => {
     const tree = await renderTree(
       wrap(
         <HeroMonthCard
-          monthLabel="Nov 2026"
+          monthLabel="November 2026"
           heroAmount={money(60000)}
           hasBudget
           budgetAmount={58000}
@@ -81,7 +81,7 @@ describe("HeroMonthCard", () => {
     const tree = await renderTree(
       wrap(
         <HeroMonthCard
-          monthLabel="Nov 2026"
+          monthLabel="November 2026"
           heroAmount={money(9509)}
           hasBudget={false}
           fixedSpent={350}

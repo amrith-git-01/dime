@@ -1,10 +1,6 @@
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
 
-import { spacing } from "@/constants/spacing";
-import { fontFamilies } from "@/constants/fonts";
-import { createThemedStyles, useTheme } from "@/theme";
+import { MonthNavigator } from "@/components/shared/MonthNavigator";
 
 export type InsightsMonthSwitcherProps = {
   selectedMonth: string;
@@ -27,67 +23,15 @@ export const InsightsMonthSwitcher = memo(function InsightsMonthSwitcher({
   onPrevMonth,
   onNextMonth,
 }: InsightsMonthSwitcherProps) {
-  const { colors } = useTheme();
-  const styles = useStyles();
-  // The button labels name the month they lead to, and the live region announces the new month after a tap.
   return (
-    <View style={styles.row}>
-      <Pressable
-        onPress={onPrevMonth}
-        disabled={!canGoPrevMonth}
-        hitSlop={12}
-        style={styles.navBtn}
-        accessibilityRole="button"
-        accessibilityLabel={
-          prevMonthLabel ? `Previous month, ${prevMonthLabel}` : "Previous month"
-        }
-      >
-        <ChevronLeft
-          size={18}
-          color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
-          strokeWidth={2}
-        />
-      </Pressable>
-      <Text style={styles.monthLabel} accessibilityLiveRegion="polite">
-        {selectedMonth}
-      </Text>
-      <Pressable
-        onPress={onNextMonth}
-        disabled={!canGoNextMonth}
-        hitSlop={12}
-        style={styles.navBtn}
-        accessibilityRole="button"
-        accessibilityLabel={
-          nextMonthLabel ? `Next month, ${nextMonthLabel}` : "Next month"
-        }
-      >
-        <ChevronRight
-          size={18}
-          color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
-          strokeWidth={2}
-        />
-      </Pressable>
-    </View>
+    <MonthNavigator
+      label={selectedMonth}
+      prevLabel={prevMonthLabel}
+      nextLabel={nextMonthLabel}
+      canGoPrev={canGoPrevMonth}
+      canGoNext={canGoNextMonth}
+      onPrev={onPrevMonth}
+      onNext={onNextMonth}
+    />
   );
 });
-
-const useStyles = createThemedStyles(({ colors }) => ({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  // 18px chevron + padding + hitSlop 12 = a 48dp target.
-  navBtn: {
-    padding: spacing.xs,
-  },
-  monthLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.ink,
-    minWidth: 96,
-    textAlign: "center",
-  },
-}));

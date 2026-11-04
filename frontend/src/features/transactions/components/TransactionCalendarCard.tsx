@@ -1,8 +1,8 @@
 import { format, getDay, getDaysInMonth } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { memo, useCallback, useMemo } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { MonthNavigator } from "@/components/shared";
 import { SkeletonBlock } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -56,7 +56,6 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
   canGoNextMonth,
   isLoading = false,
 }: TransactionCalendarCardProps) {
-  const { colors } = useTheme();
   const styles = useStyles();
   const calendarTourTarget = useTourTarget(tourTargetIds.transactionsCalendar);
   const monthNavTourTarget = useTourTarget(tourTargetIds.transactionsMonthNav);
@@ -90,48 +89,14 @@ export const TransactionCalendarCard = memo(function TransactionCalendarCard({
   return (
     <View {...calendarTourTarget} style={styles.cardShadow}>
       <View style={styles.card}>
-        {/* Month navigation header */}
-        <View {...monthNavTourTarget} style={styles.monthNav}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Previous month"
-            accessibilityState={{ disabled: !canGoPrevMonth }}
-            disabled={!canGoPrevMonth}
-            hitSlop={12}
-            onPress={onPrevMonth}
-            style={({ pressed }) => [
-              styles.navBtn,
-              !canGoPrevMonth && styles.navBtnDisabled,
-              pressed && styles.navBtnPressed,
-            ]}
-          >
-            <ChevronLeft
-              size={20}
-              color={canGoPrevMonth ? colors.ink : colors.inkFaint}
-              strokeWidth={1.5}
-            />
-          </Pressable>
-          <Text style={styles.monthLabel}>{monthLabel}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Next month"
-            accessibilityState={{ disabled: !canGoNextMonth }}
-            disabled={!canGoNextMonth}
-            hitSlop={12}
-            onPress={onNextMonth}
-            style={({ pressed }) => [
-              styles.navBtn,
-              !canGoNextMonth && styles.navBtnDisabled,
-              pressed && styles.navBtnPressed,
-            ]}
-          >
-            <ChevronRight
-              size={20}
-              color={canGoNextMonth ? colors.ink : colors.inkFaint}
-              strokeWidth={1.5}
-            />
-          </Pressable>
-        </View>
+        <MonthNavigator
+          label={monthLabel}
+          canGoPrev={canGoPrevMonth}
+          canGoNext={canGoNextMonth}
+          onPrev={onPrevMonth}
+          onNext={onNextMonth}
+          containerProps={{ ...monthNavTourTarget, style: styles.monthNav }}
+        />
 
         {upcomingTotal > 0 && !isLoading ? (
           <Text style={styles.upcomingCaption}>
@@ -342,28 +307,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   // Month navigation
   monthNav: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: spacing.md,
-  },
-  monthLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.ink,
-    textAlign: "center",
-    flex: 1,
-  },
-  navBtn: {
-    padding: spacing.sm,
-    borderRadius: radius.sm,
-  },
-  navBtnDisabled: {
-    opacity: 0.4,
-  },
-  navBtnPressed: {
-    opacity: 0.65,
   },
   upcomingCaption: {
     fontFamily: fontFamilies.regular,

@@ -1,8 +1,8 @@
-import { ChevronLeft, ChevronRight, Edit3 } from "lucide-react-native";
+import { Edit3 } from "lucide-react-native";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { SpendSplitBar } from "@/components/shared";
+import { MonthNavigator, SpendSplitBar } from "@/components/shared";
 import { Button } from "@/components/ui";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
@@ -66,35 +66,14 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
   return (
     <View style={styles.card}>
       {/* Header row */}
-      <View style={styles.headerRow}>
-        <Pressable
-          onPress={onPrevMonth}
-          disabled={!canGoPrevMonth}
-          style={styles.navBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Previous month"
-        >
-          <ChevronLeft
-            size={20}
-            color={canGoPrevMonth ? colors.inkSoft : colors.inkFaint}
-            strokeWidth={2}
-          />
-        </Pressable>
-        <Text style={styles.monthLabel}>{selectedMonth}</Text>
-        <Pressable
-          onPress={onNextMonth}
-          disabled={!canGoNextMonth}
-          style={styles.navBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Next month"
-        >
-          <ChevronRight
-            size={20}
-            color={canGoNextMonth ? colors.inkSoft : colors.inkFaint}
-            strokeWidth={2}
-          />
-        </Pressable>
-      </View>
+      <MonthNavigator
+        label={selectedMonth}
+        canGoPrev={canGoPrevMonth}
+        canGoNext={canGoNextMonth}
+        onPrev={onPrevMonth}
+        onNext={onNextMonth}
+        containerProps={{ style: styles.monthNav }}
+      />
 
       {summaryFailed ? (
         <Text style={styles.errorText}>
@@ -187,23 +166,8 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     marginHorizontal: spacing.lg,
     ...shadows.card,
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  monthNav: {
     marginBottom: spacing.md,
-  },
-  navBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  monthLabel: {
-    fontFamily: fontFamilies.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.ink,
   },
   kickerRow: {
     flexDirection: "row",

@@ -26,6 +26,7 @@ export {
   type EmptyStateProps,
 } from "./EmptyState";
 export { emptyStateCopy } from "./emptyStateCopy";
+export { MonthNavigator, type MonthNavigatorProps } from "./MonthNavigator";
 export {
   MonthSummaryCardShell,
   MonthSummaryHeaderError,

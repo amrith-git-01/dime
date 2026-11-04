@@ -144,7 +144,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const spentMonthDisplay = overview
     ? formatSpendMagnitude(spentThisMonth ?? overview.spent_this_month)
     : "\u2014";
-  const monthLabel = format(now, "MMM yyyy");
+  const monthLabel = format(now, "MMMM yyyy");
   const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
   const monthFixedSpent = overview ? fixedSpentPaise / 100 : 0;
   // Entries saved offline are flexible until the server has them, so the bar matches the hero amount.
