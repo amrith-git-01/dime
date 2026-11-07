@@ -52,6 +52,12 @@ jest.mock("@/features/categories/hooks/useCategories", () => ({
   }),
 }));
 
+beforeAll(() => {
+  // The jest View never measures; give every chip a rectangle so a tap can open its dropdown.
+  const { View } = jest.requireActual("react-native");
+  View.prototype.measureInWindow = (callback: (...args: number[]) => void) => callback(10, 200, 80, 32);
+});
+
 const PAYEES = [
   { key: "swiggy", name: "Swiggy", count: 4, totalPaise: 200_000 },
   { key: "uber", name: "Uber", count: 2, totalPaise: 90_000 },
@@ -137,7 +143,7 @@ describe("TransactionFilterBar", () => {
     unmountTree(tree);
   });
 
-  it("a chip opens its picker in a modal, and picking applies at once and closes it", async () => {
+  it("a chip opens its picker in a dropdown, and picking applies at once and closes it", async () => {
     const { tree, onCriteriaChange } = await render();
     press(tree, "Type filter, double tap to choose");
     const texts = textsOf(tree);
@@ -158,13 +164,10 @@ describe("TransactionFilterBar", () => {
     unmountTree(tree);
   });
 
-  it("the close button and the scrim close the modal", async () => {
+  it("tapping outside the dropdown closes it", async () => {
     const { tree } = await render();
     press(tree, "Type filter, double tap to choose");
     expect(textsOf(tree)).toContain("Flexible");
-    press(tree, "Close");
-    expect(textsOf(tree)).not.toContain("Flexible");
-    press(tree, "Type filter, double tap to choose");
     press(tree, "Close filter");
     expect(textsOf(tree)).not.toContain("Flexible");
     unmountTree(tree);

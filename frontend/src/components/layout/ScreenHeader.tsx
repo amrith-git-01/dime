@@ -1,6 +1,7 @@
-import { HeaderBackButton, getHeaderTitle } from "@react-navigation/elements";
+import { getHeaderTitle } from "@react-navigation/elements";
 import type { NativeStackHeaderProps } from "@react-navigation/native-stack";
-import { Text, View } from "react-native";
+import { ArrowLeft } from "lucide-react-native";
+import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { fontFamilies } from "@/constants/fonts";
@@ -23,14 +24,15 @@ export function ScreenHeader({
     <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.row}>
         {back && (
-          <HeaderBackButton
-            tintColor={colors.ink}
-            displayMode="minimal"
+          <Pressable
             onPress={navigation.goBack}
-            pressColor="transparent"
-            pressOpacity={1}
+            hitSlop={8}
             style={styles.backBtn}
-          />
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ArrowLeft size={24} color={colors.ink} strokeWidth={2} />
+          </Pressable>
         )}
         <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
           {title}
@@ -55,7 +57,11 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     minHeight: 44,
   },
   backBtn: {
+    width: 40,
+    height: 40,
     marginStart: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     flex: 1,
