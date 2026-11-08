@@ -121,21 +121,30 @@ export default function TransactionsScreen() {
       />
     );
 
+  // One control, rendered once above whichever body is showing, so switching modes keeps the same
+  // instance mounted and its pill springs across instead of being placed afresh.
   const viewToggle = (
-    <View style={styles.viewToggle}>
-      <SlidingSegmentedControl
-        options={VIEW_MODES}
-        value={viewMode}
-        onChange={selectViewMode}
-      />
+    <View
+      style={[
+        styles.viewToggleSlot,
+        viewMode === "list" ? styles.viewToggleSlotList : styles.viewToggleSlotCalendar,
+      ]}
+    >
+      <View style={styles.viewToggle}>
+        <SlidingSegmentedControl
+          options={VIEW_MODES}
+          value={viewMode}
+          onChange={selectViewMode}
+        />
+      </View>
     </View>
   );
 
   if (viewMode === "list") {
     return (
       <TabScreenShell>
+        {viewToggle}
         <View style={styles.listMode}>
-          {viewToggle}
           <TransactionsMonthList
             month={selectedMonth}
             canGoPrevMonth={canGoPrevMonth}
@@ -154,6 +163,7 @@ export default function TransactionsScreen() {
 
   return (
     <TabScreenShell>
+      {viewToggle}
       <FlashList
         ref={listRef}
         onScroll={onScroll}
@@ -167,7 +177,6 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View style={styles.header}>
-            {viewToggle}
             <TransactionCalendarCard
               year={selectedMonth.year}
               monthIndex0={selectedMonth.monthIndex0}
@@ -223,7 +232,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   content: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
     paddingBottom: FLOATING_BUTTONS_CLEARANCE,
   },
   header: {
@@ -233,8 +241,17 @@ const useStyles = createThemedStyles(({ colors }) => ({
   listMode: {
     flex: 1,
     paddingHorizontal: spacing.lg,
+  },
+  viewToggleSlot: {
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    gap: spacing.xs,
+  },
+  viewToggleSlotList: {
+    paddingBottom: spacing.xs,
+  },
+  viewToggleSlotCalendar: {
+    // The day-card header segment reserves top room for its card shadow.
+    paddingBottom: spacing.md - CARD_SEGMENT_SHADOW_TOP_BLEED,
   },
   viewToggle: {
     alignSelf: "center",

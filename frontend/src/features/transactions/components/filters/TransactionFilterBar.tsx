@@ -36,6 +36,7 @@ import {
   type PayeeOption,
 } from "../../utils/monthListFilter";
 
+import { dropdownFrame, type Anchor } from "./dropdownFrame";
 import {
   AmountPicker,
   CategoryPicker,
@@ -45,12 +46,6 @@ import {
 } from "./FilterPickers";
 
 const SEARCH_DEBOUNCE_MS = 200;
-const DROPDOWN_WIDTH = 300;
-const DROPDOWN_MARGIN = 12;
-const DROPDOWN_GAP = 6;
-
-/** A chip's rectangle in window coordinates, which the dropdown hangs from. */
-type Anchor = { x: number; y: number; width: number; height: number };
 const NO_ANCHOR: Anchor = { x: 0, y: 0, width: 0, height: 0 };
 
 type FilterId = "type" | "category" | "payee" | "amount" | "sort";
@@ -212,18 +207,26 @@ type FilterDropdownProps = {
 
 /**
  * A picker hanging under its chip, with no scrim: the page stays as it is. Tapping anywhere
- * outside (or Back) closes it; choices apply as they are made.
+ * outside (or Back) closes it; choices apply as they are made. It shows once the Modal's own
+ * origin is known (see {@link dropdownFrame}), so it never flashes in the wrong place.
  */
 function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownProps) {
   const { shadows } = useTheme();
   const styles = useStyles();
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const width = Math.min(DROPDOWN_WIDTH, screenWidth - DROPDOWN_MARGIN * 2);
-  const left = Math.min(
-    Math.max(anchor.x, DROPDOWN_MARGIN),
-    screenWidth - width - DROPDOWN_MARGIN,
-  );
-  const top = anchor.y + anchor.height + DROPDOWN_GAP;
+  const screen = useWindowDimensions();
+  const probeRef = useRef<View>(null);
+  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
+  const measureOrigin = () => {
+    const probe = probeRef.current;
+    if (probe?.measureInWindow) {
+      probe.measureInWindow((x, y) => setOrigin({ x, y }));
+    } else {
+      setOrigin({ x: 0, y: 0 });
+    }
+  };
+  // Laid out from the start but kept invisible until the Modal's origin is measured, so it
+  // never shows in the wrong place.
+  const frame = dropdownFrame(anchor, origin ?? { x: 0, y: 0 }, screen);
   return (
     <Modal
       animationType="fade"
@@ -233,6 +236,13 @@ function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownPr
       onRequestClose={onClose}
     >
       <GestureHandlerRootView style={styles.modalRoot}>
+        <View
+          ref={probeRef}
+          collapsable={false}
+          pointerEvents="none"
+          style={styles.originProbe}
+          onLayout={measureOrigin}
+        />
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
@@ -240,11 +250,7 @@ function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownPr
           accessibilityLabel="Close filter"
         />
         <View
-          style={[
-            styles.dropdown,
-            shadows.modal,
-            { top, left, width, maxHeight: Math.max(160, screenHeight - top - 24) },
-          ]}
+          style={[styles.dropdown, shadows.modal, frame, origin ? null : styles.unplaced]}
           accessibilityViewIsModal
         >
           {children}
@@ -540,6 +546,16 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   modalRoot: {
     flex: 1,
+  },
+  unplaced: {
+    opacity: 0,
+  },
+  originProbe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
   },
   dropdown: {
     position: "absolute",
