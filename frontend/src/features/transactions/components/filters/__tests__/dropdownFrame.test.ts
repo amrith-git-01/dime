@@ -11,6 +11,10 @@ describe("dropdownFrame", () => {
     expect(frame.left).toBe(16);
   });
 
+  it("adds the status bar offset to the chip's y", () => {
+    expect(dropdownFrame(CHIP, SCREEN, 49).top).toBe(280 + 49 + 32 + 6);
+  });
+
   it("keeps the dropdown inside the side margins", () => {
     const frame = dropdownFrame({ ...CHIP, x: 380 }, SCREEN);
     expect(frame.left + frame.width).toBeLessThanOrEqual(SCREEN.width - 12);

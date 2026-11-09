@@ -9,9 +9,11 @@ const DROPDOWN_GAP = 6;
 export function dropdownFrame(
   anchor: Anchor,
   screen: { width: number; height: number },
+  /** Added to the chip's y: the status bar height Android leaves out of window measurements. */
+  yOffset = 0,
 ): { top: number; left: number; width: number; maxHeight: number } {
   const width = Math.min(DROPDOWN_WIDTH, screen.width - DROPDOWN_MARGIN * 2);
   const left = Math.min(Math.max(anchor.x, DROPDOWN_MARGIN), screen.width - width - DROPDOWN_MARGIN);
-  const top = anchor.y + anchor.height + DROPDOWN_GAP;
+  const top = anchor.y + yOffset + anchor.height + DROPDOWN_GAP;
   return { top, left, width, maxHeight: Math.max(160, screen.height - top - 24) };
 }
