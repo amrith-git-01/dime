@@ -7,6 +7,8 @@ export {
   TransactionsListRowsSkeleton,
   type TransactionsMonthBentoSummary,
 } from "./bento";
+export { CategoryMonthCard } from "./CategoryMonthCard";
+export type { CategoryMonthCardProps } from "./CategoryMonthCard";
 export { DayAddButton } from "./DayAddButton";
 export { BentoTransactionTile } from "./BentoTransactionTile";
 export { ReceiptImageViewer } from "./ReceiptImageViewer";

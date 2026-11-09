@@ -1,5 +1,6 @@
-import { FlashList, type ListRenderItem } from "@shopify/flash-list";
-import { ActivityIndicator, Text, View } from "react-native";
+import { FlashList, type FlashListRef, type ListRenderItem } from "@shopify/flash-list";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState, emptyStateCopy } from "@/components/shared";
@@ -15,6 +16,7 @@ import {
   transactionListKeyExtractor,
 } from "@/features/transactions/components";
 import type { TransactionListItem } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { CategoryMonthSection } from "./CategoryMonthSection";
 import { resolveListEmptyCopy } from "./listEmptyCopy";
 
 import { useTransactionsListScreenModel } from "./useTransactionsListScreenModel";
@@ -24,6 +26,7 @@ export default function TransactionsListScreen() {
   const { colors } = useTheme();
   const styles = useStyles();
   const {
+    categoryCard,
     listItems,
     filter,
     direction,
@@ -43,6 +46,14 @@ export default function TransactionsListScreen() {
   } = useTransactionsListScreenModel();
   const insets = useSafeAreaInsets();
   const listTourTarget = useTourTarget(tourTargetIds.transactionsListHeader);
+  const listRef = useRef<FlashListRef<TransactionListItem>>(null);
+  const [cardHeight, setCardHeight] = useState(0);
+  const cardMonthKey = categoryCard?.monthKey;
+
+  // Another month is another list: start it at the top.
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [cardMonthKey]);
 
   const renderItem: ListRenderItem<TransactionListItem> = ({ item }) =>
     item.kind === "header" ? (
@@ -54,45 +65,48 @@ export default function TransactionsListScreen() {
       />
     );
 
-  if (showInitialLoading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.accentText} size="large" />
-      </View>
-    );
-  }
-
   // Only a failure with nothing loaded replaces the list; otherwise the rows stay and the footer retries.
-  if (isError && !hasLoadedRows) {
-    return (
-      <View style={styles.fill}>
-        <EmptyState
-          layout="centered"
-          headline={emptyStateCopy.transactionsListError.headline}
-          subtext={emptyStateCopy.transactionsListError.subtext}
-        />
-      </View>
-    );
+  const showLoadError = isError && !hasLoadedRows;
+  const emptyCopy = isEmpty
+    ? resolveListEmptyCopy(filter, usesRange, direction, "all", recurringName)
+    : null;
+
+  // A category's list keeps its card (and month navigator) in every state, so it stays mounted
+  // and the loading, error and empty bodies sit under it; the other lists swap the whole screen.
+  const listState = showInitialLoading ? "loading" : showLoadError ? "error" : emptyCopy ? "empty" : "list";
+  const stateContent =
+    listState === "loading" ? (
+      <ActivityIndicator color={colors.accentText} size="large" />
+    ) : listState === "error" ? (
+      <EmptyState
+        layout="centered"
+        headline={emptyStateCopy.transactionsListError.headline}
+        subtext={emptyStateCopy.transactionsListError.subtext}
+      />
+    ) : emptyCopy ? (
+      <EmptyState
+        layout="centered"
+        headline={emptyCopy.headline}
+        subtext={emptyCopy.subtext}
+      />
+    ) : null;
+
+  if (!categoryCard && listState === "loading") {
+    return <View style={styles.centered}>{stateContent}</View>;
   }
 
-  if (isEmpty) {
-    const copy = resolveListEmptyCopy(filter, usesRange, direction, "all", recurringName);
-    return (
-      <View style={styles.fill}>
-        <EmptyState
-          layout="centered"
-          headline={copy.headline}
-          subtext={copy.subtext}
-        />
-      </View>
-    );
+  if (!categoryCard && listState !== "list") {
+    return <View style={styles.fill}>{stateContent}</View>;
   }
+
+  const stateBody = stateContent ? <View style={styles.stateBody}>{stateContent}</View> : null;
 
   return (
     <View style={styles.fill}>
       <FlashList
+        ref={listRef}
         style={styles.fill}
-        data={listItems}
+        data={listState === "list" ? listItems : []}
         renderItem={renderItem}
         keyExtractor={transactionListKeyExtractor}
         getItemType={transactionListItemType}
@@ -106,14 +120,24 @@ export default function TransactionsListScreen() {
           paddingBottom: spacing.xl * 3 + insets.bottom,
         }}
         ListHeaderComponent={
-          <View style={styles.subtitleRow}>
-            <Text style={styles.subtitle}>
-              {subtitle}
-            </Text>
-          </View>
+          <>
+            {categoryCard ? (
+              <View onLayout={(event: LayoutChangeEvent) => setCardHeight(event.nativeEvent.layout.height)}>
+                <CategoryMonthSection card={categoryCard} />
+              </View>
+            ) : null}
+            {listState === "loading" || listState === "error" ? null : (
+              <View style={styles.subtitleRow}>
+                <Text style={styles.subtitle}>
+                  {subtitle}
+                </Text>
+              </View>
+            )}
+          </>
         }
+        ListEmptyComponent={stateBody}
         ListFooterComponent={
-          isError ? (
+          listState !== "list" ? null : isError ? (
             <View style={styles.loadingMore}>
               <Text style={styles.footerError}>
                 {emptyStateCopy.transactionsListError.headline}
@@ -137,7 +161,14 @@ export default function TransactionsListScreen() {
         }
       />
     {/* Invisible box over the top of the list (its count, the first day and its rows), for the guided tour to spotlight. */}
-    <View {...listTourTarget} pointerEvents="none" style={styles.tourBox} />
+    {/* A category's list starts below its card; wait for the card to lay out so the first measurement is not over it. */}
+    {!categoryCard || cardHeight > 0 ? (
+      <View
+        {...listTourTarget}
+        pointerEvents="none"
+        style={[styles.tourBox, categoryCard ? { top: spacing.lg + spacing.md + cardHeight } : null]}
+      />
+    ) : null}
     </View>
   );
 }
@@ -162,6 +193,10 @@ const useStyles = createThemedStyles(({ colors }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.inkSoft,
+  },
+  stateBody: {
+    minHeight: 320,
+    justifyContent: "center",
   },
   centered: {
     flex: 1,
