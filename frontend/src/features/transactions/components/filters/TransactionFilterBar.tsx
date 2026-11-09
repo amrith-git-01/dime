@@ -207,42 +207,23 @@ type FilterDropdownProps = {
 
 /**
  * A picker hanging under its chip, with no scrim: the page stays as it is. Tapping anywhere
- * outside (or Back) closes it; choices apply as they are made. It shows once the Modal's own
- * origin is known (see {@link dropdownFrame}), so it never flashes in the wrong place.
+ * outside (or Back) closes it; choices apply as they are made.
+ * The Modal is deliberately not status-bar translucent: its window then starts where the app's
+ * does, so the chip's measured position is the dropdown's coordinate too.
  */
 function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownProps) {
   const { shadows } = useTheme();
   const styles = useStyles();
   const screen = useWindowDimensions();
-  const probeRef = useRef<View>(null);
-  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
-  const measureOrigin = () => {
-    const probe = probeRef.current;
-    if (probe?.measureInWindow) {
-      probe.measureInWindow((x, y) => setOrigin({ x, y }));
-    } else {
-      setOrigin({ x: 0, y: 0 });
-    }
-  };
-  // Laid out from the start but kept invisible until the Modal's origin is measured, so it
-  // never shows in the wrong place.
-  const frame = dropdownFrame(anchor, origin ?? { x: 0, y: 0 }, screen);
+  const frame = dropdownFrame(anchor, screen);
   return (
     <Modal
       animationType="fade"
       transparent
-      statusBarTranslucent
       visible={visible}
       onRequestClose={onClose}
     >
       <GestureHandlerRootView style={styles.modalRoot}>
-        <View
-          ref={probeRef}
-          collapsable={false}
-          pointerEvents="none"
-          style={styles.originProbe}
-          onLayout={measureOrigin}
-        />
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
@@ -250,7 +231,7 @@ function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownPr
           accessibilityLabel="Close filter"
         />
         <View
-          style={[styles.dropdown, shadows.modal, frame, origin ? null : styles.unplaced]}
+          style={[styles.dropdown, shadows.modal, frame]}
           accessibilityViewIsModal
         >
           {children}
@@ -546,16 +527,6 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   modalRoot: {
     flex: 1,
-  },
-  unplaced: {
-    opacity: 0,
-  },
-  originProbe: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 1,
-    height: 1,
   },
   dropdown: {
     position: "absolute",
