@@ -2,8 +2,10 @@ import { ChevronDown, Search, X } from "lucide-react-native";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -46,6 +48,9 @@ import {
 } from "./FilterPickers";
 
 const SEARCH_DEBOUNCE_MS = 200;
+// Android's `measureInWindow` takes the status bar's height off every y, but the Modal is drawn
+// from the very top of the screen, so a chip's y has to be put back to hang the dropdown under it.
+const STATUS_BAR_OFFSET = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
 const NO_ANCHOR: Anchor = { x: 0, y: 0, width: 0, height: 0 };
 
 type FilterId = "type" | "category" | "payee" | "amount" | "sort";
@@ -208,18 +213,18 @@ type FilterDropdownProps = {
 /**
  * A picker hanging under its chip, with no scrim: the page stays as it is. Tapping anywhere
  * outside (or Back) closes it; choices apply as they are made.
- * The Modal is deliberately not status-bar translucent: its window then starts where the app's
- * does, so the chip's measured position is the dropdown's coordinate too.
+ * The Modal is status-bar translucent so it always starts at the screen's top; see STATUS_BAR_OFFSET.
  */
 function FilterDropdown({ visible, anchor, onClose, children }: FilterDropdownProps) {
   const { shadows } = useTheme();
   const styles = useStyles();
   const screen = useWindowDimensions();
-  const frame = dropdownFrame(anchor, screen);
+  const frame = dropdownFrame(anchor, screen, STATUS_BAR_OFFSET);
   return (
     <Modal
       animationType="fade"
       transparent
+      statusBarTranslucent
       visible={visible}
       onRequestClose={onClose}
     >
