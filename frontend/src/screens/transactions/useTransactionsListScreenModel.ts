@@ -2,7 +2,10 @@ import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { format } from "date-fns";
-import { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+
+import { useCategories } from "@/features/categories/hooks/useCategories";
+import { isTourSampleId } from "@/features/tourPreview";
 
 import {
   useTransactionsHistoryInfiniteQuery,
@@ -16,7 +19,16 @@ import {
   buildTransactionListSections,
   flattenTransactionListSections,
 } from "@/features/transactions/utils/buildTransactionFlashListData";
+import {
+  clampMonth,
+  earliestSelectableMonth,
+  monthLabel as formatMonthLabel,
+} from "@/features/transactions/utils/categoryMonthStats";
 import { filterTransactionsByCategory } from "@/features/transactions/utils/filterTransactionsByCategory";
+import {
+  stepMonthWithinBounds,
+  type MonthRef,
+} from "@/features/transactions/utils/monthListFilter";
 import {
   filterTransactionsByPayee,
   resolvePayeeFilterId,
@@ -66,10 +78,56 @@ export function useTransactionsListScreenModel() {
   const recurringParams: RecurringListParams | null =
     params.filter === "recurring" ? params : null;
   const now = new Date();
-  const listYear = "year" in params ? params.year : now.getFullYear();
-  const listMonthIndex0 = "monthIndex0" in params ? params.monthIndex0 : now.getMonth();
+  const routeYear = "year" in params ? params.year : now.getFullYear();
+  const routeMonthIndex0 = "monthIndex0" in params ? params.monthIndex0 : now.getMonth();
 
   const usesRange = listParamsUseRange(params);
+
+  // A category's list has a month navigator and summary card (unless the link carries its own
+  // date range, as an agent deep link can): the month is screen state, seeded from the route and
+  // re-seeded when the route's month changes, and it drives both the card and the list below.
+  const hasMonthCard = params.filter === "category" && !usesRange;
+  const routeMonthKey = `${routeYear}-${routeMonthIndex0}`;
+  const nowYear = now.getFullYear();
+  const nowMonthIndex0 = now.getMonth();
+  const currentMonth = useMemo(
+    (): MonthRef => ({ year: nowYear, monthIndex0: nowMonthIndex0 }),
+    [nowMonthIndex0, nowYear],
+  );
+  const earliestMonth = useMemo(
+    () => earliestSelectableMonth({ year: routeYear, monthIndex0: routeMonthIndex0 }, currentMonth),
+    [currentMonth, routeMonthIndex0, routeYear],
+  );
+  // A route month in the future (a stale link) would strand the navigator: start on the current month.
+  const seedMonth = useMemo(
+    () => clampMonth({ year: routeYear, monthIndex0: routeMonthIndex0 }, earliestMonth, currentMonth),
+    [currentMonth, earliestMonth, routeMonthIndex0, routeYear],
+  );
+  const [monthChoice, setMonthChoice] = useState<MonthRef & { seedKey: string }>({
+    seedKey: routeMonthKey,
+    ...seedMonth,
+  });
+  const selectedMonth: MonthRef = useMemo(() => {
+    if (!hasMonthCard) {
+      return { year: routeYear, monthIndex0: routeMonthIndex0 };
+    }
+    return monthChoice.seedKey === routeMonthKey
+      ? { year: monthChoice.year, monthIndex0: monthChoice.monthIndex0 }
+      : seedMonth;
+  }, [hasMonthCard, monthChoice, routeMonthIndex0, routeMonthKey, routeYear, seedMonth]);
+  const listYear = selectedMonth.year;
+  const listMonthIndex0 = selectedMonth.monthIndex0;
+
+  const prevMonth = stepMonthWithinBounds(selectedMonth, -1, earliestMonth, currentMonth);
+  const nextMonth = stepMonthWithinBounds(selectedMonth, 1, earliestMonth, currentMonth);
+  const selectMonth = useCallback(
+    (month: MonthRef | null) => {
+      if (month) {
+        setMonthChoice({ ...month, seedKey: routeMonthKey });
+      }
+    },
+    [routeMonthKey],
+  );
   // A day is fetched server-side as a half-open [from, to) range so it is never cut off by paging.
   const dayRange = useMemo(
     () => (params.filter === "day" ? dayRangeIso(params.dayKey) : null),
@@ -202,12 +260,16 @@ export function useTransactionsListScreenModel() {
     }
   }, [fetchNextPage, hasMore, isError, isFetchingNextPage]);
 
+  // Bumped on every refresh so the category card refetches its own queries along with the list.
+  const [cardRefreshToken, setCardRefreshToken] = useState(0);
+
   /** Inline retry for a failed page or refresh while rows are still on screen. */
   const retry = useCallback(() => {
     if (isFetchNextPageError) {
       void fetchNextPage();
     } else {
       void refetch();
+      setCardRefreshToken((token) => token + 1);
     }
   }, [fetchNextPage, isFetchNextPageError, refetch]);
 
@@ -215,9 +277,22 @@ export function useTransactionsListScreenModel() {
   const transactionCountLabel = `${transactionCount}${hasMore ? "+" : ""}`;
   const transactionCountIsPlural = transactionCount !== 1 || hasMore;
 
+  // The category's current name (it may be renamed in the editor and come back here).
+  const { categories: spendCategories } = useCategories("spend");
+  const categoryId = params.filter === "category" ? params.categoryId : "";
+  const liveCategory = useMemo(
+    () =>
+      categoryId ? spendCategories.find((category) => category.id === categoryId) : undefined,
+    [categoryId, spendCategories],
+  );
+  const categoryName =
+    liveCategory?.name ?? (params.filter === "category" ? params.categoryDisplayName : "");
+  // Only a spend category the user owns has an editor (not "uncategorized", a recurring one or the tour's sample).
+  const canEditCategory = Boolean(liveCategory) && !isTourSampleId(categoryId);
+
   const screenTitle = useMemo(() => {
-    if (params.filter === "category" && params.categoryDisplayName) {
-      return params.categoryDisplayName;
+    if (params.filter === "category" && categoryName) {
+      return categoryName;
     }
     if (params.filter === "payee" && params.payeeDisplayName) {
       return params.payeeDisplayName;
@@ -227,7 +302,7 @@ export function useTransactionsListScreenModel() {
     }
     const label = transactionCountIsPlural ? "Transactions" : "Transaction";
     return `${transactionCountLabel} ${label}`;
-  }, [transactionCountLabel, transactionCountIsPlural, params]);
+  }, [transactionCountLabel, transactionCountIsPlural, params, categoryName]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: screenTitle });
@@ -247,6 +322,10 @@ export function useTransactionsListScreenModel() {
     },
     [navigation],
   );
+
+  const openEditCategory = useCallback(() => {
+    navigation.navigate("EditCategory", { categoryId });
+  }, [categoryId, navigation]);
 
   const monthLabel = useMemo(
     () => (isRecurring ? "" : format(new Date(listYear, listMonthIndex0, 1), "MMMM yyyy")),
@@ -278,9 +357,37 @@ export function useTransactionsListScreenModel() {
     [listSections, sectionNetTotals],
   );
 
+  const rowsStatus: "loading" | "error" | "ready" = showInitialLoading
+    ? "loading"
+    : isError && !hasLoadedRows
+      ? "error"
+      : "ready";
+
   return {
     listItems,
     filter: params.filter,
+    /** What the category month card needs; null for every other list (and a custom date range). */
+    categoryCard: hasMonthCard
+      ? {
+          categoryId,
+          categoryName,
+          month: selectedMonth,
+          monthKey: `${listYear}-${listMonthIndex0}`,
+          monthLabel: formatMonthLabel(selectedMonth),
+          prevMonthLabel: prevMonth ? formatMonthLabel(prevMonth) : undefined,
+          nextMonthLabel: nextMonth ? formatMonthLabel(nextMonth) : undefined,
+          canGoPrevMonth: prevMonth !== null,
+          canGoNextMonth: nextMonth !== null,
+          onPrevMonth: () => selectMonth(prevMonth),
+          onNextMonth: () => selectMonth(nextMonth),
+          rows: filteredRows,
+          rowsHaveMore: hasMore,
+          rowsStatus,
+          refreshToken: cardRefreshToken,
+          canEdit: canEditCategory,
+          onEdit: openEditCategory,
+        }
+      : null,
     direction: params.filter === "payee" ? (params.direction ?? "debit") : "debit",
     usesRange,
     isEmpty,
