@@ -1,6 +1,7 @@
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert } from "react-native";
 
 import {
   useCompleteReminderMutation,
@@ -173,7 +174,7 @@ export function useRemindersScreenModel() {
 
   const settingsData = settings.data;
   const profileName = profile.data?.username ?? null;
-  const onNudge = useCallback(
+  const sendNudge = useCallback(
     async (reminder: Reminder) => {
       const shared = await shareNudge(reminder, {
         level: settingsData?.reportRoastLevel ?? "spicy",
@@ -186,6 +187,28 @@ export function useRemindersScreenModel() {
       }
     },
     [profileName, settingsData?.reportRoastLevel, settingsData?.upiId, showToast, today],
+  );
+  const onNudge = useCallback(
+    async (reminder: Reminder) => {
+      // No UPI ID means no pay link: ask instead of quietly sending a message that cannot be paid.
+      if (reminder.amount !== null && !settingsData?.upiId) {
+        Alert.alert(
+          "Add your UPI ID",
+          "Your nudge can carry a pay link with the amount and a note, but Dime needs your UPI ID (like name@bank) for that.",
+          [
+            { text: "Send without link", onPress: () => void sendNudge(reminder) },
+            {
+              text: "Add UPI ID",
+              isPreferred: true,
+              onPress: () => navigation.navigate("SettingsNotifications"),
+            },
+          ],
+        );
+        return;
+      }
+      await sendNudge(reminder);
+    },
+    [navigation, sendNudge, settingsData?.upiId],
   );
 
   const toggleDone = useCallback(() => {

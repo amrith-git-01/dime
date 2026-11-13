@@ -1,5 +1,7 @@
+import { format } from "date-fns";
 import { Linking, Share } from "react-native";
 
+import { parseDueDate } from "@/features/recurring/utils/recurringDisplay";
 import { getDimeApiBaseUrl } from "@/lib/api/baseUrl";
 import type { ReportRoastLevel } from "@/features/settings/types";
 
@@ -25,6 +27,13 @@ export function canNudge(reminder: Reminder): boolean {
   return reminder.status === "open" && reminder.direction === "receive";
 }
 
+/** The note a payer sees in their UPI app: the title and when it is due, e.g. "Dinner split (due 15 Nov)". */
+export function payNoteFor(reminder: Reminder): string {
+  const due = parseDueDate(reminder.due_date);
+  const title = reminder.title.trim();
+  return due ? `${title} (due ${format(due, "d MMM")})` : title;
+}
+
 export type PayNowResult = "opened" | "invalid" | "unavailable";
 
 /**
@@ -37,7 +46,7 @@ export async function payNow(reminder: Reminder): Promise<PayNowResult> {
     upiId: reminder.upi_id ?? "",
     name: reminder.counterparty_name,
     amount: reminder.amount,
-    note: reminder.title,
+    note: payNoteFor(reminder),
   });
   if (uri === null) {
     return "invalid";
@@ -66,7 +75,7 @@ export function nudgeMessageFor(reminder: Reminder, context: NudgeContext): stri
         upiId: context.myUpiId,
         name: context.myName,
         amount: reminder.amount,
-        note: reminder.title,
+        note: payNoteFor(reminder),
         apiOrigin: getDimeApiBaseUrl(),
       })
     : null;
