@@ -207,7 +207,7 @@ describe("Pay now", () => {
     open.mockResolvedValue(true);
     await expect(payNow(reminder())).resolves.toBe("opened");
     expect(open).toHaveBeenCalledWith(
-      "upi://pay?pa=landlord@okbank&pn=Landlord&am=15000.00&cu=INR&tn=Rent",
+      "upi://pay?pa=landlord@okbank&pn=Landlord&am=15000.00&cu=INR&tn=Rent%20(due%205%20Nov)",
     );
   });
 
