@@ -179,8 +179,8 @@ export const ReminderEditor = memo(function ReminderEditor({
           ) : (
             <Text style={styles.hint}>
               {model.myUpiId
-                ? "Nudges include a pay link for your UPI ID from Settings."
-                : "Add your UPI ID in Settings, Notifications & alerts, to put a pay link in nudges."}
+                ? "Nudges include a pay link for your UPI ID from Reminder settings."
+                : "Add your UPI ID in Reminder settings, to put a pay link in nudges."}
             </Text>
           )}
           {isPay ? (

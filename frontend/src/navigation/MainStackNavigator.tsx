@@ -10,6 +10,7 @@ import InsightsMonthCompareScreenBase from "@/screens/analytics/InsightsMonthCom
 import EditMonthlyBudgetScreenBase from "@/screens/budget/EditMonthlyBudgetScreen";
 import RecurringEditorScreenBase from "@/screens/recurring/RecurringEditorScreen";
 import ReminderEditorScreenBase from "@/screens/reminders/ReminderEditorScreen";
+import ReminderSettingsScreenBase from "@/screens/reminders/ReminderSettingsScreen";
 import RemindersScreenBase from "@/screens/reminders/RemindersScreen";
 import CreateCustomCategoryScreenBase from "@/screens/categories/CreateCustomCategoryScreen";
 import EditCategoryScreenBase from "@/screens/categories/EditCategoryScreen";
@@ -99,6 +100,7 @@ const RemindersScreen = withStackScreen(
   stackVirtualizedListShellConfig,
 );
 const ReminderEditorScreen = withStackScreen(ReminderEditorScreenBase);
+const ReminderSettingsScreen = withStackScreen(ReminderSettingsScreenBase);
 
 export default function MainStackNavigator() {
   const { colors } = useTheme();
@@ -231,6 +233,11 @@ export default function MainStackNavigator() {
         name="Reminders"
         component={RemindersScreen}
         options={{ ...stackScreenOptions, title: "Reminders" }}
+      />
+      <Stack.Screen
+        name="ReminderSettings"
+        component={ReminderSettingsScreen}
+        options={{ ...stackScreenOptions, title: "Reminder settings" }}
       />
       <Stack.Screen
         name="ReminderEditor"

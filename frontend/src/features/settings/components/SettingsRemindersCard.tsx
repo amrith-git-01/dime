@@ -50,7 +50,7 @@ function nudgeAccessibilityLabel(count: number): string {
   return count === 1 ? "1 overdue nudge" : `${count} overdue nudges`;
 }
 
-/** Settings → Notifications: money reminders (when, how early, quiet hours) and my UPI ID. */
+/** Reminder settings: money reminders (when, how early, quiet hours) and my UPI ID. */
 export const SettingsRemindersCard = memo(function SettingsRemindersCard({
   enabled,
   defaultLeadDays,

@@ -73,7 +73,7 @@ export default function SettingsScreen() {
           <SettingsNavRow
             icon={Bell}
             label="Notifications & alerts"
-            subtitle="Device permission, budget limits, and capture alerts"
+            subtitle="Device permission, daily reminder, and capture alerts"
             onPress={() => openDestination("SettingsNotifications")}
             showSeparator
           />
@@ -98,8 +98,8 @@ export default function SettingsScreen() {
           <SettingsNavRow
             icon={AlarmClock}
             label="Reminders"
-            subtitle="Bills to pay and money to collect"
-            onPress={() => openDestination("Reminders")}
+            subtitle="When they fire, quiet hours, and your UPI ID"
+            onPress={() => openDestination("ReminderSettings")}
           />
         </View>
       </SettingsSection>

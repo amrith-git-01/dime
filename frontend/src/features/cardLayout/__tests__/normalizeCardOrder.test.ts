@@ -157,6 +157,26 @@ describe("card ids", () => {
     expect(DEFAULT_CARD_ORDER.insights).toEqual(INSIGHTS_CARD_IDS);
   });
 
+  it("a layout saved before the Budget alerts card existed still works: the card follows its default neighbour", () => {
+    expect(
+      normalizeCardOrder(
+        ["budgets.categories", "budgets.summary", "budgets.recurring"],
+        DEFAULT_CARD_ORDER.budgets,
+      ),
+    ).toEqual([
+      "budgets.categories",
+      "budgets.alerts",
+      "budgets.summary",
+      "budgets.recurring",
+    ]);
+    expect(
+      normalizeCardOrder(
+        ["budgets.summary", "budgets.recurring", "budgets.categories"],
+        DEFAULT_CARD_ORDER.budgets,
+      ),
+    ).toEqual([...BUDGETS_CARD_IDS]);
+  });
+
   it("every card has a name and an icon, and ids are unique and server-safe", () => {
     const all = [...HOME_CARD_IDS, ...BUDGETS_CARD_IDS, ...INSIGHTS_CARD_IDS];
     expect(new Set(all).size).toBe(all.length);

@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BellRing,
   CalendarClock,
   CalendarDays,
   ChartBarBig,
@@ -32,6 +33,7 @@ export const CARD_META: Record<CardId, CardMeta> = {
   "budgets.summary": { name: "Budget summary", icon: Target },
   "budgets.recurring": { name: "Recurring", icon: Repeat },
   "budgets.categories": { name: "Category budgets", icon: LayoutGrid },
+  "budgets.alerts": { name: "Budget alerts", icon: BellRing },
 
   "insights.month": { name: "Month", icon: CalendarDays },
   "insights.summary": { name: "Summary", icon: Wallet },

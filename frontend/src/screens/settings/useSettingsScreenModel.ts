@@ -19,7 +19,7 @@ type SettingsHubDestination =
   | "SettingsPermissions"
   | "SettingsTours"
   | "SettingsFeedback"
-  | "Reminders";
+  | "ReminderSettings";
 
 export function useSettingsScreenModel() {
   const navigation =

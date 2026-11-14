@@ -345,6 +345,7 @@ function listProps(over: Partial<RemindersListProps> = {}): RemindersListProps {
     onRetryDone: jest.fn(),
     toggleDone: jest.fn(),
     onAdd: jest.fn(),
+    onOpenSettings: jest.fn(),
     onEdit: jest.fn(),
     onMarkDone: jest.fn(),
     onSkip: jest.fn(),
@@ -366,6 +367,21 @@ describe("RemindersList", () => {
     pressText(tree, "Add reminder");
     expect(props.onAdd).toHaveBeenCalled();
     unmountTree(tree);
+  });
+
+  it("offers Reminder settings, with or without reminders", async () => {
+    const empty = listProps();
+    const emptyTree = await renderTree(wrap(<RemindersList {...empty} />));
+    pressText(emptyTree, "Reminder settings");
+    expect(empty.onOpenSettings).toHaveBeenCalledTimes(1);
+    unmountTree(emptyTree);
+
+    const full = listProps({ openCount: 1, sections: [{ id: "dueSoon" as const, title: "Due soon", items: [reminder("a")] }] });
+    const fullTree = await renderTree(wrap(<RemindersList {...full} />));
+    expect(textsOf(fullTree)).toEqual(expect.arrayContaining(["Add reminder", "Reminder settings"]));
+    pressText(fullTree, "Reminder settings");
+    expect(full.onOpenSettings).toHaveBeenCalledTimes(1);
+    unmountTree(fullTree);
   });
 
   it("shows skeletons while loading, with no Add button or empty message", async () => {

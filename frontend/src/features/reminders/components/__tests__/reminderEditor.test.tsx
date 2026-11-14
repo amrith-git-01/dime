@@ -229,7 +229,7 @@ describe("ReminderEditor: adding", () => {
     pressText(tree, "I receive");
     expect(() => input(tree, "name@bank")).toThrow();
     expect(
-      textsOf(tree).some((t) => t.startsWith("Add your UPI ID in Settings")),
+      textsOf(tree).some((t) => t.startsWith("Add your UPI ID in Reminder settings")),
     ).toBe(true);
 
     mockSettings.value = {
@@ -238,7 +238,7 @@ describe("ReminderEditor: adding", () => {
     unmountTree(tree);
     const again = await mount(<ReminderEditor onDone={jest.fn()} />);
     pressText(again, "I receive");
-    expect(textsOf(again)).toContain("Nudges include a pay link for your UPI ID from Settings.");
+    expect(textsOf(again)).toContain("Nudges include a pay link for your UPI ID from Reminder settings.");
     unmountTree(again);
   });
 

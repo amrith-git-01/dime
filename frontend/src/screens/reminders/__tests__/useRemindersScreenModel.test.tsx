@@ -1,4 +1,4 @@
-import { Linking, Share } from "react-native";
+import { Alert, Linking, Share } from "react-native";
 
 import type { Reminder } from "@/features/reminders/types";
 import { useToastUiStore } from "@/stores/toastUiStore";
@@ -30,8 +30,9 @@ jest.mock("@/features/reminders/hooks/useReminderMutations", () => ({
   useUpdateReminderMutation: () => ({ mutateAsync: mockUpdate }),
   useDeleteReminderMutation: () => ({ mutateAsync: mockRemove }),
 }));
+const mockSettings = { upiId: "me@okbank" as string | null };
 jest.mock("@/features/settings/hooks/useUserSettingsQuery", () => ({
-  useUserSettingsQuery: () => ({ data: { reportRoastLevel: "savage", upiId: "me@okbank" } }),
+  useUserSettingsQuery: () => ({ data: { reportRoastLevel: "savage", upiId: mockSettings.upiId } }),
 }));
 jest.mock("@/features/profile/hooks/useCurrentUserProfileQuery", () => ({
   useCurrentUserProfileQuery: () => ({ data: { username: "Amrith" } }),
@@ -116,6 +117,12 @@ describe("useRemindersScreenModel", () => {
     const r = reminder("a");
     hook.current.onEdit(r);
     expect(mockNav.navigate).toHaveBeenLastCalledWith("ReminderEditor", { reminder: r });
+  });
+
+  it("opens the reminder settings", () => {
+    const hook = render();
+    hook.current.onOpenSettings();
+    expect(mockNav.navigate).toHaveBeenLastCalledWith("ReminderSettings");
   });
 
   it("marks paid (with or without the matching transaction) and says so", async () => {
@@ -250,6 +257,26 @@ describe("useRemindersScreenModel", () => {
       expect(message).toContain("Hi Ravi,");
       expect(message).toContain("₹800 for Dinner");
       expect(message).toContain("Pay here: https://api.example/pay?pa=me@okbank&pn=Amrith&am=800.00");
+    });
+
+    it("asks for a UPI ID first when there is none, and Add UPI ID opens the reminder settings", async () => {
+      share.mockReset();
+      const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+      mockSettings.upiId = null;
+      try {
+        const hook = render();
+        await hook.act(async () => {
+          hook.current.onNudge(reminder("n1", { direction: "receive", title: "Dinner", amount: "800.00" }));
+          await settle();
+        });
+        expect(share).not.toHaveBeenCalled();
+        const buttons = alert.mock.calls[0]![2] as { text: string; onPress?: () => void }[];
+        buttons.find((button) => button.text === "Add UPI ID")?.onPress?.();
+        expect(mockNav.navigate).toHaveBeenLastCalledWith("ReminderSettings");
+      } finally {
+        mockSettings.upiId = "me@okbank";
+        alert.mockRestore();
+      }
     });
 
     it("tells the user when the share sheet cannot open", async () => {

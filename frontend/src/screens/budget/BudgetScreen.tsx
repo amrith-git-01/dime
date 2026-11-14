@@ -26,9 +26,11 @@ import {
   BudgetSummaryCard,
 } from "@/features/budgets/components";
 import { RecurringSection } from "@/features/recurring/components";
+import { BudgetAlertsCard } from "@/features/settings/components";
 import { useTourCommand } from "@/hooks/useTourCommand";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
+import { useBudgetAlertsCardModel } from "./useBudgetAlertsCardModel";
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import { useBudgetSectionScroll } from "./useBudgetSectionScroll";
 import {
@@ -75,6 +77,7 @@ export default function BudgetScreen() {
   const cardOrder = useCardOrder("budgets");
   const scrollRef = useRef<ScrollView>(null);
   const recurring = useBudgetRecurringModel();
+  const alerts = useBudgetAlertsCardModel();
   const { onCardLayout } = useBudgetSectionScroll(scrollRef, showCurrentMonth);
   // Lets the guided tour scroll the screen so each spotlighted part is in view.
   const { onScroll } = useTourScroller("budgets", (y, animated) =>
@@ -180,6 +183,11 @@ export default function BudgetScreen() {
         )}
       </View>
     ),
+    "budgets.alerts": (
+      <View style={styles.alertsCard}>
+        <BudgetAlertsCard {...alerts} />
+      </View>
+    ),
   };
 
   return (
@@ -210,7 +218,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     flex: 1,
     backgroundColor: colors.paper,
   },
-  // The blocks (summary, recurring, categories) have no top margin of their own: the gap spaces
+  // The blocks (summary, recurring, categories, alerts) have no top margin of their own: the gap spaces
   // them whatever order the user put them in.
   content: {
     paddingTop: spacing.lg,
@@ -228,6 +236,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     marginHorizontal: spacing.lg,
     paddingHorizontal: spacing.lg,
     ...shadows.card,
+  },
+  alertsCard: {
+    marginHorizontal: spacing.lg,
   },
   emptyCard: {
     backgroundColor: colors.surface,
