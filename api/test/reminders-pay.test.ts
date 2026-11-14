@@ -144,6 +144,51 @@ describe('GET /pay', () => {
   });
 });
 
+describe('GET /pay on Android', () => {
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+  const getAs = (query: string, ua: string) =>
+    call(`/pay${query}`, { token: false, headers: { 'user-agent': ua }, env: makeEnv({ WRITE_LIMITER: undefined }) });
+
+  it('redirects straight to the UPI app with an intent link that falls back to the page', async () => {
+    const res = await getAs(q({ pa: 'ravi@okhdfc', am: '800', pn: 'Ravi Kumar', tn: 'Dinner split (due 15 Nov)' }), ANDROID);
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location') ?? '';
+    expect(location.startsWith('intent://pay?pa=ravi@okhdfc&pn=Ravi%20Kumar&am=800.00&cu=INR&tn=Dinner%20split%20(due%2015%20Nov)#Intent;scheme=upi;')).toBe(true);
+    expect(location.endsWith(';end')).toBe(true);
+    const fallback = decodeURIComponent(/S\.browser_fallback_url=([^;]+);/.exec(location)?.[1] ?? '');
+    expect(fallback).toBe('http://localhost/pay?pa=ravi%40okhdfc&am=800.00&pn=Ravi+Kumar&tn=Dinner+split+%28due+15+Nov%29&page=1');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('x-robots-tag')).toBe('noindex');
+    expect(res.headers.get('vary')).toContain('User-Agent');
+  });
+
+  it('the fallback URL renders the same page, with no second redirect', async () => {
+    const res = await getAs(q({ pa: 'ravi@okhdfc', am: '800.00', pn: 'Ravi Kumar', tn: 'Dinner split (due 15 Nov)', page: '1' }), ANDROID);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Pay ₹800 to Ravi Kumar');
+    expect(html).toContain('Dinner split (due 15 Nov)');
+    expect(html).toContain(NOT_FROM_DIME_NOTICE);
+  });
+
+  it('an invalid link is never redirected', async () => {
+    const res = await getAs(q({ pa: 'nope', am: '10' }), ANDROID);
+    expect(res.status).toBe(400);
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('iPhone and desktop get the page', async () => {
+    expect((await getAs(q({ pa: 'ravi@okhdfc' }), IPHONE)).status).toBe(200);
+    expect((await getAs(q({ pa: 'ravi@okhdfc' }), 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).status).toBe(200);
+  });
+
+  it('builds the redirect only from validated values', async () => {
+    const res = await getAs('?pa=ravi@okhdfc&x=%3Cscript%3E&am=5', ANDROID);
+    expect(res.headers.get('location')).not.toMatch(/script|x=/);
+  });
+});
+
 describe('parsePayQuery / upiLink', () => {
   it('normalises the amount and trims', () => {
     expect(parsePayQuery({ pa: ' ravi@okhdfc ', am: '5', pn: ' Ravi ' })).toEqual({ pa: 'ravi@okhdfc', am: '5.00', pn: 'Ravi', tn: undefined });

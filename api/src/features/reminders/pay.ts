@@ -9,8 +9,10 @@ import { UPI_ID_RE } from './schemas';
 
 /**
  * Public `GET /pay` (mounted on the root app, NOT under /api/v1, no auth): a shared pay link. WhatsApp does not linkify
- * `upi://`, so the app shares this https link and the page offers a button that opens the visitor's UPI app (a tap, never an
- * automatic redirect: anyone can craft a link, so the page also says it was not created by Dime). It runs no script. Nothing is
+ * `upi://`, so the app shares this https link. On Android it answers with a 302 to an `intent://` link, which Chrome treats as
+ * the visitor's own tap and opens the UPI app directly (falling back to the page when none is installed). Everywhere else,
+ * and as that fallback, the page offers a button that opens the visitor's UPI app (anyone can craft a link, so the page also
+ * says it was not created by Dime). It runs no script. Nothing is
  * stored, no cookies, no third-party assets. Every query parameter is validated against a strict allow-list before it is used, then URL-encoded
  * in the `upi://` link and HTML-escaped in the page; unvalidated input is never echoed.
  */
@@ -73,6 +75,33 @@ export function upiLink(p: PayParams): string {
   return `upi://pay?${parts.join('&')}`;
 }
 
+/** The query of a fallback request: the page itself, never the redirect again (no loop). */
+const PAGE_PARAM = 'page';
+
+/** Android only: Chrome lets a tapped https link that answers with a redirect open an app, so no extra tap is needed. */
+export function isAndroid(userAgent: string | undefined): boolean {
+  return /\bAndroid\b/i.test(userAgent ?? '');
+}
+
+/**
+ * The Android `intent://` form of the `upi://pay` link, built only from validated parameters. With no UPI app installed,
+ * Chrome opens `fallbackUrl` (this page, which still offers the button and the UPI id).
+ */
+export function upiIntentLink(p: PayParams, fallbackUrl: string): string {
+  const query = upiLink(p).slice('upi://pay?'.length);
+  return `intent://pay?${query}#Intent;scheme=upi;action=android.intent.action.VIEW;S.browser_fallback_url=${enc(fallbackUrl)};end`;
+}
+
+/** The page's own canonical URL (validated values only, never the raw query) with `page=1`, for the intent fallback. */
+export function fallbackPageUrl(origin: string, p: PayParams): string {
+  const query = new URLSearchParams({ pa: p.pa });
+  if (p.am) query.set('am', p.am);
+  if (p.pn) query.set('pn', p.pn);
+  if (p.tn) query.set('tn', p.tn);
+  query.set(PAGE_PARAM, '1');
+  return `${origin}/pay?${query.toString()}`;
+}
+
 function nonce(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 }
@@ -128,5 +157,21 @@ function respond(c: Context<AppBindings>, html: (n: string) => string, status: 2
 // Rate limited per client IP by the shared write limiter (a cost guard; the page itself does no I/O).
 payRoutes.get('/', rateLimit('WRITE_LIMITER'), (c) => {
   const params = parsePayQuery(c.req.query());
-  return params ? respond(c, (n) => renderPayPage(params, n), 200) : respond(c, renderInvalidPage, 400);
+  if (!params) return respond(c, renderInvalidPage, 400);
+  // Android: straight into the UPI app (the app itself shows the payee's name and UPI id before the PIN). The fallback
+  // request carries `page=1` and gets the page. Other platforms (iOS has no intent links) always get the page.
+  if (isAndroid(c.req.header('user-agent')) && c.req.query(PAGE_PARAM) !== '1') {
+    const origin = new URL(c.req.url).origin;
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: upiIntentLink(params, fallbackPageUrl(origin, params)),
+        'Cache-Control': 'no-store',
+        'X-Robots-Tag': 'noindex',
+        'Referrer-Policy': 'no-referrer',
+        Vary: 'User-Agent',
+      },
+    });
+  }
+  return respond(c, (n) => renderPayPage(params, n), 200);
 });
