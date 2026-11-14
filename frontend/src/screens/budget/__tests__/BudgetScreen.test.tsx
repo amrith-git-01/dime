@@ -19,7 +19,7 @@ jest.mock("react-native-reanimated", () => ({
 
 const mockOrder = {
   value: {
-    order: ["budgets.summary", "budgets.recurring", "budgets.categories"] as string[],
+    order: ["budgets.summary", "budgets.recurring", "budgets.categories", "budgets.alerts"] as string[],
     ready: true,
     commit: jest.fn(),
   },
@@ -51,6 +51,13 @@ jest.mock("@/features/budgets/components", () => {
     }) => <T>{`ROW ${item.id} first=${isFirst} last=${isLast} tour=${tourTargetId ?? "-"}`}</T>,
   };
 });
+jest.mock("@/features/settings/components", () => {
+  const { Text: T } = jest.requireActual("react-native");
+  return { BudgetAlertsCard: () => <T>ALERTS</T> };
+});
+jest.mock("../useBudgetAlertsCardModel", () => ({
+  useBudgetAlertsCardModel: () => ({}),
+}));
 jest.mock("@/features/recurring/components", () => {
   const { Text: T } = jest.requireActual("react-native");
   return { RecurringSection: () => <T>RECURRING</T> };
@@ -138,7 +145,7 @@ const texts = (tree: Tree) =>
 beforeEach(() => {
   resetModel();
   mockOrder.value = {
-    order: ["budgets.summary", "budgets.recurring", "budgets.categories"],
+    order: ["budgets.summary", "budgets.recurring", "budgets.categories", "budgets.alerts"],
     ready: true,
     commit: jest.fn(),
   };
@@ -146,7 +153,7 @@ beforeEach(() => {
 });
 
 describe("BudgetScreen", () => {
-  it("renders the summary, recurring and category blocks in the default order, then Arrange", () => {
+  it("renders the summary, recurring, category and alert blocks in the default order, then Arrange", () => {
     const tree = render();
     expect(texts(tree)).toEqual([
       "SUMMARY",
@@ -155,16 +162,17 @@ describe("BudgetScreen", () => {
       "ROW food first=true last=false tour=budgets.firstCategory",
       "ROW rent first=false last=false tour=-",
       "ROW fun first=false last=true tour=-",
+      "ALERTS",
       "ARRANGE budgets",
     ]);
     act(() => tree.unmount());
   });
 
   it("follows the user's order", () => {
-    mockOrder.value.order = ["budgets.categories", "budgets.summary", "budgets.recurring"];
+    mockOrder.value.order = ["budgets.categories", "budgets.summary", "budgets.recurring", "budgets.alerts"];
     const tree = render();
     expect(texts(tree).slice(0, 3)).toEqual(["CATEGORIES HEADER", "ROW food first=true last=false tour=budgets.firstCategory", "ROW rent first=false last=false tour=-"]);
-    expect(texts(tree).slice(-3)).toEqual(["SUMMARY", "RECURRING", "ARRANGE budgets"]);
+    expect(texts(tree).slice(-4)).toEqual(["SUMMARY", "RECURRING", "ALERTS", "ARRANGE budgets"]);
     act(() => tree.unmount());
   });
 

@@ -101,6 +101,10 @@ export function useRemindersScreenModel() {
     navigation.navigate("ReminderEditor", {});
   }, [navigation]);
 
+  const onOpenSettings = useCallback(() => {
+    navigation.navigate("ReminderSettings");
+  }, [navigation]);
+
   const onEdit = useCallback(
     (reminder: Reminder) => {
       navigation.navigate("ReminderEditor", { reminder });
@@ -200,7 +204,7 @@ export function useRemindersScreenModel() {
             {
               text: "Add UPI ID",
               isPreferred: true,
-              onPress: () => navigation.navigate("SettingsNotifications"),
+              onPress: () => navigation.navigate("ReminderSettings"),
             },
           ],
         );
@@ -237,6 +241,7 @@ export function useRemindersScreenModel() {
     onRetryDone: () => void refetchDone(),
     toggleDone,
     onAdd,
+    onOpenSettings,
     onEdit,
     onMarkDone: (reminder: Reminder, transactionId?: string) =>
       void onMarkDone(reminder, transactionId),

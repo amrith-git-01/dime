@@ -54,6 +54,8 @@ export type MainStackParamList = {
   BrokeReport: { periodKey: string };
   /** `highlightId`: a reminder to scroll to and tint (from a notification or Home). */
   Reminders: { highlightId?: string } | undefined;
+  /** When reminders fire, quiet hours, My UPI ID (from the Reminders list, the nudge prompt and the Settings hub). */
+  ReminderSettings: undefined;
   /** `reminder`: the one to edit; omit to add a new one. */
   ReminderEditor: { reminder?: Reminder };
   ManualAddTransaction:

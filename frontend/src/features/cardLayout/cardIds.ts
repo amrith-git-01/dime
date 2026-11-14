@@ -19,6 +19,7 @@ export const BUDGETS_CARD_IDS = [
   "budgets.summary",
   "budgets.recurring",
   "budgets.categories",
+  "budgets.alerts",
 ] as const;
 
 export const INSIGHTS_CARD_IDS = [

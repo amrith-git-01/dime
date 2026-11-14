@@ -50,7 +50,7 @@ function nudgeAccessibilityLabel(count: number): string {
   return count === 1 ? "1 overdue nudge" : `${count} overdue nudges`;
 }
 
-/** Settings → Notifications: money reminders (when, how early, quiet hours) and my UPI ID. */
+/** Reminder settings: money reminders (when, how early, quiet hours) and my UPI ID. */
 export const SettingsRemindersCard = memo(function SettingsRemindersCard({
   enabled,
   defaultLeadDays,
@@ -81,6 +81,24 @@ export const SettingsRemindersCard = memo(function SettingsRemindersCard({
       title="Reminders"
       subtitle="Bills to pay and money to collect."
     >
+      <View style={styles.block}>
+        <TextField
+          label="My UPI ID (to get paid)"
+          placeholder="name@bank"
+          value={upiId}
+          onChangeText={onUpiIdChange}
+          maxLength={100}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          editable={!disabled}
+          errorMessage={upiError ?? null}
+        />
+        <Text style={styles.blockHint}>
+          Nudges to people who owe you carry a pay link with the amount and a note, paid to this ID.
+        </Text>
+      </View>
+
       <SettingsToggleRow
         label="Reminders"
         subtitle="A push before something is due, and again if it is late."
@@ -173,24 +191,6 @@ export const SettingsRemindersCard = memo(function SettingsRemindersCard({
           />
         </>
       ) : null}
-
-      <View style={styles.block}>
-        <TextField
-          label="My UPI ID (optional)"
-          placeholder="name@bank"
-          value={upiId}
-          onChangeText={onUpiIdChange}
-          maxLength={100}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          editable={!disabled}
-          errorMessage={upiError ?? null}
-        />
-        <Text style={styles.blockHint}>
-          Nudges to people who owe you include a pay link for this ID.
-        </Text>
-      </View>
     </SettingsFormCard>
   );
 });

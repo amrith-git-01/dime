@@ -1,7 +1,7 @@
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 import type { ReportListItem } from "../../types";
-import { PastReportsShelf, ReportBanner, ReportsListEditor } from "..";
+import { PastReportsShelf, ReportBanner, ReportSettingsEditor, ReportsListEditor } from "..";
 import {
   press,
   pressables,
@@ -47,8 +47,38 @@ jest.mock("react-native-gesture-handler", () => {
   };
 });
 
+// The animated switch is a Lottie file; a plain pressable stands in for it.
+jest.mock("@/components/ui/LottieToggle/LottieToggle", () => {
+  const { Pressable: P } = jest.requireActual("react-native");
+  return {
+    LOTTIE_TOGGLE_WIDTH: 50,
+    LOTTIE_TOGGLE_HEIGHT: 30,
+    LottieToggle: ({
+      accessibilityLabel,
+      value,
+      onValueChange,
+    }: {
+      accessibilityLabel: string;
+      value: boolean;
+      onValueChange: (next: boolean) => void;
+    }) => (
+      <P
+        accessibilityRole="switch"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ checked: value }}
+        onPress={() => onValueChange(!value)}
+      />
+    ),
+  };
+});
+
 const mockOpen = jest.fn();
 jest.mock("../../hooks/useOpenReport", () => ({ useOpenReport: () => mockOpen }));
+
+const mockOpenSettings = jest.fn();
+jest.mock("../../hooks/useOpenReportSettings", () => ({
+  useOpenReportSettings: () => mockOpenSettings,
+}));
 
 const mockBanner = {
   value: { periodKey: null as string | null, monthLabel: null as string | null, dismiss: jest.fn() },
@@ -133,6 +163,15 @@ describe("PastReportsShelf", () => {
     expect(mockOpen).toHaveBeenCalledWith("2026-09");
     unmountTree(tree);
   });
+
+  it("links to the report settings", async () => {
+    mockList.value = { data: [item("2026-10")] };
+    const tree = await renderTree(wrap(<PastReportsShelf />));
+    expect(textsOf(tree)).toContain("Report settings");
+    press(tree, "Report settings");
+    expect(mockOpenSettings).toHaveBeenCalledTimes(1);
+    unmountTree(tree);
+  });
 });
 
 describe("ReportsListEditor", () => {
@@ -182,5 +221,40 @@ describe("ReportsListEditor", () => {
     const tree = await renderTree(wrap(<ReportsListEditor {...base} isLoading />));
     expect(textsOf(tree)).toEqual([]);
     unmountTree(tree);
+  });
+});
+
+describe("ReportSettingsEditor", () => {
+  const base = {
+    reportAlertsEnabled: true,
+    reportRoastLevel: "spicy" as const,
+    onReportAlertsChange: jest.fn(),
+    onReportRoastLevelChange: jest.fn(),
+    onClear: jest.fn(),
+    onSave: jest.fn(),
+  };
+
+  it("offers the push and the three roast levels, and says the level also tones reminder nudges", async () => {
+    const tree = await renderTree(wrap(<ReportSettingsEditor {...base} />));
+    const texts = textsOf(tree);
+    expect(texts).toEqual(expect.arrayContaining(["Monthly Broke Report", "Gentle", "Spicy", "Savage"]));
+    expect(texts.some((t) => /reminder nudges/.test(t))).toBe(true);
+    pressText(tree, "Savage");
+    expect(base.onReportRoastLevelChange).toHaveBeenCalledWith("savage");
+    press(tree, "Monthly Broke Report");
+    expect(base.onReportAlertsChange).toHaveBeenCalledWith(false);
+    unmountTree(tree);
+  });
+
+  it("has its own Save and Clear, disabled until something changes", async () => {
+    const clean = await renderTree(wrap(<ReportSettingsEditor {...base} saveDisabled clearDisabled />));
+    expect(pressables(clean, "Save")[0]?.props.disabled).toBe(true);
+    unmountTree(clean);
+    const dirty = await renderTree(wrap(<ReportSettingsEditor {...base} />));
+    press(dirty, "Save");
+    expect(base.onSave).toHaveBeenCalledTimes(1);
+    press(dirty, "Clear");
+    expect(base.onClear).toHaveBeenCalledTimes(1);
+    unmountTree(dirty);
   });
 });

@@ -121,8 +121,8 @@ export const ReportsListEditor = memo(function ReportsListEditor({
       </SettingsSection>
 
       <Text style={styles.hint}>
-        Reports are built on the 1st for the month before. Your roast level is in
-        Notifications & alerts.
+        Reports are built on the 1st for the month before. The roast level above
+        sets how they tease.
       </Text>
       {isError ? (
         <Button title="Refresh" variant="ghost" onPress={onRetry} />

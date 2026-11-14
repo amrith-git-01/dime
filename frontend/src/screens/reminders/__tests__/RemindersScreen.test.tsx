@@ -71,6 +71,7 @@ function model(over: Record<string, unknown> = {}) {
     onRetryDone: jest.fn(),
     toggleDone: jest.fn(),
     onAdd: jest.fn(),
+    onOpenSettings: jest.fn(),
     onEdit: jest.fn(),
     onMarkDone: jest.fn(),
     onSkip: jest.fn(),

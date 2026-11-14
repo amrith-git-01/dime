@@ -224,9 +224,10 @@ describe("ArrangeSheet", () => {
   it("uses the screen's own title and cards for Budgets and Insights", () => {
     const budgets = render({ screen: "budgets", order: DEFAULT_CARD_ORDER.budgets });
     expect(rowLabels(budgets.tree)).toEqual([
-      "Budget summary, position 1 of 3",
-      "Recurring, position 2 of 3",
-      "Category budgets, position 3 of 3",
+      "Budget summary, position 1 of 4",
+      "Recurring, position 2 of 4",
+      "Category budgets, position 3 of 4",
+      "Budget alerts, position 4 of 4",
     ]);
     expect(JSON.stringify(budgets.tree.toJSON())).toContain("Arrange Budgets");
     act(() => budgets.tree.unmount());

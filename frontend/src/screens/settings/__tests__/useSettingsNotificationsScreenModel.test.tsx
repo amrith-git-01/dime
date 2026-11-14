@@ -1,4 +1,5 @@
 import { DEFAULT_USER_SETTINGS, type UserSettings } from "@/features/settings/types";
+import { useToastUiStore } from "@/stores/toastUiStore";
 import { renderHookWithClient } from "@/test-utils/renderHookWithClient";
 import { createTestQueryClient } from "@/test-utils/testQueryClient";
 
@@ -17,17 +18,24 @@ const mockMutate = jest.fn();
 jest.mock("@/features/settings/hooks/useUpdateUserSettingsMutation", () => ({
   useUpdateUserSettingsMutation: () => ({ mutateAsync: mockMutate, isPending: false }),
 }));
+const mockSyncToken = jest.fn((_enabled: boolean) => Promise.resolve());
 jest.mock("@/features/settings/utils/syncExpoPushToken", () => ({
-  syncExpoPushTokenForUser: jest.fn(() => Promise.resolve()),
+  syncExpoPushTokenForUser: (enabled: boolean) => mockSyncToken(enabled),
 }));
+const mockSyncSchedule = jest.fn((_args: unknown) => Promise.resolve());
 jest.mock("@/lib/notifications/dailyExpenseReminderSchedule", () => ({
-  syncDailyExpenseReminderSchedule: jest.fn(() => Promise.resolve()),
+  syncDailyExpenseReminderSchedule: (args: unknown) => mockSyncSchedule(args),
 }));
 jest.mock("@/features/onboarding/utils/appPermissions", () => ({
   getAppPermissionState: jest.fn(() => Promise.resolve({ granted: true })),
 }));
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+function shown() {
+  const { current, queue } = useToastUiStore.getState();
+  return [current, ...queue].filter((toast) => toast !== null);
+}
 
 function render(initial: Partial<UserSettings> = {}) {
   mockSaved.value = { ...DEFAULT_USER_SETTINGS, ...initial };
@@ -36,32 +44,40 @@ function render(initial: Partial<UserSettings> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  useToastUiStore.setState({ current: null, queue: [] });
   mockMutate.mockResolvedValue(mockSaved.value);
 });
 
-describe("Notifications settings: reminders card", () => {
-  it("shows the saved reminder settings", () => {
-    const { reminders } = render({
-      reminderDefaultLeadDays: [7],
-      reminderTime: "07:00",
-      upiId: "me@okbank",
-    }).current.editorProps;
-    expect(reminders).toMatchObject({
-      enabled: true,
-      defaultLeadDays: [7],
-      time: "07:00",
-      overdueNudges: 2,
-      upiId: "me@okbank",
-      upiError: null,
+describe("Notifications settings screen", () => {
+  it("shows the saved device, daily reminder and capture settings, and is clean", () => {
+    const { editorProps } = render({
+      deviceNotificationsEnabled: false,
+      dailyExpenseReminderTime: "21:30",
+      captureFailedAlertsEnabled: false,
+    }).current;
+    expect(editorProps).toMatchObject({
+      deviceNotificationsEnabled: false,
+      dailyExpenseReminderEnabled: true,
+      dailyExpenseReminderTime: "21:30",
+      autoCaptureAlertsEnabled: true,
+      captureFailedAlertsEnabled: false,
+      saveDisabled: true,
+      clearDisabled: true,
     });
   });
 
-  it("is clean until something changes, then saves only that", async () => {
+  it("no longer carries the budget, report or reminder settings", () => {
+    const keys = Object.keys(render().current.editorProps);
+    expect(keys).not.toContain("reminders");
+    expect(keys).not.toContain("budgetMonthlyAlertsEnabled");
+    expect(keys).not.toContain("reportRoastLevel");
+  });
+
+  it("saves only what changed, then syncs the push token and the daily schedule", async () => {
     const hook = render();
-    expect(hook.current.editorProps.saveDisabled).toBe(true);
     await hook.act(async () => {
-      hook.current.editorProps.reminders.onHideAmountsChange(true);
-      hook.current.editorProps.reminders.onOverdueNudgesChange(4);
+      hook.current.editorProps.onDailyExpenseReminderTimeChange("21:00");
+      hook.current.editorProps.onCaptureFailedAlertsChange(false);
       await settle();
     });
     expect(hook.current.editorProps.saveDisabled).toBe(false);
@@ -70,95 +86,74 @@ describe("Notifications settings: reminders card", () => {
       await settle();
     });
     expect(mockMutate).toHaveBeenCalledWith({
-      reminderHideAmounts: true,
-      reminderOverdueNudges: 4,
+      dailyExpenseReminderTime: "21:00",
+      captureFailedAlertsEnabled: false,
     });
+    expect(mockSyncToken).toHaveBeenCalledWith(true);
+    expect(mockSyncSchedule).toHaveBeenCalledWith({
+      enabled: true,
+      time: "21:00",
+      deviceNotificationsEnabled: true,
+    });
+    expect(shown().map((toast) => toast.message)).toContain("Notification settings saved");
   });
 
-  it("toggles default lead days (largest first, at most five, none is allowed)", async () => {
+  it("does not save, or sync anything, when nothing changed", async () => {
     const hook = render();
-    await hook.act(async () => {
-      hook.current.editorProps.reminders.onDefaultLeadDayToggle(7);
-      await settle();
-    });
-    expect(hook.current.editorProps.reminders.defaultLeadDays).toEqual([7, 3, 1, 0]);
-    await hook.act(async () => {
-      hook.current.editorProps.reminders.onDefaultLeadDayToggle(3);
-      hook.current.editorProps.reminders.onDefaultLeadDayToggle(1);
-      await settle();
-    });
-    await hook.act(async () => {
-      hook.current.editorProps.reminders.onDefaultLeadDayToggle(7);
-      await settle();
-    });
-    await hook.act(async () => {
-      hook.current.editorProps.reminders.onDefaultLeadDayToggle(0);
-      await settle();
-    });
-    expect(hook.current.editorProps.reminders.defaultLeadDays).toEqual([]);
-    await hook.act(async () => {
-      hook.current.editorProps.onSave();
-      await settle();
-    });
-    expect(mockMutate).toHaveBeenCalledWith({ reminderDefaultLeadDays: [] });
-  });
-
-  it("refuses to save a malformed UPI ID and says why", async () => {
-    const hook = render();
-    await hook.act(async () => {
-      hook.current.editorProps.reminders.onUpiIdChange("not a upi id");
-      await settle();
-    });
-    expect(hook.current.editorProps.reminders.upiError).toBe("Enter a UPI ID like name@bank.");
-    expect(hook.current.editorProps.saveDisabled).toBe(true);
     await hook.act(async () => {
       hook.current.editorProps.onSave();
       await settle();
     });
     expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockSyncToken).not.toHaveBeenCalled();
+    expect(mockSyncSchedule).not.toHaveBeenCalled();
   });
 
-  it("saves a valid UPI ID, trimmed", async () => {
+  it("warns, but keeps the saved settings, when the push token cannot be synced", async () => {
+    mockSyncToken.mockRejectedValueOnce(new Error("no permission"));
     const hook = render();
     await hook.act(async () => {
-      hook.current.editorProps.reminders.onUpiIdChange(" me@okbank ");
+      hook.current.editorProps.onAutoCaptureAlertsChange(false);
       await settle();
     });
-    expect(hook.current.editorProps.reminders.upiError).toBeNull();
     await hook.act(async () => {
       hook.current.editorProps.onSave();
       await settle();
     });
-    expect(mockMutate).toHaveBeenCalledWith({ upiId: "me@okbank" });
+    const messages = shown().map((toast) => toast.message);
+    expect(messages).toContain("Notification settings saved");
+    expect(messages.some((m) => m.startsWith("Device notifications may not work"))).toBe(true);
   });
 
-  it("clearing My UPI ID saves null (the API call turns it into an empty string)", async () => {
-    const hook = render({ upiId: "me@okbank" });
+  it("reports a failed save and keeps the edit", async () => {
+    mockMutate.mockRejectedValueOnce(new Error("offline"));
+    const hook = render();
     await hook.act(async () => {
-      hook.current.editorProps.reminders.onUpiIdChange("");
+      hook.current.editorProps.onDeviceNotificationsChange(false);
       await settle();
     });
-    expect(hook.current.editorProps.reminders.upiId).toBe("");
-    expect(hook.current.editorProps.reminders.upiError).toBeNull();
     await hook.act(async () => {
       hook.current.editorProps.onSave();
       await settle();
     });
-    expect(mockMutate).toHaveBeenCalledWith({ upiId: null });
+    expect(shown().some((toast) => toast.variant === "error")).toBe(true);
+    expect(hook.current.editorProps.deviceNotificationsEnabled).toBe(false);
+    expect(hook.current.editorProps.saveDisabled).toBe(false);
+    expect(mockSyncToken).not.toHaveBeenCalled();
   });
 
   it("Clear puts the saved values back", async () => {
     const hook = render();
     await hook.act(async () => {
-      hook.current.editorProps.reminders.onEnabledChange(false);
+      hook.current.editorProps.onDeviceNotificationsChange(false);
       await settle();
     });
-    expect(hook.current.editorProps.reminders.enabled).toBe(false);
+    expect(hook.current.editorProps.deviceNotificationsEnabled).toBe(false);
     await hook.act(async () => {
       hook.current.editorProps.onClear();
       await settle();
     });
-    expect(hook.current.editorProps.reminders.enabled).toBe(true);
+    expect(hook.current.editorProps.deviceNotificationsEnabled).toBe(true);
     expect(hook.current.editorProps.saveDisabled).toBe(true);
   });
 });

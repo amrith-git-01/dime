@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus } from "lucide-react-native";
+import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef } from "react";
 import {
   type LayoutChangeEvent,
@@ -39,6 +39,8 @@ export type RemindersListProps = {
   onRetryDone: () => void;
   toggleDone: () => void;
   onAdd: () => void;
+  /** Opens the reminder settings (when reminders fire, quiet hours, My UPI ID). */
+  onOpenSettings: () => void;
   onEdit: (reminder: Reminder) => void;
   onMarkDone: (reminder: Reminder, transactionId?: string) => void;
   onSkip: (reminder: Reminder) => void;
@@ -53,7 +55,7 @@ const SKELETON_ROWS = 3;
 const SCROLL_MARGIN = 16;
 
 /**
- * The Reminders list: an Add button, the open reminders in sections (Overdue, Due soon, Later), and a
+ * The Reminders list: Add and Reminder settings buttons, the open reminders in sections (Overdue, Due soon, Later), and a
  * collapsed Done section. It owns its scroll view so it can bring a highlighted reminder into view.
  */
 export const RemindersList = memo(function RemindersList(props: RemindersListProps) {
@@ -212,15 +214,28 @@ export const RemindersList = memo(function RemindersList(props: RemindersListPro
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {openCount > 0 ? (
-        <Button
-          title="Add reminder"
-          size="compact"
-          variant="secondary"
-          leadingIcon={<Plus size={16} color={colors.ink} strokeWidth={2} />}
-          onPress={props.onAdd}
-        />
-      ) : null}
+      <View style={styles.actions}>
+        {openCount > 0 ? (
+          <View style={styles.actionCell}>
+            <Button
+              title="Add reminder"
+              size="compact"
+              variant="secondary"
+              leadingIcon={<Plus size={16} color={colors.ink} strokeWidth={2} />}
+              onPress={props.onAdd}
+            />
+          </View>
+        ) : null}
+        <View style={styles.actionCell}>
+          <Button
+            title="Reminder settings"
+            size="compact"
+            variant="secondary"
+            leadingIcon={<Settings size={16} color={colors.ink} strokeWidth={2} />}
+            onPress={props.onOpenSettings}
+          />
+        </View>
+      </View>
 
       {body}
 
@@ -291,6 +306,14 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     gap: spacing.xl,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  actionCell: {
+    flex: 1,
+    minWidth: 0,
   },
   sections: {
     gap: spacing.xl,
