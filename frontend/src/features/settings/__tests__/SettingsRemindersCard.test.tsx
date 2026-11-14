@@ -118,7 +118,7 @@ describe("SettingsRemindersCard", () => {
     expect(texts).not.toContain("Remind me");
     expect(texts).not.toContain("Reminder time");
     expect(texts).not.toContain("Quiet hours");
-    expect(texts).toContain("Nudges to people who owe you include a pay link for this ID.");
+    expect(texts).toContain("Nudges to people who owe you carry a pay link with the amount and a note, paid to this ID.");
     unmountTree(tree);
   });
 
