@@ -52,7 +52,7 @@ export type UserSettings = {
   reminderQuietEnd: string;
   /** Hides amounts in reminder notifications only; the app itself still shows them. */
   reminderHideAmounts: boolean;
-  /** My UPI ID, for pay links in nudges; null when not set. */
+  /** My UPI ID, for QR codes in nudges; null when not set. */
   upiId: string | null;
   /** IANA timezone the device last reported (written at launch); null until then. */
   timezone: string | null;

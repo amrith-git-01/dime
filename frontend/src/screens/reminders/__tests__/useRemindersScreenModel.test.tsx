@@ -1,6 +1,8 @@
 import { Alert, Linking, Share } from "react-native";
+import ShareSheet from "react-native-share";
 
 import type { Reminder } from "@/features/reminders/types";
+import { writeNudgeQrCard } from "@/features/reminders/utils/nudgeQrCard";
 import { useToastUiStore } from "@/stores/toastUiStore";
 import { renderHookWithClient } from "@/test-utils/renderHookWithClient";
 import { createTestQueryClient } from "@/test-utils/testQueryClient";
@@ -42,7 +44,10 @@ jest.mock("@/lib/haptics/nativeHaptics", () => ({
   triggerHaptic: jest.fn(() => Promise.resolve()),
   triggerConfirmHaptic: jest.fn(() => Promise.resolve()),
 }));
-jest.mock("@/lib/api/baseUrl", () => ({ getDimeApiBaseUrl: () => "https://api.example" }));
+jest.mock("@/features/reminders/utils/nudgeQrCard", () => ({
+  writeNudgeQrCard: jest.fn(() => Promise.resolve("file:///cache/nudge-qr-card.png")),
+}));
+jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn(() => Promise.resolve({})) } }));
 
 function reminder(id: string, over: Partial<Reminder> = {}): Reminder {
   return {
@@ -245,18 +250,48 @@ describe("useRemindersScreenModel", () => {
   describe("Nudge", () => {
     const share = jest.spyOn(Share, "share");
 
-    it("shares the message in the user's tone, with the pay link from My UPI ID", async () => {
+    it("shares the QR card from My UPI ID, with the message in the user's tone as its caption", async () => {
       share.mockReset();
-      share.mockResolvedValue({ action: "sharedAction" });
+      jest.mocked(ShareSheet.open).mockClear();
+      jest.mocked(writeNudgeQrCard).mockClear();
       const hook = render();
       await hook.act(async () => {
         hook.current.onNudge(reminder("n1", { direction: "receive", title: "Dinner", amount: "800.00" }));
       await settle();
       });
-      const message = (share.mock.calls[0]![0] as { message: string }).message;
-      expect(message).toContain("Hi Ravi,");
-      expect(message).toContain("₹800 for Dinner");
-      expect(message).toContain("Pay here: https://api.example/pay?pa=me@okbank&pn=Amrith&am=800.00");
+      expect(jest.mocked(writeNudgeQrCard).mock.calls[0]![0].payload).toContain("pa=me@okbank&pn=Amrith&am=800.00");
+      const options = jest.mocked(ShareSheet.open).mock.calls[0]![0] as { message: string; url: string };
+      expect(options.url).toBe("file:///cache/nudge-qr-card.png");
+      expect(options.message).toContain("Hi Ravi,");
+      expect(options.message).toContain("₹800 for Dinner");
+      expect(options.message).not.toMatch(/https?:|Pay here/);
+      expect(share).not.toHaveBeenCalled();
+    });
+
+    it("shares plain text without a QR code when the user picks Send without QR", async () => {
+      share.mockReset();
+      share.mockResolvedValue({ action: "sharedAction" });
+      jest.mocked(ShareSheet.open).mockClear();
+      const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+      mockSettings.upiId = null;
+      try {
+        const hook = render();
+        await hook.act(async () => {
+          hook.current.onNudge(reminder("n1", { direction: "receive", title: "Dinner", amount: "800.00" }));
+          await settle();
+        });
+        expect(alert.mock.calls[0]![1]).toContain("QR code");
+        const buttons = alert.mock.calls[0]![2] as { text: string; onPress?: () => void }[];
+        await hook.act(async () => {
+          buttons.find((button) => button.text === "Send without QR")?.onPress?.();
+          await settle();
+        });
+        expect(ShareSheet.open).not.toHaveBeenCalled();
+        expect((share.mock.calls[0]![0] as { message: string }).message).toContain("₹800 for Dinner");
+      } finally {
+        mockSettings.upiId = "me@okbank";
+        alert.mockRestore();
+      }
     });
 
     it("asks for a UPI ID first when there is none, and Add UPI ID opens the reminder settings", async () => {
@@ -284,7 +319,7 @@ describe("useRemindersScreenModel", () => {
       share.mockRejectedValue(new Error("nope"));
       const hook = render();
       await hook.act(async () => {
-        hook.current.onNudge(reminder("n1", { direction: "receive" }));
+        hook.current.onNudge(reminder("n1", { direction: "receive", amount: null }));
       await settle();
       });
       expect(toasts()).toContain("Couldn't open the share sheet.");

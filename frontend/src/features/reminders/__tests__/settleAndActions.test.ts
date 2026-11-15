@@ -1,4 +1,5 @@
 import { Linking, Share } from "react-native";
+import ShareSheet from "react-native-share";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { useToastUiStore } from "@/stores/toastUiStore";
@@ -7,6 +8,7 @@ import { createTestQueryClient } from "@/test-utils/testQueryClient";
 import { completeReminder, fetchReminders } from "../api/remindersApi";
 import { reminderQueryKeys } from "../queryKeys";
 import type { Reminder } from "../types";
+import { writeNudgeQrCard } from "../utils/nudgeQrCard";
 import {
   canNudge,
   canPayNow,
@@ -24,12 +26,12 @@ jest.mock("../api/remindersApi", () => ({
   fetchReminders: jest.fn(),
   completeReminder: jest.fn(),
 }));
-jest.mock("@/lib/api/baseUrl", () => ({
-  getDimeApiBaseUrl: () => "https://api.example",
-}));
-
+jest.mock("../utils/nudgeQrCard", () => ({ writeNudgeQrCard: jest.fn() }));
+jest.mock("react-native-share", () => ({ __esModule: true, default: { open: jest.fn() } }));
 const fetchMock = jest.mocked(fetchReminders);
 const completeMock = jest.mocked(completeReminder);
+const writeCard = jest.mocked(writeNudgeQrCard);
+const shareSheet = jest.mocked(ShareSheet.open);
 
 function reminder(over: Partial<Reminder> = {}): Reminder {
   return {
@@ -235,8 +237,15 @@ describe("Nudge", () => {
     upi_id: null,
   });
 
+  const context = { level: "gentle" as const, myUpiId: "me@okbank", myName: "Amrith", today };
+
   beforeEach(() => {
     share.mockReset();
+    share.mockResolvedValue({ action: "sharedAction" });
+    writeCard.mockReset();
+    writeCard.mockResolvedValue("file:///cache/nudge-qr-card.png");
+    shareSheet.mockReset();
+    shareSheet.mockResolvedValue({ success: true, message: "" });
   });
 
   it("is offered for money someone owes, while it is open", () => {
@@ -245,38 +254,77 @@ describe("Nudge", () => {
     expect(canNudge(reminder())).toBe(false);
   });
 
-  it("includes the pay link only when My UPI ID is set and there is an amount", () => {
-    const withLink = nudgeMessageFor(receive, {
-      level: "gentle",
-      myUpiId: "me@okbank",
-      myName: "Amrith",
-      today,
-    });
-    expect(withLink).toContain("Pay here: https://api.example/pay?pa=me@okbank&pn=Amrith&am=800.00&tn=Dinner%20split");
+  it("builds the message without any link", () => {
+    const message = nudgeMessageFor(receive, context);
+    expect(message).toContain("Hi Ravi,");
+    expect(message).toContain("₹800 for Dinner split");
+    expect(message).not.toMatch(/https?:|Pay here/);
+  });
 
-    const noUpi = nudgeMessageFor(receive, { level: "gentle", myUpiId: null, myName: "Amrith", today });
-    expect(noUpi).not.toContain("Pay here");
-
-    const noAmount = nudgeMessageFor(
-      { ...receive, amount: null },
-      { level: "gentle", myUpiId: "me@okbank", myName: null, today },
+  it("shares the QR card with the message as its caption", async () => {
+    await expect(shareNudge(receive, context)).resolves.toBe(true);
+    const card = writeCard.mock.calls[0]![0];
+    // The QR carries exactly the upi:// address Pay now would open.
+    expect(card.payload).toBe(
+      "upi://pay?pa=me@okbank&pn=Amrith&am=800.00&cu=INR&tn=Dinner%20split%20(due%203%20Nov)",
     );
-    expect(noAmount).not.toContain("Pay here");
-    expect(noAmount).not.toContain("₹");
+    expect(card).toMatchObject({
+      title: "Pay ₹800 to Amrith",
+      note: "Dinner split (due 3 Nov)",
+      upiId: "me@okbank",
+    });
+    expect(shareSheet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "file:///cache/nudge-qr-card.png",
+        type: "image/png",
+        message: nudgeMessageFor(receive, context),
+        failOnCancel: false,
+      }),
+    );
+    expect(share).not.toHaveBeenCalled();
   });
 
-  it("drops a pay link whose UPI id is not valid instead of sending a broken one", () => {
-    const message = nudgeMessageFor(receive, { level: "spicy", myUpiId: "bad id", myName: null, today });
-    expect(message).not.toContain("Pay here");
+  it("titles the card without a name when My name is not known", async () => {
+    await shareNudge(receive, { ...context, myName: null });
+    expect(writeCard.mock.calls[0]![0].title).toBe("Pay ₹800");
+    expect(writeCard.mock.calls[0]![0].payload).not.toContain("pn=");
   });
 
-  it("shares the message and reports a share sheet that would not open", async () => {
-    share.mockResolvedValue({ action: "sharedAction" });
-    await expect(
-      shareNudge(receive, { level: "savage", myUpiId: null, myName: null, today }),
-    ).resolves.toBe(true);
+  it("counts a closed share sheet as shared, not as a failure", async () => {
+    shareSheet.mockResolvedValue({ success: false, message: "", dismissedAction: true } as never);
+    await expect(shareNudge(receive, context)).resolves.toBe(true);
+    expect(share).not.toHaveBeenCalled();
+  });
+
+  it("sends the plain text when the share library throws, never an image without its caption", async () => {
+    shareSheet.mockRejectedValue(new Error("no activity"));
+    await expect(shareNudge(receive, context)).resolves.toBe(true);
+    expect(share).toHaveBeenCalledWith({ message: nudgeMessageFor(receive, context) });
+  });
+
+  it("sends the plain text when the card cannot be made", async () => {
+    writeCard.mockResolvedValue(null);
+    await expect(shareNudge(receive, context)).resolves.toBe(true);
+    expect(shareSheet).not.toHaveBeenCalled();
     expect(share).toHaveBeenCalledWith({ message: expect.stringContaining("Hi Ravi,") });
+  });
 
+  it("makes no card without an amount, without a valid UPI ID or above the limit", async () => {
+    for (const [r, c] of [
+      [{ ...receive, amount: null }, context],
+      [receive, { ...context, myUpiId: null }],
+      [receive, { ...context, myUpiId: "bad id" }],
+      [{ ...receive, amount: "2000000.00" }, context],
+    ] as const) {
+      share.mockClear();
+      await expect(shareNudge(r, c)).resolves.toBe(true);
+      expect(share).toHaveBeenCalledWith({ message: expect.not.stringMatching(/https?:|Pay here/) });
+    }
+    expect(writeCard).not.toHaveBeenCalled();
+    expect(shareSheet).not.toHaveBeenCalled();
+  });
+
+  it("reports a share sheet that would not open", async () => {
     share.mockRejectedValue(new Error("no share sheet"));
     await expect(
       shareNudge(receive, { level: "savage", myUpiId: null, myName: null, today }),

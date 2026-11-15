@@ -19,7 +19,6 @@ function input(over: Partial<NudgeInput> = {}): NudgeInput {
     amount: "800.00",
     dueDate: "2026-11-03",
     today: TODAY,
-    payLink: null,
     ...over,
   };
 }
@@ -135,13 +134,6 @@ describe("buildNudgeMessage", () => {
     expect(buildNudgeMessage(input({ dueDate: "2026-10-30" }))).toContain("was due yesterday");
     expect(buildNudgeMessage(input({ dueDate: "2026-11-01" }))).toContain("is due tomorrow");
     expect(buildNudgeMessage(input({ dueDate: "2026-10-31" }))).toContain("is due today");
-  });
-
-  it("adds the pay link on its own line only when there is one", () => {
-    const link = "https://api.example/pay?pa=me@bank&am=800.00";
-    const message = buildNudgeMessage(input({ payLink: link }));
-    expect(message.endsWith(`\n\nPay here: ${link}`)).toBe(true);
-    expect(message.split("\n\n")).toHaveLength(2);
   });
 
   it("falls back to the spicy voice for an unknown level", () => {

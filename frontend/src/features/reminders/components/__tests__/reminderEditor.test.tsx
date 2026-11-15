@@ -238,7 +238,7 @@ describe("ReminderEditor: adding", () => {
     unmountTree(tree);
     const again = await mount(<ReminderEditor onDone={jest.fn()} />);
     pressText(again, "I receive");
-    expect(textsOf(again)).toContain("Nudges include a pay link for your UPI ID from Reminder settings.");
+    expect(textsOf(again)).toContain("Nudges include a QR code for your UPI ID from Reminder settings.");
     unmountTree(again);
   });
 
