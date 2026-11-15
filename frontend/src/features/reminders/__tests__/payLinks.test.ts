@@ -1,13 +1,10 @@
 import {
-  buildPayLink,
   buildUpiUri,
   exceedsPayLimit,
   normalizePayAmount,
   sanitizePayName,
   sanitizePayNote,
 } from "../utils/payLinks";
-
-const ORIGIN = "https://api.dime.example";
 
 describe("sanitizePayName", () => {
   it("keeps letters, digits, spaces, dots and dashes", () => {
@@ -83,60 +80,6 @@ describe("exceedsPayLimit", () => {
   });
 });
 
-describe("buildPayLink", () => {
-  it("builds the https pay page URL", () => {
-    expect(
-      buildPayLink({
-        upiId: "amrith@okbank",
-        name: "Amrith K",
-        amount: "800",
-        note: "Dinner split",
-        apiOrigin: ORIGIN,
-      }),
-    ).toBe(`${ORIGIN}/pay?pa=amrith@okbank&pn=Amrith%20K&am=800.00&tn=Dinner%20split`);
-  });
-
-  it("leaves out the optional parts that are missing or unusable", () => {
-    expect(buildPayLink({ upiId: "a.b@bank", apiOrigin: ORIGIN })).toBe(`${ORIGIN}/pay?pa=a.b@bank`);
-    expect(
-      buildPayLink({ upiId: "a.b@bank", name: "Dime", note: "<<<", amount: null, apiOrigin: ORIGIN }),
-    ).toBe(`${ORIGIN}/pay?pa=a.b@bank`);
-  });
-
-  it("is null for an invalid UPI id", () => {
-    for (const upiId of ["", "nobank", "a@b", "a b@bank", "x@bank/evil", "@bank", "ok@bank&pa=evil@bank"]) {
-      expect(buildPayLink({ upiId, apiOrigin: ORIGIN })).toBeNull();
-    }
-  });
-
-  it("is null for an amount that is given but cannot be paid", () => {
-    expect(buildPayLink({ upiId: "a.b@bank", amount: "0", apiOrigin: ORIGIN })).toBeNull();
-    expect(buildPayLink({ upiId: "a.b@bank", amount: "abc", apiOrigin: ORIGIN })).toBeNull();
-    expect(buildPayLink({ upiId: "a.b@bank", amount: "2000000", apiOrigin: ORIGIN })).toBeNull();
-  });
-
-  it("is null without a usable API origin and tolerates a trailing slash", () => {
-    expect(buildPayLink({ upiId: "a.b@bank", apiOrigin: "" })).toBeNull();
-    expect(buildPayLink({ upiId: "a.b@bank", apiOrigin: undefined })).toBeNull();
-    expect(buildPayLink({ upiId: "a.b@bank", apiOrigin: "not a url" })).toBeNull();
-    expect(buildPayLink({ upiId: "a.b@bank", apiOrigin: `${ORIGIN}/` })).toBe(`${ORIGIN}/pay?pa=a.b@bank`);
-  });
-
-  it("never lets a note or name inject another parameter", () => {
-    const link = buildPayLink({
-      upiId: "a.b@bank",
-      name: "Ravi",
-      note: "x&am=1&pa=evil@bank",
-      amount: "10",
-      apiOrigin: ORIGIN,
-    });
-    // The note loses its "=" and is percent-encoded, so there is exactly one pa and one am.
-    expect(link).toContain("tn=x%26am1%26paevil%40bank");
-    expect(link!.match(/[?&]pa=/g)).toHaveLength(1);
-    expect(link!.match(/[?&]am=/g)).toHaveLength(1);
-  });
-});
-
 describe("buildUpiUri", () => {
   it("builds the upi://pay address", () => {
     expect(
@@ -147,6 +90,14 @@ describe("buildUpiUri", () => {
   it("is null for an invalid UPI id or amount", () => {
     expect(buildUpiUri({ upiId: "nope", amount: "10" })).toBeNull();
     expect(buildUpiUri({ upiId: "a.b@bank", amount: "-1" })).toBeNull();
+  });
+
+  it("never lets a note or name inject another parameter", () => {
+    const uri = buildUpiUri({ upiId: "a.b@bank", name: "Ravi", note: "x&am=1&pa=evil@bank", amount: "10" });
+    // The note loses its "=" and is percent-encoded, so there is exactly one pa and one am.
+    expect(uri).toContain("tn=x%26am1%26paevil%40bank");
+    expect(uri!.match(/[?&]pa=/g)).toHaveLength(1);
+    expect(uri!.match(/[?&]am=/g)).toHaveLength(1);
   });
 
   it("works without optional parts", () => {

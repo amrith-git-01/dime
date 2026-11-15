@@ -95,7 +95,7 @@ export const SettingsRemindersCard = memo(function SettingsRemindersCard({
           errorMessage={upiError ?? null}
         />
         <Text style={styles.blockHint}>
-          Nudges to people who owe you carry a pay link with the amount and a note, paid to this ID.
+          Nudges to people who owe you carry a QR code with the amount and a note, paid to this ID.
         </Text>
       </View>
 

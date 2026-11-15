@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dime",
     "slug": "frontend",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dime",
@@ -19,7 +19,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 7,
+      "versionCode": 8,
       "allowBackup": false,
       "minSdkVersion": 26,
       "softwareKeyboardLayoutMode": "resize",

@@ -262,7 +262,7 @@ describe("ReminderRow (list)", () => {
     });
     const owedTree = await renderTree(wrap(<ReminderRow {...owed} />));
     expect(
-      textsOf(owedTree).some((t) => t.startsWith("Pay links work up to \u20b910,00,000")),
+      textsOf(owedTree).some((t) => t.startsWith("QR codes work up to \u20b910,00,000")),
     ).toBe(true);
     // The nudge itself is still offered.
     press(owedTree, "Nudge");

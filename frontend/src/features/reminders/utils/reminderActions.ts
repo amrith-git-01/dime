@@ -1,13 +1,14 @@
 import { format } from "date-fns";
 import { Linking, Share } from "react-native";
+import ShareSheet from "react-native-share";
 
 import { parseDueDate } from "@/features/recurring/utils/recurringDisplay";
-import { getDimeApiBaseUrl } from "@/lib/api/baseUrl";
 import type { ReportRoastLevel } from "@/features/settings/types";
 
 import type { Reminder } from "../types";
-import { buildNudgeMessage } from "./nudgeMessage";
-import { buildPayLink, buildUpiUri, normalizePayAmount } from "./payLinks";
+import { buildNudgeMessage, formatShareAmount } from "./nudgeMessage";
+import { writeNudgeQrCard } from "./nudgeQrCard";
+import { buildUpiUri, normalizePayAmount } from "./payLinks";
 
 /** "Pay now" needs somebody to pay and something to pay. */
 export function canPayNow(reminder: Reminder): boolean {
@@ -61,44 +62,82 @@ export async function payNow(reminder: Reminder): Promise<PayNowResult> {
 
 export type NudgeContext = {
   level: ReportRoastLevel;
-  /** My UPI ID from settings; the pay link is added only when it is set. */
+  /** My UPI ID from settings; the QR code is added only when it is set. */
   myUpiId: string | null;
-  /** My name for the pay page ("Pay ₹800 to Amrith"); optional. */
+  /** My name for the QR card ("Pay ₹800 to Amrith"); optional. */
   myName: string | null;
   today: Date;
 };
 
-/** The text the Share sheet gets for a "receive" reminder. */
+/** The text of a nudge for a "receive" reminder (also the caption of the QR card). */
 export function nudgeMessageFor(reminder: Reminder, context: NudgeContext): string {
-  const payLink = context.myUpiId
-    ? buildPayLink({
-        upiId: context.myUpiId,
-        name: context.myName,
-        amount: reminder.amount,
-        note: payNoteFor(reminder),
-        apiOrigin: getDimeApiBaseUrl(),
-      })
-    : null;
   return buildNudgeMessage({
     level: context.level,
     reminderId: reminder.id,
     title: reminder.title,
     name: reminder.counterparty_name,
-    // The link carries an amount only when the reminder has one.
     amount: reminder.amount,
     dueDate: reminder.due_date,
     today: context.today,
-    payLink: reminder.amount !== null ? payLink : null,
   });
 }
 
-/** Opens the Share sheet with the nudge; false when it could not open. */
+/** The `upi://pay` address for the QR code; null without a payable amount (up to the limit) and a valid UPI ID. */
+function nudgeQrPayload(reminder: Reminder, context: NudgeContext): string | null {
+  if (normalizePayAmount(reminder.amount) === null) {
+    return null;
+  }
+  return buildUpiUri({
+    upiId: context.myUpiId ?? "",
+    name: context.myName,
+    amount: reminder.amount,
+    note: payNoteFor(reminder),
+  });
+}
+
+/** Shares the QR card with the message as its caption; false when that fails (the caller sends the text instead). */
+async function shareQrCard(fileUri: string, message: string): Promise<boolean> {
+  try {
+    // Closing the sheet is not an error (`failOnCancel: false`).
+    await ShareSheet.open({
+      url: fileUri,
+      type: "image/png",
+      message,
+      title: "Send a nudge",
+      failOnCancel: false,
+    });
+    return true;
+  } catch {
+    // An image without its caption would lose the nudge: send the text instead.
+    return false;
+  }
+}
+
+/**
+ * Opens the Share sheet with the nudge: the QR card image (message as caption) when the reminder has
+ * a payable amount and I have a UPI ID, else the plain text. False when nothing could be opened.
+ */
 export async function shareNudge(
   reminder: Reminder,
   context: NudgeContext,
 ): Promise<boolean> {
+  const message = nudgeMessageFor(reminder, context);
+  const payload = nudgeQrPayload(reminder, context);
+  const money = reminder.amount === null ? null : formatShareAmount(reminder.amount);
+  if (payload !== null && money !== null && context.myUpiId) {
+    const name = context.myName?.trim();
+    const fileUri = await writeNudgeQrCard({
+      payload,
+      title: name ? `Pay ${money} to ${name}` : `Pay ${money}`,
+      note: payNoteFor(reminder),
+      upiId: context.myUpiId.trim(),
+    });
+    if (fileUri && (await shareQrCard(fileUri, message))) {
+      return true;
+    }
+  }
   try {
-    await Share.share({ message: nudgeMessageFor(reminder, context) });
+    await Share.share({ message });
     return true;
   } catch {
     return false;

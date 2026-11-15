@@ -194,13 +194,13 @@ export function useRemindersScreenModel() {
   );
   const onNudge = useCallback(
     async (reminder: Reminder) => {
-      // No UPI ID means no pay link: ask instead of quietly sending a message that cannot be paid.
+      // No UPI ID means no QR code: ask instead of quietly sending a message that cannot be paid.
       if (reminder.amount !== null && !settingsData?.upiId) {
         Alert.alert(
           "Add your UPI ID",
-          "Your nudge can carry a pay link with the amount and a note, but Dime needs your UPI ID (like name@bank) for that.",
+          "Your nudge can carry a QR code they can scan to pay you, with the amount and a note. Dime needs your UPI ID (like name@bank) for that.",
           [
-            { text: "Send without link", onPress: () => void sendNudge(reminder) },
+            { text: "Send without QR", onPress: () => void sendNudge(reminder) },
             {
               text: "Add UPI ID",
               isPreferred: true,

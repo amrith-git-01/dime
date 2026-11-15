@@ -118,11 +118,11 @@ export const ReminderRow = memo(function ReminderRow({
   const compact = variant === "compact";
   const Icon = isReceive ? ArrowDownLeft : ArrowUpRight;
   const repeats = reminder.cadence !== "none";
-  // An amount above the pay-link limit has no Pay now / pay link: say so instead of leaving it out silently.
+  // An amount above the payment limit has no Pay now / QR code: say so instead of leaving it out silently.
   const limitHint =
     isOpen && exceedsPayLimit(reminder.amount)
       ? isReceive
-        ? `Pay links work up to ${PAY_LIMIT_LABEL}, so a nudge for this amount has no link.`
+        ? `QR codes work up to ${PAY_LIMIT_LABEL}, so a nudge for this amount has no QR code.`
         : reminder.upi_id
           ? `Pay now works up to ${PAY_LIMIT_LABEL}. Use your UPI app for this one.`
           : null

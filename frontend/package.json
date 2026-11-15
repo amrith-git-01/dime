@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "main": "index.js",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "scripts": {
     "start": "expo start",
     "prebuild:android": "expo prebuild --platform android",
@@ -55,6 +55,7 @@
     "expo-web-browser": "~15.0.11",
     "lottie-react-native": "~7.3.1",
     "lucide-react-native": "^1.14.0",
+    "qrcode-generator": "2.0.4",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-android-widget": "^0.22.1",
@@ -65,6 +66,7 @@
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
+    "react-native-share": "12.3.1",
     "react-native-svg": "15.12.1",
     "react-native-worklets": "0.5.1",
     "victory-native": "^41.20.2",

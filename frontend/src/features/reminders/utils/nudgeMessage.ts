@@ -113,8 +113,6 @@ export type NudgeInput = {
   amount: string | null;
   dueDate: string;
   today: Date;
-  /** The `/pay` link; included only when there is one. */
-  payLink: string | null;
 };
 
 /** The message the Share sheet sends for a "receive" reminder, in the user's chosen tone. */
@@ -132,6 +130,5 @@ export function buildNudgeMessage(input: NudgeInput): string {
     timing,
   };
   const index = hashString(`${input.reminderId}|nudge`) % variants.length;
-  const line = variants[index](facts);
-  return input.payLink ? `${line}\n\nPay here: ${input.payLink}` : line;
+  return variants[index](facts);
 }

@@ -2,7 +2,7 @@ import { paiseToAmountString, toPaise } from "@/utils/paise";
 
 import { UPI_ID_PATTERN } from "../constants";
 
-/** `am` bounds of the pay page, in paise: 0.01 to 1,000,000. */
+/** `am` bounds, in paise: 0.01 to 1,000,000. */
 const MIN_PAISE = 1;
 const MAX_PAISE = 100_000_000;
 const MAX_NAME_CHARS = 40;
@@ -20,7 +20,7 @@ function disallowedChars(unicodeSet: string, asciiSet: string): RegExp {
   }
 }
 
-// The pay page's allow-lists (api/src/features/reminders/pay.ts): anything else makes it refuse the link.
+// Same allow-lists as the API's /pay page (api/src/features/reminders/pay.ts), so old links and new QR codes agree.
 const NAME_DISALLOWED = disallowedChars("\\p{L}\\p{N} .\\-", "A-Za-z0-9 .\\-");
 const NOTE_DISALLOWED = disallowedChars(
   "\\p{L}\\p{N} .,\\-_'#&()/:@!?%+*",
@@ -68,7 +68,7 @@ export function normalizePayAmount(
 /** What the limit reads as in a hint (Indian digit grouping). */
 export const PAY_LIMIT_LABEL = "\u20b910,00,000";
 
-/** True when an amount is valid but above what the pay page and Pay now can carry. */
+/** True when an amount is valid but above what a nudge QR code and Pay now can carry. */
 export function exceedsPayLimit(amount: string | number | null | undefined): boolean {
   if (amount === null || amount === undefined || amount === "") {
     return false;
@@ -85,7 +85,7 @@ export type PayParts = {
 
 type Query = { pa: string; pn: string | null; am: string | null; tn: string | null };
 
-/** Valid, sanitized link parts; null when the UPI id is invalid or an amount is given but unusable. */
+/** Valid, sanitized address parts; null when the UPI id is invalid or an amount is given but unusable. */
 function payQuery(parts: PayParts): Query | null {
   const pa = parts.upiId.trim();
   if (!UPI_ID_PATTERN.test(pa)) {
@@ -107,7 +107,7 @@ function payQuery(parts: PayParts): Query | null {
 
 const encode = (value: string): string => encodeURIComponent(value);
 
-function queryString(query: Query, upi: boolean): string {
+function queryString(query: Query): string {
   // The UPI id keeps its "@": UPI apps and chat apps expect it.
   const parts = [`pa=${encode(query.pa).replace(/%40/g, "@")}`];
   if (query.pn) {
@@ -116,32 +116,15 @@ function queryString(query: Query, upi: boolean): string {
   if (query.am) {
     parts.push(`am=${query.am}`);
   }
-  if (upi) {
-    parts.push("cu=INR");
-  }
+  parts.push("cu=INR");
   if (query.tn) {
     parts.push(`tn=${encode(query.tn)}`);
   }
   return parts.join("&");
 }
 
-/**
- * The https page that opens the payer's UPI app (chat apps do not link `upi://` addresses). Null when
- * the UPI id or amount is invalid or there is no API origin (origin only: no `/api/v1`).
- */
-export function buildPayLink(
-  parts: PayParts & { apiOrigin: string | null | undefined },
-): string | null {
-  const origin = parts.apiOrigin?.trim().replace(/\/+$/, "") ?? "";
-  if (!/^https?:\/\/[^/\s]+$/i.test(origin)) {
-    return null;
-  }
-  const query = payQuery(parts);
-  return query ? `${origin}/pay?${queryString(query, false)}` : null;
-}
-
 /** The `upi://pay` address that "Pay now" opens directly. Null when the UPI id or amount is invalid. */
 export function buildUpiUri(parts: PayParts): string | null {
   const query = payQuery(parts);
-  return query ? `upi://pay?${queryString(query, true)}` : null;
+  return query ? `upi://pay?${queryString(query)}` : null;
 }
