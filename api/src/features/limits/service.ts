@@ -1,6 +1,7 @@
 import type { Db } from '../../core/db';
-import { estimateOcrNeurons, utcDay } from '../ai/neuron-cap';
+import { estimateOcrNeurons, userDay, utcDay } from '../ai/neuron-cap';
 import type { NeuronLimits } from '../ai/neuron-cap';
+import { addDays, localDate, startOfLocalDay } from '../../core/timezone';
 
 export interface LimitUsage {
   used: number;
@@ -9,28 +10,25 @@ export interface LimitUsage {
 }
 
 export interface LimitsResponse {
-  /** Next 00:00 UTC, when every counter restarts. */
+  /** The user's next midnight (their stored timezone): when their own counters (questions, scans, voice captures) restart. */
   resets_at: string;
   agent_questions: LimitUsage;
   receipt_scans: LimitUsage;
   voice_captures: LimitUsage;
-  /** The account-wide Workers AI cap is used up: scans are refused for everyone until `resets_at`. */
+  /** The account-wide Workers AI cap is used up: scans are refused for everyone until the next 00:00 UTC (Cloudflare's day). */
   scanning_paused: boolean;
 }
 
 const usage = (used: number, limit: number): LimitUsage => ({ used, limit, remaining: Math.max(limit - used, 0) });
 
-/** Next 00:00 UTC after `nowMs`. */
-export const nextUtcMidnight = (nowMs: number): Date => {
-  const d = new Date(nowMs);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
-};
+/** The next midnight after `nowMs` in `tz`. */
+export const nextLocalMidnight = (nowMs: number, tz: string): Date => new Date(startOfLocalDay(tz, addDays(localDate(tz, nowMs), 1)));
 
-/** Today's counters in ONE batch (3 single-row reads). A missing row means nothing used yet. */
-export async function dailyLimits(db: Db, userId: string, limits: NeuronLimits, agentQuestions: number, nowMs: number = Date.now()): Promise<LimitsResponse> {
-  const day = utcDay(nowMs);
+/** Today's counters in ONE batch (3 single-row reads): the global neuron total by UTC day, the user's own counters by their day in `tz`. A missing row means nothing used yet. */
+export async function dailyLimits(db: Db, userId: string, limits: NeuronLimits, agentQuestions: number, nowMs: number = Date.now(), tz = 'UTC'): Promise<LimitsResponse> {
+  const day = userDay(nowMs, tz);
   const [neurons, captures, agent] = await db.batch([
-    db.prepare('SELECT neurons AS n FROM ai_usage WHERE day = ?').bind(day),
+    db.prepare('SELECT neurons AS n FROM ai_usage WHERE day = ?').bind(utcDay(nowMs)),
     db.prepare('SELECT receipts, voices FROM ai_user_usage WHERE user_id = ? AND day = ?').bind(userId, day),
     db.prepare('SELECT turns AS n FROM agent_usage WHERE user_id = ? AND day = ?').bind(userId, day),
   ]);
@@ -38,7 +36,7 @@ export async function dailyLimits(db: Db, userId: string, limits: NeuronLimits, 
   const cap = captures?.results[0] as { receipts?: number; voices?: number } | undefined;
   const turns = Number((agent?.results[0] as { n?: number } | undefined)?.n ?? 0);
   return {
-    resets_at: nextUtcMidnight(nowMs).toISOString(),
+    resets_at: nextLocalMidnight(nowMs, tz).toISOString(),
     agent_questions: usage(turns, agentQuestions),
     receipt_scans: usage(cap?.receipts ?? 0, limits.userDailyReceipts),
     voice_captures: usage(cap?.voices ?? 0, limits.userDailyVoice),

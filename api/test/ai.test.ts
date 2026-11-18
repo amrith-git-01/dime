@@ -39,6 +39,17 @@ describe('prompts', () => {
     expect(buildVoiceParsePrompt('I spent 200 on lunch', ['Food'])).toContain('Voice transcript:\n---\nI spent 200 on lunch\n---');
   });
 
+  it('both prompts carry the kind rules: transfers, ATM cash, card bills and paybacks', () => {
+    for (const prompt of [buildReceiptParsePrompt('x', ['Food']), buildVoiceParsePrompt('x', ['Food'])]) {
+      expect(prompt).toContain('"kind":"spend"|"income"|"transfer"|"payback"');
+      expect(prompt).toContain('kind=transfer');
+      expect(prompt).toContain('ATM or cash withdrawal');
+      expect(prompt).toContain('credit-card BILL');
+      expect(prompt).toContain('kind=payback');
+      expect(prompt).toContain('refund, cashback, reversal');
+    }
+  });
+
   it('without a reference date the prompts are unchanged (voice still nulls today/yesterday)', () => {
     expect(buildReceiptParsePrompt('x', ['Food'])).not.toContain('Reference date');
     const voice = buildVoiceParsePrompt('x', ['Food']);
@@ -59,14 +70,55 @@ describe('prompts', () => {
 });
 
 describe('model output normalization (port of _parse_and_validate)', () => {
+  it('currency: INR when absent or named as the rupee, anything else is kept as its code (and is not INR)', () => {
+    expect(parseModelOutput(parsedSms(), ctx()).currency).toBe('INR');
+    for (const currency of ['INR', 'inr', ' ₹ ', 'Rs', 'rupees', '']) expect(parseModelOutput(parsedSms({ currency }), ctx()).currency, currency).toBe('INR');
+    expect(parseModelOutput(parsedSms({ currency: 'usd' }), ctx()).currency).toBe('USD');
+    expect(parseModelOutput(parsedSms({ currency: '$' }), ctx()).currency).toBe('USD');
+    expect(parseModelOutput(parsedSms({ currency: '€' }), ctx()).currency).toBe('EUR');
+  });
+
+  it('the parse prompts ask for the currency and forbid converting', () => {
+    for (const prompt of [buildReceiptParsePrompt('x', ['Food']), buildVoiceParsePrompt('x', ['Food'])]) {
+      expect(prompt).toContain('"currency":"INR"|<ISO 4217 code>');
+      expect(prompt).toContain('NEVER convert');
+    }
+  });
+
+  it('an amount above Rs 1,00,00,000 is an unusable answer, and a date before 2000 is dropped', () => {
+    expect(() => parseModelOutput(parsedSms({ amount: 10000000.01 }), ctx())).toThrow();
+    expect(parseModelOutput(parsedSms({ amount: 10000000 }), ctx()).amount).toBe('10000000.00');
+    expect(parseModelOutput(parsedSms({ date: '1970-01-01' }), ctx()).date).toBeNull();
+  });
+
+  it('kind: taken from the model when it fits the direction, with the transfer reason; otherwise null', () => {
+    expect(parseModelOutput(parsedSms({ kind: 'transfer', transfer_reason: 'cash_withdrawal' }), ctx())).toMatchObject({ kind: 'transfer', transferReason: 'cash_withdrawal' });
+    expect(parseModelOutput(parsedSms({ type: 'credit', kind: 'payback' }), ctx())).toMatchObject({ kind: 'payback', transferReason: null });
+    expect(parseModelOutput(parsedSms({ kind: ' Spend ', transfer_reason: 'cash_withdrawal' }), ctx())).toMatchObject({ kind: 'spend', transferReason: null });
+    expect(parseModelOutput(parsedSms({ type: 'debit', kind: 'income' }), ctx())).toMatchObject({ kind: null }); // a debit is never income
+    expect(parseModelOutput(parsedSms({ kind: 'bogus' }), ctx())).toMatchObject({ kind: null });
+    expect(parseModelOutput(parsedSms({ kind: 'transfer', transfer_reason: 'nonsense' }), ctx())).toMatchObject({ kind: 'transfer', transferReason: null });
+  });
+
+  it('a date without a time of day is a day (dateOnly); a date with a time is an instant', () => {
+    expect(parseModelOutput(parsedSms({ date: '2026-10-03' }), ctx())).toMatchObject({ dateOnly: '2026-10-03' });
+    expect(parseModelOutput(parsedSms({ date: '03/10/2026' }), ctx())).toMatchObject({ dateOnly: '2026-10-03' });
+    expect(parseModelOutput(parsedSms({ date: '2026-10-03T21:15:00+05:30' }), ctx())).toMatchObject({ dateOnly: null });
+    expect(parseModelOutput(parsedSms({ date: null }), ctx())).toMatchObject({ dateOnly: null, date: null });
+  });
+
   it('parses a good answer: amount to cents, category id, date, note', () => {
     const out = parseModelOutput(parsedSms(), ctx());
     expect(out).toEqual({
       counterpartyName: 'Swiggy',
       counterpartyType: 'merchant',
+      currency: 'INR',
       amount: '250.50',
       type: 'debit',
       date: { ms: Date.UTC(2026, 9, 3), iso: '2026-10-03T00:00:00.000Z' },
+      dateOnly: '2026-10-03',
+      kind: null,
+      transferReason: null,
       category: 'Food',
       categoryId: FOOD,
       note: 'Dinner from Swiggy',

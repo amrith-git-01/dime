@@ -71,6 +71,7 @@ export const BentoTransactionTile = memo(function BentoTransactionTile({
         style={[
           styles.amount,
           isCredit ? styles.amountCredit : styles.amountDebit,
+          ui.kind === "transfer" && styles.amountTransfer,
         ]}
         numberOfLines={1}
       >
@@ -133,5 +134,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   amountDebit: {
     color: colors.danger,
+  },
+  // A transfer is in neither spent nor income: greyed out.
+  amountTransfer: {
+    color: colors.inkSoft,
   },
 }));

@@ -50,6 +50,7 @@ export function PickedCaptureCard({ source, userId, trusted }: PickedCaptureCard
         text={capture.text}
         onRetry={capture.retry}
         onClose={closeCard}
+        onEnterAmount={capture.onEnterAmount}
       />
     </CardFrame>
   );

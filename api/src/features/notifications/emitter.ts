@@ -31,19 +31,30 @@ export function titleForAutoTx(amount: number | string): string {
   return `${formatInr(amount)} added`;
 }
 
-export function bodyForAutoTx(row: { merchant?: string | null; counterpartyName?: string | null; category?: string | null }): string {
+export function bodyForAutoTx(row: {
+  merchant?: string | null;
+  counterpartyName?: string | null;
+  category?: string | null;
+  possibleDuplicate?: boolean;
+  lowConfidence?: boolean;
+}): string {
   const merchant = (row.merchant || row.counterpartyName || '').trim() || 'Transaction';
   const category = row.category?.trim();
-  return category ? `${merchant} · ${category}` : merchant;
+  const text = category ? `${merchant} · ${category}` : merchant;
+  // A capture that looks like an entry already there, or that the model was unsure of, is saved but put in review: say so.
+  if (row.possibleDuplicate) return `Possible duplicate · ${text}`;
+  return row.lowConfidence ? `Please check · ${text}` : text;
 }
 
 export type PushSender = typeof sendExpoPush;
 
 export interface Emitter {
   transactionAuto(input: { transactionId: string; title: string; body: string }): Promise<void>;
-  captureFailed(input: { source: 'scan'; title: string; body: string; dayKey: string }): Promise<void>;
-  budgetThreshold(input: { scope: 'monthly'; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
-  categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string }): Promise<void>;
+  captureFailed(input: { source: 'scan' | 'voice'; title: string; body: string; dayKey: string }): Promise<void>;
+  /** A capture that was not posted because it needs the user (a foreign-currency amount): one notification per job. */
+  captureNeedsReview(input: { jobId: string; title: string; body: string }): Promise<void>;
+  budgetThreshold(input: { scope: 'monthly'; periodKey: string; threshold: number; title: string; body: string; silent?: boolean }): Promise<void>;
+  categoryBudgetThreshold(input: { categoryId: string; periodKey: string; threshold: number; title: string; body: string; silent?: boolean }): Promise<void>;
   /** The monthly Broke Report is ready (`periodKey` = the report's `YYYY-MM`). */
   reportReady(input: { periodKey: string; title: string; body: string }): Promise<void>;
   /**
@@ -96,7 +107,7 @@ export function createEmitter(
     if (!inserted) return;
     // Live update first so the in-app bell/list refresh at once; push is best effort after it.
     await emitChanges(publish, [insertedEvent('notifications', inserted)]);
-    await maybePush(inserted);
+    if (!row.silent) await maybePush(inserted);
   }
 
   return {
@@ -122,7 +133,18 @@ export function createEmitter(
         dedupe_key: `capture_failed:${source}:${dayKey}`,
       });
     },
-    async budgetThreshold({ scope, periodKey, threshold, title, body }) {
+    async captureNeedsReview({ jobId, title, body }) {
+      if (!settings.capture_failed_alerts_enabled) return;
+      await emit({
+        kind: 'capture_failed',
+        title,
+        body,
+        action_type: 'manual_add',
+        action_transaction_id: null,
+        dedupe_key: `capture_review:${jobId}`,
+      });
+    },
+    async budgetThreshold({ scope, periodKey, threshold, title, body, silent }) {
       // Scope gating lives in the evaluator; the emitter inserts whenever it is called.
       await emit({
         kind: 'budget_threshold',
@@ -131,9 +153,10 @@ export function createEmitter(
         action_type: 'home',
         action_transaction_id: null,
         dedupe_key: `budget:${scope}:${threshold}:${periodKey}`,
+        ...(silent ? { silent } : {}),
       });
     },
-    async categoryBudgetThreshold({ categoryId, periodKey, threshold, title, body }) {
+    async categoryBudgetThreshold({ categoryId, periodKey, threshold, title, body, silent }) {
       await emit({
         kind: 'budget_threshold',
         title,
@@ -141,6 +164,7 @@ export function createEmitter(
         action_type: 'home',
         action_transaction_id: null,
         dedupe_key: `budget:category:${categoryId}:${threshold}:${periodKey}`,
+        ...(silent ? { silent } : {}),
       });
     },
     async reportReady({ periodKey, title, body }) {

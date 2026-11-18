@@ -1,13 +1,22 @@
 import * as z from 'zod';
 
-import { decimalInput, quantizeMoney } from '../../core/decimal';
-import { parseDatetime } from '../transactions/schemas';
-import type { Instant } from '../transactions/schemas';
+import { decimalInput, decimalToCents, quantizeMoney } from '../../core/decimal';
+import { MAX_AMOUNT_CENTS, MIN_TRANSACTION_AT_MS, TRANSACTION_KINDS, kindFitsType, parseDatetime } from '../transactions/schemas';
+import type { Instant, TransactionKind } from '../transactions/schemas';
 import type { ParseMode } from './prompts';
 
 const COUNTERPARTY_TYPES = ['merchant', 'person', 'self_transfer', 'unknown'] as const;
 type ParsedCounterpartyType = (typeof COUNTERPARTY_TYPES)[number];
 const COUNTERPARTY_SET: ReadonlySet<string> = new Set(COUNTERPARTY_TYPES);
+
+/** Why the model called a row a transfer: only `cash_withdrawal` is affected by the "count ATM cash as spend" setting. */
+export const TRANSFER_REASONS = ['cash_withdrawal', 'card_bill', 'own_account'] as const;
+export type TransferReason = (typeof TRANSFER_REASONS)[number];
+const TRANSFER_REASON_SET: ReadonlySet<string> = new Set(TRANSFER_REASONS);
+const KIND_SET: ReadonlySet<string> = new Set(TRANSACTION_KINDS);
+
+/** A parse the model was less sure of than this goes to review (`needs_review`): the user checks it before trusting the numbers. */
+export const LOW_CONFIDENCE = 0.6;
 
 export interface CategoryOption {
   id: string;
@@ -30,8 +39,16 @@ export interface ParsedExpense {
   /** Decimal string with two places. */
   amount: string;
   type: 'debit' | 'credit';
-  /** `null` when the model gave no usable date (the caller picks the fallback instant). */
+  /** ISO 4217 code of the amount as read (`INR` when none was shown). Anything but INR is never posted as rupees. */
+  currency: string;
+  /** `null` when the model gave no usable date (the caller picks the fallback instant). A date-only value is UTC midnight here. */
   date: Instant | null;
+  /** `YYYY-MM-DD` when the model's date had no time of day (a receipt's printed date): the day itself, in the user's timezone. */
+  dateOnly: string | null;
+  /** How the row counts when the model said so (and it fits `type`); null = the default for the direction and counterparty. */
+  kind: TransactionKind | null;
+  /** Why a transfer is one (cash withdrawal, card bill, own account); null otherwise. */
+  transferReason: TransferReason | null;
   category: string;
   categoryId: string | null;
   note: string | null;
@@ -54,8 +71,13 @@ const expenseSchema = z.object({
       ctx.addIssue({ code: 'custom', message: 'Input should be greater than 0' });
       return z.NEVER;
     }
+    if (decimalToCents(cents) > MAX_AMOUNT_CENTS) {
+      ctx.addIssue({ code: 'custom', message: 'Input should be at most 10000000' });
+      return z.NEVER;
+    }
     return cents;
   }),
+  currency: z.string().min(1).max(16),
   type: z.enum(['debit', 'credit']),
   category: z.string().min(1).max(64),
   category_id: z.string().nullable(),
@@ -63,6 +85,15 @@ const expenseSchema = z.object({
   confidence: z.number().min(0).max(1),
   raw_model: z.string().min(1),
 });
+
+const CURRENCY_ALIASES: Readonly<Record<string, string>> = { '₹': 'INR', RS: 'INR', 'RS.': 'INR', RUPEE: 'INR', RUPEES: 'INR', $: 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY' };
+
+/** The model's currency as an uppercase code: INR when it said nothing or named the rupee; anything else is kept as given (and is not INR). */
+export function normalizeCurrency(raw: unknown): string {
+  if (typeof raw !== 'string' || raw.trim() === '') return 'INR';
+  const text = raw.trim().toUpperCase();
+  return CURRENCY_ALIASES[text] ?? text;
+}
 
 /** Models sometimes wrap JSON in a markdown fence even in JSON mode. */
 export function stripJsonFences(raw: string): string {
@@ -125,6 +156,13 @@ export function parseModelDate(raw: unknown): Instant | null {
   return { ms, iso: check.toISOString() };
 }
 
+/** `YYYY-MM-DD` when `raw` is a date without a time of day (ISO date, DD/MM/YYYY, DD-MM-YYYY, YYYY/MM/DD); null for anything with a time. */
+export function dateOnlyOf(raw: unknown, parsed: Instant | null): string | null {
+  if (parsed === null || typeof raw !== 'string') return null;
+  const value = raw.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) || DMY.test(value) || YMD_SLASH.test(value) ? parsed.iso.slice(0, 10) : null;
+}
+
 const SOURCE_LABEL: Record<ParseMode, string> = { receipt: 'receipt', voice: 'voice input' };
 
 /** `Auto-parsed from receipt for X.` used when the model gives no note. */
@@ -170,6 +208,7 @@ export function parseModelOutput(rawText: string, ctx: ParseContext): ParsedExpe
     counterparty_name: counterpartyName,
     counterparty_type: counterpartyType,
     amount: data['amount'],
+    currency: normalizeCurrency(data['currency']),
     type: typeof data['type'] === 'string' ? data['type'].trim().toLowerCase() : data['type'],
     category,
     category_id: categoryId,
@@ -182,12 +221,20 @@ export function parseModelOutput(rawText: string, ctx: ParseContext): ParsedExpe
   }
   const v = result.data;
   const date = parseModelDate(data['date']);
+  const rawKind = typeof data['kind'] === 'string' ? data['kind'].trim().toLowerCase() : '';
+  const kind = KIND_SET.has(rawKind) && kindFitsType(rawKind as TransactionKind, v.type) ? (rawKind as TransactionKind) : null;
+  const rawReason = typeof data['transfer_reason'] === 'string' ? data['transfer_reason'].trim().toLowerCase() : '';
+  const keptDate = date && ((ctx.notAfterDate && date.iso.slice(0, 10) > ctx.notAfterDate) || date.ms < MIN_TRANSACTION_AT_MS) ? null : date;
   return {
     counterpartyName: v.counterparty_name,
     counterpartyType: v.counterparty_type,
     amount: v.amount,
     type: v.type,
-    date: date && ctx.notAfterDate && date.iso.slice(0, 10) > ctx.notAfterDate ? null : date,
+    currency: v.currency,
+    date: keptDate,
+    dateOnly: dateOnlyOf(data['date'], keptDate),
+    kind,
+    transferReason: kind === 'transfer' && TRANSFER_REASON_SET.has(rawReason) ? (rawReason as TransferReason) : null,
     category: v.category,
     categoryId: v.category_id,
     note: v.note,

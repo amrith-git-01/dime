@@ -17,6 +17,8 @@ const SNAPSHOT: Omit<WidgetSnapshot, "version"> = {
   spentThisMonth: 100,
   recurringSpent: 0,
   flexibleSpent: 100,
+  budgetSpent: 100,
+  committed: 0,
   monthlyBudget: 500,
   budgetLeft: 400,
   topCategories: [],

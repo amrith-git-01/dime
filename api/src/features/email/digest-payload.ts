@@ -1,22 +1,20 @@
 import { formatCents, toCents } from '../../core/decimal';
 import type { Db } from '../../core/db';
-import { localDate, monthRange } from '../../core/timezone';
-import type { IsoRange } from '../../core/timezone';
-import { fetchBudget } from '../budgets/repository';
+import { IST, localDate, monthDates, monthKey } from '../../core/timezone';
+import { monthlyCapCents } from '../budgets/history';
 import { fetchMetaByIds } from '../categories/repository';
-import { loadPayeeTotals } from '../insights/service';
 import { rollUpIncome, rollUpSpend } from '../insights/rollup';
-import * as txRepo from '../transactions/repository';
-import { loadPeriodSummary } from '../transactions/service';
+import { payeeTotals, periodLedger, topSpends } from '../transactions/ledger';
+import type { Window } from '../transactions/ledger';
 import { MONTH_ABBR } from '../agent/dates';
 import { formatInr } from './html';
 import type { CategoryRow, ExpenseRow, RankedRow } from './html';
 
 /**
- * Everything one digest email shows, aggregated in SQL (Python looped over raw rows): the period
- * summary (totals + debit by category), the payee totals, the 5 largest debits and the month
- * budget. Four concurrent reads, plus one categories lookup and, when a budget is set, the budget
- * month's summary.
+ * Everything one digest email shows, aggregated in SQL by the one ledger definition (`transactions/ledger.ts`): the period's
+ * totals and category mix, the payee totals, the 5 largest spends and the budget month's progress. "Spent" is spend net of
+ * paybacks with transfers left out; the payees, categories and biggest items are everyday (flexible) spend, so rent and EMI
+ * never show up as a splurge. Four concurrent reads, plus one categories lookup and the budget month's ledger.
  */
 
 const TOP = 5;
@@ -43,59 +41,61 @@ function ranked(rows: readonly { display_name: string; total: string; cents: num
 
 export async function buildDigestPayload(
   db: Db,
-  input: { userId: string; range: IsoRange; budgetYear: number; budgetMonth: number; tz: string },
+  input: { userId: string; dates: { from: string; to: string }; budgetYear: number; budgetMonth: number },
 ): Promise<DigestPayload> {
-  const scope = { db, userId: input.userId };
-  const [summary, payeeRows, topRows, budgetRow] = await Promise.all([
-    loadPeriodSummary(scope, input.range),
-    loadPayeeTotals(scope, input.range),
-    txRepo.topDebits(db, input.userId, input.range, TOP),
-    fetchBudget(db, input.userId),
+  const window: Window = { dates: input.dates };
+  const [ledger, payeeRows, topRows] = await Promise.all([
+    periodLedger(db, input.userId, window),
+    payeeTotals(db, input.userId, window),
+    topSpends(db, input.userId, window, TOP),
   ]);
 
-  const debit = summary.debitCents;
-  const credit = summary.creditCents;
-  const spend = debit > 0 ? rollUpSpend(payeeRows, debit) : [];
-  const income = credit > 0 ? rollUpIncome(payeeRows, credit) : [];
+  const flexibleSpend = ledger.flexSpendCents;
+  const spend = flexibleSpend > 0 ? rollUpSpend(payeeRows, flexibleSpend) : [];
+  const income = ledger.incomeCents > 0 ? rollUpIncome(payeeRows, ledger.incomeCents) : [];
 
   const [categories, budget] = await Promise.all([
-    categoryMix(db, input.userId, summary.debitByCategory, debit),
-    budgetRemaining(scope, toCents(budgetRow?.monthly_budget ?? 0), input.budgetYear, input.budgetMonth, input.tz),
+    categoryMix(db, input.userId, ledger.flexSpendByCategory, flexibleSpend),
+    budgetRemaining(db, input.userId, input.budgetYear, input.budgetMonth),
   ]);
 
   return {
-    spent: formatCents(debit),
-    income: formatCents(credit),
-    net: formatCents(credit - debit),
+    spent: formatCents(ledger.spendCents),
+    income: formatCents(ledger.incomeCents),
+    net: formatCents(ledger.incomeCents - ledger.spendCents),
     payees: ranked(spend.map((r) => ({ display_name: r.display_name, total: r.debit_total, cents: toCents(r.debit_total) }))),
     incomeSources: ranked(income.map((r) => ({ display_name: r.display_name, total: r.credit_total, cents: toCents(r.credit_total) }))),
     categories,
     topExpenses: topRows.map((row) => {
       const name = typeof row.counterparty_name === 'string' && row.counterparty_name.trim() ? row.counterparty_name.trim() : 'Expense';
-      return [name, localDayLabel(row.transaction_at, input.tz), formatCents(toCents(row.amount))] as const;
+      return [name, dayLabel(row.local_date ?? null, row.transaction_at), formatCents(row.effective_cents)] as const;
     }),
     budgetLine: budget.line,
     budgetPct: budget.pct,
   };
 }
 
-/** `12 Aug` for a transaction instant in the user's timezone; empty for an unparseable one. */
-function localDayLabel(rawAt: unknown, tz: string): string {
-  if (typeof rawAt !== 'string' || !rawAt.trim()) return '';
-  const ms = Date.parse(rawAt);
-  if (Number.isNaN(ms)) return '';
-  const d = localDate(tz, ms);
-  return `${d.day} ${MONTH_ABBR[d.month - 1] ?? ''}`;
+/** `12 Aug` for a row's local day (its own stored date; an unbackfilled row is placed by its instant in IST); empty when unreadable. */
+function dayLabel(storedDate: string | null, rawAt: unknown): string {
+  const match = storedDate ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(storedDate) : null;
+  let d: { month: number; day: number } | null = match ? { month: Number(match[2]), day: Number(match[3]) } : null;
+  if (!d && typeof rawAt === 'string' && rawAt.trim()) {
+    const ms = Date.parse(rawAt);
+    if (!Number.isNaN(ms)) d = localDate(IST, ms);
+  }
+  return d ? `${d.day} ${MONTH_ABBR[d.month - 1] ?? ''}` : '';
 }
 
 async function categoryMix(
   db: Db,
   userId: string,
-  debitByCategory: ReadonlyMap<string, number>,
-  debitTotal: number,
+  spendByCategory: ReadonlyMap<string, number>,
+  spendTotal: number,
 ): Promise<CategoryRow[]> {
-  if (debitTotal <= 0) return [];
-  const buckets = [...debitByCategory].map(([id, cents]) => [id.trim() === '' ? UNCATEGORIZED : id.trim().toLowerCase(), cents] as const);
+  if (spendTotal <= 0) return [];
+  const buckets = [...spendByCategory]
+    .filter(([, cents]) => cents > 0)
+    .map(([id, cents]) => [id.trim() === '' ? UNCATEGORIZED : id.trim().toLowerCase(), cents] as const);
   const ids = buckets.map(([id]) => id).filter((id) => id !== UNCATEGORIZED);
   const meta = await fetchMetaByIds(db, ids, userId);
   const sorted = [...buckets].sort((a, b) => b[1] - a[1]);
@@ -110,18 +110,14 @@ async function categoryMix(
   });
 }
 
-async function budgetRemaining(
-  scope: { db: Db; userId: string },
-  monthlyCents: number,
-  year: number,
-  month: number,
-  tz: string,
-): Promise<{ line: string; pct: number | null }> {
+/** Budget progress of the budget month: that month's cap (from the budget history) against the spend that counts toward it. */
+async function budgetRemaining(db: Db, userId: string, year: number, month: number): Promise<{ line: string; pct: number | null }> {
+  const monthlyCents = await monthlyCapCents(db, userId, monthKey(year, month));
   if (monthlyCents <= 0) return { line: 'No budget set', pct: null };
-  const monthSummary = await loadPeriodSummary(scope, monthRange(tz, year, month));
-  const remaining = monthlyCents - monthSummary.debitCents;
+  const monthLedger = await periodLedger(db, userId, { dates: monthDates(year, month) });
+  const remaining = monthlyCents - monthLedger.budgetSpendCents;
   return {
     line: `${formatInr(formatCents(remaining))} / ${formatInr(formatCents(monthlyCents))}`,
-    pct: monthSummary.debitCents / monthlyCents,
+    pct: monthLedger.budgetSpendCents / monthlyCents,
   };
 }

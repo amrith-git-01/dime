@@ -6,8 +6,8 @@ import { DEEP_LINK_SCHEME } from "./deepLinkUrls";
 
 export type DeepLinkIntent =
   | { kind: "home" }
-  /** `date` is a local `yyyy-MM-dd` day; absent means now. */
-  | { kind: "add"; date?: string }
+  /** `date` is a local `yyyy-MM-dd` day; absent means now. `payee` / `note` start the form filled in. */
+  | { kind: "add"; date?: string; payee?: string; note?: string }
   | { kind: "scan" }
   | { kind: "voice" }
   | { kind: "budgets"; recurring: boolean }
@@ -18,6 +18,8 @@ export type DeepLinkIntent =
 
 const URL_PATTERN = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?/i;
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** A preset payee or note from a link is cut to this (the form's own limits are larger). */
+const MAX_PRESET_CHARS = 120;
 
 function queryParam(query: string | undefined, name: string): string | undefined {
   for (const pair of (query ?? "").split("&")) {
@@ -65,7 +67,14 @@ export function parseDeepLink(
       return { kind: "home" };
     case "add": {
       const date = resolveDate(queryParam(query, "date"), now);
-      return date ? { kind: "add", date } : { kind: "add" };
+      const payee = queryParam(query, "payee")?.trim().slice(0, MAX_PRESET_CHARS);
+      const note = queryParam(query, "note")?.trim().slice(0, MAX_PRESET_CHARS);
+      return {
+        kind: "add",
+        ...(date ? { date } : {}),
+        ...(payee ? { payee } : {}),
+        ...(note ? { note } : {}),
+      };
     }
     case "scan":
       return { kind: "scan" };

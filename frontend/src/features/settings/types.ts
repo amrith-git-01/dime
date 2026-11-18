@@ -54,6 +54,11 @@ export type UserSettings = {
   reminderHideAmounts: boolean;
   /** My UPI ID, for QR codes in nudges; null when not set. */
   upiId: string | null;
+  /**
+   * Cash withdrawals count as spending. Off by default: an ATM withdrawal is a transfer (the money is still yours),
+   * and what you then spend the cash on is what counts.
+   */
+  countCashWithdrawalsAsSpend: boolean;
   /** IANA timezone the device last reported (written at launch); null until then. */
   timezone: string | null;
 };
@@ -96,6 +101,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   reminderQuietEnd: "08:00",
   reminderHideAmounts: false,
   upiId: null,
+  countCashWithdrawalsAsSpend: false,
   timezone: null,
 };
 
@@ -176,6 +182,11 @@ export function normalizeUserSettings(
     reminderHideAmounts: boolOr(
       partial?.reminderHideAmounts,
       DEFAULT_USER_SETTINGS.reminderHideAmounts,
+    ),
+    // Old caches and old servers have no such setting; cash withdrawals stay transfers.
+    countCashWithdrawalsAsSpend: boolOr(
+      partial?.countCashWithdrawalsAsSpend,
+      DEFAULT_USER_SETTINGS.countCashWithdrawalsAsSpend,
     ),
     upiId:
       typeof partial?.upiId === "string" && partial.upiId.trim() !== ""

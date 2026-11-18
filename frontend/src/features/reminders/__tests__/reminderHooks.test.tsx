@@ -193,7 +193,7 @@ describe("reminder mutations", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(ids()).toEqual(["b"]);
-    expect(completeReminder).toHaveBeenCalledWith("a", "t1");
+    expect(completeReminder).toHaveBeenCalledWith("a", "t1", undefined);
   });
 
   it("completing a repeating one keeps it (the server moves it to the next date)", async () => {
@@ -203,8 +203,21 @@ describe("reminder mutations", () => {
       await hook.current.mutateAsync({ reminder: { id: "b", cadence: "monthly" } });
     });
     expect(ids()).toEqual(["a", "b"]);
-    expect(completeReminder).toHaveBeenCalledWith("b", undefined);
+    expect(completeReminder).toHaveBeenCalledWith("b", undefined, undefined);
     expect(queryClient.getQueryState(OPEN_KEY)?.isInvalidated).toBe(true);
+  });
+
+  it("a part payment keeps the one-off on the list (it shows what is left) and sends the amount", async () => {
+    (completeReminder as jest.Mock).mockResolvedValue(reminder("a"));
+    const hook = renderHookWithClient(queryClient, useCompleteReminderMutation);
+    await hook.act(async () => {
+      await hook.current.mutateAsync({
+        reminder: { id: "a", cadence: "none", amount: "1000.00", remaining: "1000.00" },
+        amount: "300.00",
+      });
+    });
+    expect(ids()).toEqual(["a", "b"]);
+    expect(completeReminder).toHaveBeenCalledWith("a", undefined, "300.00");
   });
 
   it("a failed completion restores the row", async () => {

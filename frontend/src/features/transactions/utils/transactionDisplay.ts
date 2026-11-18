@@ -3,10 +3,11 @@ import { format, parseISO } from "date-fns";
 import { categoryDefault, hexToRgba, readableCategoryColor } from "@/constants";
 import type { ColorScheme } from "@/theme";
 import { detectedViaLabel } from "@/features/transactions/detectedViaLabel";
-import type { TransactionRow } from "@/features/transactions/types";
+import type { TransactionKind, TransactionRow } from "@/features/transactions/types";
 import { toPaise } from "@/utils/paise";
 
 import { isRecurringTransaction } from "./isRecurringTransaction";
+import { kindOf } from "./transactionKind";
 
 export type TransactionCategory = {
   name: string;
@@ -27,7 +28,31 @@ export type UiTransaction = {
   dateKey: string;
   /** Posted by a recurring item, or filed under a recurring (fixed) category. */
   isRecurring: boolean;
+  /** How the row counts. A transfer is drawn quiet: it is in neither spent nor income. */
+  kind: TransactionKind;
+  /** A capture the user should look at (possible duplicate, unsure parse). */
+  needsReview: boolean;
+  /** Pills drawn after the category, in order (every row and the detail use this one list). */
+  badges: TransactionBadge[];
 };
+
+/**
+ * A row that does not count the usual way: a transfer (in neither spent nor income), a payback (refund), a spend
+ * someone paid back (`paidBack`), money received that pays back a spend (`paysBack`), or a capture to look at.
+ */
+export type TransactionBadge = "transfer" | "payback" | "paidBack" | "paysBack" | "review";
+
+export function transactionBadges(tx: TransactionRow): TransactionBadge[] {
+  const kind = kindOf(tx);
+  const badges: TransactionBadge[] = [];
+  if (kind === "transfer" || kind === "payback") badges.push(kind);
+  // A refund already reads as "Payback"; a second pill for its link would say the same thing.
+  if (kind !== "payback" && kind !== "transfer" && toPaise(tx.offset_total) > 0) {
+    badges.push(tx.type === "credit" ? "paysBack" : "paidBack");
+  }
+  if (tx.needs_review === true) badges.push("review");
+  return badges;
+}
 
 export function signedAmount(tx: TransactionRow): number {
   const n = Number.parseFloat(tx.amount);
@@ -72,6 +97,9 @@ export function mapTransactionRowToUi(
     viaLabel: detectedViaLabel(tx.detected_via),
     dateKey,
     isRecurring: isRecurringTransaction(tx),
+    kind: kindOf(tx),
+    needsReview: tx.needs_review === true,
+    badges: transactionBadges(tx),
   };
 }
 

@@ -1,7 +1,7 @@
 import { Platform, Text, View } from "react-native";
 
 import { fontFamilies, spacing } from "@/constants";
-import type { TransactionType } from "@/features/transactions/types";
+import type { TransactionKind, TransactionType } from "@/features/transactions/types";
 import {
   AppTextInput,
   SlidingSegmentedControl,
@@ -23,6 +23,13 @@ type ManualAddAmountSectionProps = {
    * (recurring income / subscriptions): `txType` then only picks the amount colour.
    */
   showTypeToggle?: boolean;
+  /**
+   * The Spend / Income / Transfer selector (manual add and edit). When given it replaces the Expense / Income
+   * switch; a Transfer also shows which way the money went (`txType`, `onSetExpense`, `onSetIncome`). A row that
+   * is a payback (a refund or reimbursement, linked to a spend) keeps showing it as a fourth choice.
+   */
+  kind?: TransactionKind;
+  onSelectKind?: (kind: TransactionKind) => void;
   /** Inline validation message shown under the amount. */
   errorMessage?: string | null;
   /** Focus the amount input (and raise the keypad) as soon as the screen opens. */
@@ -34,6 +41,22 @@ const TYPE_OPTIONS: readonly SlidingSegmentedOption<TransactionType>[] = [
   { value: "credit", label: "Income", tone: "success" },
 ];
 
+const KIND_OPTIONS: readonly SlidingSegmentedOption<TransactionKind>[] = [
+  { value: "spend", label: "Spend", tone: "danger" },
+  { value: "income", label: "Income", tone: "success" },
+  { value: "transfer", label: "Transfer" },
+];
+
+const KIND_OPTIONS_WITH_PAYBACK: readonly SlidingSegmentedOption<TransactionKind>[] = [
+  ...KIND_OPTIONS,
+  { value: "payback", label: "Payback", tone: "success" },
+];
+
+const DIRECTION_OPTIONS: readonly SlidingSegmentedOption<TransactionType>[] = [
+  { value: "debit", label: "Money out" },
+  { value: "credit", label: "Money in" },
+];
+
 export function ManualAddAmountSection({
   amountText,
   onAmountChange,
@@ -43,6 +66,8 @@ export function ManualAddAmountSection({
   onSetExpense,
   onSetIncome,
   showTypeToggle = true,
+  kind,
+  onSelectKind,
   errorMessage,
   autoFocus,
 }: ManualAddAmountSectionProps) {
@@ -54,11 +79,14 @@ export function ManualAddAmountSection({
   };
 
   const hasValue = amountText !== "" && amountText !== "0";
-  const amountColor = hasValue
-    ? txType === "debit"
-      ? colors.danger
-      : colors.success
-    : colors.inkFaint;
+  // A transfer is in neither spent nor income: its amount is drawn quiet, not red or green.
+  const amountColor = !hasValue
+    ? colors.inkFaint
+    : kind === "transfer"
+      ? colors.inkSoft
+      : txType === "debit"
+        ? colors.danger
+        : colors.success;
 
   return (
     <View style={styles.container}>
@@ -89,7 +117,27 @@ export function ManualAddAmountSection({
         </Text>
       ) : null}
 
-      {showTypeToggle ? (
+      {onSelectKind && kind ? (
+        <>
+          <SlidingSegmentedControl
+            options={kind === "payback" ? KIND_OPTIONS_WITH_PAYBACK : KIND_OPTIONS}
+            value={kind}
+            onChange={onSelectKind}
+          />
+          {kind === "transfer" ? (
+            <>
+              <SlidingSegmentedControl
+                options={DIRECTION_OPTIONS}
+                value={txType}
+                onChange={handleTypeChange}
+              />
+              <Text style={styles.kindHint}>
+                Moving your own money (between accounts, a cash withdrawal, a card bill). It stays in your list but is not counted as spent or earned.
+              </Text>
+            </>
+          ) : null}
+        </>
+      ) : showTypeToggle ? (
         <SlidingSegmentedControl
           options={TYPE_OPTIONS}
           value={txType}
@@ -114,6 +162,12 @@ const useStyles = createThemedStyles(({ colors }) => ({
     letterSpacing: 0.6,
     color: colors.accentText,
     textTransform: "uppercase",
+  },
+  kindHint: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
   },
   amountError: {
     fontFamily: fontFamilies.regular,

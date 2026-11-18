@@ -39,6 +39,13 @@ describe("transactionRowToFormState", () => {
     expect(debit.transactionAt.toISOString()).toBe("2026-08-02T12:00:00.000Z");
   });
 
+  it("carries how the row counts, defaulting from the direction for rows without a kind", () => {
+    expect(transactionRowToFormState(row({ kind: "transfer" })).kind).toBe("transfer");
+    expect(transactionRowToFormState(row({ kind: "payback", type: "credit" })).kind).toBe("payback");
+    expect(transactionRowToFormState(row({})).kind).toBe("spend");
+    expect(transactionRowToFormState(row({ type: "credit" })).kind).toBe("income");
+  });
+
   it("carries the catalogue brand, or null when the row has none", () => {
     expect(transactionRowToFormState(row({ brand_id: "wd:swiggy" })).brandId).toBe("wd:swiggy");
     expect(transactionRowToFormState(row({})).brandId).toBeNull();

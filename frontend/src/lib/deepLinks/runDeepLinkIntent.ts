@@ -26,6 +26,8 @@ export function runDeepLinkIntent(intent: DeepLinkIntent): void {
         StackActions.push("ManualAddTransaction", {
           focusAmount: true,
           ...(intent.date ? { presetDate: intent.date } : {}),
+          ...(intent.payee ? { presetPayee: intent.payee } : {}),
+          ...(intent.note ? { presetNote: intent.note } : {}),
         }),
       );
       return;

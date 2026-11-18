@@ -7,7 +7,7 @@ import { SubmitError } from "../failure";
 import { loadOutboxItems } from "../outboxStorage";
 import { createOutboxDrain, type OutboxSyncDeps } from "../outboxSync";
 import { MAX_ITEM_AGE_MS, TOO_OLD_MESSAGE } from "../outboxPolicy";
-import { manualItem, NOW, voiceItem } from "./fixtures";
+import { deleteItem, manualItem, NOW, updateItem, voiceItem } from "./fixtures";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 jest.mock("@react-native-community/netinfo", () => ({
@@ -33,6 +33,8 @@ function makeDeps(over: Partial<OutboxSyncDeps> = {}): Deps {
     isOnline: jest.fn(() => true),
     sendManual: jest.fn().mockResolvedValue({ id: "srv-1", created: true }),
     sendCapture: jest.fn().mockResolvedValue({ jobId: "job-1" }),
+    sendMutation: jest.fn().mockResolvedValue({}),
+    onDropped: jest.fn(),
     fileExists: jest.fn().mockResolvedValue(true),
     deleteFile: jest.fn().mockResolvedValue(undefined),
     onSynced: jest.fn(),
@@ -47,6 +49,110 @@ beforeEach(() => {
   resetMockMmkv();
   useOutboxStore.getState().reset();
   useOutboxStore.getState().hydrate("u1");
+});
+
+function http(status: number, detail: string, code?: string): SubmitError {
+  return new SubmitError(detail, { status, ...(code ? { code } : {}) });
+}
+
+describe("outbox drain: queued edits and deletes", () => {
+  it("replays an edit and a delete in order, with the stored expected_updated_at, then removes them", async () => {
+    useOutboxStore.getState().add("u1", updateItem({ id: "e", createdAt: NOW - 2000 }));
+    useOutboxStore.getState().add("u1", deleteItem({ id: "d", createdAt: NOW - 1000 }));
+    const deps = makeDeps({ sendMutation: jest.fn().mockResolvedValue({ row: { id: "srv-9" } }) });
+    await createOutboxDrain(deps).drain();
+
+    const sent = deps.sendMutation.mock.calls.map(([item]) => [item.kind, item.targetId]);
+    expect(sent).toEqual([
+      ["update", "srv-9"],
+      ["delete", "srv-9"],
+    ]);
+    expect(deps.sendMutation.mock.calls[0]![0].patch).toMatchObject({ expected_updated_at: "2026-10-23T09:00:00.000Z" });
+    expect(deps.sendMutation.mock.calls[1]![0].expectedUpdatedAt).toBe("2026-10-23T09:00:00.000Z");
+    expect(deps.onSynced).toHaveBeenCalledTimes(2);
+    expect(deps.onDropped).not.toHaveBeenCalled();
+    expect(items()).toEqual([]);
+  });
+
+  it("after an edit saves, the edits and deletes of the same row still waiting get the row's new updated_at", async () => {
+    useOutboxStore.getState().add("u1", updateItem({ id: "e1", createdAt: NOW - 3000 }));
+    useOutboxStore.getState().add("u1", updateItem({ id: "e2", createdAt: NOW - 2000, patch: { note: "two", expected_updated_at: "2026-10-23T09:00:00.000Z" } }));
+    useOutboxStore.getState().add("u1", deleteItem({ id: "d", createdAt: NOW - 1000 }));
+    useOutboxStore.getState().add("u1", updateItem({ id: "other", targetId: "srv-77", createdAt: NOW - 500 }));
+    const seen: Record<string, string | null | undefined> = {};
+    const deps = makeDeps({
+      sendMutation: jest.fn().mockImplementation(async (item) => {
+        seen[item.id] = item.kind === "delete" ? item.expectedUpdatedAt : item.patch?.expected_updated_at;
+        return item.targetId === "srv-9" && item.kind === "update"
+          ? { row: { id: "srv-9", updated_at: `2026-10-23T10:0${Object.keys(seen).length}:00.000Z` } }
+          : {};
+      }),
+    });
+    await createOutboxDrain(deps).drain();
+    expect(seen.e1).toBe("2026-10-23T09:00:00.000Z");
+    expect(seen.e2).toBe("2026-10-23T10:01:00.000Z");
+    expect(seen.d).toBe("2026-10-23T10:02:00.000Z");
+    expect(seen.other).toBe("2026-10-23T09:00:00.000Z");
+    expect(deps.onDropped).not.toHaveBeenCalled();
+  });
+
+  it("a 409 stale means the row changed on another device: the edit is dropped (not retried, not failed) and reported", async () => {
+    useOutboxStore.getState().add("u1", updateItem());
+    const deps = makeDeps({
+      sendMutation: jest.fn().mockRejectedValue(http(409, "This transaction changed on another device.", "stale")),
+    });
+    await createOutboxDrain(deps).drain();
+    expect(items()).toEqual([]);
+    expect(deps.onDropped).toHaveBeenCalledWith(expect.objectContaining({ id: "optimistic-manual-3" }), "stale");
+    expect(deps.onSynced).not.toHaveBeenCalled();
+  });
+
+  it("a stale delete is dropped too", async () => {
+    useOutboxStore.getState().add("u1", deleteItem());
+    const deps = makeDeps({ sendMutation: jest.fn().mockRejectedValue(http(409, "changed", "stale")) });
+    await createOutboxDrain(deps).drain();
+    expect(items()).toEqual([]);
+    expect(deps.onDropped).toHaveBeenCalledWith(expect.objectContaining({ kind: "delete" }), "stale");
+  });
+
+  it("a plain 409 (no stale code) is still a retry: that is how the server says 'still processing'", async () => {
+    useOutboxStore.getState().add("u1", updateItem());
+    const deps = makeDeps({ sendMutation: jest.fn().mockRejectedValue(http(409, "busy")) });
+    await createOutboxDrain(deps).drain();
+    expect(byId("optimistic-manual-3")).toMatchObject({ status: "queued", attempts: 1 });
+    expect(deps.onDropped).not.toHaveBeenCalled();
+  });
+
+  it("deleting what is already gone (404) is the delete done; editing it is dropped", async () => {
+    useOutboxStore.getState().add("u1", deleteItem({ id: "d", createdAt: NOW - 2000 }));
+    useOutboxStore.getState().add("u1", updateItem({ id: "e", createdAt: NOW - 1000 }));
+    const deps = makeDeps({ sendMutation: jest.fn().mockRejectedValue(http(404, "Transaction not found.")) });
+    await createOutboxDrain(deps).drain();
+    expect(items()).toEqual([]);
+    expect(deps.onSynced).toHaveBeenCalledWith(expect.objectContaining({ id: "d" }), {});
+    expect(deps.onDropped).toHaveBeenCalledWith(expect.objectContaining({ id: "e" }), "gone");
+  });
+
+  it("an edit or delete older than the idempotency window is dropped, never replayed blind", async () => {
+    useOutboxStore.getState().add("u1", updateItem({ id: "old-e", createdAt: NOW - MAX_ITEM_AGE_MS - 1000, capturedAt: new Date(NOW - MAX_ITEM_AGE_MS - 1000).toISOString() }));
+    useOutboxStore.getState().add("u1", deleteItem({ id: "old-d", createdAt: NOW - MAX_ITEM_AGE_MS - 1000, capturedAt: new Date(NOW - MAX_ITEM_AGE_MS - 1000).toISOString() }));
+    const deps = makeDeps();
+    await createOutboxDrain(deps).drain();
+    expect(deps.sendMutation).not.toHaveBeenCalled();
+    expect(items()).toEqual([]);
+    expect(deps.onDropped).toHaveBeenCalledTimes(2);
+    expect(deps.onDropped).toHaveBeenCalledWith(expect.objectContaining({ id: "old-e" }), "too_old");
+  });
+
+  it("an unreachable server keeps the edit queued with the same patch", async () => {
+    useOutboxStore.getState().add("u1", updateItem());
+    const deps = makeDeps({
+      sendMutation: jest.fn().mockRejectedValue(new SubmitError("timeout", { networkFailure: true })),
+    });
+    await createOutboxDrain(deps).drain();
+    expect(byId("optimistic-manual-3")).toMatchObject({ status: "queued", attempts: 1, nextAttemptAt: NOW + 5_000 });
+    expect(loadOutboxItems("u1")[0]?.patch).toMatchObject({ expected_updated_at: "2026-10-23T09:00:00.000Z" });
+  });
 });
 
 describe("outbox drain", () => {

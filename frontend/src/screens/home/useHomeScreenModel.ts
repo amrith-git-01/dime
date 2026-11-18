@@ -8,13 +8,12 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import type { CategorySpendRowData } from "@/components/categories/CategorySpendBentoRow";
 import { categoryDefault } from "@/constants";
-import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { resolveMonthBudget } from "@/features/budgets/utils/monthBudget";
 import type { RecurringItem } from "@/features/recurring/types";
 import { useUpcomingEntries } from "@/features/reminders/hooks/useUpcomingEntries";
 import type { Reminder } from "@/features/reminders/types";
 import type { HomeBentoContentProps } from "@/features/home/components";
 import { HOME_MAX_CATEGORIES, HOME_MAX_RECENT } from "@/features/home/components";
-import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
 import { usePendingTransactions } from "@/features/outbox/hooks/usePendingTransactions";
 import {
   addPaiseToAmount,
@@ -120,40 +119,26 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     now.getFullYear(),
     now.getMonth(),
   );
-  const { data: budgetResp } = useBudgetQuery();
   const { entries: upcomingEntries, today: upcomingToday } = useUpcomingEntries();
 
-  const budget = budgetResp?.budget ?? null;
-
   // Entries saved offline count in this month's numbers until the server has them (drawn here only, never cached).
-  const pendingThisMonth = pendingTotals(
-    pendingInMonth(pendingRows, now.getFullYear(), now.getMonth()),
-  );
+  const pendingMonthRows = pendingInMonth(pendingRows, now.getFullYear(), now.getMonth());
+  const pendingThisMonth = pendingTotals(pendingMonthRows);
   const spentThisMonth =
     overview && pendingThisMonth.debitPaise > 0
       ? addPaiseToAmount(overview.spent_this_month, pendingThisMonth.debitPaise)
       : overview?.spent_this_month;
 
-  const {
-    monthlyBudget,
-    spentMonthNum,
-    hasMonthlyBudget,
-    monthlyLeft,
-  } = computeMonthlyBudgetMath(budget?.monthly_budget, spentThisMonth);
+  // The month's cap, spend, signed left and committed money all come from the server's one definition.
+  const month = resolveMonthBudget(overview, {
+    pending: pendingMonthRows,
+    fixedSpend: overview?.fixed_spent_this_month,
+  });
 
   const spentMonthDisplay = overview
     ? formatSpendMagnitude(spentThisMonth ?? overview.spent_this_month)
     : "\u2014";
   const monthLabel = format(now, "MMMM yyyy");
-  const fixedSpentPaise = toPaise(overview?.fixed_spent_this_month);
-  const monthFixedSpent = overview ? fixedSpentPaise / 100 : 0;
-  // Entries saved offline are flexible until the server has them, so the bar matches the hero amount.
-  const monthFlexibleSpent = overview
-    ? Math.max(
-        toPaise(overview.flexible_spent_this_month) / 100,
-        (toPaise(spentThisMonth) - fixedSpentPaise) / 100,
-      )
-    : 0;
 
   const monthSummaryData = monthSummaryQuery.data
     ? { ...monthSummaryQuery.data, ...addPendingToMonthTotals(monthSummaryQuery.data, pendingThisMonth) }
@@ -165,7 +150,7 @@ export function useHomeScreenModel(): HomeBentoContentProps {
   const incomeValue = monthSummaryData
     ? Math.abs(Number.parseFloat(monthSummaryData.credit_total)) || 0
     : 0;
-  const spentMonthValue = Number.isFinite(spentMonthNum) ? spentMonthNum : 0;
+  const spentMonthValue = Math.abs(toPaise(spentThisMonth)) / 100;
   const debitedDisplay = monthSummaryData
     ? formatSpendMagnitude(monthSummaryData.debit_total)
     : "\u2014";
@@ -194,12 +179,8 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     });
   }, [overview]);
 
-  const monthlyBudgetAmount = hasMonthlyBudget ? monthlyBudget : 0;
-
-  const monthlyRemainingDisplay =
-    hasMonthlyBudget && Number.isFinite(monthlyLeft)
-      ? formatSpendMagnitude(monthlyLeft)
-      : spentMonthDisplay;
+  const hasMonthlyBudget = month.hasBudget;
+  const monthlyBudgetAmount = month.budget;
 
   const last7DaysSpend = useMemo(
     () => buildLast7DaysSpend(overview?.last_7_days_spend, now),
@@ -297,10 +278,11 @@ export function useHomeScreenModel(): HomeBentoContentProps {
     isPending,
     last7DaysSpend,
     monthLabel,
-    monthFixedSpent,
-    monthFlexibleSpent,
+    monthFixedSpent: month.recurringInBudget,
+    monthFlexibleSpent: month.flexibleInBudget,
+    monthBudgetLeft: month.left,
+    monthCommitted: month.committed,
     monthlyBudgetAmount,
-    monthlyRemainingDisplay,
     netDisplay,
     netValue,
     onAddMonthlyBudget,

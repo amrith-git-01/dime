@@ -4,6 +4,7 @@ import {
   backoffDelayMs,
   deferUntil,
   earliestAttemptAt,
+  isDroppedWhenTooOld,
   isDue,
   isTooOld,
   itemAfterFailure,
@@ -13,9 +14,25 @@ import {
   nextUtcMidnight,
   TOO_OLD_MESSAGE,
 } from "../outboxPolicy";
-import { manualItem, NOW, voiceItem } from "./fixtures";
+import { deleteItem, manualItem, NOW, updateItem, voiceItem } from "./fixtures";
 
 const retry: Failure = { kind: "retry", message: "offline", offline: true };
+
+describe("isDroppedWhenTooOld", () => {
+  it("an edit or a delete is dropped past the window; a new transaction fails visibly instead", () => {
+    expect(isDroppedWhenTooOld(updateItem())).toBe(true);
+    expect(isDroppedWhenTooOld(deleteItem())).toBe(true);
+    expect(isDroppedWhenTooOld(manualItem())).toBe(false);
+    expect(isDroppedWhenTooOld(voiceItem())).toBe(false);
+  });
+
+  it("a stale failure never loops: it ends the item as failed if it ever reaches the policy", () => {
+    expect(itemAfterFailure(updateItem(), { kind: "stale", message: "changed" }, NOW)).toMatchObject({
+      status: "failed",
+      nextAttemptAt: null,
+    });
+  });
+});
 
 describe("backoffDelayMs", () => {
   it("steps 5 s, 15 s, 30 s, 60 s, 2 min, then holds at 5 min", () => {

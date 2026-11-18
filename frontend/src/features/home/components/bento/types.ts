@@ -12,15 +12,17 @@ export type HomeBentoContentProps = {
 
   // Month hero card
   monthLabel: string;
-  /** Leftover this month — used in the hero subtitle when a budget exists. */
-  monthlyRemainingDisplay: string;
   /** Formatted total spent this month — hero amount. */
   spentMonthDisplay: string;
   hasMonthlyBudget: boolean;
-  /** Recurring spend this month (rupees), for the split bar under the hero amount; 0/absent hides it. */
+  /** Recurring spend that counts toward the budget (rupees), for the split bar under the hero amount; 0/absent hides it. */
   monthFixedSpent?: number;
   /** Flexible spend this month (rupees). */
   monthFlexibleSpent?: number;
+  /** Budget left, SIGNED (negative = over, shown as "X over"); null without a budget. The server's figure. */
+  monthBudgetLeft?: number | null;
+  /** Fixed spend outside the budget (rent, EMI), in rupees; 0/absent hides the line. */
+  monthCommitted?: number;
 
   // Stat row
   netDisplay: string;

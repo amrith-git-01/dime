@@ -24,6 +24,11 @@ export type SpendSplitBarProps = {
    */
   budget?: number;
   /**
+   * What is left of the budget, SIGNED, as the server computed it (negative = over budget). When given, the
+   * left / over column and the bar's over-budget state follow it instead of `budget - spend`.
+   */
+  left?: number | null;
+  /**
    * Recurring still to come this month, in rupees. Drawn pale after the spend (clamped to the
    * budget) and named in a "+₹ due" caption under Recurring.
    */
@@ -49,6 +54,7 @@ export const SpendSplitBar = memo(function SpendSplitBar({
   fixed,
   flexible,
   budget = 0,
+  left = null,
   committed = 0,
   showBreakdown = true,
   centered = false,
@@ -66,7 +72,7 @@ export const SpendSplitBar = memo(function SpendSplitBar({
   }
 
   const showBar = hasBudget || fixedValue > 0;
-  const overBudget = hasBudget && spent > budgetValue;
+  const overBudget = hasBudget && (left !== null && Number.isFinite(left) ? left < 0 : spent > budgetValue);
   // Percent shares keep the flex-grow sum well above 1 (a sum under 1 would not fill the bar).
   const scale = hasBudget && !overBudget ? budgetValue : spent;
   const fixedShare = scale > 0 ? (fixedValue / scale) * 100 : 0;
@@ -86,7 +92,8 @@ export const SpendSplitBar = memo(function SpendSplitBar({
   const flexibleDisplay = formatInrCompact(flexibleValue);
   const dueDisplay = formatInrCompact(dueValue);
   const budgetDisplay = formatInrCompact(budgetValue);
-  const leftDisplay = formatInrCompact(overBudget ? spent - budgetValue : budgetValue - spent);
+  const leftAmount = left !== null && Number.isFinite(left) ? Math.abs(left) : Math.abs(budgetValue - spent);
+  const leftDisplay = formatInrCompact(leftAmount);
 
   const summaryParts = [`Recurring ${fixedDisplay}`, `Flexible ${flexibleDisplay}`];
   if (dueValue > 0) {

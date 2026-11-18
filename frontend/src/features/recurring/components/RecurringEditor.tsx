@@ -172,6 +172,20 @@ export const RecurringEditor = memo(function RecurringEditor({
         ) : null}
       </View>
 
+      {kind === "subscription" ? (
+        <View style={[styles.card, styles.cardShadow]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionLabel}>MONTHLY BUDGET</Text>
+          </View>
+          <SettingsToggleRow
+            label="Counts toward monthly budget"
+            subtitle="Off for rent, EMI and insurance: they show as committed money, outside your budget. Turn on for bills you want inside it."
+            value={form.countsTowardBudget}
+            onValueChange={(countsTowardBudget) => update({ countsTowardBudget })}
+          />
+        </View>
+      ) : null}
+
       <View style={[styles.card, styles.cardShadow]}>
         <View style={styles.cardHeader}>
           <Text style={styles.sectionLabel}>REMIND ME</Text>

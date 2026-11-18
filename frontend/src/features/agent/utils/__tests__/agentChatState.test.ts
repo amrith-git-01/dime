@@ -221,7 +221,43 @@ describe("feedback", () => {
 });
 
 describe("buildAgentHistory", () => {
-  it("sends only the last 3 user turns, skipping errors and assistant text", () => {
+  it("keeps each assistant reply with its question, for the last 3 exchanges", () => {
+    const messages: ChatMessage[] = [
+      msg({ id: "1", role: "user", content: "old question" }),
+      msg({ id: "2", role: "assistant", content: "old answer" }),
+      msg({ id: "3", role: "user", content: "how much on food?" }),
+      msg({ id: "4", role: "assistant", content: "You spent 4,200 on food." }),
+      msg({ id: "5", role: "user", content: "and last month?" }),
+      msg({ id: "6", role: "assistant", content: "3,900 last month." }),
+      msg({ id: "7", role: "user", content: "which was higher?" }),
+      msg({ id: "8", role: "assistant", content: "This month, by 300." }),
+    ];
+    expect(buildAgentHistory(messages)).toEqual([
+      { role: "user", content: "how much on food?" },
+      { role: "assistant", content: "You spent 4,200 on food." },
+      { role: "user", content: "and last month?" },
+      { role: "assistant", content: "3,900 last month." },
+      { role: "user", content: "which was higher?" },
+      { role: "assistant", content: "This month, by 300." },
+    ]);
+  });
+
+  it("leaves out a reply that is still pending, failed or empty, and an errored question", () => {
+    const messages: ChatMessage[] = [
+      msg({ id: "1", role: "user", content: "one" }),
+      msg({ id: "2", role: "assistant", content: "oops", isError: true }),
+      msg({ id: "3", role: "user", content: "two" }),
+      msg({ id: "4", role: "assistant", content: "partial", isPending: true }),
+      msg({ id: "5", role: "user", content: "bad", isError: true }),
+      msg({ id: "6", role: "assistant", content: "   " }),
+    ];
+    expect(buildAgentHistory(messages)).toEqual([
+      { role: "user", content: "one" },
+      { role: "user", content: "two" },
+    ]);
+  });
+
+  it("sends only the last 3 questions, skipping errors", () => {
     const messages: ChatMessage[] = [
       msg({ id: "1", role: "user", content: "one" }),
       msg({ id: "2", role: "assistant", content: "answer" }),
@@ -237,11 +273,13 @@ describe("buildAgentHistory", () => {
     ]);
   });
 
-  it("truncates long turns", () => {
-    const [turn] = buildAgentHistory([
+  it("truncates long turns, replies included", () => {
+    const [turn, reply] = buildAgentHistory([
       msg({ id: "1", role: "user", content: "x".repeat(2000) }),
+      msg({ id: "2", role: "assistant", content: "y".repeat(2000) }),
     ]);
-    expect(turn.content).toHaveLength(500);
+    expect(turn!.content).toHaveLength(500);
+    expect(reply!.content).toHaveLength(500);
   });
 });
 

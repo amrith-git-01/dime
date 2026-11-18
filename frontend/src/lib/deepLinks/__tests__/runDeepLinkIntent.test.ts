@@ -38,6 +38,17 @@ describe("runDeepLinkIntent", () => {
     );
   });
 
+  it("opens the form with the payee and note a capture read", () => {
+    runDeepLinkIntent({ kind: "add", payee: "Starbucks", note: "Read as USD 12.00" });
+    expect(navigationRef.dispatch).toHaveBeenCalledWith(
+      StackActions.push("ManualAddTransaction", {
+        focusAmount: true,
+        presetPayee: "Starbucks",
+        presetNote: "Read as USD 12.00",
+      }),
+    );
+  });
+
   it("omits the preset day when the link has none", () => {
     runDeepLinkIntent({ kind: "add" });
     expect(navigationRef.dispatch).toHaveBeenCalledWith(

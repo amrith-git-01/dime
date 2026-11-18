@@ -7,6 +7,7 @@ import { handleIngestBatch, handleIngestDlq } from './features/ingest/consumer';
 import { SWEEP_CRON, runSweep } from './features/ingest/sweep';
 import { postDueRecurring } from './features/recurring/poster';
 import { sendDueReminders } from './features/reminders/sender';
+import { backfillLocalDates, backfillPayeeKeys } from './features/transactions/backfill';
 
 export { UserHub } from './features/realtime/user-hub';
 
@@ -37,6 +38,8 @@ export default {
           runSweep(env, controller.scheduledTime),
           postDueRecurring(env, controller.scheduledTime),
           sendDueReminders(env, controller.scheduledTime),
+          backfillLocalDates(env.DB),
+          backfillPayeeKeys(env.DB),
         ])) {
           if (result.status === 'rejected') throw result.reason;
         }

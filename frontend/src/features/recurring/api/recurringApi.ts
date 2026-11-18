@@ -49,3 +49,14 @@ export async function updateRecurring(
 export async function deleteRecurring(id: string): Promise<void> {
   await dimeApi.delete(`${PATH}/${id}`);
 }
+
+/**
+ * Makes an existing transaction the occurrence of an item due on `occurrence` (`YYYY-MM-DD`): the answer to
+ * "Is this your <item> bill?". The poster then skips that occurrence.
+ */
+export async function linkRecurringOccurrence(
+  id: string,
+  body: { transaction_id: string; occurrence: string },
+): Promise<void> {
+  await dimeApi.post(`${PATH}/${id}/link`, body);
+}

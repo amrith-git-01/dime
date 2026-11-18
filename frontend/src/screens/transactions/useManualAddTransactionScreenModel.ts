@@ -2,7 +2,7 @@ import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Keyboard, Platform } from "react-native";
 
 import { MAX_CUSTOM_CATEGORIES } from "@/features/categories/constants/limits";
@@ -14,10 +14,13 @@ import { useToast } from "@/features/toast/useToast";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddScreenLifecycle } from "@/features/transactions/hooks/useManualAddScreenLifecycle";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
+import { useManualSaveFollowUps } from "@/features/transactions/hooks/useManualSaveFollowUps";
 import { useSubmitManualTransactionMutation } from "@/features/transactions/hooks/useSubmitManualTransactionMutation";
 import { visibleSpendCategories } from "@/features/transactions/utils/manualAddCategoryUtils";
+import type { TransactionKind } from "@/features/transactions/types";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { navigationRef } from "@/navigation/navigationRef";
 import type { MainStackParamList } from "@/navigation/types";
 import { mergeDateWithTime } from "@/utils/dateTime";
 
@@ -40,6 +43,7 @@ export function useManualAddTransactionScreenModel() {
     clearCategory,
     counterpartyName,
     counterpartyType,
+    kind,
     note,
     reset,
     selectCategory,
@@ -47,12 +51,34 @@ export function useManualAddTransactionScreenModel() {
     setBrandId,
     setCounterpartyName,
     setCounterpartyType,
+    setKind,
     setNote,
     setTransactionAt,
     setTxType,
     transactionAt,
     txType,
   } = form;
+  // The toast outlives this screen, so it navigates through the root ref, not this screen's navigation.
+  const followUps = useManualSaveFollowUps({
+    onOpenPaidBack: (row) =>
+      navigationRef.navigate("Main", {
+        screen: "TransactionDetail",
+        params: { transaction: row, openPaidBack: true },
+      }),
+  });
+
+  // A capture that needs the rupee amount (a foreign-currency receipt) opens this form with what was read:
+  // the payee and a note, and the keypad ready for the rupee amount.
+  const presetPayee = route.params?.presetPayee;
+  const presetNote = route.params?.presetNote;
+  useEffect(() => {
+    if (presetPayee) {
+      setCounterpartyName(presetPayee);
+    }
+    if (presetNote) {
+      setNote(presetNote);
+    }
+  }, [presetNote, presetPayee, setCounterpartyName, setNote]);
   const { categories, isLoading: categoriesLoading } = useCategories("spend");
   const selectCounterparty = useCounterpartySelect({
     txType,
@@ -196,14 +222,14 @@ export function useManualAddTransactionScreenModel() {
         body: payload,
         preview: buildManualPreview(payload, categories),
       });
-      showToast(
-        result.status === "queued"
-          ? {
-              variant: "info",
-              message: "Saved offline. It will sync when you're back online.",
-            }
-          : { variant: "success", message: "Transaction added" },
-      );
+      if (result.status === "queued") {
+        showToast({
+          variant: "info",
+          message: "Saved offline. It will sync when you're back online.",
+        });
+      } else if (!followUps(result.posted)) {
+        showToast({ variant: "success", message: "Transaction added" });
+      }
       navigation.goBack();
     } catch (error) {
       const message =
@@ -219,7 +245,23 @@ export function useManualAddTransactionScreenModel() {
         },
       });
     }
-  }, [buildPayload, categories, navigation, showToast, submitMutation, userId]);
+  }, [
+    buildPayload,
+    categories,
+    followUps,
+    navigation,
+    showToast,
+    submitMutation,
+    userId,
+  ]);
+
+  const selectKind = useCallback(
+    (next: TransactionKind) => {
+      void triggerHaptic();
+      setKind(next);
+    },
+    [setKind],
+  );
 
   const setExpenseType = useCallback(() => {
     void triggerHaptic();
@@ -267,6 +309,8 @@ export function useManualAddTransactionScreenModel() {
     txType,
     setExpenseType,
     setIncomeType,
+    kind,
+    selectKind,
     counterpartyType,
     setCounterpartyType,
     counterpartyName,

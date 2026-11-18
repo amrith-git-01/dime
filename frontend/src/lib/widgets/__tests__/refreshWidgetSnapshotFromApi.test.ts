@@ -1,4 +1,3 @@
-import { fetchBudget } from "@/features/budgets/api/budgetsApi";
 import { fetchCategoryBudgets } from "@/features/budgets/api/categoryBudgetsApi";
 import { fetchHomeOverview } from "@/features/transactions/api/transactionsApi";
 import { getSession } from "@/lib/auth/session";
@@ -8,7 +7,6 @@ import { refreshWidgetSnapshotFromApi } from "../refreshWidgetSnapshotFromApi";
 import { readWidgetSnapshot } from "../widgetSnapshotMmkv";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
-jest.mock("@/features/budgets/api/budgetsApi", () => ({ fetchBudget: jest.fn() }));
 jest.mock("@/features/budgets/api/categoryBudgetsApi", () => ({ fetchCategoryBudgets: jest.fn() }));
 jest.mock("@/features/transactions/api/transactionsApi", () => ({ fetchHomeOverview: jest.fn() }));
 jest.mock("@/lib/auth/session", () => ({ getSession: jest.fn() }));
@@ -18,6 +16,11 @@ const OVERVIEW = {
   spent_this_month: "-1000.00",
   fixed_spent_this_month: "400.00",
   flexible_spent_this_month: "600.00",
+  // The month's picture from the server: the widget reads the cap and the signed left as they are.
+  budget_spent: "600.00",
+  budget_left: "4400.00",
+  committed_total: "400.00",
+  monthly_budget: "5000.00",
   top_categories: [
     { category_id: "cat-food", name: "Food", icon_name: null, color: null, total: "700.00" },
   ],
@@ -30,21 +33,22 @@ describe("refreshWidgetSnapshotFromApi", () => {
     jest.resetAllMocks();
     jest.mocked(getSession).mockReturnValue({ user: { id: "user-a" } } as never);
     jest.mocked(fetchHomeOverview).mockResolvedValue(OVERVIEW as never);
-    jest.mocked(fetchBudget).mockResolvedValue({ budget: { monthly_budget: "5000.00" } } as never);
     jest.mocked(fetchCategoryBudgets).mockResolvedValue([
       { category_id: "cat-food", monthly_amount: "1000.00" },
     ] as never);
   });
 
-  it("fetches the overview and budgets and stores the snapshot", async () => {
+  it("fetches the overview and category budgets and stores the snapshot", async () => {
     await expect(refreshWidgetSnapshotFromApi("user-a")).resolves.toBe(true);
     expect(readWidgetSnapshot()).toMatchObject({
       userId: "user-a",
       spentThisMonth: 1000,
       recurringSpent: 400,
       flexibleSpent: 600,
+      budgetSpent: 600,
+      committed: 400,
       monthlyBudget: 5000,
-      budgetLeft: 4000,
+      budgetLeft: 4400,
       topCategories: [{ id: "cat-food", name: "Food", spent: 700, budget: 1000 }],
     });
   });
@@ -65,7 +69,7 @@ describe("refreshWidgetSnapshotFromApi", () => {
   });
 
   it("rejects on a network error and leaves the old snapshot alone", async () => {
-    jest.mocked(fetchBudget).mockRejectedValue(new Error("offline"));
+    jest.mocked(fetchCategoryBudgets).mockRejectedValue(new Error("offline"));
     await expect(refreshWidgetSnapshotFromApi("user-a")).rejects.toThrow("offline");
     expect(readWidgetSnapshot()).toBeNull();
   });

@@ -9,6 +9,17 @@ import {
 /** How a capture ended, as far as the card can tell. */
 export type CaptureOutcome =
   | { kind: "done"; transaction: IngestJobTransaction | null }
+  /**
+   * Read, but nothing was posted: the amount is in a foreign currency, so only the user can say what it is in
+   * rupees. The card opens the manual form with the payee and what was read.
+   */
+  | {
+      kind: "needs_review";
+      reason: string | null;
+      currency: string | null;
+      amount: string | null;
+      counterpartyName: string | null;
+    }
   | { kind: "failed" }
   /** Still reading when the polling time ran out; the widget settles it later. */
   | { kind: "timeout" };
@@ -25,6 +36,18 @@ export function outcomeOfJob(job: IngestJob): Exclude<CaptureOutcome, { kind: "t
   }
   if (job.status === "failed") {
     return { kind: "failed" };
+  }
+  if (job.status === "needs_review") {
+    return {
+      kind: "needs_review",
+      reason: typeof job.reason === "string" ? job.reason : null,
+      currency: typeof job.currency === "string" && job.currency ? job.currency : null,
+      amount: job.amount === null || job.amount === undefined ? null : String(job.amount),
+      counterpartyName:
+        typeof job.counterparty_name === "string" && job.counterparty_name.trim()
+          ? job.counterparty_name.trim()
+          : null,
+    };
   }
   return null;
 }

@@ -6,6 +6,7 @@ export {
 export { DailyExpenseReminderSection } from "./DailyExpenseReminderSection";
 export { DeviceNotificationsSection } from "./DeviceNotificationsSection";
 export { FeedbackTypeSegmentedControl } from "./FeedbackTypeSegmentedControl";
+export { MoneyRulesCard, type MoneyRulesCardProps } from "./MoneyRulesCard";
 export {
   ReminderSettingsEditor,
   type ReminderSettingsEditorProps,

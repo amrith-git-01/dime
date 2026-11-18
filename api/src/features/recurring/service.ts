@@ -1,8 +1,10 @@
 import type { Db } from '../../core/db';
+import { isUniqueViolation } from '../../core/db-errors';
 import { decimalToCents, formatCents } from '../../core/decimal';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors';
+import { log } from '../../core/logging';
 import { isoUtc } from '../../core/timestamps';
-import { dateKey, localDate, parseTimezone } from '../../core/timezone';
+import { dateKey, localDate, monthKeyOf, parseTimezone } from '../../core/timezone';
 import { unprocessable } from '../../core/validation';
 import { fetchMetaByIds, listVisibleIdName } from '../categories/repository';
 import type { CategoryMeta } from '../categories/repository';
@@ -10,15 +12,20 @@ import { nextRemindIso } from '../reminders/plan';
 import { parseLeadDays } from '../reminders/schedule';
 import { fetchByUserId } from '../user-settings/repository';
 import { settingsFromRow } from '../user-settings/snapshot';
+import { updated as changed } from '../realtime/events';
+import { emit } from '../realtime/publish';
+import * as txRepo from '../transactions/repository';
+import type { TransactionResponse } from '../transactions/schemas';
+import { afterSpendWrite, enrichRows } from '../transactions/service';
 import type { TxContext } from '../transactions/service';
-import { postOccurrence } from './poster';
-import type { Later } from './poster';
+import { cacheNextDue, postOccurrence } from './poster';
 import * as repo from './repository';
-import { currentPeriodPassed, dueInPeriod, firstDueFrom, periodRange } from './schedule';
+import { currentPeriodPassed, dueInPeriod, firstDueFrom, parseDateKey, periodOf, periodRange, planOccurrences } from './schedule';
 import type { Schedule } from './schedule';
 import type {
   OccurrenceStatus,
   RecurringCreateBody,
+  RecurringLinkBody,
   RecurringKind,
   RecurringListResponse,
   RecurringMonthResponse,
@@ -61,6 +68,7 @@ function toResponse(row: RecurringRow, meta: Map<string, CategoryMeta>): Recurri
     active: row.active === 1,
     note: row.note,
     remind_lead_days: parseLeadDays(row.remind_lead_days, null),
+    counts_toward_budget: row.counts_toward_budget === 1,
     monthly_equivalent: formatCents(monthlyCents(row)),
     created_at: isoUtc(row.created_at),
     updated_at: isoUtc(row.updated_at),
@@ -121,7 +129,7 @@ async function resolveItemCategory(ctx: TxContext, kind: RecurringKind, category
   throw new BadRequestError(kind === 'income' ? 'Choose an income category.' : 'Choose a recurring expense category.');
 }
 
-export async function createRecurring(ctx: TxContext, body: RecurringCreateBody, later: Later, nowMs: number = Date.now()): Promise<RecurringResponse> {
+export async function createRecurring(ctx: TxContext, body: RecurringCreateBody, nowMs: number = Date.now()): Promise<RecurringResponse> {
   if ((await repo.countForUser(ctx.db, ctx.userId)) >= repo.MAX_ITEMS_PER_USER) {
     throw new ConflictError(`You can have up to ${repo.MAX_ITEMS_PER_USER} recurring items.`);
   }
@@ -148,9 +156,11 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
     month_of_year: schedule.month_of_year,
     timezone: tz,
     next_due_date: nextDueDate,
+    starts_on: nextDueDate,
     active,
     note: body.note ?? null,
     remind_lead_days: remindLeadDays,
+    counts_toward_budget: body.counts_toward_budget ? 1 : 0,
     next_remind_at: await remindAt(ctx.db, ctx.userId, { next_due_date: nextDueDate, timezone: tz, remind_lead_days: remindLeadDays, active }, nowMs),
   });
 
@@ -158,13 +168,30 @@ export async function createRecurring(ctx: TxContext, body: RecurringCreateBody,
   if (body.active && body.post_current_period && currentPeriodPassed(schedule, tz, nowMs)) {
     const today = localDate(tz, nowMs);
     try {
-      await postOccurrence(ctx, row, dueInPeriod(schedule, today.year, today.month), later);
+      await postOccurrence(ctx, row, dueInPeriod(schedule, today.year, today.month));
     } catch (err) {
       await repo.remove(ctx.db, ctx.userId, row.id); // no half-created item: the client can retry
       throw err;
     }
   }
   return (await present(ctx, [row]))[0] as RecurringResponse;
+}
+
+/**
+ * The first period an edited item owes (its `starts_on`). An item that was running keeps what it already owed (a period it had not
+ * posted yet stays owed even if the new day has passed: it is posted on the next run). Otherwise (a resume, or a start that was
+ * still ahead) it starts at the current period when that period is uncovered and its due day is today or later, else at the next.
+ */
+function restart(existing: RecurringRow, merged: RecurringRow, taken: readonly string[], nowMs: number): string {
+  const today = localDate(merged.timezone, nowMs);
+  const todayKey = dateKey(today);
+  const resuming = existing.active === 0 || merged.active === 0;
+  if (!resuming && periodOf(merged.cadence, existing.starts_on) <= periodOf(merged.cadence, todayKey)) {
+    const kept = parseDateKey(existing.starts_on);
+    return dateKey(dueInPeriod(merged, kept.year, kept.month));
+  }
+  const covered = taken.some((key) => periodOf(merged.cadence, key) === periodOf(merged.cadence, todayKey));
+  return dateKey(firstDueFrom(merged, merged.timezone, nowMs, covered));
 }
 
 export async function updateRecurring(ctx: TxContext, id: string, body: RecurringPatchBody, nowMs: number = Date.now()): Promise<RecurringResponse> {
@@ -191,10 +218,11 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
     active: body.active === undefined ? existing.active : body.active ? 1 : 0,
     note: body.note === undefined ? existing.note : body.note,
     remind_lead_days: body.remind_lead_days === undefined ? existing.remind_lead_days : body.remind_lead_days === null ? null : JSON.stringify(body.remind_lead_days),
+    counts_toward_budget: body.counts_toward_budget === undefined ? existing.counts_toward_budget : body.counts_toward_budget ? 1 : 0,
   };
 
-  // Amount, name, category and note only matter at the next posting. A new schedule (or resuming) re-plans from today
-  // forward; if this period was already posted, the plan starts at the next one, so a changed day never double-posts.
+  // Amount, name, category and note only matter at the next posting. A new schedule (or resuming) re-plans what the item owes from
+  // the facts (see `restart`): the current period is never lost, and a period that already has a posting or a skip is never posted twice.
   const replan =
     merged.cadence !== existing.cadence ||
     merged.day_of_month !== existing.day_of_month ||
@@ -202,9 +230,9 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
     merged.timezone !== existing.timezone ||
     (merged.active === 1 && existing.active === 0);
   if (replan) {
-    const today = localDate(tz, nowMs);
-    const posted = await repo.hasPostedIn(ctx.db, id, periodRange(merged, tz, dueInPeriod(merged, today.year, today.month)));
-    merged.next_due_date = dateKey(firstDueFrom(merged, tz, nowMs, posted));
+    const taken = await repo.listOccurrences(ctx.db, ctx.userId, id);
+    merged.starts_on = restart(existing, merged, taken, nowMs);
+    merged.next_due_date = dateKey(planOccurrences(merged, tz, merged.starts_on, taken, nowMs, 0).next);
   }
   // The reminder instant follows the due date, the lead days, the timezone and whether the item is active.
   if (replan || merged.remind_lead_days !== existing.remind_lead_days || merged.active !== existing.active) {
@@ -213,7 +241,56 @@ export async function updateRecurring(ctx: TxContext, id: string, body: Recurrin
 
   const row = await repo.update(ctx.db, ctx.userId, merged);
   if (!row) throw new NotFoundError(NOT_FOUND);
+  // Opting in or out of the budget moves the item's rows between "budget" and "committed" in every month it posted to.
+  if (row.counts_toward_budget !== existing.counts_toward_budget && ctx.afterWrite) {
+    const months = [...new Set([...(await repo.postedMonths(ctx.db, ctx.userId, id)), monthKeyOf(localDate(tz, nowMs))])];
+    await Promise.resolve(ctx.afterWrite(months)).catch((err: unknown) => log.error('after_write_failed', { err, months }));
+  }
   return (await present(ctx, [row]))[0] as RecurringResponse;
+}
+
+const OCCURRENCE_MISMATCH = 'That date is not one of this item\'s due dates.';
+
+/**
+ * `POST /recurring/:id/link`: an entry the user made by hand becomes the item's occurrence due on `occurrence`. The row takes the
+ * item's identity (item id, occurrence) and category, so it counts as that item's money from then on, and the poster finds the
+ * occurrence taken and posts nothing for it. The direction must fit (income <-> money in, subscription <-> money out).
+ */
+export async function linkTransaction(ctx: TxContext, itemId: string, body: RecurringLinkBody): Promise<TransactionResponse> {
+  const item = await repo.fetchForUser(ctx.db, ctx.userId, itemId);
+  if (!item) throw new NotFoundError(NOT_FOUND);
+  // A paused item posts nothing and plans nothing: linking to it would only leave a row that belongs to no schedule.
+  if (item.active !== 1) throw new BadRequestError('Resume this recurring item before linking a transaction to it.');
+  const tx = await txRepo.fetchActive(ctx.db, ctx.userId, body.transaction_id);
+  if (!tx) throw new NotFoundError('Transaction not found.');
+  if (tx.recurring_item_id) throw new ConflictError('That transaction already belongs to a recurring item.');
+  if (tx.type !== (item.kind === 'income' ? 'credit' : 'debit') || tx.kind === 'transfer' || tx.kind === 'payback') {
+    throw new BadRequestError('That transaction does not match this recurring item.');
+  }
+  const [y = 0, m = 1] = body.occurrence.split('-').map(Number);
+  if (dateKey(dueInPeriod(item, y, m)) !== body.occurrence) throw new BadRequestError(OCCURRENCE_MISMATCH);
+  if (await txRepo.findByOccurrence(ctx.db, ctx.userId, item.id, body.occurrence)) {
+    throw new ConflictError('That occurrence already has a transaction.');
+  }
+
+  let row;
+  try {
+    row = await txRepo.updateForUser(ctx.db, ctx.userId, tx.id, {
+      recurring_item_id: item.id,
+      recurring_occurrence: body.occurrence,
+      category_id: item.category_id,
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new ConflictError('That occurrence already has a transaction.');
+    throw err;
+  }
+  if (!row) throw new NotFoundError('Transaction not found.');
+  // The occurrence is taken now: the cached next due date moves past it.
+  const taken = await repo.listOccurrences(ctx.db, ctx.userId, item.id);
+  await cacheNextDue(ctx.db, item, planOccurrences(item, item.timezone, item.starts_on ?? item.next_due_date, taken, Date.now(), 0).next, Date.now());
+  await emit(ctx.publish, [changed('transactions', row)]);
+  await afterSpendWrite(ctx, [tx, row]);
+  return (await enrichRows(ctx, [row]))[0] as TransactionResponse;
 }
 
 const DAY_MS = 86_400_000;
@@ -221,8 +298,8 @@ const DAY_MS = 86_400_000;
 /**
  * Every occurrence of the user's recurring items that falls in the calendar month `year`/`month`, with its status.
  * Posted rows come from ONE query (the month widened by a day, so any timezone's local month fits) and are matched per
- * item to that item's own local period. A deleted posting is "skipped" (the poster treats the period as done, so it is
- * not posted again). An unposted occurrence is "upcoming" only for an active item whose schedule has not moved past it
+ * item to that item's own local period. A deleted posting is "skipped" (its skip is stored, so it is not posted again and
+ * stays skipped after the deleted row is purged). An unposted occurrence is "upcoming" only for an active item whose schedule has not moved past it
  * (never a backfill of dates before the item existed); a paused, unposted one is left out.
  */
 export async function monthOccurrences(ctx: TxContext, year: number, month: number): Promise<RecurringMonthResponse> {
@@ -235,8 +312,9 @@ export async function monthOccurrences(ctx: TxContext, year: number, month: numb
   const hasYearly = inMonth.some((item) => item.cadence === 'yearly');
   const from = hasYearly ? Math.min(first, Date.UTC(year, 0, 1)) : first;
   const to = hasYearly ? Math.max(after, Date.UTC(year + 1, 0, 1)) : after;
-  const [posted, meta] = await Promise.all([
+  const [posted, skips, meta] = await Promise.all([
     repo.listPostedIn(ctx.db, ctx.userId, { from: new Date(from - DAY_MS).toISOString(), to: new Date(to + DAY_MS).toISOString() }),
+    repo.listSkipKeys(ctx.db, ctx.userId, new Date(from - DAY_MS).toISOString().slice(0, 10), new Date(to + DAY_MS).toISOString().slice(0, 10)),
     fetchMetaByIds(ctx.db, [...new Set(inMonth.flatMap((r) => (r.category_id ? [r.category_id] : [])))], ctx.userId),
   ]);
 
@@ -246,11 +324,16 @@ export async function monthOccurrences(ctx: TxContext, year: number, month: numb
     const due = dueInPeriod(item, year, month);
     const dueKey = dateKey(due);
     const period = periodRange(item, item.timezone, due);
-    const rows = posted.filter((p) => p.recurring_item_id === item.id && p.transaction_at >= period.from && p.transaction_at < period.to);
+    // A row names its occurrence; one from before occurrences were recorded is placed by its instant.
+    const rows = posted.filter(
+      (p) =>
+        p.recurring_item_id === item.id &&
+        (p.recurring_occurrence !== null ? p.recurring_occurrence === dueKey : p.transaction_at >= period.from && p.transaction_at < period.to),
+    );
     const live = rows.find((p) => p.deleted_at === null);
     let status: OccurrenceStatus;
     if (live) status = 'paid';
-    else if (rows.length > 0) status = 'skipped';
+    else if (rows.length > 0 || skips.has(`${item.id}:${dueKey}`)) status = 'skipped';
     else if (item.active === 1 && dueKey >= item.next_due_date) status = 'upcoming';
     else continue;
 

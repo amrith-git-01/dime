@@ -6,6 +6,7 @@ import type {
   TransactionRow,
 } from "../types";
 import { transactionCalendarDayKey } from "./buildTransactionFlashListData";
+import { kindOf } from "./transactionKind";
 
 function toCents(amount: string): number {
   const value = Number.parseFloat(amount);
@@ -26,7 +27,8 @@ function applyRow(
 ): void {
   const date = transactionCalendarDayKey(row.transaction_at);
   const current = summaries[date];
-  const cents = toCents(row.amount) * sign;
+  // A transfer is in neither total (it still counts as a transaction of the day), like on the server.
+  const cents = kindOf(row) === "transfer" ? 0 : toCents(row.amount) * sign;
   const credit = toCents(current?.credit_total ?? "0") + (row.type === "credit" ? cents : 0);
   const debit = toCents(current?.debit_total ?? "0") + (row.type === "debit" ? cents : 0);
   const transaction_count = (current?.transaction_count ?? 0) + sign;
@@ -60,6 +62,7 @@ function sameForTotals(a: TransactionRow, b: TransactionRow): boolean {
   return (
     a.amount === b.amount &&
     a.type === b.type &&
+    kindOf(a) === kindOf(b) &&
     a.transaction_at === b.transaction_at
   );
 }

@@ -124,11 +124,11 @@ describe('crypto helpers', () => {
   });
 });
 
-describe('digest periods (IST)', () => {
+describe('digest periods (the cron runs on IST days; a period is just calendar dates)', () => {
   it('previous week is the last complete Mon-Sun (Python test + ISO year boundaries)', () => {
     const w = previousWeekPeriod(at('2026-08-17T08:00:00+05:30'));
     expect(w.periodKey).toBe('2026-W33');
-    expect(w.range).toEqual({ from: '2026-08-09T18:30:00.000Z', to: '2026-08-16T18:30:00.000Z' }); // 10 Aug 00:00 IST .. 17 Aug 00:00 IST
+    expect(w.dates).toEqual({ from: '2026-08-10', to: '2026-08-16' }); // Monday .. Sunday, as calendar dates (rows carry their own local date)
     expect(w.rangeLabel).toBe('10 Aug – 16 Aug 2026');
     expect(w.kicker).toBe('THIS WEEK');
     expect(w.subject).toBe('Your week in Dime');
@@ -149,7 +149,7 @@ describe('digest periods (IST)', () => {
     expect(m.rangeLabel).toBe('August 2026');
     expect(m.subject).toBe('Your August in Dime');
     expect(m.kicker).toBe('THIS MONTH');
-    expect(m.range).toEqual({ from: '2026-07-31T18:30:00.000Z', to: '2026-08-31T18:30:00.000Z' });
+    expect(m.dates).toEqual({ from: '2026-08-01', to: '2026-08-31' });
     expect(previousMonthPeriod(at('2026-01-01T08:00:00+05:30')).periodKey).toBe('2025-12');
   });
 
@@ -178,10 +178,14 @@ describe('digest periods (IST)', () => {
     expect(mondayOfIsoWeek(2026, 1)).toEqual({ year: 2025, month: 12, day: 29 });
   });
 
-  it('due kinds at the 08:00 IST cron (02:30 UTC): Monday weekly, 1st monthly, both when they coincide', () => {
+  it('fan-out kinds at the 08:00 IST cron (02:30 UTC): weekly Monday to Wednesday, monthly days 1 to 3 (the later days are catch-up)', () => {
     expect(dueDigestKinds(at('2026-08-17T02:30:00Z'))).toEqual(['weekly']); // Monday
-    expect(dueDigestKinds(at('2026-08-18T02:30:00Z'))).toEqual([]); // Tuesday
-    expect(dueDigestKinds(at('2026-09-01T02:30:00Z'))).toEqual(['monthly']); // Tuesday the 1st
+    expect(dueDigestKinds(at('2026-08-18T02:30:00Z'))).toEqual(['weekly']); // Tuesday (catch-up)
+    expect(dueDigestKinds(at('2026-08-19T02:30:00Z'))).toEqual(['weekly']); // Wednesday (catch-up)
+    expect(dueDigestKinds(at('2026-08-20T02:30:00Z'))).toEqual([]); // Thursday
+    expect(dueDigestKinds(at('2026-09-01T02:30:00Z'))).toEqual(['weekly', 'monthly']); // Tuesday the 1st
+    expect(dueDigestKinds(at('2026-09-03T02:30:00Z'))).toEqual(['monthly']); // Thursday the 3rd (catch-up)
+    expect(dueDigestKinds(at('2026-09-04T02:30:00Z'))).toEqual([]); // the 4th
     expect(dueDigestKinds(at('2026-06-01T02:30:00Z'))).toEqual(['weekly', 'monthly']); // Monday the 1st
     expect(dueDigestKinds(at('2027-02-01T02:30:00Z'))).toEqual(['weekly', 'monthly']);
     expect(dueDigestKinds(at('2026-08-16T02:30:00Z'))).toEqual([]); // Sunday
@@ -190,10 +194,10 @@ describe('digest periods (IST)', () => {
   it('the day is the IST day, not the UTC day', () => {
     // 18:45 UTC on Sunday is already Monday 00:15 IST.
     expect(dueDigestKinds(at('2026-08-16T18:45:00Z'))).toEqual(['weekly']);
-    // 18:45 UTC on Monday is Tuesday in IST.
-    expect(dueDigestKinds(at('2026-08-17T18:45:00Z'))).toEqual([]);
-    // Last day of the month in UTC evening is the 1st in IST.
-    expect(dueDigestKinds(at('2026-08-31T18:45:00Z'))).toEqual(['monthly']);
+    // 18:45 UTC on Wednesday is Thursday in IST: the catch-up days are over.
+    expect(dueDigestKinds(at('2026-08-19T18:45:00Z'))).toEqual([]);
+    // Last day of the month in UTC evening is the 1st in IST (a Tuesday: still a weekly catch-up day).
+    expect(dueDigestKinds(at('2026-08-31T18:45:00Z'))).toEqual(['weekly', 'monthly']);
   });
 });
 

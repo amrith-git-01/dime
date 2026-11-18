@@ -40,6 +40,8 @@ export type ReminderRowProps = {
   onPress: (reminder: Reminder) => void;
   /** `transactionId` set: the "Looks paid" suggestion was accepted. */
   onMarkDone?: (reminder: Reminder, transactionId?: string) => void;
+  /** "Part payment": record less than what is still due; the reminder stays open with what is left. */
+  onPartPayment?: (reminder: Reminder) => void;
   onPayNow?: (reminder: Reminder) => void;
   onNudge?: (reminder: Reminder) => void;
   onSkip?: (reminder: Reminder) => void;
@@ -99,6 +101,7 @@ export const ReminderRow = memo(function ReminderRow({
   busy = false,
   onPress,
   onMarkDone,
+  onPartPayment,
   onPayNow,
   onNudge,
   onSkip,
@@ -257,6 +260,13 @@ export const ReminderRow = memo(function ReminderRow({
                   label={`${markDoneLabel(reminder)}, no match`}
                   disabled={busy}
                   onPress={() => onMarkDone?.(reminder)}
+                />
+              ) : null}
+              {isOpen && reminder.amount !== null && onPartPayment ? (
+                <ActionPill
+                  label="Part payment"
+                  disabled={busy}
+                  onPress={() => onPartPayment(reminder)}
                 />
               ) : null}
               {isOpen && repeats ? (

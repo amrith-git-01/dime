@@ -332,7 +332,7 @@ describe('POST /transactions/voice', () => {
 
 describe('GET /ingest/jobs/:id', () => {
   const OTHER = '22222222-2222-2222-2222-222222222222';
-  const status = (id: string, extra: { token?: string | false } = {}) => call(`/api/v1/ingest/jobs/${id}`, extra);
+  const status = (id: string, extra: { token?: string | false; headers?: Record<string, string> } = {}) => call(`/api/v1/ingest/jobs/${id}`, extra);
 
   it('401 without a token', async () => {
     expect((await status(uid(), { token: false })).status).toBe(401);
@@ -364,6 +364,27 @@ describe('GET /ingest/jobs/:id', () => {
     const txId = await seedTransaction({ deleted_at: '2026-10-05T10:00:00.000Z' });
     const id = await seedJob({ kind: 'voice', status: 'done', result: { transaction_id: txId } });
     expect(await (await status(id)).json()).toEqual({ status: 'done' });
+  });
+
+  it('a job that needs the user (a foreign-currency amount) reports needs_review with what was read', async () => {
+    const id = await seedJob({
+      kind: 'receipt',
+      status: 'done',
+      result: { needs_review: true, reason: 'foreign_currency', currency: 'USD', amount: '12.50', counterparty_name: 'Starbucks' },
+    });
+    expect(await (await status(id, { headers: { 'X-Dime-Client-Caps': 'review' } })).json()).toEqual({
+      status: 'needs_review',
+      reason: 'foreign_currency',
+      currency: 'USD',
+      amount: '12.50',
+      counterparty_name: 'Starbucks',
+    });
+  });
+
+  it('a client that does not announce `review` (app 1.5.0) gets the terminal failed shape it already handles', async () => {
+    const id = await seedJob({ kind: 'receipt', status: 'done', result: { needs_review: true, reason: 'foreign_currency', currency: 'USD', amount: '12.50', counterparty_name: 'Starbucks' } });
+    expect(await (await status(id)).json()).toEqual({ status: 'failed' });
+    expect(await (await status(id, { headers: { 'X-Dime-Client-Caps': 'other' } })).json()).toEqual({ status: 'failed' });
   });
 
   it('reports failed', async () => {

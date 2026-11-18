@@ -28,13 +28,13 @@ export function buildEmptyInsightsMonthSummary(
     usedPctDisplay: hasMonthlyBudget ? "0%" : EM_DASH,
     remainingValue: 0,
     remainingLabel: "Remaining",
+    budgetLeft: hasMonthlyBudget ? monthlyBudgetAmount : null,
     remainingDisplay: hasMonthlyBudget
       ? formatInrCompact(monthlyBudgetAmount)
       : EM_DASH,
     spentDisplay: ZERO,
     incomeDisplay: ZERO,
     netDisplay: ZERO,
-    heroDisplay: ZERO,
     netValue: 0,
     savingsRatePct: null,
     hasFixed: false,

@@ -9,6 +9,11 @@ export type InsightsSummary = {
   flexible_debit_total?: string;
   fixed_credit_total?: string;
   flexible_credit_total?: string;
+  /** Spend counted toward the monthly budget; fixed spend left out of it; own-account movements; money paid back. */
+  budget_spent?: string;
+  committed_total?: string;
+  transfer_total?: string;
+  payback_total?: string;
 };
 
 export type DailyCashflowRow = {

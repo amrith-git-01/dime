@@ -15,7 +15,7 @@ import type { CategoryRow } from "@/features/categories/types";
 import { CounterpartySearchField } from "@/features/payees/components/CounterpartySearchField";
 import type { CounterpartySelection } from "@/features/payees/types";
 import { type CounterpartyType } from "@/features/transactions/counterpartyTypes";
-import type { TransactionType } from "@/features/transactions/types";
+import type { TransactionKind, TransactionType } from "@/features/transactions/types";
 
 import { ManualAddAmountSection } from "./ManualAddAmountSection";
 import { ManualAddCategorySection } from "./ManualAddCategorySection";
@@ -33,6 +33,9 @@ export type ManualAddTransactionEditorProps = {
   txType: TransactionType;
   onSetExpense: () => void;
   onSetIncome: () => void;
+  /** How the entry counts: Spend / Income / Transfer (Payback keeps showing for a refund or reimbursement). */
+  kind: TransactionKind;
+  onSelectKind: (kind: TransactionKind) => void;
   counterpartyType: CounterpartyType;
   onCounterpartyTypeChange: (value: CounterpartyType) => void;
   counterpartyName: string;
@@ -96,6 +99,8 @@ export const ManualAddTransactionEditor = memo(
     txType,
     onSetExpense,
     onSetIncome,
+    kind,
+    onSelectKind,
     counterpartyType,
     onCounterpartyTypeChange,
     counterpartyName,
@@ -144,6 +149,8 @@ export const ManualAddTransactionEditor = memo(
             txType={txType}
             onSetExpense={onSetExpense}
             onSetIncome={onSetIncome}
+            kind={kind}
+            onSelectKind={onSelectKind}
             autoFocus={autoFocusAmount}
           />
         </View>

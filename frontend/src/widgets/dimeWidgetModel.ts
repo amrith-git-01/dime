@@ -31,7 +31,7 @@ export type DimeWidgetModel = {
   title: string;
   /** Spent this month, or the sign-in prompt. */
   amount: string;
-  /** "₹X left of ₹Y"; null without a budget. */
+  /** "₹X left of ₹Y", or "₹X over ₹Y" when over budget; null without a budget. */
   budgetLine: string | null;
   /** Budget used, 0..100; null without a budget. */
   progressPercent: number | null;
@@ -124,15 +124,19 @@ export function buildDimeWidgetModel(
     snapshot.monthlyBudget !== null &&
     snapshot.monthlyBudget > 0 &&
     snapshot.budgetLeft !== null;
+  // `budgetLeft` is the server's signed figure: negative is over budget, shown as "₹X over", never as 0 left.
+  const overBudget = hasBudget && snapshot.budgetLeft! < 0;
   const budgetLine = hasBudget
-    ? `${money(snapshot.budgetLeft!, formatInrCompact)} left of ${money(snapshot.monthlyBudget!, formatInrCompact)}`
+    ? overBudget
+      ? `${money(Math.abs(snapshot.budgetLeft!), formatInrCompact)} over ${money(snapshot.monthlyBudget!, formatInrCompact)}`
+      : `${money(snapshot.budgetLeft!, formatInrCompact)} left of ${money(snapshot.monthlyBudget!, formatInrCompact)}`
     : null;
   const progressPercent = hasBudget
     ? Math.min(
         100,
         Math.max(
-          snapshot.spentThisMonth > 0 ? 1 : 0,
-          Math.round((snapshot.spentThisMonth / snapshot.monthlyBudget!) * 100),
+          snapshot.budgetSpent > 0 ? 1 : 0,
+          Math.round((snapshot.budgetSpent / snapshot.monthlyBudget!) * 100),
         ),
       )
     : null;
@@ -161,7 +165,7 @@ export function buildDimeWidgetModel(
     amount,
     budgetLine,
     progressPercent,
-    overBudget: hasBudget && snapshot.spentThisMonth >= snapshot.monthlyBudget!,
+    overBudget,
     splitLine,
     categories,
     hint: null,

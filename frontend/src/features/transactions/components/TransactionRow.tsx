@@ -14,6 +14,7 @@ import {
 import { createThemedStyles, useTheme } from "@/theme";
 
 import { RecurringBadge } from "./RecurringBadge";
+import { TransactionKindBadge } from "./TransactionKindBadge";
 import { WaitingToSyncPill } from "./WaitingToSyncPill";
 
 export type TransactionRowProps = {
@@ -67,6 +68,9 @@ export const TransactionRow = memo(function TransactionRow({
             {ui.category.name} · {ui.timeLabel}
           </Text>
           {ui.isRecurring ? <RecurringBadge /> : null}
+          {ui.badges.map((badge) => (
+            <TransactionKindBadge key={badge} kind={badge} />
+          ))}
           {isPending ? <WaitingToSyncPill /> : null}
         </View>
       </View>
@@ -74,6 +78,7 @@ export const TransactionRow = memo(function TransactionRow({
         style={[
           styles.amount,
           isCredit ? styles.amountCredit : styles.amountDebit,
+          ui.kind === "transfer" && styles.amountTransfer,
         ]}
         numberOfLines={1}
       >
@@ -137,5 +142,9 @@ const useStyles = createThemedStyles(({ colors }) => ({
   },
   amountDebit: {
     color: colors.danger,
+  },
+  // A transfer is in neither spent nor income: greyed out.
+  amountTransfer: {
+    color: colors.inkSoft,
   },
 }));

@@ -13,7 +13,11 @@ import { useToast } from "@/features/toast/useToast";
 import { isTourSampleId } from "@/features/tourPreview";
 import type { ManualAddDateTimePickerMode } from "@/features/transactions/components";
 import { useManualAddTransactionForm } from "@/features/transactions/hooks/useManualAddTransactionForm";
+import { useStaleTransactionHandler } from "@/features/transactions/hooks/useStaleTransactionHandler";
 import { useUpdateTransactionMutation } from "@/features/transactions/hooks/useUpdateTransactionMutation";
+import { isTransactionStaleError } from "@/features/transactions/utils/staleError";
+import { buildTransactionPatch, patchHasChanges } from "@/features/transactions/utils/transactionPatch";
+import type { TransactionKind } from "@/features/transactions/types";
 import {
   reconcileEditCategory,
   recurringCategoryOfTransaction,
@@ -51,18 +55,21 @@ export function useEditTransactionScreenModel() {
     clearCategory,
     counterpartyName,
     counterpartyType,
+    kind,
     note,
     selectCategory,
     setAmountText,
     setBrandId,
     setCounterpartyName,
     setCounterpartyType,
+    setKind,
     setNote,
     setTransactionAt,
     setTxType,
     transactionAt,
     txType,
   } = form;
+  const handleStale = useStaleTransactionHandler();
   const selectCounterparty = useCounterpartySelect({
     txType,
     categoryId,
@@ -254,12 +261,32 @@ export function useEditTransactionScreenModel() {
       );
       return;
     }
-    const { detected_via: _ignored, ...body } = payload;
+    // Only what changed goes out, guarded by the `updated_at` this edit started from.
+    const { detected_via: _ignored, ...next } = payload;
+    const body = buildTransactionPatch(transaction, next);
+    if (!patchHasChanges(body) && transaction.needs_review !== true) {
+      navigation.goBack();
+      return;
+    }
     try {
-      await updateMutation.mutateAsync({ id: transaction.id, body });
-      showToast({ variant: "success", message: "Transaction updated" });
+      const result = await updateMutation.mutateAsync({
+        id: transaction.id,
+        body,
+        original: transaction,
+      });
+      showToast(
+        result.status === "queued"
+          ? { variant: "info", message: "Saved offline. It will sync when you're back online." }
+          : { variant: "success", message: "Transaction updated" },
+      );
       navigation.goBack();
     } catch (error) {
+      if (isTransactionStaleError(error)) {
+        // Changed on another device: show what is there now instead of overwriting it.
+        handleStale();
+        navigation.goBack();
+        return;
+      }
       const message =
         error instanceof Error ? error.message : "Could not save transaction.";
       if (/not found/i.test(message)) {
@@ -280,12 +307,21 @@ export function useEditTransactionScreenModel() {
     }
   }, [
     buildPayload,
+    handleStale,
     navigation,
     showToast,
     transaction,
     updateMutation,
     userId,
   ]);
+
+  const selectKind = useCallback(
+    (next: TransactionKind) => {
+      void triggerHaptic();
+      setKind(next);
+    },
+    [setKind],
+  );
 
   const setExpenseType = useCallback(() => {
     void triggerHaptic();
@@ -338,6 +374,8 @@ export function useEditTransactionScreenModel() {
     txType,
     setExpenseType,
     setIncomeType,
+    kind,
+    selectKind,
     counterpartyType,
     setCounterpartyType,
     counterpartyName,

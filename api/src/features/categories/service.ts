@@ -7,12 +7,15 @@ import {
   ValidationError,
 } from '../../core/errors';
 import { INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, WRONG_SCOPE, hasPgCode, isUniqueViolation } from '../../core/db-errors';
-import { formatMoney } from '../../core/decimal';
+import { formatCents, formatMoney } from '../../core/decimal';
 import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
+import type { AfterWrite } from '../notifications/budget-alerts';
 import { deleted, inserted, updated } from '../realtime/events';
 import type { ChangeEvent, Publish } from '../realtime/events';
 import { emit } from '../realtime/publish';
+import { monthOfRow } from '../transactions/service';
+import { currentMonthKey } from '../user-settings/service';
 import * as repo from './repository';
 import {
   DEFAULT_CUSTOM_COLOR,
@@ -97,6 +100,7 @@ export async function updateCategory(
   categoryId: string,
   body: UpdateCategoryBody,
   publish?: Publish,
+  afterWrite?: AfterWrite,
 ): Promise<CategoryResponse> {
   const rows = await repo.listVisible(db, userId);
   const existing = rows.find((r) => r.id === categoryId);
@@ -118,6 +122,7 @@ export async function updateCategory(
 
   if (hasBudgetChange(body)) {
     let payload;
+    const monthKey = await currentMonthKey(db, userId);
     try {
       payload = await repo.updateCategoryWithBudget(db, {
         userId,
@@ -127,6 +132,7 @@ export async function updateCategory(
         color,
         setBudget: true,
         budgetAmount: body.budget_amount ?? null,
+        monthKey,
       });
     } catch (err) {
       if (hasPgCode(err, NO_DATA_FOUND)) throw new NotFoundError(NOT_FOUND);
@@ -140,6 +146,7 @@ export async function updateCategory(
     parsed.budget_amount = payload.monthly_amount == null ? null : formatMoney(payload.monthly_amount);
     // A budget-only change leaves the `categories` row untouched: nothing for the app to refresh.
     if (changesCategory) await emit(publish, [updated('categories', payload.category)]);
+    await afterWrite?.([monthKey]); // the category cap changed: re-check this month's alerts
     return parsed;
   }
 
@@ -163,25 +170,30 @@ export async function updateCategory(
   return parsed;
 }
 
-/** Shared by delete-impact and delete: fetch visibility + transaction count concurrently. */
+/** Shared by delete-impact and delete: fetch visibility, transaction count and the category's budget concurrently. */
 async function loadForDelete(db: Db, userId: string, categoryId: string) {
-  const [rows, txCount] = await Promise.all([
+  const [rows, txCount, budgetCents] = await Promise.all([
     repo.listVisible(db, userId),
     repo.countActiveTransactions(db, userId, categoryId),
+    repo.fetchBudgetCents(db, userId, categoryId),
   ]);
   const existing = rows.find((r) => r.id === categoryId);
   if (!existing) throw new NotFoundError(NOT_FOUND);
   if (existing.is_system) throw new ForbiddenError('System categories cannot be deleted.');
-  return { rows, txCount };
+  return { rows, txCount, budgetCents };
 }
 
+/**
+ * What deleting the category would do: `transaction_count` rows to move to another category, and the category budget that is
+ * removed with it (`budget_removed`, with its `budget_amount`; null when the category has none).
+ */
 export async function getDeleteImpact(
   db: Db,
   userId: string,
   categoryId: string,
-): Promise<{ transaction_count: number }> {
-  const { txCount } = await loadForDelete(db, userId, categoryId);
-  return { transaction_count: txCount };
+): Promise<{ transaction_count: number; budget_removed: boolean; budget_amount: string | null }> {
+  const { txCount, budgetCents } = await loadForDelete(db, userId, categoryId);
+  return { transaction_count: txCount, budget_removed: budgetCents !== null, budget_amount: budgetCents === null ? null : formatCents(budgetCents) };
 }
 
 export async function deleteCategory(
@@ -190,9 +202,11 @@ export async function deleteCategory(
   categoryId: string,
   reassignToCategoryId: string | undefined,
   publish?: Publish,
+  afterWrite?: AfterWrite,
 ): Promise<void> {
   const { rows, txCount } = await loadForDelete(db, userId, categoryId);
   const events: ChangeEvent[] = [];
+  const months = new Set<string>();
   if (txCount > 0) {
     if (!reassignToCategoryId || reassignToCategoryId === categoryId) {
       throw new ValidationError('Choose a category to move transactions to before deleting.');
@@ -201,8 +215,14 @@ export async function deleteCategory(
     if (!target?.name || target.scope !== 'spend') throw new ValidationError('Target category not found.');
     const moved = await repo.reassignTransactions(db, { userId, fromCategoryId: categoryId, toCategoryId: reassignToCategoryId });
     events.push(...moved.map((row) => updated('transactions', row)));
+    for (const row of moved) months.add(monthOfRow(row));
   }
   if (!(await repo.deleteCustom(db, userId, categoryId))) throw new NotFoundError(NOT_FOUND);
   events.push(deleted('categories', categoryId));
   await emit(publish, events);
+  // The category's budget went with it and its spend moved to another category: re-check the alerts of the months involved.
+  if (afterWrite) {
+    months.add(await currentMonthKey(db, userId));
+    await afterWrite([...months]);
+  }
 }

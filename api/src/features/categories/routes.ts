@@ -5,6 +5,7 @@ import type { AppBindings } from '../../core/env';
 import { rateLimit } from '../../core/rate-limit';
 import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
+import { deferBudgetAlerts } from '../notifications/budget-alerts';
 import { requestPublisher } from '../realtime/publish';
 import { createCategorySchema, deleteQuerySchema, listQuerySchema, updateCategorySchema } from './schemas';
 import * as service from './service';
@@ -22,21 +23,26 @@ categoriesRoutes.post('/', rateLimit('WRITE_LIMITER'), validate('json', createCa
   c.json(await service.createCategory(getDb(c), currentUser(c).id, c.req.valid('json'), requestPublisher(c, currentUser(c).id)), 201),
 );
 
-categoriesRoutes.patch('/:id', rateLimit('WRITE_LIMITER'), validate('json', updateCategorySchema), async (c) =>
-  c.json(await service.updateCategory(getDb(c), currentUser(c).id, c.req.param('id'), c.req.valid('json'), requestPublisher(c, currentUser(c).id))),
-);
+categoriesRoutes.patch('/:id', rateLimit('WRITE_LIMITER'), validate('json', updateCategorySchema), async (c) => {
+  const publish = requestPublisher(c, currentUser(c).id);
+  return c.json(
+    await service.updateCategory(getDb(c), currentUser(c).id, c.req.param('id'), c.req.valid('json'), publish, deferBudgetAlerts(c, getDb(c), currentUser(c).id, publish)),
+  );
+});
 
 categoriesRoutes.get('/:id/delete-impact', async (c) =>
   c.json(await service.getDeleteImpact(getDb(c), currentUser(c).id, c.req.param('id'))),
 );
 
 categoriesRoutes.delete('/:id', rateLimit('WRITE_LIMITER'), validate('query', deleteQuerySchema), async (c) => {
+  const publish = requestPublisher(c, currentUser(c).id);
   await service.deleteCategory(
     getDb(c),
     currentUser(c).id,
     c.req.param('id'),
     c.req.valid('query').reassign_to_category_id,
-    requestPublisher(c, currentUser(c).id),
+    publish,
+    deferBudgetAlerts(c, getDb(c), currentUser(c).id, publish),
   );
   return c.body(null, 204);
 });

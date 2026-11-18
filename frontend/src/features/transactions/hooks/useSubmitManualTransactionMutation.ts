@@ -75,7 +75,7 @@ export function useSubmitManualTransactionMutation() {
         const row = result.posted.transaction;
         if (row && userId) {
           // The server echoes the saved row: patch the lists, refetch only the totals.
-          recentTransactionMutations.mark(row.id);
+          recentTransactionMutations.mark(row.id, row.updated_at);
           applyTransactionInsertToListCaches(qc, {
             userId,
             timezone: getDeviceIanaTimezone(),

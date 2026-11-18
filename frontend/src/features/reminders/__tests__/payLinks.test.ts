@@ -35,6 +35,14 @@ describe("sanitizePayName", () => {
     // Stripping must not be a way to sneak the word in.
     expect(sanitizePayName("Di!me")).toBeNull();
   });
+
+  it("blocks only the whole word, not letters inside another word", () => {
+    expect(sanitizePayName("Dimple")).toBe("Dimple");
+    expect(sanitizePayName("Dimension Cafe")).toBe("Dimension Cafe");
+    expect(sanitizePayName("Sundime")).toBe("Sundime");
+    expect(sanitizePayName("dime")).toBeNull();
+    expect(sanitizePayName("Dime-Pay")).toBeNull();
+  });
 });
 
 describe("sanitizePayNote", () => {

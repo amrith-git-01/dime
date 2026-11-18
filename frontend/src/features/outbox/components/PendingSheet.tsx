@@ -1,8 +1,10 @@
-import { Mic, Receipt, SquarePen } from "lucide-react-native";
+import { useQueryClient } from "@tanstack/react-query";
+import { Mic, Receipt, SquarePen, Trash2 } from "lucide-react-native";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { ConfirmModal } from "@/components/shared";
+import { invalidateTransactionDerivedQueries } from "@/features/transactions/cache/invalidateTransactionQueries";
 import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
@@ -25,7 +27,13 @@ type PendingRowProps = {
   onDiscard: (item: OutboxItem) => void;
 };
 
-const KIND_ICON = { manual: SquarePen, voice: Mic, receipt: Receipt } as const;
+const KIND_ICON = {
+  manual: SquarePen,
+  voice: Mic,
+  receipt: Receipt,
+  update: SquarePen,
+  delete: Trash2,
+} as const;
 
 const PendingRow = memo(function PendingRow({
   item,
@@ -100,6 +108,7 @@ export const PendingSheet = memo(function PendingSheet() {
   const isOnline = useConnectivityStore((s) => s.isOnline);
   const syncing = useOutboxStore((s) => s.syncing);
   const { items } = usePendingTransactions();
+  const queryClient = useQueryClient();
   const [discarding, setDiscarding] = useState<OutboxItem | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -126,9 +135,13 @@ export const PendingSheet = memo(function PendingSheet() {
   const confirmDiscard = useCallback(() => {
     if (discarding) {
       discardOutboxItem(discarding.id);
+      // A discarded edit or delete was already shown in the lists: refetch what the server really holds.
+      if (discarding.kind === "update" || discarding.kind === "delete") {
+        invalidateTransactionDerivedQueries(queryClient);
+      }
     }
     setDiscarding(null);
-  }, [discarding]);
+  }, [discarding, queryClient]);
 
   return (
     <>

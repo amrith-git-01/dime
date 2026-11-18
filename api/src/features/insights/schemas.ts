@@ -9,6 +9,11 @@ interface InsightsSummary {
   flexible_debit_total: string;
   fixed_credit_total: string;
   flexible_credit_total: string;
+  /** Spend counted toward the monthly budget; fixed spend left out of it; own-account movements; money paid back that lowered spend. */
+  budget_spent: string;
+  committed_total: string;
+  transfer_total: string;
+  payback_total: string;
 }
 
 interface DailyCashflowRow {
@@ -43,7 +48,7 @@ export interface MonthInsightsResponse {
   today: string;
   summary: InsightsSummary;
   daily_cashflow: DailyCashflowRow[];
-  /** Flexible spend only: fixed (recurring-category) debits are left out. Shares are of the flexible total. */
+  /** Flexible spend only (net of paybacks): fixed money and transfers are left out. Shares are of the flexible total. */
   counterparty_spend: CounterpartySpendRow[];
   counterparty_income: CounterpartyIncomeRow[];
   /** Largest flexible debits; fixed (recurring-category) spend is left out. */

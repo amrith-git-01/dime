@@ -56,6 +56,8 @@ export interface UserSettings {
   upi_id: string | null;
   /** IANA timezone written by the app; null until it has. */
   timezone: string | null;
+  /** Count ATM cash withdrawals as spend (default: they are transfers). Applies to captures the AI classifies as cash withdrawals. */
+  count_cash_withdrawals_as_spend: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -84,6 +86,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   reminder_hide_amounts: false,
   upi_id: null,
   timezone: null,
+  count_cash_withdrawals_as_spend: false,
 };
 
 export const SETTINGS_COLUMNS = Object.keys(DEFAULT_SETTINGS).join(',');
@@ -133,5 +136,6 @@ export function settingsFromRow(row: Record<string, unknown> | null | undefined)
     reminder_hide_amounts: bool('reminder_hide_amounts'),
     upi_id: typeof row['upi_id'] === 'string' && row['upi_id'] !== '' ? row['upi_id'] : null,
     timezone: typeof row['timezone'] === 'string' && row['timezone'] !== '' ? row['timezone'] : null,
+    count_cash_withdrawals_as_spend: bool('count_cash_withdrawals_as_spend'),
   };
 }

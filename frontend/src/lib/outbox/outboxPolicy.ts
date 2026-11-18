@@ -10,6 +10,11 @@ import type { OutboxItem } from "./outboxTypes";
 /** Waits before the 2nd, 3rd, ... try; the last value repeats. */
 export const BACKOFF_MS = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000] as const;
 
+/** Kinds whose replay must never outlive the idempotency window: an old edit or delete would be applied blind to a row that has moved on. */
+export function isDroppedWhenTooOld(item: Pick<OutboxItem, "kind">): boolean {
+  return item.kind === "update" || item.kind === "delete";
+}
+
 /** Matches the server's idempotency window (`MANUAL_CREATE_RETENTION_DAYS`) and its `captured_at` limit. */
 export const MAX_ITEM_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -116,6 +121,8 @@ export function itemAfterFailure(
         nextAttemptAt: limitResetAt(now, failure.retryAfterSeconds),
         lastError: failure.message,
       };
+    // A stale edit / delete is dropped by the drain before it gets here; a `failed` item is the safe fallback.
+    case "stale":
     case "fatal":
       return {
         ...item,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { listReminders } from '../src/features/reminders/service';
 import { USER_ID, call, makeEnv } from './helpers';
-import { oneRow, rowsOf, seedReminder, seedSettings, seedTransaction, seedUser, spyDb, testDb, uid } from './db';
+import { oneRow, rowsOf, seedReminder, seedReminderPayment, seedSettings, seedTransaction, seedUser, spyDb, testDb, uid } from './db';
 
 const IST = 'Asia/Kolkata';
 const OTHER = '33333333-3333-3333-3333-333333333333';
@@ -37,6 +37,8 @@ interface Reminder {
   status: string;
   completed_at: string | null;
   next_fire_at: string | null;
+  paid_total: string;
+  remaining: string | null;
   suggested_match: Match | null;
 }
 
@@ -99,6 +101,8 @@ describe('POST /reminders', () => {
       status: 'open',
       completed_at: null,
       next_fire_at: '2026-11-07T03:30:00.000Z', // 3 days before, 09:00 IST
+      paid_total: '0.00',
+      remaining: '15000.00',
       suggested_match: null,
     });
     expect(await dbRow(item.id)).toMatchObject({ amount: 1500000, payee_key: 'landlord', anchor_day: 10, fired_through: null, lead_days: null });
@@ -287,7 +291,7 @@ describe('POST /reminders/:id/complete', () => {
   });
 
   it('links the transaction when given; it must be the caller’s live one', async () => {
-    const tx = await seedTransaction({ counterparty_name: 'Landlord' });
+    const tx = await seedTransaction({ counterparty_name: 'Landlord', amount: '15000' });
     const { item } = await create();
     expect((await api(`/${item.id}/complete`, { method: 'POST', json: { transaction_id: uid() } })).status).toBe(400);
     await seedUser(OTHER);
@@ -298,6 +302,7 @@ describe('POST /reminders/:id/complete', () => {
     expect((await dbRow(item.id))?.['status']).toBe('open');
     expect((await api(`/${item.id}/complete`, { method: 'POST', json: { transaction_id: tx } })).status).toBe(200);
     expect(await dbRow(item.id)).toMatchObject({ status: 'done', completed_txn_id: tx });
+    expect(await rowsOf('reminder_payments')).toMatchObject([{ reminder_id: item.id, txn_id: tx, amount_cents: 1500000, due_date: '2026-11-10' }]);
   });
 
   it('completing twice changes nothing', async () => {
@@ -384,10 +389,17 @@ describe('suggested_match ("looks paid")', () => {
     expect(await matchOf(rent({ amount: undefined, counterparty_name: undefined }))).toBeNull();
   });
 
-  it('both present: a wrong amount or a wrong payee does not match', async () => {
-    await landlord({ amount: '14999' });
+  it('both present: a wrong payee, or an amount above what is still due, does not match', async () => {
+    await landlord({ amount: '15001' });
     await seedTransaction({ counterparty_name: 'Not the landlord', amount: '15000', type: 'debit', transaction_at: '2026-11-09T10:00:00.000Z' });
     expect(await matchOf()).toBeNull();
+  });
+
+  it('a payment of the right payee for less than what is due looks paid (a partial payment); without a payee only the exact amount does', async () => {
+    const part = await landlord({ amount: '14999' });
+    expect((await matchOf())?.transaction_id).toBe(part);
+    const small = await seedTransaction({ counterparty_name: 'Tea', amount: '20', type: 'debit', transaction_at: '2026-11-09T10:00:00.000Z' });
+    expect((await matchOf(rent({ counterparty_name: undefined })))?.transaction_id).not.toBe(small);
   });
 
   it('the window is [due - 7 days, due + 14 days] in local days: both edges, one second inside, one second out', async () => {
@@ -420,7 +432,8 @@ describe('suggested_match ("looks paid")', () => {
 
   it('a transaction that already completed a reminder is not suggested again; finished reminders carry no suggestion', async () => {
     const tx = await landlord();
-    await seedReminder({ title: 'Last month', status: 'done', completed_txn_id: tx, counterparty_name: 'Landlord', amount: '15000', due_date: '2026-10-10' });
+    const last = await seedReminder({ title: 'Last month', status: 'done', completed_txn_id: tx, counterparty_name: 'Landlord', amount: '15000', due_date: '2026-10-10' });
+    await seedReminderPayment({ reminder_id: last, txn_id: tx, cents: 1500000, due: '2026-10-10' });
     expect(await matchOf()).toBeNull();
     const fresh = await landlord({ transaction_at: '2026-11-08T10:00:00.000Z' });
     expect((await matchOf())?.transaction_id).toBe(fresh);
@@ -467,20 +480,20 @@ describe('suggested_match ("looks paid")', () => {
     // Completed again without a transaction (a single completed_txn_id would forget `paid` now): due 17 Nov, whose window still holds it.
     const again = await (await api(`/${id}/complete`, { method: 'POST', json: {} })).json<Reminder>();
     expect(again).toMatchObject({ due_date: '2026-11-17', suggested_match: null });
-    expect(JSON.parse((await dbRow(id))?.['used_txn_ids'] as string)).toEqual([paid]);
+    expect(await rowsOf('reminder_payments', 'txn_id = ?', paid)).toMatchObject([{ reminder_id: id, due_date: '2026-11-03', amount_cents: 1500000 }]);
     // A different payment in the same window is still suggested.
     const next = await seedTransaction({ counterparty_name: 'Landlord', amount: '15000', transaction_at: '2026-11-13T10:00:00.000Z' });
     expect((await list())[0]?.suggested_match?.transaction_id).toBe(next);
   });
 
-  it('keeps only the latest ten used transactions', async () => {
+  it('remembers every transaction a reminder was settled with, however many occurrences it went through', async () => {
     const id = await seedReminder({ cadence: 'weekly', due_date: '2026-11-03', amount: '1' });
     const ids: string[] = [];
     for (let i = 0; i < 12; i += 1) {
       ids.push(await seedTransaction({ counterparty_name: `P${i}`, amount: '5' }));
       await api(`/${id}/complete`, { method: 'POST', json: { transaction_id: ids[i] } });
     }
-    expect(JSON.parse((await dbRow(id))?.['used_txn_ids'] as string)).toEqual(ids.slice(-10));
+    expect((await rowsOf<{ txn_id: string }>('reminder_payments')).map((p) => p.txn_id)).toEqual(ids);
   });
 
   it('a whole list costs ONE transactions query, however many reminders', async () => {
@@ -583,5 +596,103 @@ describe('changing reminder settings re-plans what is already scheduled', () => 
     await testDb().prepare('UPDATE reminders SET next_fire_at = ?').bind('2030-01-01T00:00:00.000Z').run();
     await setSettings({ reminders_enabled: false });
     expect(await nextFire(id)).toBe('2026-11-07T03:30:00.000Z');
+  });
+});
+
+describe('reminder payments: partial payments, one settlement per transaction, deletes reopen', () => {
+  const noLimit = () => makeEnv({ WRITE_LIMITER: undefined });
+  const complete = (id: string, json: Record<string, unknown>) => api(`/${id}/complete`, { method: 'POST', json });
+  const paidTx = (amount: string, over: Record<string, unknown> = {}) => seedTransaction({ counterparty_name: 'Landlord', amount, type: 'debit', transaction_at: '2026-10-31T10:00:00.000Z', ...over });
+  const deleteTx = (id: string) => call(`/api/v1/transactions/${id}`, { method: 'DELETE', env: noLimit() });
+
+  it('a smaller payment records itself and keeps the reminder open with paid_total and remaining; the rest closes it', async () => {
+    const { item } = await create();
+    const first = await paidTx('6000');
+    const res = await complete(item.id, { transaction_id: first });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: 'open', paid_total: '6000.00', remaining: '9000.00', due_date: '2026-11-10', completed_at: null });
+    expect(await dbRow(item.id)).toMatchObject({ status: 'open', completed_txn_id: null });
+    expect((await list())[0]).toMatchObject({ paid_total: '6000.00', remaining: '9000.00' });
+
+    const second = await paidTx('9000');
+    expect(await (await complete(item.id, { transaction_id: second })).json()).toMatchObject({ status: 'done', paid_total: '15000.00', remaining: '0.00' });
+    expect(await dbRow(item.id)).toMatchObject({ status: 'done', completed_txn_id: second });
+    expect(await rowsOf('reminder_payments')).toHaveLength(2);
+  });
+
+  it('an amount without a transaction is a partial payment too; completing with nothing pays what is left', async () => {
+    const { item } = await create();
+    expect(await (await complete(item.id, { amount: '5000' })).json()).toMatchObject({ status: 'open', paid_total: '5000.00', remaining: '10000.00' });
+    expect(await rowsOf('reminder_payments')).toMatchObject([{ txn_id: null, amount_cents: 500000 }]);
+    expect(await (await complete(item.id, {})).json()).toMatchObject({ status: 'done', paid_total: '15000.00', remaining: '0.00' });
+  });
+
+  it('a payment over the due amount closes it; a reminder without an amount closes on any payment', async () => {
+    const { item } = await create();
+    expect(await (await complete(item.id, { transaction_id: await paidTx('16000') })).json()).toMatchObject({ status: 'done', paid_total: '16000.00', remaining: '0.00' });
+    const open = await create(rent({ amount: undefined, title: 'Gift' }));
+    expect(await (await complete(open.item.id, { transaction_id: await paidTx('50') })).json()).toMatchObject({ status: 'done', remaining: null });
+  });
+
+  it('a transaction settles at most one reminder: using it again, on another reminder, is a 409 and records nothing', async () => {
+    const a = await create(rent({ amount: '6000', title: 'A' }));
+    const b = await create(rent({ amount: '6000', title: 'B' }));
+    const tx = await paidTx('6000');
+    expect((await complete(a.item.id, { transaction_id: tx })).status).toBe(200);
+    const clash = await complete(b.item.id, { transaction_id: tx });
+    expect(clash.status).toBe(409);
+    expect(await dbRow(b.item.id)).toMatchObject({ status: 'open' });
+    expect(await rowsOf('reminder_payments')).toHaveLength(1);
+    // The database refuses it too, whatever the service does.
+    await expect(seedReminderPayment({ reminder_id: b.item.id, txn_id: tx, cents: 100, due: '2026-11-10' })).rejects.toThrow(/UNIQUE/i);
+  });
+
+  it('retrying the same completion is not a conflict and records the payment once', async () => {
+    const { item } = await create();
+    const tx = await paidTx('6000');
+    expect((await complete(item.id, { transaction_id: tx })).status).toBe(200);
+    expect((await complete(item.id, { transaction_id: tx })).status).toBe(200);
+    expect(await rowsOf('reminder_payments')).toHaveLength(1);
+  });
+
+  it('deleting the settling transaction reopens a one-off whose occurrence is no longer covered', async () => {
+    const { item } = await create();
+    const tx = await paidTx('15000');
+    await complete(item.id, { transaction_id: tx });
+    expect(await dbRow(item.id)).toMatchObject({ status: 'done' });
+    expect((await deleteTx(tx)).status).toBe(204);
+    expect(await rowsOf('reminder_payments')).toHaveLength(0);
+    expect(await dbRow(item.id)).toMatchObject({ status: 'open', completed_at: null, completed_txn_id: null });
+    const reopened = (await list())[0];
+    expect(reopened).toMatchObject({ status: 'open', paid_total: '0.00', remaining: '15000.00' });
+    expect(reopened?.next_fire_at).not.toBeNull();
+  });
+
+  it('deleting one of two payments that together settled it reopens it; deleting a partial one only lowers paid_total', async () => {
+    const { item } = await create();
+    const first = await paidTx('6000');
+    const second = await paidTx('9000');
+    await complete(item.id, { transaction_id: first });
+    await complete(item.id, { transaction_id: second });
+    expect(await dbRow(item.id)).toMatchObject({ status: 'done' });
+    await deleteTx(first);
+    expect((await list())[0]).toMatchObject({ status: 'open', paid_total: '9000.00', remaining: '6000.00' });
+    await deleteTx(second);
+    expect((await list())[0]).toMatchObject({ status: 'open', paid_total: '0.00', remaining: '15000.00' });
+  });
+
+  it('a repeating reminder that moved on goes back to the occurrence its deleted payment had settled', async () => {
+    const id = await seedReminder({ cadence: 'monthly', due_date: '2026-11-10', amount: '15000', counterparty_name: 'Landlord' });
+    const tx = await paidTx('15000');
+    expect((await (await complete(id, { transaction_id: tx })).json<Reminder>()).due_date).toBe('2026-12-10');
+    await deleteTx(tx);
+    expect(await dbRow(id)).toMatchObject({ status: 'open', due_date: '2026-11-10' });
+  });
+
+  it('deleting a transaction that settled nothing, or restoring a deleted one, leaves reminders alone', async () => {
+    const { item } = await create();
+    const other = await paidTx('15000');
+    expect((await deleteTx(other)).status).toBe(204);
+    expect(await dbRow(item.id)).toMatchObject({ status: 'open' });
   });
 });

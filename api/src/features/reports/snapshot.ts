@@ -1,8 +1,8 @@
 import { formatCents } from '../../core/decimal';
-import { dateKey, localDate } from '../../core/timezone';
-import { daysInMonth, weekdayMon0 } from '../agent/dates';
-import { IST } from '../email/periods';
+import { dateKey, daysInMonth, monthKey } from '../../core/timezone';
+import { weekdayMon0 } from '../agent/dates';
 import { share } from '../insights/rollup';
+import { parseDateKey } from '../recurring/schedule';
 import { REPORT_VERSION } from './schemas';
 import type { ReportCategory, ReportSlide, ReportSnapshot, ReportTitle, ReportWin } from './schemas';
 
@@ -27,9 +27,12 @@ const UNCATEGORIZED = 'Uncategorized';
 const UNKNOWN_PAYEE_KEY = 'unknown';
 
 export interface ReportDebit {
+  /** What the spend really cost: its amount minus the paybacks linked to it. */
   amountCents: number;
-  /** ISO UTC instant. */
+  /** ISO UTC instant (orders a payee's names). */
   at: string;
+  /** The calendar day the row was filed under, in its owner's timezone (`YYYY-MM-DD`). */
+  localDate: string;
   payeeKey: string;
   /** Display name as typed (counterparty_name); null/blank = unknown. */
   name: string | null;
@@ -54,17 +57,15 @@ export interface SnapshotInput {
   year: number;
   month: number;
   nowIso: string;
-  /** Every non-deleted debit of the month (IST bounds). */
+  /** The timezone the month was cut in (the user's); recorded in the snapshot. */
+  timezone: string;
+  /** Every flexible (everyday) spend of the month: fixed money, transfers and paybacks are not in it. */
   debits: readonly ReportDebit[];
   incomeCents: number;
   categories: ReadonlyMap<string, CategoryInfo>;
   /** Earlier complete months with data inside the last `HISTORY_MONTHS`, any order. */
   earlier: readonly EarlierMonth[];
 }
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-export const periodKeyOf = (year: number, month: number): string => `${String(year).padStart(4, '0')}-${pad2(month)}`;
 
 /** Middle value; the mean (rounded) of the two middle values for an even count; 0 for none. */
 export function medianCents(values: readonly number[]): number {
@@ -82,7 +83,7 @@ export function isNotable(deltaCents: number, usualCents: number): boolean {
   return abs >= NOTABLE_MIN_CENTS && abs * NOTABLE_FRACTION_DENOMINATOR >= usualCents;
 }
 
-/** Group the history query's rows (`ym` = IST `YYYY-MM`, `category_id` null = uncategorized) into per-month totals. */
+/** Group the history query's rows (`ym` = the rows' stored `YYYY-MM`, `category_id` null = uncategorized) into per-month totals. */
 export function historyFromRows(rows: readonly { ym: string; category_id: string | null; total: number }[]): EarlierMonth[] {
   const months = new Map<string, EarlierMonth & { byCategory: Map<string, number> }>();
   for (const row of rows) {
@@ -261,7 +262,7 @@ export function buildSnapshot(input: SnapshotInput): ReportSnapshot {
   let firstWeekCents = 0;
   let biggest: { debit: ReportDebit; date: string } | null = null;
   for (const debit of debits) {
-    const local = localDate(IST, Date.parse(debit.at));
+    const local = parseDateKey(debit.localDate);
     const date = dateKey(local);
     addTo(byCategory, debit.categoryId ?? '', debit.amountCents);
     addTo(byDay, date, debit.amountCents);
@@ -336,10 +337,10 @@ export function buildSnapshot(input: SnapshotInput): ReportSnapshot {
 
   return {
     version: REPORT_VERSION,
-    period_key: periodKeyOf(year, month),
+    period_key: monthKey(year, month),
     year,
     month,
-    timezone: IST,
+    timezone: input.timezone,
     generated_at: input.nowIso,
     slides: slidesFor({ hasTopPayee: topPayee !== null, hasBiggest: biggestSpend !== null, debitCount: debits.length, win }),
     debit_count: debits.length,

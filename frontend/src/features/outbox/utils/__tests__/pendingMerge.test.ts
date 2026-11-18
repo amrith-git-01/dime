@@ -132,6 +132,42 @@ describe("totals", () => {
   });
 });
 
+describe("kinds: a transfer is in neither total, like on the server", () => {
+  function waiting(kind: "spend" | "income" | "transfer", type: "debit" | "credit", amount: string) {
+    const item = manualItem({ id: `${kind}-${type}` });
+    const row = pendingRowFromItem(
+      { ...item, preview: { ...item.preview!, kind, type, amount } },
+      "u1",
+    );
+    if (!row) throw new Error("expected a row");
+    return row;
+  }
+
+  it("a row without a kind in its preview gets the direction's default (and shows it)", () => {
+    expect(pendingRowFromItem(manualItem(), "u1")).toMatchObject({ kind: "spend", effective_amount: "250.00", offset_total: "0.00" });
+    const credit = manualItem();
+    expect(pendingRowFromItem({ ...credit, preview: { ...credit.preview!, type: "credit" } }, "u1")).toMatchObject({ kind: "income" });
+  });
+
+  it("counts spend and income, never a transfer, but still counts the transaction", () => {
+    const totals = pendingTotals([
+      waiting("spend", "debit", "100.00"),
+      waiting("income", "credit", "40.00"),
+      waiting("transfer", "debit", "3000.00"),
+      waiting("transfer", "credit", "500.00"),
+    ]);
+    expect(totals).toEqual({ debitPaise: 10_000, creditPaise: 4_000, count: 4 });
+  });
+
+  it("keeps transfers out of the day totals too", () => {
+    const days = addPendingToDaySummaries({}, [waiting("transfer", "debit", "3000.00"), waiting("spend", "debit", "100.00")]);
+    const day = Object.values(days)[0]!;
+    expect(day.debit_total).toBe("100.00");
+    expect(day.credit_total).toBe("0.00");
+    expect(day.transaction_count).toBe(2);
+  });
+});
+
 describe("addPendingToDaySummaries", () => {
   const day = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

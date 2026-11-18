@@ -22,6 +22,11 @@ export type RecurringItem = {
   note: string | null;
   /** Days before the due date a reminder is sent (1..30); null or absent means off. */
   remind_lead_days?: number[] | null;
+  /**
+   * What it posts counts toward the monthly budget. Off by default: rent, EMI and insurance are committed money,
+   * not budget. Absent on servers that predate the money model (read as off).
+   */
+  counts_toward_budget?: boolean;
   monthly_equivalent: string;
   created_at: string;
   updated_at: string;
@@ -49,6 +54,8 @@ export type CreateRecurringBody = {
   note?: string;
   active?: boolean;
   post_current_period?: boolean;
+  /** Omitted means off. */
+  counts_toward_budget?: boolean;
   /** Omitted means no reminder. */
   remind_lead_days?: number[];
 };
@@ -79,6 +86,8 @@ export type RecurringFormState = {
   postCurrentPeriod: boolean;
   /** Days before the due date to be reminded; empty means no reminder. */
   remindLeadDays: number[];
+  /** What it posts counts toward the monthly budget (bills only; income never does). */
+  countsTowardBudget: boolean;
 };
 
 /** paid: posted this month; skipped: posted, then deleted; upcoming: active and not posted yet. */

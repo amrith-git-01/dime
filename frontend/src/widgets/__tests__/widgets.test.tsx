@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import type { WidgetInfo, WidgetRepresentation } from "react-native-android-widget";
 
+import { CACHE_SCHEMA_VERSION } from "@/lib/cacheVersion";
 import { cardLinkUrl, deepLinkUrls } from "@/lib/deepLinks/deepLinkUrls";
 import { getWidgetCardToken } from "@/lib/widgets/widgetCardToken";
 import { setHideWidgetAmounts } from "@/lib/widgets/widgetPreferences";
@@ -60,14 +61,16 @@ const SNAPSHOT_FULL: Omit<WidgetSnapshot, "version"> = {
   spentThisMonth: 6177,
   recurringSpent: 2000,
   flexibleSpent: 4177,
+  budgetSpent: 4177,
+  committed: 2000,
   monthlyBudget: 30000,
-  budgetLeft: 23823,
+  budgetLeft: 25823,
   topCategories: [
     { id: "food", name: "Food", color: "#112233", iconName: null, spent: 1535, budget: 5000 },
     { id: "fuel", name: "Fuel", color: null, iconName: null, spent: 800, budget: null },
   ],
 };
-const SNAPSHOT: WidgetSnapshot = { ...SNAPSHOT_FULL, version: 2 };
+const SNAPSHOT: WidgetSnapshot = { ...SNAPSHOT_FULL, version: CACHE_SCHEMA_VERSION };
 
 function writeSnapshot(overrides: Record<string, unknown> = {}): void {
   writeWidgetSnapshot({ ...SNAPSHOT_FULL, ...overrides });
@@ -82,8 +85,8 @@ describe("buildDimeWidgetModel", () => {
       signedOut: false,
       title: "This month",
       amount: inr(6177),
-      budgetLine: `${inr(23823)} left of ${inr(30000)}`,
-      progressPercent: 21,
+      budgetLine: `${inr(25823)} left of ${inr(30000)}`,
+      progressPercent: 14,
       overBudget: false,
       splitLine: `Recurring ${formatInrChartAxis(2000)} · Flexible ${formatInrChartAxis(4177)}`,
       status: null,
@@ -93,7 +96,7 @@ describe("buildDimeWidgetModel", () => {
       { id: "fuel", name: "Fuel", color: null, amountText: inr(800), percent: 52, overBudget: false },
     ]);
     expect(model.accessibilityLabel).toBe(
-      `Dime this month. Spent ${inr(6177)}. ${inr(23823)} left of ${inr(30000)}. Opens Dime.`,
+      `Dime this month. Spent ${inr(6177)}. ${inr(25823)} left of ${inr(30000)}. Opens Dime.`,
     );
   });
 
@@ -111,8 +114,10 @@ describe("buildDimeWidgetModel", () => {
     const model = buildDimeWidgetModel(
       {
         ...SNAPSHOT,
-        spentThisMonth: 31000,
-        budgetLeft: 0,
+        spentThisMonth: 32500,
+        budgetSpent: 32500,
+        // The server's signed figure: 2,500 over, never "0 left".
+        budgetLeft: -2500,
         topCategories: [
           { id: "fun", name: "Fun", color: null, iconName: null, spent: 600, budget: 500 },
         ],
@@ -120,6 +125,7 @@ describe("buildDimeWidgetModel", () => {
       NOW,
     );
     expect(model.overBudget).toBe(true);
+    expect(model.budgetLine).toBe(`${inr(2500)} over ${inr(30000)}`);
     expect(model.progressPercent).toBe(100);
     expect(model.categories[0]).toMatchObject({ overBudget: true, percent: 100 });
   });

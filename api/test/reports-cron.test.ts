@@ -8,7 +8,7 @@ import { fanOutReports, isReportFanOutDay } from '../src/features/reports/fanout
 import { reportReadyCopy } from '../src/features/reports/service';
 import { FakeMessage, FakeQueue } from './ingest-fixtures';
 import { USER_ID, call, makeEnv } from './helpers';
-import { failingDb, failingOn, rowsOf, seedPushToken, seedSettings, seedTransaction, seedUser, spyDb, testDb } from './db';
+import { failingDb, failingOn, rowsOf, seedEmailSend, seedPushToken, seedSettings, seedTransaction, seedUser, spyDb, testDb } from './db';
 import { json, useSupabaseStub } from './supabase-stub';
 
 const stub = useSupabaseStub();
@@ -93,7 +93,7 @@ describe('report fan-out', () => {
     const queue = new FakeQueue();
     const result = await fanOutReports({ db: testDb(), queue, nowMs: NOV_1 });
 
-    expect(result).toEqual({ periodKey: '2026-10', selected: 3, queued: 3, failed: 0 });
+    expect(result).toEqual({ periodKey: '2026-10', selected: 3, queued: 3, failed: 0, pages: 1 });
     expect(queue.sent).toEqual([reportBody(USER_ID), reportBody(U2), reportBody(U3)]);
   });
 
@@ -105,7 +105,7 @@ describe('report fan-out', () => {
 
     const queue = new FakeQueue();
     const day2 = Date.parse('2026-11-02T02:30:00Z');
-    expect(await fanOutReports({ db: testDb(), queue, nowMs: day2 })).toEqual({ periodKey: '2026-10', selected: 2, queued: 2, failed: 0 });
+    expect(await fanOutReports({ db: testDb(), queue, nowMs: day2 })).toEqual({ periodKey: '2026-10', selected: 2, queued: 2, failed: 0, pages: 1 });
     expect(queue.sent).toEqual([reportBody(U2), reportBody(U3)]);
 
     // Everyone caught up: nothing left to pick.
@@ -194,7 +194,7 @@ describe('report fan-out', () => {
       },
     };
     const result = await fanOutReports({ db: testDb(), queue: flaky, nowMs: NOV_1 });
-    expect(result).toEqual({ periodKey: '2026-10', selected: 250, queued: 150, failed: 100 });
+    expect(result).toEqual({ periodKey: '2026-10', selected: 250, queued: 150, failed: 100, pages: 1 });
     expect(sent).toEqual([100, 50]);
   });
 
@@ -207,14 +207,16 @@ describe('report fan-out', () => {
     expect(queue.sent).toEqual([reportBody(U2, '2026-09')]);
   });
 
-  it('counts the month in IST: 19:00Z on Sep 30 is an October debit', async () => {
+  it('counts the month a row was filed under (the seed files by IST): 19:00Z on Sep 30 is an October spend', async () => {
     for (let i = 0; i < 4; i += 1) await seedTransaction({ transaction_at: `2026-10-0${i + 2}T10:00:00.000Z` });
     const queue = new FakeQueue();
     expect((await fanOutReports({ db: testDb(), queue, nowMs: NOV_1 })).queued).toBe(0);
     await seedTransaction({ transaction_at: '2026-09-30T19:00:00.000Z' });
     expect((await fanOutReports({ db: testDb(), queue, nowMs: NOV_1 })).queued).toBe(1);
     // ...and one at 18:30Z on Oct 31 is already a November one.
-    await testDb().prepare("UPDATE transactions SET transaction_at = '2026-10-31T18:30:00.000Z' WHERE transaction_at = '2026-09-30T19:00:00.000Z'").run();
+    await testDb()
+      .prepare("UPDATE transactions SET transaction_at = '2026-10-31T18:30:00.000Z', local_date = '2026-11-01', month_key = '2026-11' WHERE transaction_at = '2026-09-30T19:00:00.000Z'")
+      .run();
     expect((await fanOutReports({ db: testDb(), queue, nowMs: NOV_1 })).queued).toBe(0);
   });
 
@@ -256,6 +258,46 @@ describe('cron entry point (runDigestCron)', () => {
       await runDigestCron(makeEnv({ EMAIL_QUEUE: queue }), Date.parse(at));
       expect(queue.sent.length, at).toBe(expected);
     }
+  });
+
+  it('the weekly and monthly digests catch up on their next two days, queueing only users whose email is not sent yet', async () => {
+    const other = '22222222-2222-2222-2222-222222222222';
+    await seedUser(other);
+    await seedSettings({ weekly_email_enabled: 1, monthly_email_enabled: 1 });
+    await seedSettings({ weekly_email_enabled: 1, monthly_email_enabled: 1 }, other);
+    // Tuesday 2 Jun 2026: a catch-up day of both the week (Monday was 1 Jun) and the month (day 2). The previous week is 2026-W22, the month 2026-05.
+    const day2 = Date.parse('2026-06-02T02:30:00Z');
+    await seedEmailSend({ kind: 'weekly', period_key: '2026-W22', status: 'sent' });
+    await seedEmailSend({ kind: 'monthly', period_key: '2026-05', status: 'sent' });
+    const queue = new FakeQueue();
+    await runDigestCron(makeEnv({ ...EMAIL_ENV, EMAIL_QUEUE: queue }), day2);
+    expect(queue.sent).toEqual(
+      expect.arrayContaining([
+        { type: 'digest', user_id: other, kind: 'weekly', period_key: '2026-W22' },
+        { type: 'digest', user_id: other, kind: 'monthly', period_key: '2026-05' },
+      ]),
+    );
+    expect(queue.sent.filter((m) => (m as { type: string }).type === 'digest')).toHaveLength(2); // USER_ID already has both
+    // Thursday 4 Jun: the catch-up days are over.
+    const later = new FakeQueue();
+    await runDigestCron(makeEnv({ ...EMAIL_ENV, EMAIL_QUEUE: later }), Date.parse('2026-06-04T02:30:00Z'));
+    expect(later.sent).toEqual([]);
+  });
+
+  it('a digest chunk the queue refuses fails the run after the other chunks went out', async () => {
+    await seedManyDigestUsers(150);
+    let calls = 0;
+    const sent: number[] = [];
+    const flaky = {
+      sendBatch: (msgs: Iterable<unknown>) => {
+        calls += 1;
+        if (calls === 1) return Promise.reject(new Error('queue hiccup'));
+        sent.push([...msgs].length);
+        return Promise.resolve();
+      },
+    };
+    await expect(runDigestCron(makeEnv({ ...EMAIL_ENV, EMAIL_QUEUE: flaky }), Date.parse('2026-06-01T02:30:00Z'))).rejects.toThrow('digest fan-out: 100 of 150');
+    expect(sent).toEqual([50]);
   });
 
   it('day 2 queues only users missing their report; day 4 queues nothing', async () => {
@@ -305,7 +347,7 @@ describe('cron entry point (runDigestCron)', () => {
     await seedOctober(USER_ID);
     await seedSettings({ monthly_email_enabled: 1, weekly_email_enabled: 0 });
     const queue = new FakeQueue();
-    const env = makeEnv({ ...EMAIL_ENV, EMAIL_QUEUE: queue, DB: failingOn(/NOT EXISTS/, 'D1_ERROR: boom') });
+    const env = makeEnv({ ...EMAIL_ENV, EMAIL_QUEUE: queue, DB: failingOn(/FROM monthly_reports r/, 'D1_ERROR: boom') });
     await expect(runDigestCron(env, NOV_1)).rejects.toThrow('boom');
     expect(queue.sent).toEqual([{ type: 'digest', user_id: USER_ID, kind: 'monthly', period_key: '2026-10' }]);
   });
@@ -589,3 +631,15 @@ describe('POST /api/v1/internal/reports/run (manual trigger)', () => {
     expect(queue.sent).toHaveLength(1);
   });
 });
+
+/** `n` users with the monthly digest on and nothing else (the digest queue only needs the setting). */
+async function seedManyDigestUsers(n: number) {
+  const db = testDb();
+  const users = Array.from({ length: n }, (_, i) => `d${String(i).padStart(5, '0')}`);
+  const insertUser = db.prepare("INSERT INTO users (id, created_at, updated_at) VALUES (?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')");
+  const insertSettings = db.prepare('INSERT INTO user_settings (user_id, monthly_email_enabled, weekly_email_enabled) VALUES (?, 1, 0)');
+  for (let i = 0; i < users.length; i += 50) {
+    const part = users.slice(i, i + 50);
+    await db.batch([...part.map((id) => insertUser.bind(id)), ...part.map((id) => insertSettings.bind(id))]);
+  }
+}

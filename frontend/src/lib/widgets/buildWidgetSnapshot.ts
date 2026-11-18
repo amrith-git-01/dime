@@ -1,13 +1,9 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-import type { BudgetGetResponse } from "@/features/budgets/api/budgetsApi";
 import type { CategoryBudgetItem } from "@/features/budgets/api/categoryBudgetsApi";
-import {
-  budgetQueryKeys,
-  categoryBudgetsQueryKeys,
-} from "@/features/budgets/queryKeys";
-import { computeMonthlyBudgetMath } from "@/features/home/utils/monthlyBudgetMath";
+import { categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
+import { resolveMonthBudget } from "@/features/budgets/utils/monthBudget";
 import { UNCATEGORIZED_CATEGORY_KEY } from "@/features/transactions/constants/uncategorizedCategoryKey";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview } from "@/features/transactions/types";
@@ -27,9 +23,8 @@ export type WidgetSnapshotData = {
   userId: string;
   /** When the home overview was fetched (epoch ms). */
   updatedAt: number;
+  /** The server's month picture: its `monthly_budget` / `budget_spent` / `budget_left` are what the widget shows. */
   overview: HomeOverview;
-  /** `monthly_budget` decimal string of the user's budget; absent when none is set. */
-  monthlyBudget: string | null | undefined;
   categoryBudgets: readonly CategoryBudgetItem[];
 };
 
@@ -38,10 +33,7 @@ export function buildWidgetSnapshotFromData(
   data: WidgetSnapshotData,
 ): Omit<WidgetSnapshot, "version"> {
   const { overview } = data;
-  const math = computeMonthlyBudgetMath(
-    data.monthlyBudget,
-    overview.spent_this_month,
-  );
+  const month = resolveMonthBudget(overview, { fixedSpend: overview.fixed_spent_this_month });
   const categoryBudgets = new Map(
     data.categoryBudgets.map((item) => [item.category_id, rupees(item.monthly_amount)]),
   );
@@ -53,11 +45,11 @@ export function buildWidgetSnapshotFromData(
     spentThisMonth: rupees(overview.spent_this_month),
     recurringSpent: rupees(overview.fixed_spent_this_month),
     flexibleSpent: rupees(overview.flexible_spent_this_month),
-    monthlyBudget: math.hasMonthlyBudget ? math.monthlyBudget : null,
-    budgetLeft:
-      math.hasMonthlyBudget && Number.isFinite(math.monthlyLeft)
-        ? math.monthlyLeft
-        : null,
+    budgetSpent: month.spent,
+    committed: month.committed,
+    monthlyBudget: month.hasBudget ? month.budget : null,
+    // Signed: negative means over budget.
+    budgetLeft: month.left,
     topCategories: (overview.top_categories ?? [])
       .slice(0, MAX_CATEGORIES)
       .map((row) => ({
@@ -97,9 +89,6 @@ export function buildWidgetSnapshot(input: {
     userId,
     updatedAt,
     overview,
-    monthlyBudget: queryClient.getQueryData<BudgetGetResponse>(
-      budgetQueryKeys.current(userId),
-    )?.budget?.monthly_budget,
     categoryBudgets:
       queryClient.getQueryData<CategoryBudgetItem[]>(
         categoryBudgetsQueryKeys.list(userId),

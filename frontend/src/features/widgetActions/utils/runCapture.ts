@@ -3,6 +3,8 @@ import type { SubmittedCapture } from "@/features/transactions/api/submitTransac
 import {
   addedText,
   CAPTURE_FAILED_TEXT,
+  foreignAmountText,
+  needsReviewText,
   READING_RECEIPT_TEXT,
   READING_VOICE_TEXT,
   STILL_READING_TEXT,
@@ -11,7 +13,14 @@ import { pollIngestJob } from "./pollIngestJob";
 import { applyCaptureOutcome, markCaptureFailed, markCaptureReading } from "./settleCapture";
 
 /** Where the card's pill is: sending, waiting for the server to read it, or one of the three endings. */
-export type CapturePhase = "uploading" | "reading" | "added" | "failed" | "timeout";
+export type CapturePhase =
+  | "uploading"
+  | "reading"
+  | "added"
+  | "failed"
+  | "timeout"
+  /** Read, but in a foreign currency: the card offers the manual form (see `CaptureResult.review`). */
+  | "needs_review";
 
 export type CaptureKind = "receipt" | "voice";
 
@@ -22,7 +31,12 @@ const UPLOADING_TEXT = "Uploading…";
  * answer, so a retry must reuse the Idempotency-Key) or `job` (the server accepted it and the job
  * failed: the key now belongs to that failed job, so a retry needs a new key).
  */
-export type CaptureResult = { phase: CapturePhase; failure?: "submit" | "job" };
+export type CaptureResult = {
+  phase: CapturePhase;
+  failure?: "submit" | "job";
+  /** `needs_review` only: what the capture read, to open the manual form with. */
+  review?: { payee: string | null; read: string };
+};
 
 type RunCaptureInput = {
   userId: string;
@@ -89,6 +103,17 @@ export async function runCapture({
             )
           : "Added",
       );
+    }
+    case "needs_review": {
+      const text = needsReviewText(outcome.currency, outcome.amount);
+      onPhase("needs_review", text);
+      return {
+        phase: "needs_review",
+        review: {
+          payee: outcome.counterpartyName,
+          read: foreignAmountText(outcome.currency, outcome.amount),
+        },
+      };
     }
     case "failed":
       return end("failed", CAPTURE_FAILED_TEXT, "job");

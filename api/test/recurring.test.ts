@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { postDueRecurring } from '../src/features/recurring/poster';
+import { POST_BATCH, postDueRecurring } from '../src/features/recurring/poster';
 import { dueInstantMs, firstDueFrom, nextAfter, parseDateKey } from '../src/features/recurring/schedule';
 import { USER_ID, call, makeEnv, signToken } from './helpers';
 import { oneRow, rowsOf, seedBudget, seedCategory, seedTransaction, seedUser, testDb, uid } from './db';
@@ -52,6 +52,9 @@ interface Tx {
   transaction_at: string;
   payment_hash: string | null;
   recurring_item_id: string | null;
+  recurring_occurrence: string | null;
+  local_date: string | null;
+  kind: string;
   counterparty_name: string;
   category_id: string | null;
   detected_via: string;
@@ -94,14 +97,15 @@ async function seedItem(over: Partial<Record<string, string | number | null>> = 
     next_due_date: '2026-10-15',
     active: 1,
     note: null,
+    counts_toward_budget: 0,
     ...over,
   };
   await testDb()
     .prepare(
-      `INSERT INTO recurring_items (id, user_id, kind, name, amount, category_id, cadence, day_of_month, month_of_year, timezone, next_due_date, active, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recurring_items (id, user_id, kind, name, amount, category_id, cadence, day_of_month, month_of_year, timezone, next_due_date, active, note, counts_toward_budget)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(row.id, row.user_id, row.kind, row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note)
+    .bind(row.id, row.user_id, row.kind, row.name, row.amount, row.category_id, row.cadence, row.day_of_month, row.month_of_year, row.timezone, row.next_due_date, row.active, row.note, row.counts_toward_budget)
     .run();
   return id;
 }
@@ -243,7 +247,10 @@ describe('CRUD and isolation', () => {
     expect(await status({ name: '   ' })).toBe(422);
     expect(await status({ kind: 'loan' })).toBe(422);
     expect(await status({ timezone: 'Mars/Base' })).toBe(400);
-    expect(await status({ amount: '9999999999.99' })).toBe(201); // 10 whole digits is the maximum
+    expect(await status({ amount: '10000000' })).toBe(201); // Rs 1,00,00,000.00 is the maximum
+    expect(await status({ amount: '10000000.01' })).toBe(422);
+    expect(await status({ amount: '9999999999.99' })).toBe(422);
+    expect(await status({ amount: '12.505' })).toBe(422); // a third decimal is refused, never rounded
     expect(await status({ day_of_month: 31 })).toBe(201);
     expect(await status({ cadence: 'yearly', month_of_year: 2 })).toBe(201);
     // PATCH: switching to yearly needs a month; kind cannot change.
@@ -285,7 +292,8 @@ describe('creating: never backfill', () => {
       category_id: SALARY,
       detected_via: 'manual',
       recurring_item_id: item.id,
-      payment_hash: `recurring:${item.id}:2026-10-05`,
+      recurring_occurrence: '2026-10-05',
+      local_date: '2026-10-05',
       transaction_at: '2026-10-05T00:30:00.000Z',
     });
     // The cron has nothing left for this period.
@@ -309,7 +317,7 @@ describe('creating: never backfill', () => {
     expect((await create(salary({ cadence: 'yearly', month_of_year: 12, day_of_month: 25 }))).item.next_due_date).toBe('2026-12-25');
     const posted = await create(salary({ name: 'Bonus', cadence: 'yearly', month_of_year: 3, day_of_month: 1, post_current_period: true }));
     expect(posted.item.next_due_date).toBe('2027-03-01');
-    expect((await txs())[0]).toMatchObject({ transaction_at: '2026-03-01T00:30:00.000Z', payment_hash: `recurring:${posted.item.id}:2026-03-01` });
+    expect((await txs())[0]).toMatchObject({ transaction_at: '2026-03-01T00:30:00.000Z', recurring_occurrence: '2026-03-01' });
   });
 });
 
@@ -332,7 +340,8 @@ describe('the cron', () => {
       note: 'family plan',
       recurring_item_id: item.id,
       transaction_at: '2026-10-15T00:30:00.000Z',
-      payment_hash: `recurring:${item.id}:2026-10-15`,
+      recurring_occurrence: '2026-10-15',
+      local_date: '2026-10-15',
     });
     expect(await nextDue(item.id)).toBe('2026-11-15');
   });
@@ -351,7 +360,7 @@ describe('the cron', () => {
     await cron(now);
     expect(await txs()).toHaveLength(1);
     await testDb().prepare("UPDATE recurring_items SET next_due_date = '2026-10-15' WHERE id = ?").bind(id).run();
-    expect(await cron(now)).toEqual({ due: 1, posted: 0 }); // the hash already exists: nothing new, but it advances
+    expect(await cron(now)).toEqual({ due: 0, posted: 0 }); // the occurrence has its row: nothing new, and the cache is repaired
     expect(await txs()).toHaveLength(1);
     expect(await nextDue(id)).toBe('2026-11-15');
   });
@@ -472,26 +481,52 @@ describe('the cron', () => {
     expect(await nextDue(id)).toBe('2026-11-15');
   });
 
-  it('catches up one period per run, oldest first', async () => {
+  it('missed runs catch up in one run, oldest first, without duplicates', async () => {
     const id = await seedItem({ next_due_date: '2026-08-15' });
     const now = at(2026, 10, 20);
-    await cron(now);
-    expect((await txs()).map((t) => t.transaction_at)).toEqual(['2026-08-15T00:30:00.000Z']);
-    expect(await nextDue(id)).toBe('2026-09-15');
-    await cron(now);
-    await cron(now);
+    expect(await cron(now)).toEqual({ due: 3, posted: 3 });
     expect((await txs()).map((t) => t.transaction_at.slice(0, 10))).toEqual(['2026-08-15', '2026-09-15', '2026-10-15']);
+    expect((await txs()).map((t) => t.recurring_occurrence)).toEqual(['2026-08-15', '2026-09-15', '2026-10-15']);
     expect(await nextDue(id)).toBe('2026-11-15');
     expect(await cron(now)).toEqual({ due: 0, posted: 0 });
+    expect(await txs()).toHaveLength(3);
   });
 
-  it('a failing item does not stop the others; a debit runs the budget alerts like a manual one', async () => {
+  it('a cron that was down for a while posts what it missed, skipping the occurrences already there', async () => {
+    const id = await seedItem({ next_due_date: '2026-08-15' });
+    await seedTransaction({ recurring_item_id: id, recurring_occurrence: '2026-09-15', transaction_at: '2026-09-15T00:30:00.000Z', amount: '649' });
+    expect(await cron(at(2026, 10, 20))).toEqual({ due: 2, posted: 2 });
+    expect((await txs()).map((t) => t.recurring_occurrence).sort()).toEqual(['2026-08-15', '2026-09-15', '2026-10-15']);
+  });
+
+  it('caps the postings of one run and drains the rest on the next', async () => {
+    const id = await seedItem({ next_due_date: '2020-01-15' });
+    const now = at(2026, 10, 20);
+    const first = await cron(now);
+    expect(first).toEqual({ due: POST_BATCH, posted: POST_BATCH });
+    expect(await nextDue(id)).not.toBe('2026-11-15');
+    await cron(now);
+    await cron(now);
+    // 2020-01 .. 2026-10 is 82 months: every one exactly once.
+    expect(await txs()).toHaveLength(82);
+    expect(new Set((await txs()).map((t) => t.recurring_occurrence)).size).toBe(82);
+    expect(await nextDue(id)).toBe('2026-11-15');
+  }, 60_000);
+
+  it('a failing item does not stop the others; a debit of an item that counts toward the budget runs the budget alerts', async () => {
     await seedBudget({ monthly: '500' });
     await seedItem({ name: 'Broken', timezone: 'Not/AZone' });
-    await seedItem({ name: 'Netflix', amount: 64900 });
+    await seedItem({ name: 'Netflix', amount: 64900, counts_toward_budget: 1 });
     expect(await cron(at(2026, 10, 15))).toEqual({ due: 1, posted: 1 });
     expect((await txs()).map((t) => t.counterparty_name)).toEqual(['Netflix']);
-    expect((await rowsOf('notifications')).length).toBeGreaterThan(0);
+    expect(await rowsOf('notifications')).toMatchObject([{ dedupe_key: 'budget:monthly:100:2026-10' }]);
+  });
+
+  it('committed money (an item that does not count toward the budget) posts without any budget alert', async () => {
+    await seedBudget({ monthly: '500' });
+    await seedItem({ name: 'Rent', amount: 1500000 });
+    expect(await cron(at(2026, 10, 15))).toEqual({ due: 1, posted: 1 });
+    expect(await rowsOf('notifications')).toHaveLength(0);
   });
 });
 
@@ -584,5 +619,172 @@ describe('GET /recurring/month', () => {
     expect((await month(2026, 10)).items).toEqual([]);
     expect((await call('/api/v1/recurring/month?year=2026&month=13')).status).toBe(422);
     expect((await call('/api/v1/recurring/month?year=2026&month=10', { token: false })).status).toBe(401);
+  });
+});
+
+describe('occurrences are facts: one live row per (item, occurrence)', () => {
+  const noLimit = () => makeEnv({ WRITE_LIMITER: undefined });
+  const postManual = (over: Record<string, unknown> = {}) =>
+    call(`/api/v1/transactions?timezone=${IST}`, {
+      method: 'POST',
+      json: { amount: '649', type: 'debit', counterparty_name: 'Netflix', transaction_at: '2026-10-14T10:00:00+05:30', ...over },
+      env: noLimit(),
+    });
+  const link = (itemId: string, body: Record<string, unknown>) => call(`/api/v1/recurring/${itemId}/link`, { method: 'POST', json: body, env: noLimit() });
+
+  it('posting the same occurrence twice, even after the pointer was moved back, leaves one row', async () => {
+    const id = await seedItem({ next_due_date: '2026-10-15' });
+    const now = at(2026, 10, 15);
+    await cron(now);
+    await testDb().prepare('UPDATE recurring_items SET next_due_date = ? WHERE id = ?').bind('2026-10-15', id).run();
+    expect(await cron(now)).toEqual({ due: 0, posted: 0 });
+    expect(await txs()).toHaveLength(1);
+    expect(await nextDue(id)).toBe('2026-11-15');
+  });
+
+  it('the database refuses a second live row for the same occurrence; a deleted one frees it', async () => {
+    const id = await seedItem();
+    await seedTransaction({ recurring_item_id: id, recurring_occurrence: '2026-10-15' });
+    await expect(seedTransaction({ recurring_item_id: id, recurring_occurrence: '2026-10-15' })).rejects.toThrow(/UNIQUE/i);
+    await seedTransaction({ recurring_item_id: id, recurring_occurrence: '2026-11-15' });
+    await testDb().prepare("UPDATE transactions SET deleted_at = '2026-10-16T00:00:00.000Z' WHERE recurring_occurrence = '2026-10-15'").run();
+    await seedTransaction({ recurring_item_id: id, recurring_occurrence: '2026-10-15' });
+    expect(await txs()).toHaveLength(3);
+  });
+
+  it('a manual entry near a due date carries possible_recurring; linking it makes it the occurrence and the poster skips it', async () => {
+    const id = await seedItem({ name: 'Netflix', amount: 64900, day_of_month: 15, next_due_date: '2026-10-15' });
+    const created = await (await postManual()).json<{ id: string; possible_recurring?: { item_id: string; occurrence: string } }>();
+    expect(created.possible_recurring).toEqual({ item_id: id, occurrence: '2026-10-15' });
+
+    const res = await link(id, { transaction_id: created.id, occurrence: '2026-10-15' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: created.id, recurring_item_id: id });
+    expect(await oneRow('transactions', 'id = ?', created.id)).toMatchObject({ recurring_item_id: id, recurring_occurrence: '2026-10-15' });
+
+    expect(await nextDue(id)).toBe('2026-11-15'); // linking moves the cache past the taken occurrence at once
+    expect(await cron(at(2026, 10, 15))).toEqual({ due: 0, posted: 0 });
+    expect(await txs()).toHaveLength(1);
+    expect(await nextDue(id)).toBe('2026-11-15');
+
+    // The occurrence is taken now: no more offers for it, and a second link is refused.
+    const again = await (await postManual({ transaction_at: '2026-10-15T10:00:00+05:30' })).json<Record<string, unknown>>();
+    expect(again['possible_recurring']).toBeUndefined();
+    expect((await link(id, { transaction_id: String(again['id']), occurrence: '2026-10-15' })).status).toBe(409);
+  });
+
+  it('no offer when the entry is far from the due date, or matches neither payee nor amount', async () => {
+    await seedItem({ name: 'Netflix', amount: 64900, day_of_month: 15, next_due_date: '2026-10-15' });
+    expect((await (await postManual({ transaction_at: '2026-10-05T10:00:00+05:30' })).json<Record<string, unknown>>())['possible_recurring']).toBeUndefined();
+    expect((await (await postManual({ counterparty_name: 'Zomato', amount: '120' })).json<Record<string, unknown>>())['possible_recurring']).toBeUndefined();
+    // The same amount within 2% still offers it, whatever the payee is called.
+    expect((await (await postManual({ counterparty_name: 'NFLX', amount: '655' })).json<Record<string, unknown>>())['possible_recurring']).toMatchObject({ occurrence: '2026-10-15' });
+  });
+
+  it("link: rejects a wrong occurrence date, a wrong direction, a taken row and someone else's row", async () => {
+    const id = await seedItem({ name: 'Netflix', amount: 64900, day_of_month: 15, next_due_date: '2026-10-15' });
+    const debit = await seedTransaction({ amount: '649', counterparty_name: 'Netflix' });
+    const credit = await seedTransaction({ amount: '649', type: 'credit', counterparty_name: 'Netflix refund' });
+    expect((await link(id, { transaction_id: debit, occurrence: '2026-10-16' })).status).toBe(400);
+    expect((await link(id, { transaction_id: credit, occurrence: '2026-10-15' })).status).toBe(400);
+    await seedUser(OTHER);
+    const theirs = await seedTransaction({ user_id: OTHER });
+    expect((await link(id, { transaction_id: theirs, occurrence: '2026-10-15' })).status).toBe(404);
+    expect((await link(uid(), { transaction_id: debit, occurrence: '2026-10-15' })).status).toBe(404);
+    expect((await link(id, { transaction_id: debit, occurrence: '2026-10-15' })).status).toBe(200);
+    expect((await link(id, { transaction_id: debit, occurrence: '2026-11-15' })).status).toBe(409); // already belongs to an item
+  });
+
+  it('counts_toward_budget: off by default, set on create, changed by PATCH', async () => {
+    const created = await create({ kind: 'subscription', name: 'Netflix', amount: '649', cadence: 'monthly', day_of_month: 15, timezone: IST, category_id: OTHER_EXPENSE });
+    expect(created.item).toMatchObject({ counts_toward_budget: false });
+    const on = await create({ kind: 'subscription', name: 'Gym', amount: '999', cadence: 'monthly', day_of_month: 15, timezone: IST, category_id: OTHER_EXPENSE, counts_toward_budget: true });
+    expect(on.item).toMatchObject({ counts_toward_budget: true });
+    const patched = await call(`/api/v1/recurring/${created.item.id}`, { method: 'PATCH', json: { counts_toward_budget: true }, env: noLimit() });
+    expect(await patched.json()).toMatchObject({ counts_toward_budget: true });
+    expect((await oneRow<{ counts_toward_budget: number }>('recurring_items', 'id = ?', created.item.id))?.counts_toward_budget).toBe(1);
+  });
+});
+
+describe('re-planning keeps what the item owes (R6)', () => {
+  const patch = (id: string, json: Record<string, unknown>) => call(`/api/v1/recurring/${id}`, { method: 'PATCH', json, env: makeEnv({ WRITE_LIMITER: undefined }) });
+
+  it('moving the day to one that already passed does not lose the current period: it is posted on the next run', async () => {
+    setNow(NOW); // Sat 10 Oct 2026
+    const { item } = await create(salary({ day_of_month: 25 })); // owed on Oct 25
+    expect(item.next_due_date).toBe('2026-10-25');
+    const moved = await (await patch(item.id, { day_of_month: 5 })).json<Item>();
+    expect(moved.next_due_date).toBe('2026-10-05'); // October is still owed, now on the 5th (already past)
+    expect(await cron(NOW)).toEqual({ due: 1, posted: 1 });
+    expect((await txs()).map((t) => t.recurring_occurrence)).toEqual(['2026-10-05']);
+    expect(await nextDue(item.id)).toBe('2026-11-05');
+    expect(await cron(NOW)).toEqual({ due: 0, posted: 0 });
+  });
+
+  it('editing the day again and again never posts a period twice', async () => {
+    setNow(NOW);
+    const { item } = await create(salary({ day_of_month: 5, post_current_period: true })); // Oct 5 posted now
+    for (const day of [20, 3, 28, 5]) {
+      expect((await patch(item.id, { day_of_month: day })).status).toBe(200);
+      await cron(at(2026, 10, 31));
+    }
+    expect((await txs()).map((t) => t.recurring_occurrence)).toEqual(['2026-10-05']);
+    expect(await nextDue(item.id)).toBe('2026-11-05');
+  });
+
+  it('changing the timezone keeps the posted period and still posts the next one once', async () => {
+    setNow(NOW);
+    const { item } = await create(salary({ day_of_month: 5, post_current_period: true }));
+    expect((await patch(item.id, { timezone: 'America/Los_Angeles' })).status).toBe(200);
+    await cron(at(2026, 10, 31));
+    expect(await txs()).toHaveLength(1);
+    await cron(at(2026, 11, 6));
+    await cron(at(2026, 11, 6));
+    expect((await txs()).map((t) => t.recurring_occurrence)).toEqual(['2026-10-05', '2026-11-05']);
+  });
+
+  it('resuming before the due day posts this period on its day; resuming after it waits for the next', async () => {
+    setNow(NOW);
+    const { item } = await create({ kind: 'subscription', name: 'Gym', amount: '999', cadence: 'monthly', day_of_month: 15, timezone: IST });
+    await patch(item.id, { active: false });
+    expect((await patch(item.id, { active: true })).status).toBe(200); // Oct 10: the 15th is still ahead
+    expect(await nextDue(item.id)).toBe('2026-10-15');
+    await cron(at(2026, 10, 15));
+    expect((await txs()).map((t) => t.recurring_occurrence)).toEqual(['2026-10-15']);
+    await patch(item.id, { active: false });
+    setNow(at(2026, 11, 20, 8, 0));
+    await patch(item.id, { active: true }); // Nov 20: November's day passed while it was paused
+    expect(await nextDue(item.id)).toBe('2026-12-15');
+    await cron(at(2026, 11, 21));
+    expect(await txs()).toHaveLength(1);
+  });
+
+  it('a deleted posting leaves a skip that outlives the purged row; restoring it removes the skip', async () => {
+    const id = await seedItem();
+    await cron(at(2026, 10, 15));
+    const [tx] = await txs();
+    const noLimit = makeEnv({ WRITE_LIMITER: undefined });
+    expect((await call(`/api/v1/transactions/${tx?.id ?? ''}`, { method: 'DELETE', env: noLimit })).status).toBe(204);
+    expect(await rowsOf('recurring_skips')).toMatchObject([{ item_id: id, occurrence: '2026-10-15' }]);
+    // The purge removes the deleted row for good: the skip keeps the occurrence from being posted again.
+    await testDb().prepare('DELETE FROM transactions WHERE id = ?').bind(tx?.id ?? '').run();
+    await cron(at(2026, 10, 20));
+    await cron(at(2026, 10, 31));
+    expect(await txs()).toHaveLength(0);
+    const month = await (await call('/api/v1/recurring/month?year=2026&month=10', { env: noLimit })).json<{ items: { status: string }[] }>();
+    expect(month.items.map((i) => i.status)).toEqual(['skipped']);
+  });
+
+  it('restoring a deleted posting brings the occurrence back and forgets the skip', async () => {
+    const id = await seedItem();
+    await cron(at(2026, 10, 15));
+    const [tx] = await txs();
+    const noLimit = makeEnv({ WRITE_LIMITER: undefined });
+    await call(`/api/v1/transactions/${tx?.id ?? ''}`, { method: 'DELETE', env: noLimit });
+    expect((await call(`/api/v1/transactions/${tx?.id ?? ''}/restore`, { method: 'POST', env: noLimit })).status).toBe(200);
+    expect(await rowsOf('recurring_skips')).toHaveLength(0);
+    expect((await txs())[0]).toMatchObject({ id: tx?.id, deleted_at: null, recurring_item_id: id, recurring_occurrence: '2026-10-15' });
+    await cron(at(2026, 10, 20));
+    expect(await txs()).toHaveLength(1);
   });
 });

@@ -26,8 +26,22 @@ const NOTE_DISALLOWED = disallowedChars(
   "\\p{L}\\p{N} .,\\-_'#&()/:@!?%+*",
   "A-Za-z0-9 .,\\-_'#&()/:@!?%+*",
 );
-/** The page refuses a payee name that poses as the app. */
-const IMPERSONATION = /dime/i;
+/**
+ * The page refuses a payee name that poses as the app: the whole word "dime", or the brand with a role word ("Dime Pay"),
+ * not letters that merely sit inside another word ("Dimple"). Same rule as the API's /pay page; built at run time because
+ * lookbehind and Unicode escapes may be missing, falling back to ASCII boundaries.
+ */
+const IMPERSONATION = (() => {
+  const body = "dime(?:[ ._-]?(?:app|pay|official|support|team|india))?";
+  try {
+    return new RegExp(
+      `(?<![\\p{L}\\p{M}\\p{N}])${body}(?![\\p{L}\\p{M}\\p{N}])`,
+      "iu",
+    );
+  } catch {
+    return new RegExp(`(^|[^A-Za-z0-9])${body}(?![A-Za-z0-9])`, "i");
+  }
+})();
 
 function clean(text: string, disallowed: RegExp, maxChars: number): string | null {
   const stripped = text

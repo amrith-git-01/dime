@@ -31,6 +31,7 @@ import {
 import { createThemedStyles, useTheme } from "@/theme";
 
 import { RecurringBadge } from "./RecurringBadge";
+import { TransactionKindBadge } from "./TransactionKindBadge";
 import { WaitingToSyncPill } from "./WaitingToSyncPill";
 
 type CategoryIconProps = {
@@ -137,6 +138,9 @@ function RowBody({ ui, pending = false }: { ui: UiTransaction; pending?: boolean
               {ui.viaLabel}
             </Text>
             {ui.isRecurring ? <RecurringBadge /> : null}
+            {ui.badges.map((badge) => (
+              <TransactionKindBadge key={badge} kind={badge} />
+            ))}
             {pending ? <WaitingToSyncPill /> : null}
           </View>
           <Text
@@ -144,6 +148,7 @@ function RowBody({ ui, pending = false }: { ui: UiTransaction; pending?: boolean
               styles.transactionAmount,
               ui.amount > 0 && styles.positiveAmount,
               ui.amount < 0 && styles.debitRowAmount,
+              ui.kind === "transfer" && styles.transferAmount,
             ]}
             numberOfLines={1}
           >
@@ -431,5 +436,9 @@ const useStyles = createThemedStyles(({ colors, typography }) => ({
   },
   debitRowAmount: {
     color: colors.danger,
+  },
+  // A transfer is in neither spent nor income: greyed out.
+  transferAmount: {
+    color: colors.inkSoft,
   },
 }));

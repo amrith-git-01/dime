@@ -8,7 +8,8 @@ import {
   DEFAULT_COUNTERPARTY_TYPE,
   type CounterpartyType,
 } from "../counterpartyTypes";
-import type { TransactionType } from "../types";
+import type { TransactionKind, TransactionType } from "../types";
+import { defaultKindFor } from "../utils/transactionKind";
 import type { ManualAddFormSnapshot } from "../utils/transactionRowToFormState";
 
 export function useManualAddTransactionForm(
@@ -17,13 +18,16 @@ export function useManualAddTransactionForm(
   presetDate?: string,
 ) {
   const [amountText, setAmountText] = useState(initial?.amountText ?? "");
-  const [txType, setTxType] = useState<TransactionType>(
+  const [txType, setTxTypeState] = useState<TransactionType>(
     initial?.txType ?? "debit",
+  );
+  const [kind, setKindState] = useState<TransactionKind>(
+    initial?.kind ?? "spend",
   );
   const [counterpartyName, setCounterpartyName] = useState(
     initial?.counterpartyName ?? "",
   );
-  const [counterpartyType, setCounterpartyType] = useState<CounterpartyType>(
+  const [counterpartyType, setCounterpartyTypeState] = useState<CounterpartyType>(
     initial?.counterpartyType ?? DEFAULT_COUNTERPARTY_TYPE,
   );
   // The catalogue brand picked in the counterparty search box; null for a name typed by hand.
@@ -39,11 +43,48 @@ export function useManualAddTransactionForm(
     () => initial?.transactionAt ?? resolvePresetTransactionAt(presetDate),
   );
 
+  /**
+   * Spend / Income / Transfer. Picking Spend or Income also sets the direction; a Transfer keeps whichever
+   * direction is chosen (money out or money in).
+   */
+  const setKind = useCallback((next: TransactionKind) => {
+    setKindState(next);
+    if (next === "spend") {
+      setTxTypeState("debit");
+    } else if (next === "income" || next === "payback") {
+      setTxTypeState("credit");
+    }
+  }, []);
+
+  /** The direction switch: Expense / Income follow it; a Transfer stays a transfer. */
+  const setTxType = useCallback((next: TransactionType) => {
+    setTxTypeState(next);
+    setKindState((current) =>
+      current === "transfer" ? current : next === "debit" ? "spend" : "income",
+    );
+  }, []);
+
+  /** The Shop / Person / Transfer / Unknown chips: "Transfer" (own account) also makes the entry a transfer. */
+  const setCounterpartyType = useCallback(
+    (next: CounterpartyType) => {
+      setCounterpartyTypeState(next);
+      if (next === "self_transfer") {
+        setKindState("transfer");
+      } else if (counterpartyType === "self_transfer") {
+        setKindState((current) =>
+          current === "transfer" ? defaultKindFor(txType, next) : current,
+        );
+      }
+    },
+    [counterpartyType, txType],
+  );
+
   const applySnapshot = useCallback((snap: ManualAddFormSnapshot) => {
     setAmountText(snap.amountText);
-    setTxType(snap.txType);
+    setTxTypeState(snap.txType);
+    setKindState(snap.kind);
     setCounterpartyName(snap.counterpartyName);
-    setCounterpartyType(snap.counterpartyType);
+    setCounterpartyTypeState(snap.counterpartyType);
     setBrandId(snap.brandId);
     setCategory(snap.category);
     setCategoryId(snap.categoryId);
@@ -55,6 +96,7 @@ export function useManualAddTransactionForm(
     applySnapshot({
       amountText: "",
       txType: "debit",
+      kind: "spend",
       counterpartyName: "",
       counterpartyType: DEFAULT_COUNTERPARTY_TYPE,
       brandId: null,
@@ -93,6 +135,7 @@ export function useManualAddTransactionForm(
     return {
       amount: paiseToAmountString(amountPaise),
       type: txType,
+      kind,
       counterparty_name: name,
       counterparty_type: counterpartyType,
       brand_id: brandId,
@@ -108,6 +151,7 @@ export function useManualAddTransactionForm(
     categoryId,
     counterpartyName,
     counterpartyType,
+    kind,
     note,
     transactionAt,
     txType,
@@ -118,6 +162,8 @@ export function useManualAddTransactionForm(
     setAmountText,
     txType,
     setTxType,
+    kind,
+    setKind,
     counterpartyName,
     setCounterpartyName,
     changeCounterpartyName,

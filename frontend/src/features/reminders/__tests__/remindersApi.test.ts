@@ -36,6 +36,8 @@ const RAW = {
   status: "open",
   completed_at: null,
   next_fire_at: "2026-11-02T04:00:00.000Z",
+  paid_total: "300.00",
+  remaining: "14700.00",
   suggested_match: {
     transaction_id: "t1",
     amount: "15000.00",
@@ -99,6 +101,9 @@ describe("mapReminder", () => {
       status: "done",
       completed_at: null,
       next_fire_at: null,
+      // A server that predates part payments says nothing: nothing paid, and no amount left to speak of.
+      paid_total: "0.00",
+      remaining: null,
       suggested_match: null,
     });
   });
@@ -177,6 +182,24 @@ describe("remindersApi calls", () => {
     await completeReminder("r1", "t1");
     expect(post).toHaveBeenLastCalledWith("/api/v1/reminders/r1/complete", {
       transaction_id: "t1",
+    });
+  });
+
+  it("completes with a part payment: the amount paid, with or without a transaction", async () => {
+    post.mockResolvedValue({ data: RAW });
+    await completeReminder("r1", undefined, "300.00");
+    expect(post).toHaveBeenLastCalledWith("/api/v1/reminders/r1/complete", { amount: "300.00" });
+    await completeReminder("r1", "t1", "300.00");
+    expect(post).toHaveBeenLastCalledWith("/api/v1/reminders/r1/complete", {
+      transaction_id: "t1",
+      amount: "300.00",
+    });
+  });
+
+  it("reads what is paid and what is left from the answer", () => {
+    expect(mapReminder({ ...RAW, paid_total: "300.00", remaining: "14700.00" })).toMatchObject({
+      paid_total: "300.00",
+      remaining: "14700.00",
     });
   });
 

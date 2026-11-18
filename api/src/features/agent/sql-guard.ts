@@ -1,4 +1,5 @@
 import type { Db } from '../../core/db';
+import { ledgerSelect } from '../transactions/ledger';
 import { TurnAbortedError } from './llm';
 
 /**
@@ -9,7 +10,8 @@ import { TurnAbortedError } from './llm';
  *   SELECT * FROM (WITH <scoped views>, <empty shadows>, <the model's own CTEs> <the model's query>) LIMIT 201
  *
  * where the views (`transactions`, `categories`, `budgets`, `category_budgets`, `recurring_items`) are
- * bound to the signed-in user (`?1`), drop internal columns and convert money to rupees, and EVERY other
+ * bound to the signed-in user (`?1`), drop internal columns and convert money to rupees (the `transactions` view IS the
+ * ledger of `transactions/ledger.ts`, so the agent's "spent" is the app's "spent"), and EVERY other
  * table of the database is shadowed by an empty CTE, so naming one reads nothing. On top of that a small
  * lexer validates the text: one SELECT/WITH statement, no write/DDL/PRAGMA keywords, no schema
  * qualifiers (`main.`, `temp.`) that would bypass the CTE lookup, no `sqlite_*` / `_cf_*` / `pragma_*`
@@ -26,11 +28,11 @@ const QUERY_TIMEOUT_MS = 3000;
 
 /** Tables the model can read, with the columns of the view (the schema context documents the same list). */
 export const EXPOSED_TABLES = {
-  transactions: ['id', 'type', 'amount', 'local_date', 'local_at', 'transaction_at', 'category_id', 'counterparty_name', 'counterparty_type', 'payee_key', 'detected_via', 'recurring_item_id'],
+  transactions: ['id', 'type', 'kind', 'amount', 'effective_amount', 'spend_amount', 'income_amount', 'local_date', 'local_at', 'transaction_at', 'category_id', 'counterparty_name', 'counterparty_type', 'payee_key', 'detected_via', 'recurring_item_id', 'counts_toward_budget'],
   categories: ['id', 'name', 'is_system', 'scope'],
   budgets: ['monthly_budget'],
   category_budgets: ['category_id', 'monthly_amount'],
-  recurring_items: ['id', 'kind', 'name', 'amount', 'category_id', 'cadence', 'day_of_month', 'month_of_year', 'next_due_date', 'active'],
+  recurring_items: ['id', 'kind', 'name', 'amount', 'category_id', 'cadence', 'day_of_month', 'month_of_year', 'next_due_date', 'active', 'counts_toward_budget'],
 } as const;
 
 /** Every other table: shadowed by an empty CTE, so a query naming it just sees no rows. */
@@ -50,7 +52,12 @@ export const SHADOWED_TABLES = [
   'ai_user_usage',
   'd1_migrations',
   'monthly_reports',
+  'transaction_offsets',
+  'budget_history',
+  'budget_alert_marks',
   'reminders',
+  'reminder_payments',
+  'recurring_skips',
   'brands',
   'brand_aliases',
   'brands_fts',
@@ -64,13 +71,16 @@ export const SHADOWED_TABLES = [
 const TABLE_NAMES: ReadonlySet<string> = new Set([...Object.keys(EXPOSED_TABLES), ...SHADOWED_TABLES]);
 const TABLE_LIST = Object.keys(EXPOSED_TABLES).join(', ');
 
-/** ?1 = user id, ?2 = UTC offset modifier such as '+330 minutes'. */
+/**
+ * ?1 = user id, ?2 = UTC offset modifier such as '+330 minutes' (for `local_at`, and for a row whose stored `local_date` the backfill
+ * has not reached). The tables are `main.`-qualified because the CTEs below shadow the plain names.
+ */
 const VIEWS = [
-  `transactions AS (SELECT id, type, amount / 100.0 AS amount, date(datetime(transaction_at, ?2)) AS local_date, datetime(transaction_at, ?2) AS local_at, transaction_at, category_id, counterparty_name, counterparty_type, payee_key, detected_via, recurring_item_id FROM main.transactions WHERE user_id = ?1 AND deleted_at IS NULL)`,
+  `transactions AS (SELECT l.id AS id, l.type AS type, l.kind AS kind, l.amount_cents / 100.0 AS amount, l.effective_cents / 100.0 AS effective_amount, l.spend_cents / 100.0 AS spend_amount, l.income_cents / 100.0 AS income_amount, l.local_date AS local_date, datetime(l.transaction_at, ?2) AS local_at, l.transaction_at AS transaction_at, l.category_id AS category_id, l.counterparty_name AS counterparty_name, l.counterparty_type AS counterparty_type, l.payee_key AS payee_key, l.detected_via AS detected_via, l.recurring_item_id AS recurring_item_id, l.in_budget AS counts_toward_budget FROM (${ledgerSelect('t.user_id = ?1 AND t.deleted_at IS NULL', { schema: 'main.', fallbackOffset: '?2' })}) l)`,
   `categories AS (SELECT id, name, is_system, scope FROM main.categories WHERE user_id IS NULL OR user_id = ?1)`,
   `budgets AS (SELECT monthly_budget / 100.0 AS monthly_budget FROM main.budgets WHERE user_id = ?1)`,
   `category_budgets AS (SELECT category_id, monthly_amount / 100.0 AS monthly_amount FROM main.category_budgets WHERE user_id = ?1)`,
-  `recurring_items AS (SELECT id, kind, name, amount / 100.0 AS amount, category_id, cadence, day_of_month, month_of_year, next_due_date, active FROM main.recurring_items WHERE user_id = ?1 AND archived_at IS NULL)`,
+  `recurring_items AS (SELECT id, kind, name, amount / 100.0 AS amount, category_id, cadence, day_of_month, month_of_year, next_due_date, active, counts_toward_budget FROM main.recurring_items WHERE user_id = ?1 AND archived_at IS NULL)`,
 ];
 const SHADOWS = SHADOWED_TABLES.map((name) => `${name} AS (SELECT NULL AS x WHERE 0)`);
 const SCOPE = [...VIEWS, ...SHADOWS].join(', ');
@@ -293,9 +303,8 @@ export interface SqlRunOptions {
 }
 
 /**
- * ponytail: SQLite has no IANA zones, so local_date / local_at use the user's UTC offset AT QUERY TIME as a
- * fixed number of minutes. Right for India (no DST); in a DST zone, rows from the other half of the year are
- * off by one hour (a late-evening row can land on the wrong day). Revisit with per-row offsets if that matters.
+ * ponytail: SQLite has no IANA zones, so `local_at` uses the user's UTC offset AT QUERY TIME as a fixed number of minutes
+ * (off by an hour for rows from the other half of the year in a DST zone). `local_date` is the stored per-row day and is exact.
  */
 export const offsetModifier = (minutes: number): string => `${minutes < 0 ? '-' : '+'}${Math.abs(Math.trunc(minutes))} minutes`;
 

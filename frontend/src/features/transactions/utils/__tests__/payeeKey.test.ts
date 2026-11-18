@@ -1,5 +1,5 @@
 import type { TransactionRow } from "../../types";
-import { filterTransactionsByPayee } from "../payeeKey";
+import { filterTransactionsByPayee, normalizePayeeKey } from "../payeeKey";
 
 const tx = (
   id: string,
@@ -42,5 +42,25 @@ describe("filterTransactionsByPayee", () => {
     expect(
       ids(filterTransactionsByPayee(rows, "__other__", ["cafe"])),
     ).toEqual(["d-other"]);
+  });
+});
+
+describe("normalizePayeeKey (same rule as the API's normalizeCounterparty)", () => {
+  it.each([
+    ["  Cafe  Coffee-Day! ", "cafe coffee day"],
+    ["Swiggy*Instamart #12", "swiggy instamart 12"],
+    ["@@!!", "unknown"],
+    ["", "unknown"],
+  ])("ASCII %j -> %j", (raw, key) => {
+    expect(normalizePayeeKey(raw)).toBe(key);
+  });
+
+  it.each([
+    ["காய்கறி கடை", "காய்கறி கடை"],
+    ["राम-श्याम", "राम श्याम"],
+    ["Café Zürich", "café zürich"],
+    ["张伟", "张伟"],
+  ])("keeps letters and combining marks of any script: %j", (raw, key) => {
+    expect(normalizePayeeKey(raw)).toBe(key);
   });
 });

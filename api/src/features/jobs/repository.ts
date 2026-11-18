@@ -169,7 +169,7 @@ export async function releaseJob(db: Db, jobId: string, eligibleAfterSeconds = 0
   ]);
 }
 
-/** Oldest first. Used by the recovery sweep (cutoff = now - 300 s). */
+/** Oldest first. Used by the recovery sweep (cutoff = now - 10 min). */
 export async function listRecoverable(
   db: Db,
   input: { kind: JobKind; cutoffIso: string; limit: number },
@@ -193,11 +193,23 @@ export async function requeueStaleProcessing(db: Db, jobId: string, cutoffIso: s
   return row !== null;
 }
 
+/** A capture job that ended without a transaction: its upload in R2 belongs to no row (failed, or done in review: a foreign-currency amount). */
+export const STRANDED_SQL = "kind IN ('receipt', 'voice') AND (status = 'failed' OR (status = 'done' AND COALESCE(json_extract(result, '$.needs_review'), 0) = 1))";
+
+/** The capture jobs older than `cutoffIso` whose upload was never attached to a transaction, oldest first. */
+export function listStranded(db: Db, cutoffIso: string, limit: number): Promise<{ id: string; payload: Record<string, unknown> }[]> {
+  return all<{ id: string; payload: string }>(db, `SELECT id, payload FROM jobs WHERE ${STRANDED_SQL} AND updated_at < ? ORDER BY updated_at LIMIT ?`, [cutoffIso, limit]).then((rows) =>
+    rows.map((r) => ({ id: r.id, payload: parseJsonObject(r.payload) ?? {} })),
+  );
+}
+
 /** Which rows `deleteOldBatch` may remove: `updated_at` before the cutoff, optionally by status and kind. */
 export interface PurgeRule {
   cutoffIso: string;
   statuses?: JobStatus[];
   kind?: JobKind;
+  /** Leave capture jobs that ended without a transaction (their media is purged first, see jobs/purge.ts). */
+  keepStranded?: boolean;
 }
 
 /** Delete up to `limit` rows matching `rule`, oldest first, in one statement; returns how many went. */
@@ -212,6 +224,7 @@ export async function deleteOldBatch(db: Db, rule: PurgeRule, limit: number): Pr
     where.push('kind = ?');
     params.push(rule.kind);
   }
+  if (rule.keepStranded) where.push(`NOT (${STRANDED_SQL})`);
   params.push(limit);
   return run(
     db,

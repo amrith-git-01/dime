@@ -58,17 +58,20 @@ describe('sql guard: the exposed views', () => {
     expect(await rows('SELECT ROUND(SUM(amount), 2) FROM transactions WHERE type = \'debit\'')).toEqual([[350.5]]);
   });
 
-  it('computes local_date and local_at from the UTC offset', async () => {
+  it('local_date is the stored day of the row; local_at follows the UTC offset', async () => {
     expect(await rows("SELECT counterparty_name, local_date, local_at FROM transactions WHERE type = 'debit' ORDER BY transaction_at")).toEqual([
       ['Swiggy', '2026-10-04', '2026-10-04 15:30:00'],
       ['Zomato', '2026-10-05', '2026-10-05 00:30:00'],
     ]);
-    expect(await rows("SELECT local_date FROM transactions WHERE counterparty_name = 'Zomato'")).toEqual([['2026-10-05']]);
-    // UTC and a western offset move the same instant to other days.
-    const utc = await run("SELECT local_date FROM transactions WHERE counterparty_name = 'Zomato'", USER_ID, 0);
-    expect(utc.ok && utc.rows).toEqual([['2026-10-04']]);
+    // The day was filed when the row was written (the seed uses IST): another query offset does not move it, only local_at.
+    const utc = await run("SELECT local_date, local_at FROM transactions WHERE counterparty_name = 'Zomato'", USER_ID, 0);
+    expect(utc.ok && utc.rows).toEqual([['2026-10-05', '2026-10-04 19:00:00']]);
     const west = await run("SELECT local_at FROM transactions WHERE counterparty_name = 'Zomato'", USER_ID, -300);
     expect(west.ok && west.rows).toEqual([['2026-10-04 14:00:00']]);
+    // A row the backfill has not reached yet falls back to the query offset.
+    await testDb().prepare("UPDATE transactions SET local_date = NULL, month_key = NULL WHERE counterparty_name = 'Zomato'").run();
+    const pending = await run("SELECT local_date FROM transactions WHERE counterparty_name = 'Zomato'", USER_ID, 0);
+    expect(pending.ok && pending.rows).toEqual([['2026-10-04']]);
     expect(offsetModifier(330)).toBe('+330 minutes');
     expect(offsetModifier(-300)).toBe('-300 minutes');
   });
@@ -152,9 +155,16 @@ describe('sql guard: user A cannot reach user B or internals', () => {
     const covered = new Set<string>([...Object.keys(EXPOSED_TABLES), ...SHADOWED_TABLES]);
     expect(results.map((r) => r.name).filter((n) => !covered.has(n) && n !== 'd1_migrations')).toEqual([]);
     expect(results.length).toBeGreaterThanOrEqual(15);
-    // Triggers and views would be new attack surface too.
+    // Triggers and views would be new attack surface too: only the kind and occurrence triggers of the money model and the
+    // recurring start trigger exist (they fire on writes, which the guard never lets through).
     const extra = await testDb().prepare("SELECT name FROM sqlite_master WHERE type IN ('view', 'trigger')").all<{ name: string }>();
-    expect(extra.results).toEqual([]);
+    expect(extra.results.map((r) => r.name).sort()).toEqual([
+      'recurring_items_starts_on_after_insert',
+      'transactions_kind_after_insert',
+      'transactions_kind_after_type_update',
+      'transactions_kind_before_update',
+      'transactions_recurring_occurrence_after_insert',
+    ]);
   });
 
   it('shadowed tables are empty even for the owner (users, sessions, notifications, jobs, usage...)', async () => {
@@ -323,7 +333,7 @@ describe('sql guard: user A cannot reach user B or internals', () => {
 describe('sql guard: lexical validation and errors', () => {
   it('builds the scoped statement with our views first, then the model CTEs, capped at 201 rows', () => {
     const plain = validateSql('SELECT 1');
-    expect(plain.ok && buildScopedSql(plain.value)).toMatch(/^SELECT \* FROM \(WITH transactions AS \(.*users AS \(SELECT NULL AS x WHERE 0\).* SELECT 1\) LIMIT 201$/);
+    expect(plain.ok && buildScopedSql(plain.value)).toMatch(/^SELECT \* FROM \(WITH transactions AS \([\s\S]*users AS \(SELECT NULL AS x WHERE 0\)[\s\S]* SELECT 1\) LIMIT 201$/);
     const merged = validateSql('WITH a AS (SELECT 1 AS n) SELECT n FROM a');
     expect(merged.ok && buildScopedSql(merged.value).replace(/\s+/g, ' ')).toContain('WHERE 0), a AS (SELECT 1 AS n) SELECT n FROM a) LIMIT 201');
   });

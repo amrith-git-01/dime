@@ -2,8 +2,10 @@ import * as z from 'zod';
 
 import type { Db } from '../../core/db';
 import { log } from '../../core/logging';
-import { localDate } from '../../core/timezone';
-import { IST, digestPeriodFromKey, previousMonthPeriod } from '../email/periods';
+import { IST, localDate } from '../../core/timezone';
+import { FANOUT_DAYS, digestPeriodFromKey, previousMonthPeriod } from '../email/periods';
+import { queueUserPages } from '../email/queue-fanout';
+import type { BatchQueue, FanOutCounts } from '../email/queue-fanout';
 import { listReportUserPages } from './repository';
 import { MIN_REPORT_DEBITS } from './schemas';
 
@@ -22,24 +24,16 @@ export const reportMessageSchema = z.object({
 });
 export type ReportMessage = z.infer<typeof reportMessageSchema>;
 
-/** `Queue.sendBatch` accepts at most 100 messages per call (same limit as `SEND_BATCH_LIMIT` in the digest fan-out). */
-const SEND_BATCH_LIMIT = 100;
-
-/** IST days of the month on which the cron fans out: the 1st, and two catch-up days for a run that missed someone. */
-export const REPORT_FANOUT_LAST_DAY = 3;
+/** IST days of the month on which the cron fans out: the 1st, and two catch-up days for a run that missed someone (as for the digest). */
+export const REPORT_FANOUT_LAST_DAY = FANOUT_DAYS;
 
 export function isReportFanOutDay(nowMs: number): boolean {
   return localDate(IST, nowMs).day <= REPORT_FANOUT_LAST_DAY;
 }
 
-export interface ReportFanOutResult {
+/** `selected`: users picked (eligible, report not finished yet); `failed`: messages of chunks the queue refused (picked again by the next run). */
+export interface ReportFanOutResult extends FanOutCounts {
   periodKey: string;
-  /** Users picked (eligible, report not finished yet). */
-  selected: number;
-  /** Messages the queue accepted. */
-  queued: number;
-  /** Messages of chunks the queue refused (those users are picked again by the next run). */
-  failed: number;
 }
 
 /**
@@ -51,29 +45,19 @@ export interface ReportFanOutResult {
 export async function fanOutReports(input: {
   db: Db;
   /** The slice of the `EMAIL_QUEUE` binding used here. */
-  queue: { sendBatch(messages: Iterable<{ body: ReportMessage }>): Promise<unknown> };
+  queue: BatchQueue<ReportMessage>;
   nowMs: number;
   periodKey?: string | undefined;
 }): Promise<ReportFanOutResult> {
   const period = (input.periodKey ? digestPeriodFromKey('monthly', input.periodKey) : null) ?? previousMonthPeriod(input.nowMs);
-  const result: ReportFanOutResult = { periodKey: period.periodKey, selected: 0, queued: 0, failed: 0 };
-  let pages = 0;
-  for await (const page of listReportUserPages(input.db, period.range, period.periodKey, MIN_REPORT_DEBITS)) {
-    pages += 1;
-    result.selected += page.length;
-    for (let i = 0; i < page.length; i += SEND_BATCH_LIMIT) {
-      const batch = page.slice(i, i + SEND_BATCH_LIMIT).map((userId) => ({
-        body: { type: 'report' as const, user_id: userId, period_key: period.periodKey },
-      }));
-      try {
-        await input.queue.sendBatch(batch);
-        result.queued += batch.length;
-      } catch (err) {
-        result.failed += batch.length;
-        log.error('report_fanout_chunk_failed', { err, periodKey: period.periodKey, users: batch.length });
-      }
-    }
-  }
-  log.info('report_fanout', { ...result, pages, istDay: localDate(IST, input.nowMs).day });
+  const counts = await queueUserPages<ReportMessage>({
+    queue: input.queue,
+    pages: listReportUserPages(input.db, period.dates, period.periodKey, MIN_REPORT_DEBITS),
+    message: (userId) => ({ type: 'report', user_id: userId, period_key: period.periodKey }),
+    label: 'report_fanout',
+    context: { periodKey: period.periodKey },
+  });
+  const result: ReportFanOutResult = { periodKey: period.periodKey, ...counts };
+  log.info('report_fanout', { ...result, istDay: localDate(IST, input.nowMs).day });
   return result;
 }

@@ -1,6 +1,9 @@
 import type { CounterpartyType } from "@/features/transactions/counterpartyTypes";
-import type { CreateTransactionBody } from "@/features/transactions/api/transactionsApi";
-import type { TransactionType } from "@/features/transactions/types";
+import type {
+  CreateTransactionBody,
+  UpdateTransactionBody,
+} from "@/features/transactions/api/transactionsApi";
+import type { TransactionKind, TransactionType } from "@/features/transactions/types";
 
 /**
  * One write that has not reached the server yet. Versioned (`v`) so a later shape can be told
@@ -8,7 +11,12 @@ import type { TransactionType } from "@/features/transactions/types";
  */
 export const OUTBOX_ITEM_VERSION = 1;
 
-export type OutboxKind = "manual" | "voice" | "receipt";
+/**
+ * `manual`, `voice` and `receipt` add a transaction; `update` and `delete` change one the server already has
+ * (made offline, or when the server could not be reached). They carry `expected_updated_at`: a replay that finds
+ * the row changed meanwhile (409 `stale`) is dropped with a toast, never applied over the newer version.
+ */
+export type OutboxKind = "manual" | "voice" | "receipt" | "update" | "delete";
 
 /**
  * - `queued`: waiting for its turn / connection / backoff.
@@ -29,6 +37,8 @@ export type OutboxFile = {
 export type OutboxManualPreview = {
   amount: string;
   type: TransactionType;
+  /** How the entry counts (spend / income / transfer); absent reads as the direction's default. */
+  kind?: TransactionKind;
   counterparty_name: string;
   counterparty_type: CounterpartyType;
   category: string | null;
@@ -62,4 +72,12 @@ export type OutboxItem = {
   file?: OutboxFile;
   /** manual only. */
   preview?: OutboxManualPreview;
+  /** update / delete only: the server id of the transaction. */
+  targetId?: string;
+  /** update only: the changed fields, with the `expected_updated_at` the edit was made against. */
+  patch?: UpdateTransactionBody;
+  /** delete only: the `updated_at` the user last saw, sent as `expected_updated_at`. */
+  expectedUpdatedAt?: string | null;
+  /** update / delete only: what the Pending sheet shows ("₹250 · Swiggy"). */
+  label?: string;
 };

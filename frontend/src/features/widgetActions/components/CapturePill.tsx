@@ -12,10 +12,12 @@ type CapturePillProps = {
   text: string;
   onRetry: () => void;
   onClose: () => void;
+  /** `needs_review` (a foreign-currency capture): opens the manual form to type the rupee amount. */
+  onEnterAmount?: () => void;
 };
 
 /** The floating pill of Scan, Gallery and Voice after the file is picked: sending, reading, then the result. */
-export function CapturePill({ phase, text, onRetry, onClose }: CapturePillProps) {
+export function CapturePill({ phase, text, onRetry, onClose, onEnterAmount }: CapturePillProps) {
   const styles = useStyles();
   const { colors } = useTheme();
   const busy = phase === "uploading" || phase === "reading";
@@ -39,6 +41,12 @@ export function CapturePill({ phase, text, onRetry, onClose }: CapturePillProps)
       {phase === "failed" ? (
         <View style={styles.actions}>
           <Button title="Try again" size="compact" onPress={onRetry} />
+          <Button title="Close" variant="ghost" size="compact" onPress={onClose} />
+        </View>
+      ) : null}
+      {phase === "needs_review" ? (
+        <View style={styles.actions}>
+          <Button title="Enter amount" size="compact" onPress={onEnterAmount ?? onClose} />
           <Button title="Close" variant="ghost" size="compact" onPress={onClose} />
         </View>
       ) : null}

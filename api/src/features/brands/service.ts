@@ -8,7 +8,7 @@ import type { BrandItem, CategoryRef, PayeeSuggestion } from './schemas';
 
 /**
  * FTS5 MATCH expression for a typed query: every normalised word becomes a quoted prefix term (`"swi"*`), all of them ANDed.
- * Normalisation leaves only `[a-z0-9]` and spaces, so quoting is enough to keep user input from becoming FTS syntax.
+ * Normalisation leaves only letters, digits and spaces (never a quote or FTS operator), so quoting is enough to keep user input from becoming FTS syntax.
  * Null when nothing searchable is left.
  */
 export function buildMatchExpression(raw: string): string | null {
@@ -115,7 +115,7 @@ export async function payeeSuggestions(
   let filter = '';
   const nq = normalizeCounterparty(opts.q ?? '');
   if (nq) {
-    // `nq` is [a-z0-9 ] only, so it carries no LIKE wildcards: prefix of the key or of any word in it, or of any
+    // `nq` is letters, digits and spaces only, so it carries no LIKE wildcards: prefix of the key or of any word in it, or of any
     // spelling of the group's brand (aliases are normalised the same way, so "mcdonalds" finds McDonald's).
     filter =
       'AND (r.payee_key LIKE ? OR r.payee_key LIKE ? OR EXISTS (SELECT 1 FROM brand_aliases a WHERE a.brand_id = r.brand_id AND (a.alias LIKE ? OR a.alias LIKE ?)))';

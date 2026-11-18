@@ -29,6 +29,8 @@ const fields = {
   note: noteInput.optional(),
   /** Days before each due date to remind (1..30: the poster posts the item at 06:00 on the day itself); null / omitted = reminders off. */
   remind_lead_days: leadDaysOf(1, MAX_LEAD_DAYS).nullish(),
+  /** Whether what the item posts counts toward the monthly budget (default no: rent, EMI, insurance are committed, not budget). */
+  counts_toward_budget: z.boolean().optional(),
 };
 
 /** Yearly items need a month (422 `missing`, like a required field). */
@@ -61,8 +63,16 @@ export const recurringPatchSchema = z.object({
   note: fields.note,
   active: z.boolean().optional(),
   remind_lead_days: fields.remind_lead_days,
+  counts_toward_budget: fields.counts_toward_budget,
 });
 export type RecurringPatchBody = z.output<typeof recurringPatchSchema>;
+
+/** `POST /recurring/:id/link`: make an existing transaction the item's occurrence due on `occurrence` (`YYYY-MM-DD`). */
+export const recurringLinkSchema = z.object({
+  transaction_id: uuidString,
+  occurrence: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export type RecurringLinkBody = z.output<typeof recurringLinkSchema>;
 
 export const recurringListQuerySchema = z.object({ kind: z.enum(RECURRING_KINDS).optional() });
 export const recurringMonthQuerySchema = z.object({
@@ -83,13 +93,18 @@ export interface RecurringRow {
   day_of_month: number;
   month_of_year: number | null;
   timezone: string;
+  /** Cache: the first occurrence that has no live posting and no skip (can be in the past while the cron catches up). */
   next_due_date: string;
+  /** Due date of the first period the item owes (its start, or its latest resume): the poster posts every occurrence from here on. */
+  starts_on: string;
   active: number;
   note: string | null;
   /** JSON int array of lead days, null = reminders off. */
   remind_lead_days: string | null;
   /** UTC ISO of the next lead-day reminder, null = none. */
   next_remind_at: string | null;
+  /** 1 = what it posts counts toward the monthly budget; 0 = committed money, outside it. */
+  counts_toward_budget: number;
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +127,8 @@ export interface RecurringResponse {
   note: string | null;
   /** Lead days of the opt-in reminders, null = off. */
   remind_lead_days: number[] | null;
+  /** Whether what the item posts counts toward the monthly budget. */
+  counts_toward_budget: boolean;
   /** Amount per month as a decimal string: the amount for monthly items, amount / 12 for yearly ones. */
   monthly_equivalent: string;
   created_at: string;

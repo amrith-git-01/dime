@@ -1,10 +1,10 @@
-import { all, chunks, first, newId, nowIso, run, stmt } from '../../core/db';
+import { all, chunks, first, newId, nowIso, placeholders, run, stmt } from '../../core/db';
 import type { Db } from '../../core/db';
 import type { ReminderRow } from './schemas';
 
 /** Every query is scoped by `user_id`, except the cron's `listDue` (it serves all users, then acts per reminder owner). */
 const COLUMNS =
-  'id,user_id,direction,title,amount,counterparty_name,payee_key,upi_id,due_date,cadence,anchor_day,lead_days,remind_time,timezone,status,completed_at,completed_txn_id,used_txn_ids,fired_through,next_fire_at,created_at,updated_at';
+  'id,user_id,direction,title,amount,counterparty_name,payee_key,upi_id,due_date,cadence,anchor_day,lead_days,remind_time,timezone,status,completed_at,completed_txn_id,fired_through,next_fire_at,created_at,updated_at';
 
 export const MAX_REMINDERS_PER_USER = 500;
 
@@ -38,11 +38,11 @@ export async function insert(db: Db, row: NewReminder): Promise<ReminderRow> {
     db,
     `INSERT INTO reminders
        (id, user_id, direction, title, amount, counterparty_name, payee_key, upi_id, due_date, cadence, anchor_day, lead_days, remind_time,
-        timezone, status, completed_at, completed_txn_id, used_txn_ids, fired_through, next_fire_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
+        timezone, status, completed_at, completed_txn_id, fired_through, next_fire_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
     [
       newId(), row.user_id, row.direction, row.title, row.amount, row.counterparty_name, row.payee_key, row.upi_id, row.due_date, row.cadence,
-      row.anchor_day, row.lead_days, row.remind_time, row.timezone, row.status, row.completed_at, row.completed_txn_id, row.used_txn_ids,
+      row.anchor_day, row.lead_days, row.remind_time, row.timezone, row.status, row.completed_at, row.completed_txn_id,
       row.fired_through, row.next_fire_at, now, now,
     ],
   );
@@ -55,12 +55,12 @@ export function update(db: Db, userId: string, row: ReminderRow): Promise<Remind
   return first<ReminderRow>(
     db,
     `UPDATE reminders SET direction = ?, title = ?, amount = ?, counterparty_name = ?, payee_key = ?, upi_id = ?, due_date = ?, cadence = ?,
-       anchor_day = ?, lead_days = ?, remind_time = ?, timezone = ?, status = ?, completed_at = ?, completed_txn_id = ?, used_txn_ids = ?,
+       anchor_day = ?, lead_days = ?, remind_time = ?, timezone = ?, status = ?, completed_at = ?, completed_txn_id = ?,
        fired_through = ?, next_fire_at = ?, updated_at = ?
      WHERE user_id = ? AND id = ? RETURNING ${COLUMNS}`,
     [
       row.direction, row.title, row.amount, row.counterparty_name, row.payee_key, row.upi_id, row.due_date, row.cadence, row.anchor_day,
-      row.lead_days, row.remind_time, row.timezone, row.status, row.completed_at, row.completed_txn_id, row.used_txn_ids, row.fired_through,
+      row.lead_days, row.remind_time, row.timezone, row.status, row.completed_at, row.completed_txn_id, row.fired_through,
       row.next_fire_at, nowIso(), userId, row.id,
     ],
   );
@@ -122,7 +122,8 @@ export interface MatchWindow {
   /** The due day's start (ISO): the closest transaction to it wins. */
   at: string;
   key: string | null;
-  amount: number | null;
+  /** What is still due (cents): with a payee a transaction of this amount or less can be the payment (a partial one included), without one only this exact amount. Null = any amount. */
+  remaining: number | null;
 }
 
 export interface Match {
@@ -138,7 +139,8 @@ const MATCH_CHUNK = 100;
 
 /**
  * The "looks paid" suggestions of a list: for EACH window, the one live transaction of its type inside its own window whose
- * payee and amount equal the reminder's, closest to the due day (excluding transactions already used to complete a reminder).
+ * payee equals the reminder's and whose amount is at most what is still due, closest to the due day (excluding transactions that
+ * already settled a reminder).
  * The windows travel as one JSON parameter and join `transactions` through its (user, time) index, and a window function keeps
  * one row per reminder, so nothing can be cut off by a row limit, whatever the amounts and windows look like. Chunked by 100.
  */
@@ -150,7 +152,7 @@ export async function listMatches(db: Db, userId: string, windows: readonly Matc
         `WITH w AS (
            SELECT json_extract(value, '$.id') AS rid, json_extract(value, '$.type') AS type, json_extract(value, '$.from') AS from_at,
                   json_extract(value, '$.to') AS to_at, json_extract(value, '$.at') AS at, json_extract(value, '$.key') AS key,
-                  json_extract(value, '$.amount') AS amount
+                  json_extract(value, '$.remaining') AS remaining
            FROM json_each(?)
          )
          SELECT rid, id, amount, counterparty_name, transaction_at FROM (
@@ -158,20 +160,67 @@ export async function listMatches(db: Db, userId: string, windows: readonly Matc
                   ROW_NUMBER() OVER (PARTITION BY w.rid ORDER BY ABS(julianday(t.transaction_at) - julianday(w.at)), t.transaction_at DESC) AS rn
            FROM w JOIN transactions t
              ON t.user_id = ? AND t.deleted_at IS NULL AND t.type = w.type AND t.transaction_at >= w.from_at AND t.transaction_at < w.to_at
-            AND (w.key IS NULL OR t.payee_key = w.key) AND (w.amount IS NULL OR t.amount = w.amount)
-           WHERE t.id NOT IN (
-             SELECT completed_txn_id FROM reminders WHERE user_id = ? AND completed_txn_id IS NOT NULL
-             UNION SELECT j.value FROM reminders r, json_each(r.used_txn_ids) j WHERE r.user_id = ?
-           )
+            AND (w.key IS NULL OR t.payee_key = w.key) AND (w.remaining IS NULL OR t.amount = w.remaining OR (w.key IS NOT NULL AND t.amount < w.remaining))
+           WHERE t.id NOT IN (SELECT txn_id FROM reminder_payments WHERE user_id = ? AND txn_id IS NOT NULL)
          ) WHERE rn = 1`,
-        [JSON.stringify(chunk), userId, userId, userId],
+        [JSON.stringify(chunk), userId, userId],
       ),
     ),
   );
   return results.flat();
 }
 
-/** The user's live transaction `id`, or null (to validate `complete`'s `transaction_id`). */
-export async function transactionExists(db: Db, userId: string, id: string): Promise<boolean> {
-  return (await first<{ x: number }>(db, 'SELECT 1 AS x FROM transactions WHERE user_id = ? AND id = ? AND deleted_at IS NULL', [userId, id])) !== null;
+/** The user's live transaction `id` (its amount in cents), or null (to validate `complete`'s `transaction_id`). */
+export function liveTransaction(db: Db, userId: string, id: string): Promise<{ amount: number } | null> {
+  return first<{ amount: number }>(db, 'SELECT amount FROM transactions WHERE user_id = ? AND id = ? AND deleted_at IS NULL', [userId, id.toLowerCase()]);
+}
+
+export interface PaymentRow {
+  id: string;
+  reminder_id: string;
+  txn_id: string | null;
+  amount_cents: number;
+  /** The occurrence it paid (the reminder's due date then); '' for a payment migrated from before occurrences were recorded. */
+  due_date: string;
+}
+
+const PAYMENT_COLUMNS = 'id,reminder_id,txn_id,amount_cents,due_date';
+
+/** The payment a transaction made (it settles at most one reminder), or null. */
+export function paymentForTxn(db: Db, userId: string, txnId: string): Promise<PaymentRow | null> {
+  return first<PaymentRow>(db, `SELECT ${PAYMENT_COLUMNS} FROM reminder_payments WHERE user_id = ? AND txn_id = ?`, [userId, txnId.toLowerCase()]);
+}
+
+/** Record a payment. A transaction that already settled a reminder is a unique violation. */
+export async function addPayment(db: Db, row: { reminderId: string; userId: string; txnId: string | null; amountCents: number; dueDate: string }): Promise<void> {
+  await run(
+    db,
+    'INSERT INTO reminder_payments (id, reminder_id, user_id, txn_id, amount_cents, due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [newId(), row.reminderId, row.userId, row.txnId?.toLowerCase() ?? null, row.amountCents, row.dueDate, nowIso()],
+  );
+}
+
+export async function deletePayment(db: Db, id: string): Promise<void> {
+  await run(db, 'DELETE FROM reminder_payments WHERE id = ?', [id]);
+}
+
+/** Cents paid toward one occurrence of a reminder. */
+export async function paidFor(db: Db, reminderId: string, dueDate: string): Promise<number> {
+  const row = await first<{ total: number | null }>(db, 'SELECT SUM(amount_cents) AS total FROM reminder_payments WHERE reminder_id = ? AND due_date = ?', [reminderId, dueDate]);
+  return row?.total ?? 0;
+}
+
+/** Cents paid toward the CURRENT occurrence (the reminder's own due date) of each given reminder; reminders with none are absent. */
+export async function paidTotals(db: Db, userId: string, rows: readonly Pick<ReminderRow, 'id'>[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const part of chunks(rows, 80)) {
+    const found = await all<{ id: string; total: number }>(
+      db,
+      `SELECT r.id AS id, SUM(p.amount_cents) AS total FROM reminders r JOIN reminder_payments p ON p.reminder_id = r.id AND p.due_date = r.due_date
+       WHERE r.user_id = ? AND r.id IN (${placeholders(part.length)}) GROUP BY r.id`,
+      [userId, ...part.map((r) => r.id)],
+    );
+    for (const r of found) out.set(r.id, r.total);
+  }
+  return out;
 }

@@ -1,56 +1,25 @@
-import { formatCents, toCents } from '../../core/decimal';
-import { dateKey, localDate } from '../../core/timezone';
+import { formatCents } from '../../core/decimal';
+import { dateKey } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
-import type { DayTransactionSummary } from './schemas';
+import type { LedgerTotals, PeriodLedger } from './ledger';
+import type { BudgetPicture, DayTransactionSummary } from './schemas';
 
 /**
- * Pure aggregation helpers. Money is summed as integer cents so totals are exact (Python used
- * `Decimal`). Output formats match the Python response models: totals are "123.45"; an empty day in
- * a series is "0" (Python's `format(Decimal("0"), "f")`), a summary's missing side is "0.00".
+ * Pure shaping helpers over the ledger's totals (`ledger.ts` owns the SQL). Money is integer cents so totals are exact. Output
+ * formats: totals are "123.45"; an empty day in a series is "0", a summary's missing side is "0.00".
  */
 
+/** One local day of the ledger: `creditCents` is income, `debitCents` is spend (net of paybacks, transfers in neither). */
 export interface DayTotals {
   /** Local calendar day, `YYYY-MM-DD`. */
   day: string;
   creditCents: number;
   debitCents: number;
-  /** Part of `creditCents` / `debitCents` whose category is a recurring (fixed) one. */
+  /** Part of `creditCents` / `debitCents` that is fixed (recurring). */
   fixedCreditCents: number;
   fixedDebitCents: number;
-  /** Number of credit + debit rows that day. */
+  /** Number of rows that day, transfers included. */
   count: number;
-}
-
-export interface AmountTypeAtRow {
-  amount: number | string;
-  type: string;
-  transaction_at: string;
-  /** The category's scope is recurring (fixed spend / fixed income). Absent = flexible. */
-  is_fixed?: boolean | number | undefined;
-}
-
-/** Bucket raw rows by local day (SQLite cannot cut days in an IANA timezone). */
-export function dayTotalsFromRows(rows: readonly AmountTypeAtRow[], tz: string): DayTotals[] {
-  const byDay = new Map<string, DayTotals>();
-  for (const row of rows) {
-    if (row.type !== 'credit' && row.type !== 'debit') continue;
-    const ms = Date.parse(row.transaction_at);
-    if (Number.isNaN(ms)) continue;
-    const key = dateKey(localDate(tz, ms));
-    const entry = byDay.get(key) ?? { day: key, creditCents: 0, debitCents: 0, fixedCreditCents: 0, fixedDebitCents: 0, count: 0 };
-    const cents = toCents(row.amount);
-    const fixed = Boolean(row.is_fixed);
-    if (row.type === 'credit') {
-      entry.creditCents += cents;
-      if (fixed) entry.fixedCreditCents += cents;
-    } else {
-      entry.debitCents += cents;
-      if (fixed) entry.fixedDebitCents += cents;
-    }
-    entry.count += 1;
-    byDay.set(key, entry);
-  }
-  return [...byDay.values()].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 }
 
 /** Sparse per-day credit/debit/net/count (only days that have transactions). */
@@ -106,22 +75,8 @@ export interface Totals {
   debitCents: number;
   fixedCreditCents: number;
   fixedDebitCents: number;
-}
-
-export function sumDayTotals(totals: readonly DayTotals[]): Totals & { count: number } {
-  let creditCents = 0;
-  let debitCents = 0;
-  let fixedCreditCents = 0;
-  let fixedDebitCents = 0;
-  let count = 0;
-  for (const t of totals) {
-    creditCents += t.creditCents;
-    debitCents += t.debitCents;
-    fixedCreditCents += t.fixedCreditCents;
-    fixedDebitCents += t.fixedDebitCents;
-    count += t.count;
-  }
-  return { creditCents, debitCents, fixedCreditCents, fixedDebitCents, count };
+  /** Everyday spend, floored on its own by the ledger (never `debitCents - fixedDebitCents` of floored values). */
+  flexDebitCents: number;
 }
 
 /** The fixed / flexible split of a total, as the response's decimal strings. */
@@ -133,37 +88,37 @@ export function fixedFlexibleFields(t: Totals): {
 } {
   return {
     fixed_debit_total: formatCents(t.fixedDebitCents),
-    flexible_debit_total: formatCents(t.debitCents - t.fixedDebitCents),
+    flexible_debit_total: formatCents(t.flexDebitCents),
     fixed_credit_total: formatCents(t.fixedCreditCents),
     flexible_credit_total: formatCents(t.creditCents - t.fixedCreditCents),
   };
 }
 
-/* ----------------------------------------------------------------------------------------------
- * Period summary (built by `repository.periodSummary`)
- * -------------------------------------------------------------------------------------------- */
-
-export interface PeriodSummary {
-  creditCents: number;
-  debitCents: number;
-  /** Part of `creditCents` / `debitCents` whose category is a recurring (fixed) one. */
-  fixedCreditCents: number;
-  fixedDebitCents: number;
-  count: number;
-  /** Debit cents by category id; the key is "" for uncategorized. */
-  debitByCategory: Map<string, number>;
-  /** Category ids in `debitByCategory` that are recurring (fixed) categories. */
-  fixedDebitCategories: Set<string>;
-}
-
 export const UNCATEGORIZED_KEY = '__uncategorized__';
 
-/** month-summary `debit_by_category`: blank category -> `__uncategorized__`. */
-export function debitByCategoryResponse(summary: PeriodSummary): Record<string, string> {
+/** month-summary `debit_by_category`: blank category -> `__uncategorized__`; categories whose spend nets to zero are left out. */
+export function debitByCategoryResponse(spendByCategory: ReadonlyMap<string, number>): Record<string, string> {
   const merged = new Map<string, number>();
-  for (const [key, cents] of summary.debitByCategory) {
-    const k = key.trim() === '' ? UNCATEGORIZED_KEY : key.trim();
-    merged.set(k, cents);
+  for (const [key, cents] of spendByCategory) {
+    if (cents === 0) continue;
+    merged.set(key.trim() === '' ? UNCATEGORIZED_KEY : key.trim(), cents);
   }
   return Object.fromEntries([...merged].map(([k, cents]) => [k, formatCents(cents)]));
+}
+
+/** The additive budget fields of the month views, from the ledger and the month's cap (cents, 0 = none). */
+export function budgetPicture(ledger: LedgerTotals, capCents: number): BudgetPicture {
+  return {
+    budget_spent: formatCents(ledger.budgetSpendCents),
+    budget_left: capCents > 0 ? formatCents(capCents - ledger.budgetSpendCents) : null,
+    committed_total: formatCents(ledger.committedCents),
+    transfer_total: formatCents(ledger.transferCents),
+    payback_total: formatCents(ledger.paybackCents),
+    monthly_budget: capCents > 0 ? formatCents(capCents) : null,
+  };
+}
+
+/** Credit / debit totals of a ledger window as the response's `Totals`. */
+export function totalsOf(ledger: PeriodLedger): Totals {
+  return { creditCents: ledger.incomeCents, debitCents: ledger.spendCents, fixedCreditCents: ledger.fixedIncomeCents, fixedDebitCents: ledger.fixedSpendCents, flexDebitCents: ledger.flexSpendCents };
 }

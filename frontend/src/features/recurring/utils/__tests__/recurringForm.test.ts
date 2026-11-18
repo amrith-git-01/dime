@@ -1,3 +1,5 @@
+import { AMOUNT_TOO_LARGE_MESSAGE } from "@/utils/paise";
+
 import type { RecurringFormState, RecurringItem } from "../../types";
 import {
   buildCreateBody,
@@ -178,10 +180,13 @@ describe("validateRecurringForm", () => {
     });
   });
 
-  it("allows 10 whole digits and rejects 11", () => {
+  it("allows up to Rs 1,00,00,000 (the API's limit) and rejects anything above, saying so", () => {
     expect(
-      validateRecurringForm(form({ amountText: "9999999999.99" })).ok,
+      validateRecurringForm(form({ amountText: "10000000.00" })).ok,
     ).toBe(true);
+    expect(
+      validateRecurringForm(form({ amountText: "10000000.01" })),
+    ).toMatchObject({ ok: false, field: "amount", error: AMOUNT_TOO_LARGE_MESSAGE });
     expect(
       validateRecurringForm(form({ amountText: "10000000000" })),
     ).toMatchObject({ ok: false, field: "amount" });
@@ -464,6 +469,40 @@ describe("reminder days (remind_lead_days)", () => {
     expect(withDays).toMatchObject({ remind_lead_days: [3, 1] });
     const without = buildCreateBody("subscription", form({ ...emptyRecurringForm("subscription", TODAY), name: "Rent", amountText: "9000", categoryId: "c" }), TZ, TODAY);
     expect(without).not.toHaveProperty("remind_lead_days");
+  });
+
+  describe("counts toward the monthly budget", () => {
+    const bill = (over: Partial<RecurringFormState> = {}) =>
+      form({ ...emptyRecurringForm("subscription", TODAY), name: "Rent", amountText: "9000", categoryId: "c", ...over });
+
+    it("is off by default: rent, EMI and insurance are committed money, not budget", () => {
+      expect(emptyRecurringForm("subscription", TODAY).countsTowardBudget).toBe(false);
+      expect(formFromItem(item()).countsTowardBudget).toBe(false);
+      expect(buildCreateBody("subscription", bill(), TZ, TODAY)).not.toHaveProperty("counts_toward_budget");
+    });
+
+    it("is sent on create when the switch is on", () => {
+      expect(buildCreateBody("subscription", bill({ countsTowardBudget: true }), TZ, TODAY)).toMatchObject({
+        counts_toward_budget: true,
+      });
+    });
+
+    it("income never counts toward the budget", () => {
+      const income = form({ ...emptyRecurringForm("income", TODAY), name: "Salary", amountText: "50000", categoryId: "c", countsTowardBudget: true });
+      expect(buildCreateBody("income", income, TZ, TODAY)).not.toHaveProperty("counts_toward_budget");
+    });
+
+    it("is read from the saved item and sent on update only when it changed", () => {
+      const counted = item({ counts_toward_budget: true });
+      expect(formFromItem(counted).countsTowardBudget).toBe(true);
+      expect(buildUpdateBody(counted, formFromItem(counted), TZ)).toEqual({});
+      expect(buildUpdateBody(counted, { ...formFromItem(counted), countsTowardBudget: false }, TZ)).toEqual({
+        counts_toward_budget: false,
+      });
+      expect(buildUpdateBody(item(), { ...formFromItem(item()), countsTowardBudget: true }, TZ)).toEqual({
+        counts_toward_budget: true,
+      });
+    });
   });
 
   it("sends a changed list on update, and null when the reminder is turned off", () => {

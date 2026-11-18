@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { ConfirmModal } from "@/components/shared";
+import { TextField } from "@/components/ui";
 import { RemindersList } from "@/features/reminders/components";
 
 import { useRemindersScreenModel } from "./useRemindersScreenModel";
@@ -9,6 +10,7 @@ import { useRemindersScreenModel } from "./useRemindersScreenModel";
 export default function RemindersScreen() {
   const model = useRemindersScreenModel();
   const target = model.pendingDelete;
+  const part = model.partPayment;
 
   return (
     <View style={styles.root}>
@@ -28,6 +30,24 @@ export default function RemindersScreen() {
         onCancel={model.onDeleteCancel}
         onConfirm={model.onDeleteConfirm}
       />
+      <ConfirmModal
+        visible={part !== null}
+        title="Part payment"
+        message={part ? model.partPaymentPrompt : null}
+        confirmLabel="Record"
+        confirmBusyLabel="Recording"
+        onCancel={model.onPartPaymentCancel}
+        onConfirm={model.onPartPaymentConfirm}
+      >
+        <TextField
+          label="Amount paid"
+          value={model.partPaymentText}
+          onChangeText={model.onPartPaymentTextChange}
+          keyboardType="decimal-pad"
+          placeholder="0.00"
+          errorMessage={model.partPaymentError}
+        />
+      </ConfirmModal>
     </View>
   );
 }

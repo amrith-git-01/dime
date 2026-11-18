@@ -1,6 +1,7 @@
 import { all, batch, chunks, first, fromFlag, newId, nowIso, placeholders, stmt } from '../../core/db';
 import type { Db } from '../../core/db';
 import { DbCodedError, INSUFFICIENT_PRIVILEGE, NO_DATA_FOUND, WRONG_SCOPE } from '../../core/db-errors';
+import { historyStatements } from '../budgets/history';
 import { decimalToCents, formatCents } from '../../core/decimal';
 import { DETAIL_COLUMNS } from '../transactions/schemas';
 import type { TransactionRow } from '../transactions/schemas';
@@ -69,6 +70,8 @@ export interface CategoryBudgetUpdate {
   setBudget: boolean;
   /** Canonical decimal string; null with `setBudget` deletes the budget. */
   budgetAmount: string | null;
+  /** The current local month (`YYYY-MM`): the budget history row a budget change writes. */
+  monthKey: string;
 }
 
 export interface CategoryBudgetPayload {
@@ -112,6 +115,8 @@ export async function updateCategoryWithBudget(db: Db, input: CategoryBudgetUpda
     );
   }
   if (input.setBudget) {
+    const cents = input.budgetAmount === null ? 0 : decimalToCents(input.budgetAmount);
+    statements.push(...historyStatements(db, { userId: input.userId, monthKey: input.monthKey, scope: 'category', categoryId, cents }));
     if (input.budgetAmount === null) {
       statements.push(stmt(db, 'DELETE FROM category_budgets WHERE user_id = ? AND category_id = ?', [input.userId, categoryId]));
     } else {
@@ -150,6 +155,12 @@ export async function countActiveTransactions(db: Db, userId: string, categoryId
     [userId, categoryId.toLowerCase()],
   );
   return row?.n ?? 0;
+}
+
+/** The category's monthly budget (cents), or null when it has none. */
+export async function fetchBudgetCents(db: Db, userId: string, categoryId: string): Promise<number | null> {
+  const row = await first<{ monthly_amount: number }>(db, 'SELECT monthly_amount FROM category_budgets WHERE user_id = ? AND category_id = ?', [userId, categoryId.toLowerCase()]);
+  return row?.monthly_amount ?? null;
 }
 
 /**

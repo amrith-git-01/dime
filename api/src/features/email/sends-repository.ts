@@ -6,8 +6,8 @@ import type { DigestKind } from './tokens';
 
 type EmailKind = 'welcome' | DigestKind;
 
-/** A `pending` claim older than this belongs to a worker that died between claim and send. */
-export const PENDING_RECLAIM_AFTER_MS = 30 * 60 * 1000;
+/** A `pending` claim older than this belongs to a worker that died between claim and send (a send takes seconds): a retry may take it over. */
+export const PENDING_RECLAIM_AFTER_MS = 5 * 60 * 1000;
 
 export interface SendKey {
   userId: string;
@@ -70,18 +70,27 @@ export async function deletePending(db: Db, key: SendKey): Promise<void> {
 
 const PAGE_SIZE = 1000;
 
-/** Ids of the users who have this digest switched on, in stable order, one page at a time. */
-export async function* listDigestUserPages(db: Db, kind: DigestKind): AsyncGenerator<string[]> {
+/**
+ * Ids of the users who have this digest switched on and whose email for `periodKey` is not sent yet, in stable order, keyset-paged
+ * (`user_id > ?`: the selection changes as emails are sent, so an offset would skip people). A user with a `pending` claim is still
+ * selected: a duplicate message is harmless (the consumer's claim lets one worker send), and a claim of a dead worker is retried.
+ */
+export async function* listDigestUserPages(db: Db, kind: DigestKind, periodKey: string): AsyncGenerator<string[]> {
   const column = kind === 'weekly' ? 'weekly_email_enabled' : 'monthly_email_enabled';
-  for (let offset = 0; ; offset += PAGE_SIZE) {
+  let after = '';
+  for (;;) {
     const data = await all<{ user_id: string }>(
       db,
-      `SELECT user_id FROM user_settings WHERE ${column} = 1 ORDER BY user_id ASC LIMIT ? OFFSET ?`,
-      [PAGE_SIZE, offset],
+      `SELECT s.user_id AS user_id FROM user_settings s
+       WHERE s.${column} = 1 AND s.user_id > ?
+         AND NOT EXISTS (SELECT 1 FROM email_sends e WHERE e.user_id = s.user_id AND e.kind = ? AND e.period_key = ? AND e.status = 'sent')
+       ORDER BY s.user_id ASC LIMIT ?`,
+      [after, kind, periodKey, PAGE_SIZE],
     );
     const ids = data.map((r) => r.user_id).filter((id) => typeof id === 'string' && id !== '');
     if (ids.length > 0) yield ids;
     if (data.length < PAGE_SIZE) return;
+    after = data[data.length - 1]?.user_id ?? '';
   }
 }
 

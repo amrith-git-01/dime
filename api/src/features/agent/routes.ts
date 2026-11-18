@@ -13,6 +13,8 @@ import { rateLimit } from '../../core/rate-limit';
 import { getDb } from '../../core/db';
 import { validate } from '../../core/validation';
 import { PermanentAiError, TransientAiError } from '../ai/errors';
+import { secondsUntilLocalMidnight } from '../ai/neuron-cap';
+import { resolveUserTimezone } from '../user-settings/service';
 import { resolveTimezone } from './dates';
 import { createDeepSeekClient, emptyUsage, TurnAbortedError } from './llm';
 import { chatRequestSchema, feedbackRequestSchema } from './schemas';
@@ -20,7 +22,7 @@ import type { AgentErrorBody } from './schemas';
 import { runAgentTurn, TurnTimeoutError } from './service';
 import type { AgentDeps, AgentEvent, TurnResult } from './service';
 import type { AgentQueries } from './queries';
-import { claimQuestion, markFirstAgentQuestion, recordUsage, refundQuestion, saveFeedback, secondsToUtcMidnight, tokensUsedToday } from './usage';
+import { claimQuestion, markFirstAgentQuestion, recordUsage, refundQuestion, saveFeedback, tokensUsedToday } from './usage';
 
 /** Seams for tests; production uses the defaults. */
 export interface AgentRouteDeps {
@@ -44,11 +46,11 @@ export function agentErrorBody(err: unknown): AgentErrorBody {
 const CHAT_BODY_LIMIT_BYTES = 1024 * 1024;
 const FEEDBACK_BODY_LIMIT_BYTES = 16 * 1024;
 
-/** Kill switch and daily token budget, as C5 error bodies. Null means "go ahead". */
-async function refusal(c: Context<AppBindings>, userId: string, nowMs: number): Promise<AgentErrorBody['error'] | null> {
+/** Kill switch and daily token budget (the user's calendar day in `tz`), as C5 error bodies. Null means "go ahead". */
+async function refusal(c: Context<AppBindings>, userId: string, nowMs: number, tz: string): Promise<AgentErrorBody['error'] | null> {
   const config = getConfig(c.env).agent;
   if (!config.enabled) return { code: 'agent_disabled', message: 'The assistant is switched off right now. Please try again later.' };
-  const used = await tokensUsedToday(getDb(c), userId, nowMs);
+  const used = await tokensUsedToday(getDb(c), userId, nowMs, tz);
   if (used !== null && used >= config.dailyTokenBudget) {
     return { code: 'daily_limit', message: "You've reached today's assistant limit. It resets tomorrow." };
   }
@@ -66,8 +68,10 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
     const body = c.req.valid('json');
     const wantsStream = (c.req.header('accept') ?? '').includes('text/event-stream');
     resolveTimezone(body.timezone); // a bad timezone is a plain 400, before anything is opened
+    // The daily question and token limits count the user's own days: their stored timezone, else the request's.
+    const tz = await resolveUserTimezone(getDb(c), user.id, body.timezone);
 
-    const refused = await refusal(c, user.id, routeDeps.now());
+    const refused = await refusal(c, user.id, routeDeps.now(), tz);
     if (refused) {
       return wantsStream
         ? streamSSE(c, async (stream) => void (await stream.writeSSE({ event: 'error', data: JSON.stringify(refused) })))
@@ -77,9 +81,9 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
     // The question is counted before the turn runs (atomic, so concurrent requests can't exceed the
     // limit) and given back when the turn fails without an answer (see `refund` below).
     const claimedAt = routeDeps.now();
-    if (!(await claimQuestion(getDb(c), user.id, claimedAt, config.agent.dailyQuestions))) {
+    if (!(await claimQuestion(getDb(c), user.id, claimedAt, config.agent.dailyQuestions, tz))) {
       const message = `You've used today's ${config.agent.dailyQuestions} questions. Try again tomorrow.`;
-      return c.json({ error: { code: 'daily_limit', message } }, 429, { 'Retry-After': String(secondsToUtcMidnight(routeDeps.now())) });
+      return c.json({ error: { code: 'daily_limit', message } }, 429, { 'Retry-After': String(secondsUntilLocalMidnight(routeDeps.now(), tz)) });
     }
 
     const deps: AgentDeps = {
@@ -94,10 +98,10 @@ export function createAgentRoutes(overrides: Partial<AgentRouteDeps> = {}): Hono
     const payload = (result: TurnResult) => (debug ? { ...result.response, debug: { ...result.trace, tokens: result.usage } } : result.response);
     // Filled while the turn runs and recorded in `finally`, so every path (success, error, abort, timeout) is charged.
     const usage = emptyUsage();
-    const refund = () => defer(c, refundQuestion(getDb(c), user.id, claimedAt), 'agent-refund');
+    const refund = () => defer(c, refundQuestion(getDb(c), user.id, claimedAt, tz), 'agent-refund');
     const track = () => {
       if (usage.promptTokens + usage.completionTokens > 0) {
-        defer(c, recordUsage(getDb(c), user.id, routeDeps.now(), usage), 'agent-usage');
+        defer(c, recordUsage(getDb(c), user.id, routeDeps.now(), usage, tz), 'agent-usage');
       }
     };
 

@@ -1,6 +1,8 @@
 import { getDaysInMonth } from "date-fns";
 
 import {
+  AMOUNT_TOO_LARGE_MESSAGE,
+  isAmountAboveMax,
   paiseToAmountString,
   parseAmountInputToPaise,
   toPaise,
@@ -19,8 +21,6 @@ import type {
 /** Days before the due date a recurring item may remind (1 to 7 are offered; the API takes 1 to 30). */
 export const MAX_REMIND_LEAD_ENTRIES = 5;
 
-/** The API stores money with at most 10 whole digits. */
-export const MAX_AMOUNT_WHOLE_DIGITS = 10;
 export const MAX_NAME_LENGTH = 80;
 export const MAX_NOTE_LENGTH = 200;
 
@@ -54,6 +54,7 @@ export function emptyRecurringForm(
     active: true,
     postCurrentPeriod: defaultPostCurrentPeriod(kind),
     remindLeadDays: [],
+    countsTowardBudget: false,
   };
 }
 
@@ -69,6 +70,7 @@ export function formFromItem(item: RecurringItem): RecurringFormState {
     active: item.active,
     postCurrentPeriod: false,
     remindLeadDays: sanitizeRemindLeadDays(item.remind_lead_days),
+    countsTowardBudget: item.counts_toward_budget === true,
   };
 }
 
@@ -149,11 +151,9 @@ export function collectFieldErrors(
   }
   const paise = parseAmountInputToPaise(form.amountText);
   if (paise === null) {
-    errors.amount = "Enter an amount greater than zero.";
-  } else if (
-    String(Math.trunc(paise / 100)).length > MAX_AMOUNT_WHOLE_DIGITS
-  ) {
-    errors.amount = `Amount can have at most ${MAX_AMOUNT_WHOLE_DIGITS} digits before the decimal point.`;
+    errors.amount = isAmountAboveMax(form.amountText)
+      ? AMOUNT_TOO_LARGE_MESSAGE
+      : "Enter an amount greater than zero.";
   }
   if (parseDayOfMonth(form.dayOfMonthText) === null) {
     errors.day = "Day of month must be between 1 and 31.";
@@ -311,6 +311,9 @@ export function buildCreateBody(
   if (remind.length > 0) {
     body.remind_lead_days = remind;
   }
+  if (kind === "subscription" && form.countsTowardBudget) {
+    body.counts_toward_budget = true;
+  }
   return body;
 }
 
@@ -340,6 +343,9 @@ export function buildUpdateBody(
   }
   if (form.active !== item.active) {
     body.active = form.active;
+  }
+  if (item.kind === "subscription" && form.countsTowardBudget !== (item.counts_toward_budget === true)) {
+    body.counts_toward_budget = form.countsTowardBudget;
   }
   const remind = sanitizeRemindLeadDays(form.remindLeadDays);
   const savedRemind = sanitizeRemindLeadDays(item.remind_lead_days);

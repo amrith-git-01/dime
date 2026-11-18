@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { isTransientDbError, isUniqueViolation } from '../src/core/db-errors';
 import { claimJob, claimKey, failIfUnfinished, findByKeys, insertMany, listRecoverable, markDone, releaseJob, requeueStaleProcessing } from '../src/features/jobs/repository';
-import { fetchActive, findByPaymentHash, insertTransactionRow, payeeTotals, periodSummary, softDelete, updateForUser } from '../src/features/transactions/repository';
+import { payeeTotals, periodLedger } from '../src/features/transactions/ledger';
+import { fetchActive, findByOccurrence, findByPaymentHash, findPossibleDuplicate, insertTransactionRow, softDelete, updateForUser } from '../src/features/transactions/repository';
 import { insertDefaults } from '../src/features/user-settings/repository';
 import { USER_ID } from './helpers';
 import { oneRow, rowsOf, seedCategory, seedJob, seedTransaction, seedUser, testDb } from './db';
@@ -80,31 +81,34 @@ describe('migration 0001: seed and constraints', () => {
 /** The id of the stored row. */
 const insertTransaction = async (db: Parameters<typeof insertTransactionRow>[0], row: Parameters<typeof insertTransactionRow>[1]) => (await insertTransactionRow(db, row)).id;
 
-describe('transactions: partial unique payment_hash and payee_key', () => {
+describe('transactions: idempotency identities and payee_key', () => {
   const row = (over: Partial<Parameters<typeof insertTransactionRow>[1]> = {}) => ({
     user_id: USER_ID,
     amount: '10.50',
     type: 'debit',
+    kind: 'spend',
     note: null,
     detected_via: 'manual',
     transaction_at: '2026-10-04T10:00:00.000Z',
+    local_date: '2026-10-04',
+    month_key: '2026-10',
     category_id: null,
     receipt_url: null,
     voice_url: null,
     counterparty_name: 'Swiggy',
     counterparty_normalized: 'swiggy',
-    payment_hash: 'hash-1',
+    payment_hash: 'job:1' as string | null,
     ...over,
   });
 
-  it('a second active row with the same (user, payment_hash) is a unique violation', async () => {
+  it('a second active row with the same (user, job identity) is a unique violation', async () => {
     await insertTransaction(testDb(), row());
     const err = await insertTransaction(testDb(), row()).catch((e: unknown) => e);
     expect(isUniqueViolation(err)).toBe(true);
     expect(await rowsOf('transactions')).toHaveLength(1);
   });
 
-  it('a soft-deleted row does not block the same hash, and neither does another user', async () => {
+  it('a soft-deleted row does not block the same identity, and neither does another user', async () => {
     const first = await insertTransaction(testDb(), row());
     expect(await softDelete(testDb(), USER_ID, first)).toBe(true);
     await insertTransaction(testDb(), row());
@@ -112,23 +116,55 @@ describe('transactions: partial unique payment_hash and payee_key', () => {
     await seedUser(OTHER);
     await insertTransaction(testDb(), row({ user_id: OTHER }));
     expect(await rowsOf('transactions')).toHaveLength(3);
-    // Rows without a hash never clash.
-    await seedTransaction({ payment_hash: null });
-    await seedTransaction({ payment_hash: null });
   });
 
-  it('updating onto an existing hash is a unique violation too', async () => {
-    await insertTransaction(testDb(), row());
-    const second = await insertTransaction(testDb(), row({ payment_hash: 'hash-2' }));
-    const err = await updateForUser(testDb(), USER_ID, second, { payment_hash: 'hash-1' }).catch((e: unknown) => e);
+  it('the new write path has only a job identity: rows without a hash never clash (two real teas are two rows)', async () => {
+    for (let i = 0; i < 3; i += 1) await insertTransaction(testDb(), row({ payment_hash: null }));
+    expect(await rowsOf('transactions')).toHaveLength(3);
+  });
+
+  it('a hash an older Worker wrote stays unique among live rows (its race protection in the deploy window); a deleted twin does not clash', async () => {
+    await seedTransaction({ payment_hash: 'a-content-hash' });
+    await expect(seedTransaction({ payment_hash: 'a-content-hash' })).rejects.toThrow(/UNIQUE/);
+    await seedTransaction({ payment_hash: 'a-content-hash', deleted_at: '2026-10-05T00:00:00.000Z' });
+    expect(await rowsOf('transactions')).toHaveLength(2);
+  });
+
+  it('a live row per (user, recurring item, occurrence) at most; a deleted one frees it', async () => {
+    const item = 'eeeeeeee-0000-0000-0000-000000000001';
+    await testDb().prepare("INSERT INTO recurring_items (id, user_id, kind, name, amount, cadence, day_of_month, timezone, next_due_date) VALUES (?, ?, 'subscription', 'Rent', 100, 'monthly', 5, 'Asia/Kolkata', '2026-11-05')").bind(item, USER_ID).run();
+    const posted = row({ payment_hash: null, recurring_item_id: item, recurring_occurrence: '2026-10-05' });
+    const first = await insertTransaction(testDb(), posted);
+    const err = await insertTransaction(testDb(), posted).catch((e: unknown) => e);
     expect(isUniqueViolation(err)).toBe(true);
-    expect((await fetchActive(testDb(), USER_ID, second))?.payment_hash).toBe('hash-2');
+    expect((await findByOccurrence(testDb(), USER_ID, item, '2026-10-05'))?.id).toBe(first);
+    await softDelete(testDb(), USER_ID, first);
+    expect(await findByOccurrence(testDb(), USER_ID, item, '2026-10-05')).toBeNull();
+    await insertTransaction(testDb(), posted);
+  });
+
+  it('the identity does not change on edit: payment_hash is not patchable', async () => {
+    const id = await insertTransaction(testDb(), row());
+    await expect(updateForUser(testDb(), USER_ID, id, { payment_hash: 'job:2' })).rejects.toThrow(/not patchable/);
+    expect((await fetchActive(testDb(), USER_ID, id))?.payment_hash).toBe('job:1');
+  });
+
+  it('findPossibleDuplicate: same type, amount, payee and local day; never itself, deleted rows or other days', async () => {
+    const first = await insertTransaction(testDb(), row({ payment_hash: null }));
+    const probe = { type: 'debit', amountCents: 1050, payeeKey: 'swiggy', localDate: '2026-10-04' };
+    expect(await findPossibleDuplicate(testDb(), USER_ID, probe)).toBe(first);
+    expect(await findPossibleDuplicate(testDb(), USER_ID, { ...probe, excludeId: first })).toBeNull();
+    expect(await findPossibleDuplicate(testDb(), USER_ID, { ...probe, localDate: '2026-10-05' })).toBeNull();
+    expect(await findPossibleDuplicate(testDb(), USER_ID, { ...probe, amountCents: 1051 })).toBeNull();
+    expect(await findPossibleDuplicate(testDb(), USER_ID, { ...probe, type: 'credit' })).toBeNull();
+    await softDelete(testDb(), USER_ID, first);
+    expect(await findPossibleDuplicate(testDb(), USER_ID, probe)).toBeNull();
   });
 
   it('computes payee_key on insert and recomputes it when the payee changes', async () => {
-    const a = await insertTransaction(testDb(), row({ counterparty_name: ' Swiggy ', counterparty_normalized: 'swiggy', payment_hash: 'a' }));
-    const b = await insertTransaction(testDb(), row({ counterparty_name: "McDonald's (Andheri)!", counterparty_normalized: null, payment_hash: 'b' }));
-    const c = await insertTransaction(testDb(), row({ counterparty_name: '***', counterparty_normalized: null, payment_hash: 'c' }));
+    const a = await insertTransaction(testDb(), row({ counterparty_name: ' Swiggy ', counterparty_normalized: 'swiggy', payment_hash: null }));
+    const b = await insertTransaction(testDb(), row({ counterparty_name: "McDonald's (Andheri)!", counterparty_normalized: null, payment_hash: null }));
+    const c = await insertTransaction(testDb(), row({ counterparty_name: '***', counterparty_normalized: null, payment_hash: null }));
     const keys = async () => Object.fromEntries((await rowsOf<{ id: string; payee_key: string }>('transactions')).map((r) => [r.id, r.payee_key]));
     expect(await keys()).toEqual({ [a]: 'swiggy', [b]: 'mcdonald s andheri', [c]: 'unknown' });
 
@@ -143,10 +179,10 @@ describe('transactions: partial unique payment_hash and payee_key', () => {
   it('stores money as integer cents and returns decimal strings', async () => {
     const id = await insertTransaction(testDb(), row({ amount: '0.05' }));
     expect((await oneRow<{ amount: number }>('transactions', 'id = ?', id))?.amount).toBe(5);
-    expect((await findByPaymentHash(testDb(), USER_ID, 'hash-1'))?.amount).toBe('0.05');
+    expect((await findByPaymentHash(testDb(), USER_ID, 'job:1'))?.amount).toBe('0.05');
   });
 
-  it('periodSummary and payeeTotals aggregate in SQL over the half-open range', async () => {
+  it('periodLedger and payeeTotals aggregate in SQL over a window of instants', async () => {
     await seedCategory({ id: 'cccccccc-0000-0000-0000-000000000001', name: 'Eats' });
     const eats = 'cccccccc-0000-0000-0000-000000000001';
     const at = (d: string) => `2026-10-${d}T10:00:00.000Z`;
@@ -155,13 +191,13 @@ describe('transactions: partial unique payment_hash and payee_key', () => {
     await seedTransaction({ amount: '20', type: 'credit', counterparty_name: 'Boss', transaction_at: at('03') });
     await seedTransaction({ amount: '99', type: 'debit', counterparty_name: 'Out', transaction_at: '2026-11-01T00:00:00.000Z' }); // exclusive end
     await seedTransaction({ amount: '99', type: 'debit', counterparty_name: 'Gone', transaction_at: at('04'), deleted_at: at('05') });
-    const range = { from: '2026-10-01T00:00:00.000Z', to: '2026-11-01T00:00:00.000Z' };
+    const window = { instants: { from: '2026-10-01T00:00:00.000Z', to: '2026-11-01T00:00:00.000Z' } };
 
-    const summary = await periodSummary(testDb(), USER_ID, range);
-    expect(summary).toMatchObject({ creditCents: 2000, debitCents: 1515, count: 3 });
-    expect(Object.fromEntries(summary.debitByCategory)).toEqual({ [eats]: 1010, '': 505 });
+    const summary = await periodLedger(testDb(), USER_ID, window);
+    expect(summary).toMatchObject({ incomeCents: 2000, spendCents: 1515, count: 3 });
+    expect(Object.fromEntries(summary.spendByCategory)).toEqual({ [eats]: 1010, '': 505 });
 
-    expect(await payeeTotals(testDb(), USER_ID, range)).toEqual([
+    expect(await payeeTotals(testDb(), USER_ID, window)).toEqual([
       { type: 'credit', payee_key: 'boss', display_name: 'Boss', total_cents: 2000, count: 1 },
       // The oldest named row gives the display name.
       { type: 'debit', payee_key: 'swiggy', display_name: 'Swiggy', total_cents: 1515, count: 2 },

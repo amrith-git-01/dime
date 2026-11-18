@@ -30,12 +30,12 @@ describe('GET /limits', () => {
     expect((await call('/api/v1/limits', { token: false })).status).toBe(401);
   });
 
-  it('a fresh day: nothing used, the configured limits, next UTC midnight, no-store', async () => {
+  it('a fresh day: nothing used, the configured limits, the user\'s next midnight (IST until a timezone is stored), no-store', async () => {
     const { res, body } = await get();
     expect(res.status).toBe(200);
     expect(res.headers.get('Cache-Control')).toContain('no-store');
     expect(body).toEqual({
-      resets_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/) as string,
+      resets_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T18:30:00\.000Z$/) as string,
       agent_questions: { used: 0, limit: 5, remaining: 5 },
       receipt_scans: { used: 0, limit: 10, remaining: 10 },
       voice_captures: { used: 0, limit: 10, remaining: 10 },
@@ -49,11 +49,12 @@ describe('GET /limits', () => {
   it('counts per kind and per user; the vars set the limits; remaining never goes below 0', async () => {
     const now = Date.now();
     await seedUser(OTHER);
-    for (let i = 0; i < 3; i++) await claimCapture(testDb(), USER_ID, 'receipt', now, 10);
-    await claimCapture(testDb(), USER_ID, 'voice', now, 10);
-    await claimQuestion(testDb(), USER_ID, now, 5);
-    await claimQuestion(testDb(), USER_ID, now, 5);
-    await claimCapture(testDb(), OTHER, 'receipt', now, 10);
+    const tz = 'Asia/Kolkata'; // a user with no stored timezone is counted in IST
+    for (let i = 0; i < 3; i++) await claimCapture(testDb(), USER_ID, 'receipt', now, 10, tz);
+    await claimCapture(testDb(), USER_ID, 'voice', now, 10, tz);
+    await claimQuestion(testDb(), USER_ID, now, 5, tz);
+    await claimQuestion(testDb(), USER_ID, now, 5, tz);
+    await claimCapture(testDb(), OTHER, 'receipt', now, 10, tz);
 
     const mine = (await get({ env: makeEnv({ AI_USER_DAILY_RECEIPTS: '2', AGENT_DAILY_QUESTIONS: '8', AI_USER_DAILY_VOICE: '4' }) })).body;
     expect(mine.receipt_scans).toEqual({ used: 3, limit: 2, remaining: 0 });

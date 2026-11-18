@@ -1,4 +1,4 @@
-import { addDays, dateKey, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
+import { addDays, dateKey, daysInMonth, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
 import { parseDateKey } from '../recurring/schedule';
 
@@ -164,7 +164,6 @@ export function dueNow(input: ScheduleInput, afterMs: number, nowMs: number, rep
   return { step: roll ? null : (due[due.length - 1] ?? null), roll };
 }
 
-const daysInMonth = (year: number, month: number): number => new Date(Date.UTC(year, month, 0)).getUTCDate();
 const clamped = (year: number, month: number, day: number): LocalDate => ({ year, month, day: Math.min(day, daysInMonth(year, month)) });
 
 /**

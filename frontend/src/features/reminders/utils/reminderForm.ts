@@ -1,8 +1,13 @@
-import { paiseToAmountString, parseAmountInputToPaise, toPaise } from "@/utils/paise";
+import {
+  AMOUNT_TOO_LARGE_MESSAGE,
+  isAmountAboveMax,
+  paiseToAmountString,
+  parseAmountInputToPaise,
+  toPaise,
+} from "@/utils/paise";
 
 import {
   leadDayCap,
-  MAX_AMOUNT_WHOLE_DIGITS,
   MAX_DAYS_IN_PAST,
   MAX_LEAD_DAY_ENTRIES,
   MAX_NAME_LENGTH,
@@ -119,9 +124,9 @@ export function collectFieldErrors(
   if (form.amountText.trim().length > 0) {
     const paise = parseAmountInputToPaise(form.amountText);
     if (paise === null) {
-      errors.amount = "Enter an amount greater than zero, or leave it empty.";
-    } else if (String(Math.trunc(paise / 100)).length > MAX_AMOUNT_WHOLE_DIGITS) {
-      errors.amount = `Amount can have at most ${MAX_AMOUNT_WHOLE_DIGITS} digits before the decimal point.`;
+      errors.amount = isAmountAboveMax(form.amountText)
+        ? AMOUNT_TOO_LARGE_MESSAGE
+        : "Enter an amount greater than zero, or leave it empty.";
     }
   }
 

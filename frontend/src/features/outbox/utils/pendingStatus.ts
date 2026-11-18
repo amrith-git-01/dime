@@ -21,8 +21,11 @@ export function pendingTone(
   return "waiting";
 }
 
-/** "₹250 · Swiggy", "Voice note · 2 Oct, 9:14", "Receipt photo · 2 Oct, 9:14". */
+/** "₹250 · Swiggy", "Edit ₹250 · Swiggy", "Delete ₹250 · Swiggy", "Voice note · 2 Oct, 9:14", "Receipt photo · 2 Oct, 9:14". */
 export function describeItem(item: OutboxItem): string {
+  if (item.kind === "update" || item.kind === "delete") {
+    return item.label ?? (item.kind === "update" ? "Edit" : "Delete");
+  }
   if (item.kind === "manual" && item.preview) {
     const name = item.preview.counterparty_name.trim();
     const amount = formatInrCompact(item.preview.amount);

@@ -5,6 +5,7 @@ import type { CounterpartyType } from "../counterpartyTypes";
 import type {
   HomeOverview,
   MonthSummary,
+  TransactionKind,
   TransactionListPage,
   TransactionRow,
   TransactionType,
@@ -18,6 +19,8 @@ export type CreateTransactionBody = {
   type: TransactionType;
   counterparty_name: string;
   counterparty_type: CounterpartyType;
+  /** How the row counts. Omitted = the server derives it from the direction and the counterparty. */
+  kind?: TransactionKind;
   category: string | null;
   category_id?: string | null;
   /** A brand picked from the catalogue; null for a typed name (the server matches known names itself). */
@@ -107,23 +110,66 @@ export async function fetchMonthSummary(input: {
 
 export { TX_PAGE_LIMIT };
 
-export type UpdateTransactionBody = Omit<CreateTransactionBody, "detected_via">;
+/**
+ * PATCH changes only the fields sent. `expected_updated_at` is the `updated_at` the client last saw: a row that
+ * changed elsewhere meanwhile answers 409 `{code: "stale"}` instead of being overwritten.
+ */
+export type UpdateTransactionBody = Partial<Omit<CreateTransactionBody, "detected_via">> & {
+  expected_updated_at?: string;
+};
+
+/** Per-call options of a write sent from the outbox (or with a short timeout). */
+export type TransactionWriteOptions = {
+  timeout?: number;
+  signal?: AbortSignal;
+  /** Outbox only: the user it belongs to (refused when someone else is signed in). */
+  outboxUserId?: string;
+};
+
+function writeConfig(options?: TransactionWriteOptions) {
+  return {
+    ...(options?.timeout !== undefined ? { timeout: options.timeout } : {}),
+    ...(options?.signal ? { signal: options.signal } : {}),
+    ...(options?.outboxUserId ? { _outboxUserId: options.outboxUserId } : {}),
+  };
+}
 
 /** The server answers with the full saved row (fresh signed media URLs included). */
 export async function updateTransaction(
   id: string,
   body: UpdateTransactionBody,
+  options?: TransactionWriteOptions,
 ): Promise<TransactionRow | undefined> {
   const { data } = await dimeApi.patch<TransactionRow | undefined>(
     `/api/v1/transactions/${id}`,
     body,
+    writeConfig(options),
   );
   return data && typeof data.id === "string" ? data : undefined;
 }
 
+/** `expectedUpdatedAt` guards the delete the same way: a row changed elsewhere meanwhile is a 409 `stale`. */
 export async function deleteTransaction(
   id: string,
-  options?: { timeout?: number; signal?: AbortSignal },
+  options?: TransactionWriteOptions & { expectedUpdatedAt?: string | null },
 ): Promise<void> {
-  await dimeApi.delete(`/api/v1/transactions/${id}`, options);
+  await dimeApi.delete(`/api/v1/transactions/${id}`, {
+    ...writeConfig(options),
+    ...(options?.expectedUpdatedAt
+      ? { params: { expected_updated_at: options.expectedUpdatedAt } }
+      : {}),
+  });
+}
+
+/** The app's undo of a delete: the row comes back with its paybacks. Answers the restored row. */
+export async function restoreTransaction(
+  id: string,
+  options?: TransactionWriteOptions,
+): Promise<TransactionRow | undefined> {
+  const { data } = await dimeApi.post<TransactionRow | undefined>(
+    `/api/v1/transactions/${id}/restore`,
+    {},
+    writeConfig(options),
+  );
+  return data && typeof data.id === "string" ? data : undefined;
 }

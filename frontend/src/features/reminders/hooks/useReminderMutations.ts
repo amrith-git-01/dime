@@ -14,6 +14,7 @@ import { invalidateReminderQueries } from "../cache/invalidateReminderQueries";
 import { reminderQueryKeys } from "../queryKeys";
 import type { CreateReminderBody, Reminder, UpdateReminderBody } from "../types";
 import { isRepeating } from "../constants";
+import { isPartPayment } from "../utils/partPayment";
 
 export function useCreateReminderMutation() {
   const qc = useQueryClient();
@@ -81,9 +82,11 @@ export function useDeleteReminderMutation() {
 }
 
 export type CompleteReminderVariables = {
-  reminder: Pick<Reminder, "id" | "cadence">;
+  reminder: Pick<Reminder, "id" | "cadence"> & Partial<Pick<Reminder, "amount" | "remaining">>;
   /** The transaction that paid it ("Looks paid" or the settle toast). */
   transactionId?: string;
+  /** What was paid, as a decimal string, for a part payment; omitted = the transaction's amount or all that is left. */
+  amount?: string;
 };
 
 /**
@@ -94,9 +97,11 @@ export function useCompleteReminderMutation() {
   const qc = useQueryClient();
   const { userId } = useSessionUserId();
   return useMutation<Reminder | null, unknown, CompleteReminderVariables, OptimisticContext>({
-    mutationFn: ({ reminder, transactionId }) => completeReminder(reminder.id, transactionId),
-    onMutate: ({ reminder }) =>
-      isRepeating(reminder.cadence)
+    mutationFn: ({ reminder, transactionId, amount }) =>
+      completeReminder(reminder.id, transactionId, amount),
+    // A part payment keeps the reminder open (it shows what is left), so only a full payment of a one-off leaves the list.
+    onMutate: ({ reminder, amount }) =>
+      isRepeating(reminder.cadence) || isPartPayment(reminder, amount)
         ? Promise.resolve({ previous: undefined })
         : removeFromOpenList(qc, userId, reminder.id),
     onError: (_error, _variables, context) => restoreOpenList(qc, userId, context),

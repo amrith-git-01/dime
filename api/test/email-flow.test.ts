@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { PermanentEmailError } from '../src/features/email/brevo';
 import { processEmailMessage, retryDelaySeconds } from '../src/features/email/consumer';
-import { SEND_BATCH_LIMIT, fanOutDigest } from '../src/features/email/digest';
+import { fanOutDigest } from '../src/features/email/digest';
+import { SEND_BATCH_LIMIT } from '../src/features/email/queue-fanout';
 import { buildDigestPayload } from '../src/features/email/digest-payload';
 import { digestPeriodFromKey } from '../src/features/email/periods';
 import {
@@ -83,17 +84,17 @@ describe('email_sends claim / reclaim (port of B3 tests)', () => {
     expect((await sendRows())[0]).toMatchObject({ status: 'sent' });
   });
 
-  it('reclaims a pending row older than 30 minutes (conditional update, pending rows only)', async () => {
+  it('reclaims a pending row older than 5 minutes (conditional update, pending rows only)', async () => {
     const monthly = { ...KEY, kind: 'monthly', periodKey: '2026-09' } as const;
-    await seedEmailSend({ kind: 'monthly', period_key: '2026-09', claimed_at: minutesBefore(NOW, 31) });
-    await seedEmailSend({ kind: 'weekly', period_key: '2026-W33', claimed_at: minutesBefore(NOW, 31) }); // other key: untouched
+    await seedEmailSend({ kind: 'monthly', period_key: '2026-09', claimed_at: minutesBefore(NOW, 6) });
+    await seedEmailSend({ kind: 'weekly', period_key: '2026-W33', claimed_at: minutesBefore(NOW, 6) }); // other key: untouched
     expect(await tryBegin(testDb(), monthly, NOW)).toBe(true);
     const [reclaimed, other] = await sendRows();
     expect(reclaimed).toMatchObject({ kind: 'monthly', status: 'pending', claimed_at: '2026-08-17T02:30:00.000Z' });
-    expect(other).toMatchObject({ kind: 'weekly', claimed_at: minutesBefore(NOW, 31) });
-    expect(PENDING_RECLAIM_AFTER_MS).toBe(30 * 60 * 1000);
+    expect(other).toMatchObject({ kind: 'weekly', claimed_at: minutesBefore(NOW, 6) });
+    expect(PENDING_RECLAIM_AFTER_MS).toBe(5 * 60 * 1000);
     // Right at the boundary the claim is still held.
-    await testDb().prepare('UPDATE email_sends SET claimed_at = ?').bind(minutesBefore(NOW, 30)).run();
+    await testDb().prepare('UPDATE email_sends SET claimed_at = ?').bind(minutesBefore(NOW, 5)).run();
     expect(await tryBegin(testDb(), monthly, NOW)).toBe(false);
   });
 
@@ -227,7 +228,7 @@ describe('digest fan-out', () => {
     const { db, sqls } = spyDb();
     const result = await fanOutDigest({ db, queue: recording, config: deps().config, kind: 'weekly', nowMs: NOW });
 
-    expect(result).toEqual({ kind: 'weekly', periodKey: '2026-W33', queued: 1050 });
+    expect(result).toEqual({ kind: 'weekly', periodKey: '2026-W33', selected: 1050, queued: 1050, failed: 0, pages: 2 });
     expect(batches).toEqual([...Array<number>(10).fill(100), 50]);
     expect(Math.max(...batches)).toBeLessThanOrEqual(SEND_BATCH_LIMIT);
     expect(queue.sent).toHaveLength(1050);
@@ -242,7 +243,7 @@ describe('digest fan-out', () => {
     await seedOptedIn(2, { monthly: 0 }, 100);
     const queue = new FakeQueue();
     const result = await fanOutDigest({ db: testDb(), queue, config: deps().config, kind: 'monthly', nowMs: Date.parse('2026-09-01T02:30:00Z') });
-    expect(result).toMatchObject({ kind: 'monthly', periodKey: '2026-08', queued: 3 });
+    expect(result).toMatchObject({ kind: 'monthly', periodKey: '2026-08', selected: 3, queued: 3 });
     expect(queue.sent[0]).toMatchObject({ kind: 'monthly', period_key: '2026-08' });
   });
 
@@ -266,11 +267,22 @@ describe('digest fan-out', () => {
     expect(stub.calls).toHaveLength(0);
   });
 
-  it('a failing queue surfaces to the caller (cron logs it)', async () => {
+  it('a failing queue chunk is counted as failed, not thrown (the cron raises it after every chunk was tried)', async () => {
     await seedOptedIn(2);
     const queue = new FakeQueue();
     queue.failWith = new Error('queue down');
-    await expect(fanOutDigest({ db: testDb(), queue, config: deps().config, kind: 'weekly', nowMs: NOW })).rejects.toThrow('queue down');
+    expect(await fanOutDigest({ db: testDb(), queue, config: deps().config, kind: 'weekly', nowMs: NOW })).toMatchObject({ selected: 2, queued: 0, failed: 2 });
+  });
+
+  it('users whose email for the period is already sent are not selected again; a pending claim still is', async () => {
+    await seedOptedIn(3);
+    await seedEmailSend({ user_id: 'u00000', kind: 'weekly', period_key: '2026-W33', status: 'sent' });
+    await seedEmailSend({ user_id: 'u00001', kind: 'weekly', period_key: '2026-W33', status: 'pending' });
+    await seedEmailSend({ user_id: 'u00002', kind: 'weekly', period_key: '2026-W32', status: 'sent' }); // another period
+    const queue = new FakeQueue();
+    const result = await fanOutDigest({ db: testDb(), queue, config: deps().config, kind: 'weekly', nowMs: NOW });
+    expect(result).toMatchObject({ selected: 2, queued: 2 });
+    expect(queue.sent.map((m) => (m as { user_id: string }).user_id)).toEqual(['u00001', 'u00002']);
   });
 
   it('listDigestUserPages pages in stable user order and only includes users with the flag on', async () => {
@@ -281,7 +293,7 @@ describe('digest fan-out', () => {
     await seedSettings({ weekly_email_enabled: 0 }, 'b');
     await seedSettings({ weekly_email_enabled: 1 }, 'a');
     const pages: string[][] = [];
-    for await (const page of listDigestUserPages(testDb(), 'weekly')) pages.push(page);
+    for await (const page of listDigestUserPages(testDb(), 'weekly', '2026-W33')) pages.push(page);
     expect(pages).toEqual([['a', 'c']]);
   });
 });
@@ -414,8 +426,8 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
   const CAT_FOOD = '85bf877a-f8b1-4b07-a9fb-5e8c809907ae';
   const CAT_GONE = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
   const OTHER = '99999999-9999-9999-9999-999999999999';
-  const range = { from: '2026-08-09T18:30:00.000Z', to: '2026-08-16T18:30:00.000Z' };
-  const input = { userId: USER_ID, range, budgetYear: 2026, budgetMonth: 8, tz: 'Asia/Kolkata' };
+  const dates = { from: '2026-08-10', to: '2026-08-16' };
+  const input = { userId: USER_ID, dates, budgetYear: 2026, budgetMonth: 8 };
 
   async function seedWorld(opts: { monthly?: string | null } = {}) {
     // A category the user cannot see (someone else's): counts as a custom "Category".
@@ -487,8 +499,8 @@ describe('buildDigestPayload (SQL aggregates instead of row loops)', () => {
     const payload = await buildDigestPayload(db, input);
     expect(payload.budgetLine).toBe('No budget set');
     expect(payload.budgetPct).toBeNull();
-    // Period summary only: no second summary for the budget month.
-    expect(sqls.filter((s) => s.includes('GROUP BY t.type, t.category_id'))).toHaveLength(1);
+    // The period's ledger only: no second ledger for the budget month.
+    expect(sqls.filter((s) => s.includes('GROUP BY l.category_id, l.is_fixed, l.in_budget'))).toHaveLength(1);
   });
 
   it('an empty period has no ranked rows and no categories lookup', async () => {

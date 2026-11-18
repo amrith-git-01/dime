@@ -36,6 +36,8 @@ type UserSettingsDto = {
   reminder_quiet_end?: string;
   reminder_hide_amounts?: boolean;
   upi_id?: string | null;
+  /** Absent on servers that predate the money model. */
+  count_cash_withdrawals_as_spend?: boolean;
   timezone?: string | null;
 };
 
@@ -68,6 +70,7 @@ export function mapDto(dto: UserSettingsDto): UserSettings {
     reminderQuietEnd: dto.reminder_quiet_end,
     reminderHideAmounts: dto.reminder_hide_amounts,
     upiId: dto.upi_id ?? null,
+    countCashWithdrawalsAsSpend: dto.count_cash_withdrawals_as_spend,
     timezone: dto.timezone ?? null,
   });
 }
@@ -148,6 +151,9 @@ export function mapPatchToDto(
   // `null` in a PATCH means "unchanged" on the server, so a cleared UPI ID is sent as ''.
   if (patch.upiId !== undefined) {
     dto.upi_id = patch.upiId ?? "";
+  }
+  if (patch.countCashWithdrawalsAsSpend !== undefined) {
+    dto.count_cash_withdrawals_as_spend = patch.countCashWithdrawalsAsSpend;
   }
   if (patch.timezone != null) {
     dto.timezone = patch.timezone;

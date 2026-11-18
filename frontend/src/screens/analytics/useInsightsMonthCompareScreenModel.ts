@@ -6,9 +6,12 @@ import { useLayoutEffect, useMemo } from "react";
 import type { InsightsMonthSummary } from "@/features/analytics/components";
 import { useMonthInsightsQuery } from "@/features/analytics/hooks/useMonthInsightsQuery";
 import { isPastMonth } from "@/features/analytics/utils/buildCashflowWindow";
+import { withPendingInsightsSummary } from "@/features/analytics/utils/pendingInsightsOverlay";
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import { formatSpentDelta } from "@/features/analytics/utils/compareMonths";
-import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { resolveMonthBudget } from "@/features/budgets/utils/monthBudget";
+import { usePendingInMonth } from "@/features/outbox/hooks/usePendingInMonth";
+import { useMonthSummaryQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { MainStackParamList } from "@/navigation/types";
 
 type CompareRoute = RouteProp<MainStackParamList, "InsightsMonthCompare">;
@@ -17,15 +20,27 @@ function useCompareMonthSide(
   year: number,
   monthIndex0: number,
   label: string,
-  hasMonthlyBudget: boolean,
-  monthlyBudgetAmount: number,
-  isBudgetLoading: boolean,
-  budgetRespUndefined: boolean,
 ) {
   const query = useMonthInsightsQuery(year, monthIndex0);
+  // This month's own cap and budget numbers (a past month keeps the cap it had then), from the server.
+  const monthSummaryQuery = useMonthSummaryQuery(year, monthIndex0);
+  // Entries saved offline count in this month's numbers until the server has them (same overlay as Home / Budgets).
+  const pending = usePendingInMonth(year, monthIndex0);
+  const month = useMemo(
+    () =>
+      resolveMonthBudget(monthSummaryQuery.data, {
+        pending,
+        fixedSpend: monthSummaryQuery.data?.fixed_debit_total,
+      }),
+    [monthSummaryQuery.data, pending],
+  );
+  const rawSummary = useMemo(
+    () => withPendingInsightsSummary(query.data?.summary, pending),
+    [query.data?.summary, pending],
+  );
 
   const summaryLoading =
-    query.isPending || (isBudgetLoading && budgetRespUndefined);
+    query.isPending || (monthSummaryQuery.isPending && monthSummaryQuery.data === undefined);
   const chartLoading = query.isPending;
 
   const summary = useMemo((): InsightsMonthSummary | null => {
@@ -33,16 +48,14 @@ function useCompareMonthSide(
       return null;
     }
     return buildInsightsMonthSummary(
-      query.data?.summary,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
+      rawSummary,
+      month,
       isPastMonth(year, monthIndex0),
     );
   }, [
-    hasMonthlyBudget,
+    month,
     monthIndex0,
-    monthlyBudgetAmount,
-    query.data?.summary,
+    rawSummary,
     query.isError,
     summaryLoading,
     year,
@@ -64,7 +77,7 @@ function useCompareMonthSide(
     summary,
     dailyCashflow,
     counterpartySpend: query.data?.counterparty_spend ?? [],
-    rawSummary: query.data?.summary,
+    rawSummary,
   };
 }
 
@@ -73,31 +86,15 @@ export function useInsightsMonthCompareScreenModel() {
     useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { params } = useRoute<CompareRoute>();
 
-  const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
-  const existingBudget = budgetResp?.budget
-    ? Number.parseFloat(budgetResp.budget.monthly_budget)
-    : 0;
-  const hasMonthlyBudget =
-    Number.isFinite(existingBudget) && existingBudget > 0;
-  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
-
   const monthA = useCompareMonthSide(
     params.monthA.year,
     params.monthA.monthIndex0,
     params.monthA.label,
-    hasMonthlyBudget,
-    monthlyBudgetAmount,
-    isBudgetLoading,
-    budgetResp === undefined,
   );
   const monthB = useCompareMonthSide(
     params.monthB.year,
     params.monthB.monthIndex0,
     params.monthB.label,
-    hasMonthlyBudget,
-    monthlyBudgetAmount,
-    isBudgetLoading,
-    budgetResp === undefined,
   );
 
   // The header is narrow: two full month names ("September 2026 vs August 2026") would be cut off.

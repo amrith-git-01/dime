@@ -13,7 +13,7 @@ import {
 import { refreshWidgets } from "@/widgets/refreshWidgets";
 
 import { fetchIngestJob } from "../api/ingestJobApi";
-import { addedText, CAPTURE_FAILED_TEXT } from "./captureText";
+import { addedText, CAPTURE_FAILED_TEXT, needsReviewText } from "./captureText";
 import { outcomeOfJob, type CaptureOutcome } from "./pollIngestJob";
 
 /** The snapshot refresh must not hold the card or the headless task for long. */
@@ -83,6 +83,16 @@ export async function applyCaptureOutcome(input: {
   removePendingCaptureJob(jobId);
   if (outcome.kind === "failed") {
     setStatus({ kind: "failed", text: CAPTURE_FAILED_TEXT, userId });
+    refreshWidgets();
+    return;
+  }
+  if (outcome.kind === "needs_review") {
+    // Nothing was posted: the widget says what is waiting for the user instead of "Added".
+    setStatus({
+      kind: "failed",
+      text: needsReviewText(outcome.currency, outcome.amount),
+      userId,
+    });
     refreshWidgets();
     return;
   }

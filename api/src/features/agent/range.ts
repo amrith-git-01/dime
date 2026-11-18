@@ -1,6 +1,7 @@
 import { addDays } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
-import { daysInMonth, isoDate, today } from './dates';
+import { daysInMonth } from '../../core/timezone';
+import { isoDate, today } from './dates';
 
 /**
  * Deterministic time hints for the pre-pass: relative phrases and month names in the question become an

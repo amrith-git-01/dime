@@ -15,6 +15,10 @@ export type BudgetMonthBentoSummary = {
   fixedSpent?: number;
   /** Flexible spend this month, in rupees. */
   flexibleSpent?: number;
+  /** Budget left, SIGNED (negative = over), the server's figure; null without a budget. */
+  budgetLeft?: number | null;
+  /** Fixed spend outside the budget (rent, EMI), in rupees; 0 or absent when none. */
+  committed?: number;
   /** Recurring still to come this month, in rupees; 0 or absent when nothing recurring is left. */
   upcomingRecurring?: number;
 };

@@ -106,11 +106,18 @@ export const BudgetSummaryCard = memo(function BudgetSummaryCard({
           <View style={styles.barWrap}>
             <SpendSplitBar
               budget={summary?.budgetValue ?? 0}
+              left={summary?.budgetLeft ?? null}
               fixed={summary?.fixedSpent ?? 0}
               flexible={summary?.flexibleSpent ?? 0}
               committed={upcomingRecurring}
             />
           </View>
+
+          {(summary?.committed ?? 0) > 0 ? (
+            <Text style={styles.committedNote}>
+              {`+${formatInrCompact(summary?.committed ?? 0)} committed (rent, EMI), not in your budget`}
+            </Text>
+          ) : null}
 
           {/* The bar's breakdown has the amounts; this nudge is the only part it does not say. */}
           {isWatching ? (
@@ -199,6 +206,13 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   barWrap: {
     marginBottom: spacing.sm,
+  },
+  committedNote: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkFaint,
+    fontVariant: ["tabular-nums"],
   },
   watchNote: {
     fontFamily: fontFamilies.regular,
