@@ -1,10 +1,26 @@
 import type { TransactionRow } from "../types";
 
-/** Matches backend `insights.service._normalize_payee_key`. */
+/**
+ * Matches the API's `normalizeCounterparty` (api/src/features/transactions/dedupe.ts): lower-case, every run of anything
+ * but a letter, a combining mark or a digit (any script) becomes one space. Tamil and Hindi names keep their vowel signs.
+ * Built at run time because Unicode property escapes may be missing; the fallback keeps every non-ASCII character
+ * (separators are then ASCII only) so a non-Latin name still never collapses to "unknown".
+ */
+const NON_WORD_RUN: RegExp = (() => {
+  try {
+    return new RegExp("[^\\p{L}\\p{M}\\p{N}]+", "gu");
+  } catch {
+    return /[\u0000-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007f]+/g;
+  }
+})();
+
 export function normalizePayeeKey(raw: string): string {
-  const lowered = raw.trim().toLowerCase();
-  const spaced = lowered.replace(/[^a-z0-9]+/g, " ");
-  const normalized = spaced.replace(/\s+/g, " ").trim();
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(NON_WORD_RUN, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return normalized || "unknown";
 }
 

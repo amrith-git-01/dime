@@ -43,6 +43,7 @@ export type RemindersListProps = {
   onOpenSettings: () => void;
   onEdit: (reminder: Reminder) => void;
   onMarkDone: (reminder: Reminder, transactionId?: string) => void;
+  onPartPayment: (reminder: Reminder) => void;
   onSkip: (reminder: Reminder) => void;
   onReopen: (reminder: Reminder) => void;
   onPayNow: (reminder: Reminder) => void;
@@ -128,6 +129,7 @@ export const RemindersList = memo(function RemindersList(props: RemindersListPro
         busy={reminder.id === busyId}
         onPress={props.onEdit}
         onMarkDone={props.onMarkDone}
+        onPartPayment={props.onPartPayment}
         onPayNow={props.onPayNow}
         onNudge={props.onNudge}
         onSkip={props.onSkip}

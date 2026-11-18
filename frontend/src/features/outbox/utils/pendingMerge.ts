@@ -6,6 +6,7 @@ import type {
   TransactionRow,
 } from "@/features/transactions/types";
 import { transactionCalendarDayKey } from "@/features/transactions/utils/buildTransactionFlashListData";
+import { defaultKindFor, kindOf } from "@/features/transactions/utils/transactionKind";
 import type { OutboxItem } from "@/lib/outbox/outboxTypes";
 import { toPaise } from "@/utils/paise";
 
@@ -48,6 +49,9 @@ export function pendingRowFromItem(
     counterparty_name: preview.counterparty_name,
     counterparty_type: preview.counterparty_type,
     counterparty_normalized: null,
+    kind: preview.kind ?? defaultKindFor(preview.type, preview.counterparty_type),
+    offset_total: "0.00",
+    effective_amount: preview.amount,
     merchant: preview.counterparty_name,
     category: preview.category,
     category_id: preview.category_id,
@@ -118,15 +122,24 @@ export function pendingOnDay(
 }
 
 export type PendingTotals = {
+  /** Spend waiting to sync (a transfer is in neither total, like on the server). */
   debitPaise: number;
+  /** Income waiting to sync. */
   creditPaise: number;
   count: number;
 };
 
+/**
+ * What the waiting entries add to the month's totals, by the server's rule: a spend is a debit that is not a
+ * transfer, income is a credit that is not a transfer. One definition, used by every overlay below.
+ */
 export function pendingTotals(pending: readonly PendingTransactionRow[]): PendingTotals {
   let debitPaise = 0;
   let creditPaise = 0;
   for (const row of pending) {
+    if (kindOf(row) === "transfer") {
+      continue;
+    }
     if (row.type === "credit") {
       creditPaise += toPaise(row.amount);
     } else {
@@ -169,9 +182,9 @@ export function addPendingToDaySummaries(
   for (const row of pending) {
     const date = transactionCalendarDayKey(row.transaction_at);
     const current = next[date];
-    const cents = toPaise(row.amount);
-    const credit = toPaise(current?.credit_total) + (row.type === "credit" ? cents : 0);
-    const debit = toPaise(current?.debit_total) + (row.type === "debit" ? cents : 0);
+    const { debitPaise, creditPaise } = pendingTotals([row]);
+    const credit = toPaise(current?.credit_total) + creditPaise;
+    const debit = toPaise(current?.debit_total) + debitPaise;
     next[date] = {
       ...current,
       date,

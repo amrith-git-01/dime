@@ -9,28 +9,21 @@ import { buildObjectPath } from '../src/features/media/paths';
 import { storedMediaKey } from '../src/features/media/refs';
 import { detectReceiptImageFormat } from '../src/core/image-format';
 import {
+  budgetPicture,
   buildDaySummaries,
   dailyCashflowSeries,
   dailyDebitSeries,
-  dayTotalsFromRows,
   debitByCategoryResponse,
   fixedFlexibleFields,
-  sumDayTotals,
 } from '../src/features/transactions/aggregates';
-import {
-  buildPaymentHash,
-  buildSparseMergePatch,
-  formatAmountForHash,
-  normalizeCounterparty,
-  payeeKey,
-  transactionMinuteBucket,
-} from '../src/features/transactions/dedupe';
-import { parseDatetime, transactionWriteSchema } from '../src/features/transactions/schemas';
+import type { DayTotals } from '../src/features/transactions/aggregates';
+import { normalizeCounterparty, payeeKey } from '../src/features/transactions/dedupe';
+import { defaultKind, kindFitsType, parseDatetime, transactionWriteSchema } from '../src/features/transactions/schemas';
 import { payeeLikePatterns } from '../src/features/transactions/repository';
-import type { PayeeRow } from '../src/features/transactions/repository';
+import type { PayeeRow } from '../src/features/transactions/ledger';
 import { rollUpIncome, rollUpSpend, share } from '../src/features/insights/rollup';
 import { formatInr, bodyForAutoTx, titleForAutoTx } from '../src/features/notifications/emitter';
-import { crossedThresholds } from '../src/features/notifications/budget-evaluator';
+import { crossedThresholds } from '../src/features/notifications/budget-alerts';
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -99,83 +92,34 @@ describe('money helpers', () => {
   });
 });
 
-// Vectors produced by backend/features/transactions/dedupe.py::build_payment_hash.
-describe('payment_hash is byte-identical to Python', () => {
-  const at = (...a: [number, number, number, number, number, number?]) => Date.UTC(a[0], a[1] - 1, a[2], a[3], a[4], a[5] ?? 0);
-  const vectors: [string, Parameters<typeof buildPaymentHash>[0], string][] = [
-    [
-      'plain',
-      { amount: '480.00', type: 'debit', counterpartyNormalized: 'swiggy', counterpartyName: 'Swiggy', transactionAtMs: at(2026, 6, 18, 14, 30) },
-      '797481751b695e61de0a10980708ded4a8072f8b8273d7515f5eb90f6f9964cd',
-    ],
-    [
-      'integer amount, derives counterparty from the name, seconds ignored',
-      { amount: '199', type: 'credit', counterpartyNormalized: null, counterpartyName: 'SWIGGY-INDIA', transactionAtMs: at(2026, 6, 18, 14, 30, 45) },
-      '3d0543462095a2b78791c4b600e78fbf61eba190994894f17a16a2f775fd505f',
-    ],
-    [
-      'blank normalized falls back to the name; +05:30 instant',
-      { amount: '250.5', type: 'debit', counterpartyNormalized: '', counterpartyName: '  Café Coffee Day! ', transactionAtMs: Date.parse('2026-08-02T17:30:00+05:30') },
-      'cfb1940afcad6575a2ff53c1a0a67814b2ccdd191a73ecf61256dc9268df35d0',
-    ],
-    [
-      'IST midnight crosses to the previous UTC day',
-      { amount: '0.10', type: 'debit', counterpartyNormalized: 'amazon pay', counterpartyName: 'Amazon Pay', transactionAtMs: Date.parse('2026-01-01T00:00:00+05:30') },
-      '37318ecc3293e7149fc6aedbd912bfc3e3e7d3a22efd35eb844de42f40cef94c',
-    ],
-    [
-      'large amount',
-      { amount: '1234567.89', type: 'credit', counterpartyNormalized: 'ravi kumar', counterpartyName: 'Ravi Kumar', transactionAtMs: at(2026, 12, 31, 23, 59, 59) },
-      'b09bd2e125f39da325a264f39dc1e2dfcca5327cb45ccf0a53f80c8229d0a223',
-    ],
-    [
-      'half-even amount rounding (10.005 -> 10.00)',
-      { amount: '10.005', type: 'debit', counterpartyNormalized: 'shop', counterpartyName: 'Shop', transactionAtMs: at(2026, 10, 4, 10, 0) },
-      'ce6e57dd391a5f07ecda863ea827b6536ece22736fa561136240a29934be7cf2',
-    ],
-    [
-      'non-ASCII normalized value is \\u-escaped like json.dumps(ensure_ascii=True)',
-      { amount: '12.34', type: 'debit', counterpartyNormalized: 'café ☃', counterpartyName: 'x', transactionAtMs: at(2026, 3, 5, 7, 9) },
-      '4772be8675ee41c3895aea0dc6ab509443ac06cfe28185d0372997d7bdc52571',
-    ],
-    [
-      'DEL is escaped too',
-      { amount: '5', type: 'credit', counterpartyNormalized: 'a\u007fb', counterpartyName: 'x', transactionAtMs: at(2026, 3, 5, 7, 9) },
-      '0b5be57080903948fcce33899929e1799d949939c038c90d7694a601b58f293d',
-    ],
-  ];
-  it.each(vectors)('%s', async (_name, input, expected) => {
-    expect(await buildPaymentHash(input)).toBe(expected);
-  });
-
-  it('is stable within a minute and differs across minutes', async () => {
-    const base = { amount: '100.00', type: 'debit', counterpartyNormalized: 'cafe', counterpartyName: 'Cafe' };
-    const a = await buildPaymentHash({ ...base, transactionAtMs: Date.UTC(2026, 5, 18, 14, 30, 0) });
-    const b = await buildPaymentHash({ ...base, transactionAtMs: Date.UTC(2026, 5, 18, 14, 30, 59) });
-    const c = await buildPaymentHash({ ...base, transactionAtMs: Date.UTC(2026, 5, 18, 14, 31, 0) });
-    expect(a).toBe(b);
-    expect(a).not.toBe(c);
-    expect(a).toHaveLength(64);
-  });
-
+describe('payee normalisation', () => {
   it('helpers match the Python tests', () => {
-    expect(formatAmountForHash('199')).toBe('199.00');
-    expect(formatAmountForHash(199.5)).toBe('199.50');
     expect(normalizeCounterparty('SWIGGY-INDIA')).toBe('swiggy india');
-    expect(normalizeCounterparty('  Café Coffee Day! ')).toBe('caf coffee day');
+    expect(normalizeCounterparty('  Café Coffee Day! ')).toBe('café coffee day'); // letters of any script are kept
+    expect(normalizeCounterparty('ராம் ஸ்டோர்ஸ்')).toBe('ராம் ஸ்டோர்ஸ்'); // vowel signs and viramas too
+    expect(normalizeCounterparty('राम & Sons')).toBe('राम sons');
     expect(normalizeCounterparty('a__b  c')).toBe('a b c');
-    expect(transactionMinuteBucket(Date.UTC(2026, 5, 18, 14, 30, 45))).toBe('2026-06-18T14:30');
+  });
+});
+
+describe('transaction kind', () => {
+  it('spend is a debit, income and payback are credits, a transfer is either', () => {
+    expect(kindFitsType('spend', 'debit')).toBe(true);
+    expect(kindFitsType('spend', 'credit')).toBe(false);
+    expect(kindFitsType('income', 'credit')).toBe(true);
+    expect(kindFitsType('income', 'debit')).toBe(false);
+    expect(kindFitsType('payback', 'credit')).toBe(true);
+    expect(kindFitsType('payback', 'debit')).toBe(false);
+    expect(kindFitsType('transfer', 'debit')).toBe(true);
+    expect(kindFitsType('transfer', 'credit')).toBe(true);
   });
 
-  it('sparse merge fills only missing fields', () => {
-    expect(
-      buildSparseMergePatch(
-        { category_id: 'cat-1', note: null, receipt_url: null },
-        { category_id: 'cat-2', note: 'lunch', receipt_url: 'r.jpg', voice_url: '  ', counterparty_type: null },
-      ),
-    ).toEqual({ note: 'lunch', receipt_url: 'r.jpg' });
-    const row = { category_id: 'a', note: 'b' };
-    expect(buildSparseMergePatch(row, row)).toEqual({});
+  it('defaults to the direction, and an own-account transfer is a transfer', () => {
+    expect(defaultKind('debit', 'merchant')).toBe('spend');
+    expect(defaultKind('credit', 'person')).toBe('income');
+    expect(defaultKind('debit', 'self_transfer')).toBe('transfer');
+    expect(defaultKind('credit', 'self_transfer')).toBe('transfer');
+    expect(defaultKind('debit', null)).toBe('spend');
   });
 });
 
@@ -314,36 +258,29 @@ describe('media helpers', () => {
 });
 
 describe('aggregates', () => {
-  const rows = [
-    { amount: '100.00', type: 'credit', transaction_at: '2026-05-21T09:00:00+05:30' },
-    { amount: '235.00', type: 'debit', transaction_at: '2026-05-21T13:04:00+05:30' },
-    { amount: '50.00', type: 'debit', transaction_at: '2026-05-22T10:00:00+05:30' },
+  const day = (over: Partial<DayTotals> & { day: string }): DayTotals => ({ creditCents: 0, debitCents: 0, fixedCreditCents: 0, fixedDebitCents: 0, count: 0, ...over });
+  const totals = [
+    day({ day: '2026-05-21', creditCents: 10000, debitCents: 23500, count: 2 }),
+    day({ day: '2026-05-22', debitCents: 5000, count: 1 }),
   ];
 
   it('day summaries group credit, debit, net and count (Python test_day_summaries)', () => {
-    const summaries = buildDaySummaries(dayTotalsFromRows(rows, 'Asia/Kolkata'));
+    const summaries = buildDaySummaries(totals);
     expect(Object.keys(summaries)).toEqual(['2026-05-21', '2026-05-22']);
     expect(summaries['2026-05-21']).toEqual({ date: '2026-05-21', credit_total: '100.00', debit_total: '235.00', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-135.00', transaction_count: 2 });
     expect(summaries['2026-05-22']).toEqual({ date: '2026-05-22', credit_total: '0.00', debit_total: '50.00', fixed_debit_total: '0.00', fixed_credit_total: '0.00', net: '-50.00', transaction_count: 1 });
     expect(buildDaySummaries([])).toEqual({});
   });
 
-  it('splits fixed (recurring-category) money from flexible money per day, per series and in the totals', () => {
+  it('splits fixed (recurring) money from flexible money per day, per series and in the totals', () => {
     const split = [
-      { amount: '15000.00', type: 'debit', transaction_at: '2026-05-21T09:00:00+05:30', is_fixed: true },
-      { amount: '200.00', type: 'debit', transaction_at: '2026-05-21T13:00:00+05:30', is_fixed: false },
-      { amount: '50000.00', type: 'credit', transaction_at: '2026-05-21T10:00:00+05:30', is_fixed: 1 },
-      { amount: '30.00', type: 'credit', transaction_at: '2026-05-22T10:00:00+05:30' },
+      day({ day: '2026-05-21', debitCents: 1520000, fixedDebitCents: 1500000, creditCents: 5000000, fixedCreditCents: 5000000, count: 3 }),
+      day({ day: '2026-05-22', creditCents: 3000, count: 1 }),
     ];
-    const totals = dayTotalsFromRows(split, 'Asia/Kolkata');
-    expect(totals[0]).toMatchObject({ day: '2026-05-21', debitCents: 1520000, fixedDebitCents: 1500000, creditCents: 5000000, fixedCreditCents: 5000000 });
-    expect(totals[1]).toMatchObject({ day: '2026-05-22', debitCents: 0, fixedDebitCents: 0, creditCents: 3000, fixedCreditCents: 0 });
-    expect(buildDaySummaries(totals)['2026-05-21']).toMatchObject({ debit_total: '15200.00', fixed_debit_total: '15000.00', fixed_credit_total: '50000.00' });
-    const days = [21, 22].map((day) => ({ year: 2026, month: 5, day }));
-    expect(dailyCashflowSeries(totals, days).map((d) => [d.fixed_debit_total, d.fixed_credit_total])).toEqual([['15000.00', '50000.00'], ['0', '0']]);
-    const sum = sumDayTotals(totals);
-    expect(sum).toMatchObject({ debitCents: 1520000, fixedDebitCents: 1500000, creditCents: 5003000, fixedCreditCents: 5000000, count: 4 });
-    expect(fixedFlexibleFields(sum)).toEqual({
+    expect(buildDaySummaries(split)['2026-05-21']).toMatchObject({ debit_total: '15200.00', fixed_debit_total: '15000.00', fixed_credit_total: '50000.00' });
+    const days = [21, 22].map((d) => ({ year: 2026, month: 5, day: d }));
+    expect(dailyCashflowSeries(split, days).map((d) => [d.fixed_debit_total, d.fixed_credit_total])).toEqual([['15000.00', '50000.00'], ['0', '0']]);
+    expect(fixedFlexibleFields({ debitCents: 1520000, fixedDebitCents: 1500000, flexDebitCents: 20000, creditCents: 5003000, fixedCreditCents: 5000000 })).toEqual({
       fixed_debit_total: '15000.00',
       flexible_debit_total: '200.00',
       fixed_credit_total: '50000.00',
@@ -351,26 +288,8 @@ describe('aggregates', () => {
     });
   });
 
-  it('buckets by the user timezone, not UTC', () => {
-    // 23:30 UTC is already the next day in Kolkata.
-    const totals = dayTotalsFromRows([{ amount: 10, type: 'debit', transaction_at: '2026-05-21T23:30:00+00:00' }], 'Asia/Kolkata');
-    expect(totals.map((t) => t.day)).toEqual(['2026-05-22']);
-  });
-
-  it('ignores rows that are neither credit nor debit or have bad dates', () => {
-    const totals = dayTotalsFromRows(
-      [
-        { amount: 1, type: 'transfer', transaction_at: '2026-05-21T09:00:00Z' },
-        { amount: 1, type: 'debit', transaction_at: 'garbage' },
-      ],
-      'UTC',
-    );
-    expect(totals).toEqual([]);
-  });
-
   it('series fill zero days with "0" like Python', () => {
-    const totals = dayTotalsFromRows(rows, 'Asia/Kolkata');
-    const days = [20, 21, 22].map((day) => ({ year: 2026, month: 5, day }));
+    const days = [20, 21, 22].map((d) => ({ year: 2026, month: 5, day: d }));
     expect(dailyCashflowSeries(totals, days)).toEqual([
       { date: '2026-05-20', debit_total: '0', credit_total: '0', fixed_debit_total: '0', fixed_credit_total: '0' },
       { date: '2026-05-21', debit_total: '235.00', credit_total: '100.00', fixed_debit_total: '0', fixed_credit_total: '0' },
@@ -379,9 +298,21 @@ describe('aggregates', () => {
     expect(dailyDebitSeries(totals, days).map((d) => d.total)).toEqual(['0', '235.00', '50.00']);
   });
 
-  it('debit-by-category response: blank category becomes __uncategorized__, cents become 2-decimal strings', () => {
-    const summary = { creditCents: 20000, debitCents: 15050, fixedCreditCents: 0, fixedDebitCents: 0, count: 3, debitByCategory: new Map([['c1', 10000], ['', 5050]]), fixedDebitCategories: new Set<string>() };
-    expect(debitByCategoryResponse(summary)).toEqual({ c1: '100.00', __uncategorized__: '50.50' });
+  it('debit-by-category response: blank category becomes __uncategorized__, cents become 2-decimal strings, a net-zero category is left out', () => {
+    expect(debitByCategoryResponse(new Map([['c1', 10000], ['', 5050], ['c2', 0]]))).toEqual({ c1: '100.00', __uncategorized__: '50.50' });
+  });
+
+  it('budget picture: left is signed (negative = over), no cap = no left', () => {
+    const ledger = { budgetSpendCents: 120000, committedCents: 1500000, transferCents: 300000, paybackCents: 40000 };
+    expect(budgetPicture(ledger as never, 100000)).toEqual({
+      budget_spent: '1200.00',
+      budget_left: '-200.00',
+      committed_total: '15000.00',
+      transfer_total: '3000.00',
+      payback_total: '400.00',
+      monthly_budget: '1000.00',
+    });
+    expect(budgetPicture(ledger as never, 0)).toMatchObject({ budget_left: null, monthly_budget: null });
   });
 });
 
@@ -497,6 +428,8 @@ describe('payeeKey (same rule as Postgres agent_payee_key)', () => {
     expect(payeeKey('', "McDonald's (Andheri)")).toBe('mcdonald s andheri');
     expect(payeeKey('   ', '***')).toBe('unknown');
     expect(payeeKey(null, null)).toBe('unknown');
+    expect(payeeKey(null, 'ராம் ஸ்டோர்ஸ்')).toBe('ராம் ஸ்டோர்ஸ்'); // a non-Latin name is its own key, not 'unknown'
+    expect(payeeKey(null, '山田 商店')).toBe('山田 商店');
     expect(payeeKey(undefined, '')).toBe('unknown');
   });
 });

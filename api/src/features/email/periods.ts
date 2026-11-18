@@ -1,22 +1,21 @@
-import { addDays, localDate, monthRange, startOfLocalDay } from '../../core/timezone';
-import type { IsoRange, LocalDate } from '../../core/timezone';
+import { IST, addDays, dateKey, localDate, monthDates } from '../../core/timezone';
+import type { LocalDate } from '../../core/timezone';
 import { MONTH_ABBR, MONTH_FULL, daysBetween, weekdayMon0 } from '../agent/dates';
 import type { DigestKind } from './tokens';
 
 /**
- * Digest periods, always in IST (Python `periods.py` / `ticker.py`). A message carries only
- * `(kind, period_key)`; the bounds and labels are derived from the key, so a retried message still
- * describes the same week or month.
+ * Digest periods. The cron decides WHICH period is due on IST days (08:00 IST), but a period is just calendar dates: every row
+ * carries its own `local_date` (in its owner's timezone), so the same week or month is right for a user anywhere. A message
+ * carries only `(kind, period_key)`; the dates and labels are derived from the key, so a retried message still describes the
+ * same week or month.
  */
-
-export const IST = 'Asia/Kolkata';
 
 export interface DigestPeriod {
   kind: DigestKind;
   /** `2026-W33` (ISO week of the previous Mon-Sun) or `2026-08` (previous calendar month). */
   periodKey: string;
-  /** Half-open `[from, to)` as UTC instants. */
-  range: IsoRange;
+  /** Inclusive local dates (`YYYY-MM-DD`) the period covers. */
+  dates: { from: string; to: string };
   kicker: 'THIS WEEK' | 'THIS MONTH';
   rangeLabel: string;
   subject: string;
@@ -26,8 +25,6 @@ export interface DigestPeriod {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
-
-const iso = (ms: number) => new Date(ms).toISOString();
 
 /** ISO-8601 `(year, week)` of a date. */
 export function isoWeekOf(d: LocalDate): { isoYear: number; isoWeek: number } {
@@ -47,12 +44,11 @@ export function mondayOfIsoWeek(isoYear: number, isoWeek: number): LocalDate {
 
 function weekPeriod(monday: LocalDate, periodKey: string): DigestPeriod {
   const sunday = addDays(monday, 6);
-  const nextMonday = addDays(monday, 7);
   const dm = (d: LocalDate) => `${pad(d.day)} ${MONTH_ABBR[d.month - 1] ?? ''}`;
   return {
     kind: 'weekly',
     periodKey,
-    range: { from: iso(startOfLocalDay(IST, monday)), to: iso(startOfLocalDay(IST, nextMonday)) },
+    dates: { from: dateKey(monday), to: dateKey(sunday) },
     kicker: 'THIS WEEK',
     rangeLabel: `${dm(monday)} – ${dm(sunday)} ${sunday.year}`,
     subject: 'Your week in Dime',
@@ -65,7 +61,7 @@ function monthPeriod(year: number, month: number): DigestPeriod {
   return {
     kind: 'monthly',
     periodKey: `${String(year).padStart(4, '0')}-${pad(month)}`,
-    range: monthRange(IST, year, month),
+    dates: monthDates(year, month),
     kicker: 'THIS MONTH',
     rangeLabel: `${MONTH_FULL[month - 1] ?? ''} ${year}`,
     subject: `Your ${MONTH_FULL[month - 1] ?? ''} in Dime`,
@@ -110,14 +106,20 @@ export function digestPeriodFromKey(kind: DigestKind, periodKey: string): Digest
 }
 
 /**
- * Digests due on the IST calendar day of `nowMs` (the 08:00 IST cron): weekly on Monday, monthly on
- * the 1st (both when the 1st is a Monday).
+ * Days a fan-out keeps trying after its first one: the cron fans out on the first day of a period and on the next two, and each
+ * later run only picks users still missing their email / report, so a run that missed someone is repaired without duplicates.
+ */
+export const FANOUT_DAYS = 3;
+
+/**
+ * Digests the cron fans out on the IST calendar day of `nowMs` (08:00 IST): weekly on Monday to Wednesday, monthly on days 1 to 3
+ * (the first day, then two catch-up days: the selection only picks users whose email is not sent yet).
  */
 export function dueDigestKinds(nowMs: number): DigestKind[] {
   const today = localDate(IST, nowMs);
   const due: DigestKind[] = [];
-  if (weekdayMon0(today) === 0) due.push('weekly');
-  if (today.day === 1) due.push('monthly');
+  if (weekdayMon0(today) < FANOUT_DAYS) due.push('weekly');
+  if (today.day <= FANOUT_DAYS) due.push('monthly');
   return due;
 }
 

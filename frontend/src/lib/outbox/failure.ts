@@ -43,13 +43,18 @@ export class SessionChangedError extends Error {
 /** Shown for a 401 that survived the token refresh: only the user can fix it. */
 export const SIGN_IN_AGAIN_MESSAGE = "Sign in again to sync";
 
+/** The API's machine-readable `code` of a 409 that means "this row changed elsewhere since you read it" (`expected_updated_at` mismatch). */
+export const STALE_CODE = "stale";
+
 /**
  * - `retry`: try again later with the same idempotency key (offline, timeout, 5xx, 408, 409
  *   "still processing", a plain rate limit, an expired session being refreshed).
  * - `limit`: the per-user daily capture cap (429 "…Try again tomorrow."); retry after it resets.
+ * - `stale`: a 409 `stale`: the row was changed on another device. Retrying cannot fix it; an edit or delete
+ *   made offline is dropped (with a toast) and the app refetches.
  * - `fatal`: the server refused it (other 4xx) or something local is wrong; the user decides.
  */
-export type FailureKind = "retry" | "limit" | "fatal";
+export type FailureKind = "retry" | "limit" | "stale" | "fatal";
 
 export type Failure = {
   kind: FailureKind;
@@ -75,8 +80,12 @@ function classifyStatus(
   status: number,
   message: string,
   retryAfterSeconds: number | undefined,
+  code?: string,
 ): Failure {
   const retryAfter = retryAfterSeconds === undefined ? {} : { retryAfterSeconds };
+  if (status === 409 && code === STALE_CODE) {
+    return { kind: "stale", message };
+  }
   if (status === 429) {
     return DAILY_LIMIT_DETAIL.test(message)
       ? { kind: "limit", message, ...retryAfter }
@@ -92,6 +101,25 @@ function classifyStatus(
   return { kind: "fatal", message };
 }
 
+function responseCode(body: unknown): string | undefined {
+  const code =
+    body !== null && typeof body === "object" ? (body as { code?: unknown }).code : undefined;
+  return typeof code === "string" ? code : undefined;
+}
+
+/** The HTTP status of a failed request, or undefined when the server was never reached (or it is not an HTTP error). */
+export function failureStatus(error: unknown): number | undefined {
+  if (error instanceof SubmitError) {
+    return error.status;
+  }
+  return isAxiosError(error) ? error.response?.status : undefined;
+}
+
+/** True for a 409 `stale` from the API, whatever shape the error arrived in (axios error or `SubmitError`). */
+export function isStaleError(error: unknown): boolean {
+  return classifyFailure(error).kind === "stale";
+}
+
 /** Sorts any error thrown by the submit helpers (axios, `SubmitError`, `AuthNetworkError`) into what to do next. */
 export function classifyFailure(error: unknown): Failure {
   if (error instanceof SubmitError) {
@@ -99,7 +127,7 @@ export function classifyFailure(error: unknown): Failure {
       return { kind: "retry", message: error.message, offline: true };
     }
     if (error.status !== undefined) {
-      return classifyStatus(error.status, error.message, error.retryAfterSeconds);
+      return classifyStatus(error.status, error.message, error.retryAfterSeconds, error.code);
     }
     return { kind: "fatal", message: error.message };
   }
@@ -115,6 +143,7 @@ export function classifyFailure(error: unknown): Failure {
       error.response.status,
       message,
       Number.isFinite(seconds) && seconds > 0 ? seconds : undefined,
+      responseCode(error.response.data),
     );
   }
   if (error instanceof SessionChangedError) {

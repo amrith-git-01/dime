@@ -1,6 +1,12 @@
 import type { ReactElement } from "react";
 
+import { manualItem } from "@/lib/outbox/__tests__/fixtures";
+import { useOutboxStore } from "@/stores/outboxStore";
+import { resetMockMmkv } from "@/test-utils/mockMmkv";
+
 import { useAnalyticsScreenModel } from "../useAnalyticsScreenModel";
+
+jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 
 const mockNavigate = jest.fn();
 jest.mock("@react-navigation/native", () => ({
@@ -36,8 +42,9 @@ jest.mock("@/features/analytics/hooks/useMonthInsightsQuery", () => ({
     isPlaceholderData: false,
   }),
 }));
-jest.mock("@/features/budgets/hooks/useBudget", () => ({
-  useBudgetQuery: () => ({ data: { budget: null }, isPending: false }),
+jest.mock("@/features/transactions/hooks/useTransactionsOverviewQueries", () => ({
+  // The selected month's server picture: no cap here.
+  useMonthSummaryQuery: () => ({ data: undefined, isPending: false }),
 }));
 jest.mock("@/features/recurring/hooks/useRecurringMonthQuery", () => ({
   useRecurringMonthQuery: () => ({
@@ -114,6 +121,40 @@ describe("useAnalyticsScreenModel payee navigation", () => {
     const [, params] = mockNavigate.mock.calls[0] as [string, Record<string, unknown>];
     expect(params).toMatchObject({ payeeId: "cafe", payeeKeysTop: ["cafe"] });
     expect(params).not.toHaveProperty("direction");
+    await unmount();
+  });
+});
+
+describe("useAnalyticsScreenModel pending overlay", () => {
+  beforeEach(() => {
+    resetMockMmkv();
+    useOutboxStore.getState().reset();
+  });
+  afterEach(() => useOutboxStore.getState().reset());
+
+  it("lays the entries waiting in the outbox over the month's spend, like Home and Budgets", async () => {
+    const before = await mountModel();
+    expect(before.model.summary?.spentDisplay).toContain("600");
+    await before.unmount();
+
+    // Saved offline in October 2026 (the selected month): 250 on top of the server's 600.
+    useOutboxStore.getState().hydrate("u1");
+    useOutboxStore.getState().add("u1", manualItem());
+    const after = await mountModel();
+    expect(after.model.summary?.spentDisplay).toContain("850");
+    expect(after.model.summary?.transactionCount).toBe(4);
+    await after.unmount();
+  });
+
+  it("ignores waiting entries that belong to another month", async () => {
+    const item = manualItem();
+    useOutboxStore.getState().hydrate("u1");
+    useOutboxStore.getState().add("u1", {
+      ...item,
+      preview: { ...item.preview!, transaction_at: "2026-09-10T09:30:00.000Z" },
+    });
+    const { model, unmount } = await mountModel();
+    expect(model.summary?.spentDisplay).toContain("600");
     await unmount();
   });
 });

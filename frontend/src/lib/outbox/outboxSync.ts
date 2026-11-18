@@ -11,6 +11,14 @@ import {
   submitReceipt,
   submitVoice,
 } from "@/features/transactions/api/submitTransactionApi";
+import {
+  deleteTransaction,
+  fetchTransactionById,
+  updateTransaction,
+} from "@/features/transactions/api/transactionsApi";
+import type { TransactionRow } from "@/features/transactions/types";
+import { patchAlreadyApplied } from "@/features/transactions/utils/transactionPatch";
+import { useToastUiStore } from "@/stores/toastUiStore";
 import { invalidateLimitsQueries } from "@/features/limits/cache/invalidateLimitsQueries";
 import { invalidateOnboardingProgress } from "@/features/onboarding/cache/invalidateOnboardingProgress";
 import {
@@ -25,11 +33,12 @@ import { useConnectivityStore } from "@/stores/connectivityStore";
 import { useOutboxStore } from "@/stores/outboxStore";
 import { currentUserDataEpoch, trackAbortable } from "@/lib/userDataEpoch";
 
-import { classifyFailure, SubmitError } from "./failure";
+import { classifyFailure, failureStatus, SubmitError } from "./failure";
 import { deleteOutboxFile, outboxFileExists, pruneOrphanOutboxFiles } from "./outboxFiles";
 import {
   deferUntil,
   earliestAttemptAt,
+  isDroppedWhenTooOld,
   isDue,
   isTooOld,
   itemAfterFailure,
@@ -46,16 +55,49 @@ const MIN_TIMER_MS = 1_000;
 /** Who an upload is for, and the signal a wipe uses to cancel it. */
 export type SendContext = { userId: string; signal: AbortSignal };
 
+/** What a replayed edit / delete left behind: the saved row of an edit (absent for a delete). */
+export type SentMutation = { row?: TransactionRow };
+
+/** Why a queued edit / delete was thrown away instead of sent. */
+export type DropReason = "stale" | "too_old" | "gone";
+
 export type OutboxSyncDeps = {
   now: () => number;
   isOnline: () => boolean;
   sendManual: (item: OutboxItem, context: SendContext) => Promise<PostedManualTransaction>;
   sendCapture: (item: OutboxItem, context: SendContext) => Promise<SubmittedCapture>;
+  /** A queued edit or delete. Rejects like any request: a 409 `stale` drops it, a 404 on a delete counts as done. */
+  sendMutation: (item: OutboxItem, context: SendContext) => Promise<SentMutation>;
   fileExists: (uri: string) => Promise<boolean>;
   deleteFile: (uri: string | undefined) => Promise<void>;
   /** The item reached the server: patch caches / refresh queries. */
-  onSynced: (item: OutboxItem, result: PostedManualTransaction | SubmittedCapture) => void;
+  onSynced: (
+    item: OutboxItem,
+    result: PostedManualTransaction | SubmittedCapture | SentMutation,
+  ) => void;
+  /** A queued edit / delete was discarded: tell the user and refetch what it was about. */
+  onDropped: (item: OutboxItem, reason: DropReason) => void;
 };
+
+/**
+ * A saved edit moved the row's `updated_at`: the edits / deletes of the same row still waiting were made against
+ * the old one and would be dropped as "changed on another device" (this device's own change). They are rewritten to
+ * the version just saved.
+ */
+function rebaseLaterMutations(targetId: string, updatedAt: string): void {
+  useOutboxStore.getState().updateAll((other) => {
+    if (other.targetId !== targetId) {
+      return other;
+    }
+    if (other.kind === "update" && other.patch) {
+      return { ...other, patch: { ...other.patch, expected_updated_at: updatedAt } };
+    }
+    if (other.kind === "delete") {
+      return { ...other, expectedUpdatedAt: updatedAt };
+    }
+    return other;
+  });
+}
 
 /**
  * The drain: FIFO, one upload at a time, single-flight. A call while a drain runs makes it take
@@ -100,6 +142,12 @@ export function createOutboxDrain(deps: OutboxSyncDeps) {
     const epoch = currentUserDataEpoch();
     const stale = () =>
       epoch !== currentUserDataEpoch() || useOutboxStore.getState().userId !== userId;
+    if (isDroppedWhenTooOld(item) && isTooOld(item, deps.now())) {
+      // Older than the server's idempotency window: the row has very likely moved on. Never replayed blind.
+      outbox.remove(item.id);
+      deps.onDropped(item, "too_old");
+      return false;
+    }
     if (isTooOld(item, deps.now())) {
       outbox.update(item.id, (current) => ({
         ...current,
@@ -114,6 +162,18 @@ export function createOutboxDrain(deps: OutboxSyncDeps) {
     const untrack = trackAbortable(controller);
     const context: SendContext = { userId, signal: controller.signal };
     try {
+      if (item.kind === "update" || item.kind === "delete") {
+        const result = await deps.sendMutation(item, context);
+        if (stale()) {
+          return true;
+        }
+        deps.onSynced(item, result);
+        useOutboxStore.getState().remove(item.id);
+        if (item.targetId && result.row?.updated_at) {
+          rebaseLaterMutations(item.targetId, result.row.updated_at);
+        }
+        return false;
+      }
       if (item.kind === "manual") {
         const result = await deps.sendManual(item, context);
         if (stale()) {
@@ -148,6 +208,24 @@ export function createOutboxDrain(deps: OutboxSyncDeps) {
         return true;
       }
       const failure = classifyFailure(error);
+      if (item.kind === "update" || item.kind === "delete") {
+        const status = failureStatus(error);
+        // Deleting what is already gone is the delete done; editing it cannot be done.
+        if (status === 404) {
+          useOutboxStore.getState().remove(item.id);
+          if (item.kind === "delete") {
+            deps.onSynced(item, {});
+          } else {
+            deps.onDropped(item, "gone");
+          }
+          return false;
+        }
+        if (failure.kind === "stale") {
+          useOutboxStore.getState().remove(item.id);
+          deps.onDropped(item, "stale");
+          return false;
+        }
+      }
       const now = deps.now();
       let nextAttemptAt: number | null = null;
       useOutboxStore.getState().update(item.id, (current) => {
@@ -208,15 +286,38 @@ export function createOutboxDrain(deps: OutboxSyncDeps) {
 
 let activeQueryClient: QueryClient | null = null;
 
+const DROPPED_MESSAGES: Record<DropReason, string> = {
+  stale: "Changed on another device. Your offline change was not applied.",
+  too_old: "An offline change was too old to sync and was dropped.",
+  gone: "That transaction no longer exists. Your offline change was dropped.",
+};
+
+/** A dropped edit / delete: say so, and refetch so the screens show the server's version again. */
+function applyDroppedToCaches(queryClient: QueryClient, reason: DropReason): void {
+  useToastUiStore.getState().show({ variant: "info", message: DROPPED_MESSAGES[reason] });
+  invalidateTransactionDerivedQueries(queryClient);
+}
+
 function applySyncedToCaches(
   queryClient: QueryClient,
   item: OutboxItem,
-  result: PostedManualTransaction | SubmittedCapture,
+  result: PostedManualTransaction | SubmittedCapture | SentMutation,
 ): void {
+  if (item.kind === "update" || item.kind === "delete") {
+    // The queued change was already shown in the caches when it was made; refetch the totals it moved.
+    const { row } = result as SentMutation;
+    if (row) {
+      recentTransactionMutations.mark(row.id, row.updated_at);
+    } else if (item.targetId) {
+      recentTransactionMutations.mark(item.targetId);
+    }
+    invalidateTransactionDerivedQueries(queryClient);
+    return;
+  }
   if (item.kind === "manual") {
     const posted = result as PostedManualTransaction;
     if (posted.transaction) {
-      recentTransactionMutations.mark(posted.transaction.id);
+      recentTransactionMutations.mark(posted.transaction.id, posted.transaction.updated_at);
       applyTransactionInsertToListCaches(queryClient, {
         userId: posted.transaction.user_id,
         timezone: item.timezone,
@@ -265,11 +366,39 @@ const appDrain = createOutboxDrain({
       throw error;
     });
   },
+  sendMutation: async (item, { userId, signal }) => {
+    const id = item.targetId!;
+    const options = { timeout: SEND_TIMEOUT_MS, signal, outboxUserId: userId };
+    if (item.kind === "delete") {
+      await deleteTransaction(id, { ...options, expectedUpdatedAt: item.expectedUpdatedAt ?? null });
+      return {};
+    }
+    const patch = item.patch!;
+    try {
+      const row = await updateTransaction(id, patch, options);
+      return row ? { row } : {};
+    } catch (error) {
+      // A first attempt that did land but whose answer was lost replays as "stale": if the row already holds
+      // what the edit set, it is done, not a conflict.
+      if (classifyFailure(error).kind === "stale" && !signal.aborted) {
+        const current = await fetchTransactionById(id).catch(() => null);
+        if (current && patchAlreadyApplied(current, patch)) {
+          return { row: current };
+        }
+      }
+      throw error;
+    }
+  },
   fileExists: outboxFileExists,
   deleteFile: deleteOutboxFile,
   onSynced: (item, result) => {
     if (activeQueryClient) {
       applySyncedToCaches(activeQueryClient, item, result);
+    }
+  },
+  onDropped: (_item, reason) => {
+    if (activeQueryClient) {
+      applyDroppedToCaches(activeQueryClient, reason);
     }
   },
 });

@@ -1,4 +1,4 @@
-import { cardLinkUrl, deepLinkUrls, reportDeepLinkUrl } from "../deepLinkUrls";
+import { addDeepLinkUrl, cardLinkUrl, deepLinkUrls, reportDeepLinkUrl } from "../deepLinkUrls";
 import { parseDeepLink } from "../parseDeepLink";
 
 const NOW = new Date(2026, 9, 15, 18, 30);
@@ -46,6 +46,17 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink("dime://add?date=2026-13-45", NOW)).toEqual({ kind: "add" });
     expect(parseDeepLink("dime://add?date=tomorrow", NOW)).toEqual({ kind: "add" });
     expect(parseDeepLink("dime://add", NOW)).toEqual({ kind: "add" });
+  });
+
+  it("carries a payee and a note into the quick-add form (a capture that needs the rupee amount)", () => {
+    const url = addDeepLinkUrl({ payee: "Cafe & Bar", note: "Read as USD 12.00" });
+    expect(parseDeepLink(url, NOW)).toEqual({ kind: "add", payee: "Cafe & Bar", note: "Read as USD 12.00" });
+    expect(parseDeepLink(addDeepLinkUrl({}), NOW)).toEqual({ kind: "add" });
+    expect(parseDeepLink("dime://add?payee=%20%20", NOW)).toEqual({ kind: "add" });
+    // A link cannot stuff a long text into the form.
+    const long = parseDeepLink(`dime://add?note=${"x".repeat(500)}`, NOW);
+    expect(long).toMatchObject({ kind: "add" });
+    expect((long as { note: string }).note).toHaveLength(120);
   });
 
   it("ignores case, trailing slashes and unrelated query params", () => {

@@ -9,7 +9,6 @@ import type { IngestDeps } from '../src/features/ingest/consumer';
 import { InvalidJobError } from '../src/features/ingest/pipeline';
 import { mediaStore } from '../src/features/media/storage';
 import { sweepJobs } from '../src/features/ingest/sweep';
-import { buildPaymentHash } from '../src/features/transactions/dedupe';
 import worker from '../src/index';
 import { UpstreamError } from '../src/core/errors';
 import { USER_ID, makeEnv } from './helpers';
@@ -55,10 +54,6 @@ const transactions = () => rowsOf<Record<string, unknown>>('transactions');
 
 const stubDeepSeek = (content: string) =>
   stub.on('POST', '/chat/completions', () => json(completion(content)));
-
-/** The hash `parsedSms()` produces (Swiggy, 250.50 debit, 2026-10-03 00:00 UTC). */
-const swiggyHash = () =>
-  buildPaymentHash({ amount: '250.50', type: 'debit', counterpartyNormalized: 'swiggy', counterpartyName: 'Swiggy', transactionAtMs: Date.parse('2026-10-03T00:00:00.000Z') });
 
 describe('processIngestMessage: success', () => {
   it('claims, parses, creates the transaction with server-set fields, notifies and marks done', async () => {
@@ -138,7 +133,8 @@ describe('processIngestMessage: success', () => {
       await seedPending({ payload: mediaPayload({ captured_at: CAPTURED }) });
       stubDeepSeek(parsedSms({ date: '2026-10-09' }));
       await processIngestMessage(msg(), deps());
-      expect((await transactions())[0]?.['transaction_at']).toBe('2026-10-09T00:00:00.000Z');
+      // A printed date is a day, not an instant: the row is on that local day, at local noon (never UTC midnight).
+      expect((await transactions())[0]).toMatchObject({ transaction_at: '2026-10-09T06:30:00.000Z', local_date: '2026-10-09', month_key: '2026-10' });
     });
 
     it('a jobs without captured_at (queued before the field existed) falls back to now', async () => {
@@ -156,67 +152,125 @@ describe('processIngestMessage: success', () => {
     await seedPending();
     stubDeepSeek(parsedSms());
     const m = msg();
-    await processIngestMessage(m, deps({ db: failingOn(/user_settings/, 'D1_ERROR: settings unavailable') }));
+    await processIngestMessage(m, deps({ db: failingOn(/INSERT INTO notifications/, 'D1_ERROR: notifications unavailable') }));
     expect(m.acked).toBe(true);
     expect(await transactions()).toHaveLength(1);
     expect(await job()).toMatchObject({ status: 'done' });
   });
 
-  it('a duplicate payment is merged and reported as the existing transaction (no notification)', async () => {
+  it('a model kind is stored: ATM cash is a transfer, in neither spent nor income', async () => {
     await seedFood();
     await seedPending();
-    await seedTransaction({
-      id: TX,
-      amount: '250.50',
-      counterparty_name: 'Swiggy',
-      counterparty_normalized: 'swiggy',
-      payment_hash: await swiggyHash(),
-      category_id: CAT_FOOD,
-      note: 'kept',
-      transaction_at: '2026-10-03T00:00:00.000Z',
-    });
+    stubDeepSeek(parsedSms({ counterparty_name: 'ATM', kind: 'transfer', transfer_reason: 'cash_withdrawal' }));
+    await processIngestMessage(msg(), deps());
+    expect((await transactions())[0]).toMatchObject({ kind: 'transfer', type: 'debit' });
+  });
+
+  it('a model kind is stored: a refund is a payback', async () => {
+    await seedFood();
+    await seedPending();
+    stubDeepSeek(parsedSms({ counterparty_name: 'Swiggy refund', type: 'credit', kind: 'payback', amount: 100 }));
+    await processIngestMessage(msg(), deps());
+    expect((await transactions())[0]).toMatchObject({ kind: 'payback', type: 'credit' });
+  });
+
+  it('count_cash_withdrawals_as_spend turns a captured ATM withdrawal into spend', async () => {
+    await seedFood();
+    await seedSettings({ count_cash_withdrawals_as_spend: 1 });
+    await seedPending();
+    stubDeepSeek(parsedSms({ counterparty_name: 'ATM', kind: 'transfer', transfer_reason: 'cash_withdrawal' }));
+    await processIngestMessage(msg(), deps());
+    expect((await transactions())[0]).toMatchObject({ kind: 'spend' });
+  });
+
+  it('a re-run of a job that already made its row finds it: no AI call, no second row, no notification', async () => {
+    await seedFood();
+    await seedPending();
+    await seedTransaction({ id: TX, amount: '250.50', counterparty_name: 'Swiggy', payment_hash: `job:${JOB}`, detected_via: 'scan', note: 'kept' });
     stubDeepSeek(parsedSms());
     const m = msg();
     await processIngestMessage(m, deps());
     expect(m.acked).toBe(true);
     expect(await transactions()).toHaveLength(1);
     expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ note: 'kept' });
+    expect(fakeAi.calls).toHaveLength(0);
+    expect(stub.find('POST', '/chat/completions')).toHaveLength(0);
     expect(await result()).toEqual({ transaction_id: TX });
     expect(await notifications()).toHaveLength(0);
   });
 
-  it('a duplicate fills only the fields the existing row lacks', async () => {
+  it('a capture in another currency is never posted as rupees: the job ends in review and the user is asked for the rupee amount', async () => {
     await seedFood();
     await seedPending();
-    await seedTransaction({
-      id: TX,
-      amount: '250.50',
-      counterparty_name: 'Swiggy',
-      counterparty_normalized: 'swiggy',
-      payment_hash: await swiggyHash(),
-      category_id: null,
-      note: null,
-      transaction_at: '2026-10-03T00:00:00.000Z',
-    });
-    stubDeepSeek(parsedSms());
+    stubDeepSeek(parsedSms({ currency: 'USD', amount: 12.5, counterparty_name: 'Starbucks NYC' }));
+    const m = msg();
+    await processIngestMessage(m, deps());
+    expect(m.acked).toBe(true);
+    expect(await transactions()).toHaveLength(0);
+    expect(await job()).toMatchObject({ status: 'done' });
+    expect(await result()).toEqual({ needs_review: true, reason: 'foreign_currency', currency: 'USD', amount: '12.50', counterparty_name: 'Starbucks NYC' });
+    expect(await notifications()).toEqual([
+      expect.objectContaining({
+        kind: 'capture_failed',
+        action_type: 'manual_add',
+        dedupe_key: `capture_review:${JOB}`,
+        body: expect.stringContaining('USD 12.50') as unknown,
+      }),
+    ]);
+    // A redelivery of the same message does not ask twice.
     await processIngestMessage(msg(), deps());
-    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT_FOOD, note: 'Dinner from Swiggy' });
+    expect(await notifications()).toHaveLength(1);
   });
 
-  it('two jobs for the same payment: one transaction, both jobs resolve to it (insert race resolves to the winner)', async () => {
+  it('a parse the model was unsure of is saved flagged for review, and the notification says to check it', async () => {
+    await seedFood();
+    await seedPending();
+    stubDeepSeek(parsedSms({ confidence: 0.3 }));
+    await processIngestMessage(msg(), deps());
+    const [tx] = await transactions();
+    expect(tx).toMatchObject({ needs_review: 1, amount: 25050, payment_hash: `job:${JOB}` });
+    expect(await notifications()).toEqual([expect.objectContaining({ body: expect.stringContaining('Please check') as unknown })]);
+  });
+
+  it('a confident parse is not flagged', async () => {
+    await seedFood();
+    await seedPending();
+    stubDeepSeek(parsedSms({ confidence: 0.6 }));
+    await processIngestMessage(msg(), deps());
+    expect((await transactions())[0]).toMatchObject({ needs_review: 0 });
+  });
+
+  it('a receipt that looks like an entry already there is saved for review, flagged as a possible duplicate; the other row is untouched', async () => {
+    await seedFood();
+    await seedPending();
+    await seedTransaction({ id: TX, amount: '250.50', counterparty_name: 'Swiggy', note: 'kept', transaction_at: '2026-10-03T08:00:00.000Z' });
+    stubDeepSeek(parsedSms());
+    await processIngestMessage(msg(), deps());
+    const txs = await transactions();
+    expect(txs).toHaveLength(2);
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ note: 'kept', needs_review: 0 });
+    const made = txs.find((t) => t['id'] !== TX);
+    expect(made).toMatchObject({ needs_review: 1, detected_via: 'scan', payment_hash: `job:${JOB}` });
+    expect(await result()).toEqual({ transaction_id: made?.['id'] });
+    expect(await notifications()).toEqual([expect.objectContaining({ kind: 'transaction_auto', body: expect.stringContaining('Possible duplicate') as unknown })]);
+  });
+
+  it('two jobs for the same payment each make their own row; the second is flagged for review', async () => {
     await seedFood();
     await seedPending();
     await seedPending({ id: JOB2 });
     stubDeepSeek(parsedSms());
     const [a, b] = [msg(), msg(1, JOB2)];
-    await Promise.all([processIngestMessage(a, deps()), processIngestMessage(b, deps())]);
+    await processIngestMessage(a, deps());
+    await processIngestMessage(b, deps());
     expect(a.acked && b.acked).toBe(true);
     const txs = await transactions();
-    expect(txs).toHaveLength(1);
-    expect(await result(JOB)).toEqual({ transaction_id: txs[0]?.['id'] });
-    expect(await result(JOB2)).toEqual({ transaction_id: txs[0]?.['id'] });
-    // Only the creator notifies.
-    expect(await notifications()).toHaveLength(1);
+    expect(txs).toHaveLength(2);
+    const [first, second] = [txs.find((t) => t['payment_hash'] === `job:${JOB}`), txs.find((t) => t['payment_hash'] === `job:${JOB2}`)];
+    expect(first).toMatchObject({ needs_review: 0 });
+    expect(second).toMatchObject({ needs_review: 1 });
+    expect(await result(JOB)).toEqual({ transaction_id: first?.['id'] });
+    expect(await result(JOB2)).toEqual({ transaction_id: second?.['id'] });
   });
 });
 
@@ -239,7 +293,7 @@ describe('processIngestMessage: receipt and voice pipelines', () => {
     const deepseek = stub.find('POST', '/chat/completions').find((c) => c.url.host === 'api.deepseek.com');
     expect(JSON.stringify(deepseek?.body)).toContain('OCR TEXT SWIGGY 250.50');
     const [tx] = await transactions();
-    expect(tx).toMatchObject({ detected_via: 'scan', receipt_url: payload.object_path, voice_url: null, transaction_at: '2026-10-03T00:00:00.000Z' });
+    expect(tx).toMatchObject({ detected_via: 'scan', receipt_url: payload.object_path, voice_url: null, transaction_at: '2026-10-03T06:30:00.000Z', local_date: '2026-10-03' });
     expect(await result()).toEqual({ transaction_id: tx?.['id'] });
     expect(await job()).toMatchObject({ status: 'done' });
   });
@@ -421,7 +475,7 @@ describe('processIngestMessage: failures', () => {
     expect(await notifications()).toHaveLength(1);
   });
 
-  it('receipt failures notify with source scan; voice failures send nothing', async () => {
+  it('receipt failures notify with source scan; voice failures notify with source voice', async () => {
     const run = async (kind: 'receipt' | 'voice') => {
       await testDb().prepare('DELETE FROM jobs').run();
       await testDb().prepare('DELETE FROM notifications').run();
@@ -435,7 +489,9 @@ describe('processIngestMessage: failures', () => {
     };
     const scan = await run('receipt');
     expect(scan).toEqual([expect.objectContaining({ kind: 'capture_failed', title: 'Receipt scan failed', dedupe_key: expect.stringContaining('capture_failed:scan:') as string })]);
-    expect(await run('voice')).toEqual([]);
+    expect(await run('voice')).toEqual([
+      expect.objectContaining({ kind: 'capture_failed', title: 'Voice note failed', action_type: 'manual_add', dedupe_key: expect.stringContaining('capture_failed:voice:') as string }),
+    ]);
   });
 
   it('respects capture_failed_alerts_enabled=false and survives a notification error', async () => {
@@ -560,13 +616,13 @@ const controller = (cron: string) => ({ cron, scheduledTime: Date.now(), type: '
 
 describe('recovery sweep', () => {
   const NOW = Date.parse('2026-10-04T12:00:00.000Z');
-  const STALE = '2026-10-04T11:54:00.000Z'; // 6 minutes: stale (the cutoff is 300 s)
+  const STALE = '2026-10-04T11:48:00.000Z'; // 12 minutes: stale (the cutoff is 600 s)
   const FRESH = '2026-10-04T11:59:30.000Z'; // 30 seconds: not yet
   const id = (n: number) => `bbbbbbbb-0000-0000-0000-${String(n).padStart(12, '0')}`;
 
   it('re-sends stale pending jobs and re-queues stale processing ones, oldest first, per kind', async () => {
-    await seedJob({ id: id(2), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:54:30.000Z' });
-    await seedJob({ id: id(1), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
+    await seedJob({ id: id(2), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:48:30.000Z' });
+    await seedJob({ id: id(1), kind: 'receipt', status: 'pending', updated_at: '2026-10-04T11:44:00.000Z' });
     await seedJob({ id: id(3), kind: 'receipt', status: 'processing', updated_at: STALE });
     await seedJob({ id: id(4), kind: 'receipt', status: 'pending', updated_at: FRESH }); // too fresh
     await seedJob({ id: id(5), kind: 'receipt', status: 'done', updated_at: STALE }); // finished
@@ -606,9 +662,9 @@ describe('recovery sweep', () => {
     expect(await oneRow('jobs', 'id = ?', id(6))).toMatchObject({ status: 'processing' });
   });
 
-  it('sends oldest first within a kind and respects the 300 s cutoff', async () => {
-    await seedJob({ id: id(2), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:54:30.000Z' });
-    await seedJob({ id: id(1), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:50:00.000Z' });
+  it('sends oldest first within a kind and respects the 600 s cutoff', async () => {
+    await seedJob({ id: id(2), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:48:30.000Z' });
+    await seedJob({ id: id(1), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:44:00.000Z' });
     await seedJob({ id: id(3), kind: 'voice', status: 'pending', updated_at: '2026-10-04T11:57:00.000Z' }); // 3 minutes: not yet
     await seedJob({ id: id(4), kind: 'voice', status: 'pending', updated_at: FRESH });
     await seedJob({ id: id(5), kind: 'voice', status: 'failed', updated_at: STALE });

@@ -7,6 +7,17 @@ export const transactionsQueryKeys = {
       userId ?? "none",
       transactionId,
     ] as const,
+  /** The paybacks linked to one transaction (as the credit or as the debit). */
+  offsets: (userId: string | undefined, transactionId: string) =>
+    [...transactionsQueryKeys.all, "offsets", userId ?? "none", transactionId] as const,
+  /** Rows a transaction could be linked to as a payback. */
+  paybackCandidates: (userId: string | undefined, transactionId: string) =>
+    [
+      ...transactionsQueryKeys.all,
+      "paybackCandidates",
+      userId ?? "none",
+      transactionId,
+    ] as const,
   home: (userId: string | undefined, timezone: string) =>
     [...transactionsQueryKeys.all, "home", userId ?? "none", timezone] as const,
   monthSummary: (

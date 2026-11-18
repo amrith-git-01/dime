@@ -5,9 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { submitReceipt } from "@/features/transactions/api/submitTransactionApi";
 import { prepareReceiptImageForUpload } from "@/features/transactions/receipt/prepareReceiptImageForUpload";
 
+import { openCaptureReview } from "../utils/openCaptureReview";
 import { markCaptureFailed } from "../utils/settleCapture";
 import { closeCard, useCloseAfterCapture } from "./useCardClose";
-import { runCapture, type CapturePhase } from "../utils/runCapture";
+import { runCapture, type CapturePhase, type CaptureResult } from "../utils/runCapture";
 
 export type PickSource = "camera" | "library";
 
@@ -41,6 +42,8 @@ export function usePickedCapture(source: PickSource, userId: string, enabled: bo
   const cancelledRef = useRef(false);
   const idempotencyKeyRef = useRef(randomUUID());
   const preparedUriRef = useRef<string | null>(null);
+  // What a foreign-currency capture read: "Enter amount" opens the manual form with it.
+  const reviewRef = useRef<CaptureResult["review"] | null>(null);
 
   const upload = useCallback(
     async (fileUri: string) => {
@@ -64,6 +67,7 @@ export function usePickedCapture(source: PickSource, userId: string, enabled: bo
       if (result.failure === "job") {
         idempotencyKeyRef.current = randomUUID();
       }
+      reviewRef.current = result.review ?? null;
     },
     [userId],
   );
@@ -141,5 +145,7 @@ export function usePickedCapture(source: PickSource, userId: string, enabled: bo
 
   useCloseAfterCapture(state.phase === "launching" ? null : state.phase);
 
-  return { ...state, retry };
+  const onEnterAmount = useCallback(() => openCaptureReview(reviewRef.current), []);
+
+  return { ...state, retry, onEnterAmount };
 }

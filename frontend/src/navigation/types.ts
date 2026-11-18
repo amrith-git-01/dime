@@ -66,6 +66,10 @@ export type MainStackParamList = {
         focusAmount?: boolean;
         createdCategoryId?: string;
         createdCategoryName?: string;
+        /** A payee to start with (what a capture read). */
+        presetPayee?: string;
+        /** A note to start with (a foreign-currency capture says what it read: the rupee amount is still to be typed). */
+        presetNote?: string;
       }
     | undefined;
   EditTransaction: {
@@ -84,7 +88,8 @@ export type MainStackParamList = {
         selectedMonthIndex0?: number;
       }
     | undefined;
-  TransactionDetail: { transaction: TransactionRow };
+  /** `openPaidBack`: open the "Paid back" picker at once (after saving money received from a person). */
+  TransactionDetail: { transaction: TransactionRow; openPaidBack?: boolean };
   RecurringEditor: { kind: RecurringKind; item?: RecurringItem };
   TransactionsList:
     | {

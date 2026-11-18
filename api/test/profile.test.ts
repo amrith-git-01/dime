@@ -121,6 +121,8 @@ describe('/me/settings', () => {
     reminders_enabled: true, reminder_default_lead_days: [3, 1, 0], reminder_time: '09:00', reminder_overdue_nudges: 2,
     reminder_quiet_enabled: false, reminder_quiet_start: '22:00', reminder_quiet_end: '08:00', reminder_hide_amounts: false,
     upi_id: null, timezone: null,
+    // Count ATM cash withdrawals as spend (default: they are transfers).
+    count_cash_withdrawals_as_spend: false,
   };
 
   it('GET creates defaults when the row is missing', async () => {

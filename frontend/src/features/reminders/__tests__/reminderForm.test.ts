@@ -1,3 +1,5 @@
+import { AMOUNT_TOO_LARGE_MESSAGE } from "@/utils/paise";
+
 import { leadDayCap } from "../constants";
 import type { Reminder, ReminderFormState } from "../types";
 import {
@@ -134,7 +136,9 @@ describe("validation", () => {
     expect(collectFieldErrors(form({ amountText: "0" }), CTX).amount).toMatch(/greater than zero/);
     expect(collectFieldErrors(form({ amountText: "abc" }), CTX).amount).toMatch(/greater than zero/);
     expect(collectFieldErrors(form({ amountText: "1.234" }), CTX).amount).toMatch(/greater than zero/);
-    expect(collectFieldErrors(form({ amountText: "12345678901" }), CTX).amount).toMatch(/10 digits/);
+    // Well formed but above the API's limit (Rs 1,00,00,000): the form says so.
+    expect(collectFieldErrors(form({ amountText: "12345678901" }), CTX).amount).toBe(AMOUNT_TOO_LARGE_MESSAGE);
+    expect(collectFieldErrors(form({ amountText: "10000000" }), CTX).amount).toBeUndefined();
   });
 
   it("checks the UPI id only for a payment", () => {

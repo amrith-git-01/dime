@@ -1,4 +1,4 @@
-import { addDays, dateKey, localDate, parseTimezone, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
+import { addDays, dateKey, daysInMonth, localDate, parseTimezone, startOfLocalDay, tzOffsetMs } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
 
 /**
@@ -47,10 +47,6 @@ export function parseIsoDate(iso: string): LocalDate | null {
 /** Whole days from `a` to `b` (calendar arithmetic, no timezone). */
 export function daysBetween(a: LocalDate, b: LocalDate): number {
   return Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000);
-}
-
-export function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 export function weekdayName(d: LocalDate): string {

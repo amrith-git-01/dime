@@ -38,7 +38,7 @@ function summary(over: Partial<InsightsMonthSummary> = {}): InsightsMonthSummary
     spentDisplay: money(5700),
     incomeDisplay: money(0),
     netDisplay: money(0),
-    heroDisplay: money(5700),
+    budgetLeft: 24300,
     netValue: 0,
     savingsRatePct: null,
     hasFixed: true,
@@ -83,10 +83,25 @@ describe("InsightsMonthSummaryCard", () => {
       fixedValue: 10000,
       flexibleValue: 32000,
       remainingValue: 0,
+      // The server's signed figure drives the over-budget state.
+      budgetLeft: -12000,
     });
     expect(texts).toContain("Over by");
     expect(texts).toContain(money(12000));
     expect(texts.join("")).not.toContain("Left of");
+  });
+
+  it("headlines what was spent: income and net sit beside it, never in its place", async () => {
+    const texts = await textOf({
+      hasIncome: true,
+      incomeDisplay: money(95000),
+      netDisplay: money(89300),
+      netValue: 89300,
+    });
+    expect(texts.slice(0, 3)).toEqual(["THIS MONTH", money(5700), "spent"]);
+    expect(texts).toContain("Income");
+    expect(texts).toContain("Net");
+    expect(texts).toContain(money(89300));
   });
 
   it("without a budget: two columns", async () => {

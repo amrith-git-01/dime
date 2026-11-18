@@ -18,6 +18,8 @@ export interface IngestContext {
   queue: Queue;
   /** Workers AI caps (global neurons per day, receipts and voice captures per user per day). */
   limits: NeuronLimits;
+  /** The user's timezone: their daily capture limits count calendar days there. */
+  timezone: string;
 }
 
 /** The id of the job that already holds this `Idempotency-Key`: a replay, answered without side effects. Null for a new key. */
@@ -48,9 +50,9 @@ const STORAGE_KIND: Record<AcceptMediaInput['kind'], UploadKind> = { receipt: 'r
  */
 export async function acceptMedia(ctx: IngestContext, input: AcceptMediaInput): Promise<string | null> {
   // Counted here, atomically (concurrent uploads cannot pass the limit); given back below if no job results.
-  await claimUpload(ctx.db, ctx.userId, input.kind, ctx.limits, estimateCaptureNeurons(input.kind, input.bytes.byteLength));
   const claimedAt = Date.now();
-  const giveBack = () => releaseCapture(ctx.db, ctx.userId, input.kind, claimedAt).catch(() => undefined);
+  await claimUpload(ctx.db, ctx.userId, input.kind, ctx.limits, estimateCaptureNeurons(input.kind, input.bytes.byteLength), claimedAt, ctx.timezone);
+  const giveBack = () => releaseCapture(ctx.db, ctx.userId, input.kind, claimedAt, ctx.timezone).catch(() => undefined);
   let objectPath: string;
   try {
     objectPath = await uploadMedia(ctx.storage, {

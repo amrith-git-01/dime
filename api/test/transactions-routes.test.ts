@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Bindings } from '../src/core/env';
-import { buildPaymentHash } from '../src/features/transactions/dedupe';
-import { USER_ID, call, makeCtx, makeEnv, signToken } from './helpers';
+import { USER_ID, call as callApi, makeCtx, makeEnv, signToken } from './helpers';
 import {
   failingOn,
   oneRow,
@@ -23,11 +22,16 @@ import { json, useSupabaseStub } from './supabase-stub';
 // Relational data lives in D1; the stub only serves Storage signing and the Expo push endpoint.
 const stub = useSupabaseStub();
 
+// This file makes more writes than the real 60-a-minute limiter binding allows: the limiter has its own tests (core.test.ts).
+const call: typeof callApi = (path, opts = {}, ctx) => callApi(path, { ...opts, env: opts.env ?? makeEnv({ WRITE_LIMITER: undefined }) }, ctx);
+
 const TX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const CAT = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const CAT2 = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const KEY = '5c0e7d9e-3b0f-4f3c-9a55-0c1d2e3f4a5b';
 const TZ = 'timezone=Asia%2FKolkata';
+/** The additive budget fields of a month with no cap, no recurring money, no transfers and no paybacks. */
+const NO_BUDGET = (spent: string) => ({ budget_spent: spent, budget_left: null, committed_total: '0.00', transfer_total: '0.00', payback_total: '0.00', monthly_budget: null });
 /** Seeded system category "Income". */
 const INCOME = '2aedfd2c-7a2d-48e9-9b9c-8918dd4e9715';
 
@@ -94,6 +98,10 @@ describe('GET /transactions', () => {
       user_id: USER_ID,
       amount: '480.00',
       type: 'debit',
+      kind: 'spend',
+      offset_total: '0.00',
+      effective_amount: '480.00',
+      needs_review: false,
       counterparty_name: ' Swiggy ',
       counterparty_type: 'merchant',
       counterparty_normalized: 'swiggy',
@@ -356,6 +364,7 @@ describe('GET /transactions/month-summary', () => {
       flexible_debit_total: '250.50',
       fixed_credit_total: '0.00',
       flexible_credit_total: '1000.00',
+      ...NO_BUDGET('250.50'),
       debit_by_category: { [CAT]: '200.00', __uncategorized__: '50.50' },
       category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111', scope: 'spend' }],
     });
@@ -376,6 +385,7 @@ describe('GET /transactions/month-summary', () => {
       flexible_debit_total: '15.15',
       fixed_credit_total: '0.00',
       flexible_credit_total: '20.00',
+      ...NO_BUDGET('15.15'),
       debit_by_category: { [CAT]: '10.10', __uncategorized__: '5.05' },
       category_meta: [{ id: CAT, name: 'Food', icon_name: 'Utensils', color: '#111111', scope: 'spend' }],
     });
@@ -501,6 +511,10 @@ describe('GET /transactions/month-insights', () => {
       flexible_debit_total: '150.00',
       fixed_credit_total: '0.00',
       flexible_credit_total: '50.00',
+      budget_spent: '150.00',
+      committed_total: '0.00',
+      transfer_total: '0.00',
+      payback_total: '0.00',
     });
     expect(body.daily_cashflow).toHaveLength(31);
     expect(body.daily_cashflow[14]).toEqual({ date: '2026-05-15', debit_total: '100.00', credit_total: '50.00', fixed_debit_total: '0', fixed_credit_total: '0' });
@@ -579,20 +593,10 @@ const postTx = (jsonBody: unknown, extra: { headers?: Record<string, string>; tz
     { method: 'POST', json: jsonBody, ...(extra.headers ? { headers: extra.headers } : {}), ...(extra.env ? { env: extra.env } : {}) },
     ctx,
   );
-/** The payment hash POST /transactions computes for `createBody()` (or a debit variant). */
-const hashFor = (over: { amount?: string; type?: string; at?: string } = {}) =>
-  buildPaymentHash({
-    amount: over.amount ?? '250.50',
-    type: over.type ?? 'credit',
-    counterpartyNormalized: 'acme corp',
-    counterpartyName: 'Acme Corp',
-    transactionAtMs: Date.parse(over.at ?? '2026-10-04T10:00:00+05:30'),
-  });
-
 describe('POST /transactions: size limits', () => {
-  it('422 for an amount with more than 10 whole digits; 10 are fine', async () => {
+  it('422 for an amount with more than 10 whole digits', async () => {
     expect((await postTx(createBody({ amount: '12345678901' }))).status).toBe(422);
-    expect((await postTx(createBody({ amount: '1234567890.50' }))).status).toBe(201);
+    expect((await postTx(createBody({ amount: '1234567890.50' }))).status).toBe(422); // also above the cap below
   });
 
   it('413 for a JSON body over 64 KB', async () => {
@@ -646,10 +650,15 @@ describe('POST /transactions', () => {
       counterparty_name: 'Acme Corp',
       counterparty_type: 'person',
       counterparty_normalized: 'acme corp',
-      payment_hash: await hashFor(),
+      payment_hash: null,
       payee_key: 'acme corp',
       recurring_item_id: null,
+      recurring_occurrence: null,
       brand_id: null,
+      kind: 'income',
+      local_date: '2026-10-04',
+      month_key: '2026-10',
+      needs_review: 0,
     });
   });
 
@@ -663,67 +672,46 @@ describe('POST /transactions', () => {
     expect(await oneRow('transactions', 'amount = 1300')).toMatchObject({ category_id: null });
   });
 
-  it('a hash hit sparse-merges missing fields into the existing row and inserts nothing', async () => {
-    await seedCategory({ id: CAT, name: 'Salary', user_id: USER_ID });
-    await seedTx({
-      type: 'credit',
-      amount: '250.50',
-      counterparty_name: 'Acme Corp',
-      counterparty_normalized: 'acme corp',
-      note: null,
-      category_id: null,
-      counterparty_type: null,
-      payment_hash: await hashFor(),
-    });
-    const res = await postTx(createBody({ note: 'late', category: 'Salary', counterparty_type: 'person' }));
+  it('a manual entry that looks like one already there still saves (201) and names it: possible_duplicate_of', async () => {
+    await seedTx({ type: 'credit', amount: '250.50', counterparty_name: 'Acme Corp', counterparty_normalized: 'acme corp', transaction_at: '2026-10-04T05:00:00.000Z' });
+    const res = await postTx(createBody());
     expect(res.status).toBe(201);
-    // The id of the row it matched, flagged as not created so a client never undoes someone else's row.
-    // The merged row is included too, so the client can show what is now stored.
-    expect(await res.json()).toEqual({
-      accepted: true,
-      id: TX,
-      created: false,
-      transaction: expect.objectContaining({ id: TX, note: 'late', category_id: CAT, counterparty_type: 'person' }) as unknown,
-    });
-    expect(await rowsOf('transactions')).toHaveLength(1);
-    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT, note: 'late', counterparty_type: 'person' });
+    const reply = await res.json<{ id: string; created: boolean; possible_duplicate_of?: string }>();
+    expect(reply).toMatchObject({ accepted: true, created: true, possible_duplicate_of: TX });
+    expect(reply.id).not.toBe(TX);
+    expect(await rowsOf('transactions')).toHaveLength(2);
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ needs_review: 0 }); // the other row is untouched
   });
 
-  it('a hash hit with nothing new to merge is a no-op', async () => {
-    await seedFood();
-    await seedTx({
-      type: 'credit',
-      amount: '250.50',
-      counterparty_name: 'Acme Corp',
-      counterparty_normalized: 'acme corp',
-      note: 'x',
-      category_id: CAT,
-      counterparty_type: 'merchant',
-      payment_hash: await hashFor(),
-      updated_at: '2026-10-04T10:00:05.123Z',
-    });
-    expect((await postTx(createBody())).status).toBe(201);
-    expect(await rowsOf('transactions')).toHaveLength(1);
-    expect((await oneRow<{ updated_at: string }>('transactions', 'id = ?', TX))?.updated_at).toBe('2026-10-04T10:00:05.123Z');
-  });
-
-  it('a soft-deleted twin does not block a new insert (partial unique index)', async () => {
-    await seedTx({
-      type: 'credit',
-      amount: '250.50',
-      counterparty_name: 'Acme Corp',
-      counterparty_normalized: 'acme corp',
-      payment_hash: await hashFor(),
-      deleted_at: '2026-10-05T00:00:00.000Z',
-    });
-    expect((await postTx(createBody())).status).toBe(201);
+  it('two real purchases of the same thing in the same minute both save (the second says it may be a duplicate)', async () => {
+    const tea = createBody({ type: 'debit', amount: '20', counterparty_name: 'Tea Stall' });
+    const first = await (await postTx(tea)).json<Record<string, unknown>>();
+    const second = await (await postTx(tea)).json<Record<string, unknown>>();
+    expect(first['possible_duplicate_of']).toBeUndefined();
+    expect(second['possible_duplicate_of']).toBe(first['id']);
     expect(await rowsOf('transactions')).toHaveLength(2);
   });
 
-  it('two concurrent identical requests create one row (the loser resolves to the winner, both 201)', async () => {
-    const [a, b] = await Promise.all([postTx(createBody()), postTx(createBody())]);
-    expect([a.status, b.status]).toEqual([201, 201]);
-    expect(await rowsOf('transactions')).toHaveLength(1);
+  it('a soft-deleted twin is not reported as a duplicate', async () => {
+    await seedTx({ type: 'credit', amount: '250.50', counterparty_name: 'Acme Corp', counterparty_normalized: 'acme corp', transaction_at: '2026-10-04T05:00:00.000Z', deleted_at: '2026-10-05T00:00:00.000Z' });
+    const reply = await (await postTx(createBody())).json<Record<string, unknown>>();
+    expect(reply['possible_duplicate_of']).toBeUndefined();
+    expect(await rowsOf('transactions')).toHaveLength(2);
+  });
+
+  it('a different day, amount, direction or payee is not a duplicate', async () => {
+    await seedTx({ type: 'credit', amount: '250.50', counterparty_name: 'Acme Corp', counterparty_normalized: 'acme corp', transaction_at: '2026-10-04T05:00:00.000Z' });
+    for (const over of [{ transaction_at: '2026-10-05T10:00:00+05:30' }, { amount: '250.51' }, { type: 'debit' }, { counterparty_name: 'Other Corp' }]) {
+      const reply = await (await postTx(createBody(over))).json<Record<string, unknown>>();
+      expect(reply['possible_duplicate_of'], JSON.stringify(over)).toBeUndefined();
+    }
+  });
+
+  it('the duplicate check is by the local day: 23:30 and 00:30 IST around midnight are different days', async () => {
+    await postTx(createBody({ type: 'debit', amount: '20', transaction_at: '2026-10-04T23:30:00+05:30' }));
+    const next = await (await postTx(createBody({ type: 'debit', amount: '20', transaction_at: '2026-10-05T00:30:00+05:30' }))).json<Record<string, unknown>>();
+    expect(next['possible_duplicate_of']).toBeUndefined();
+    expect(await rowsOf('transactions', 'local_date = ?', '2026-10-05')).toHaveLength(1);
   });
 
   it('other database failures surface as 500 (C8)', async () => {
@@ -758,6 +746,12 @@ describe('POST /transactions', () => {
 });
 
 describe('POST /transactions: budget evaluation, notifications and push (background)', () => {
+  // Only the current local month raises alerts: pin "now" to October 2026, the month of these transactions.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T08:00:00Z'));
+  });
+
   const debitBody = (over: Record<string, unknown> = {}) => createBody({ type: 'debit', amount: '900', transaction_at: '2026-10-04T10:00:00+05:30', ...over });
 
   /** A monthly cap of 1000, a push token, and the Expo endpoint. */
@@ -873,28 +867,19 @@ describe('POST /transactions: budget evaluation, notifications and push (backgro
     expect(await rowsOf('user_settings')).toHaveLength(0);
   });
 
-  it('a duplicate (hash hit) does no notification work', async () => {
+  it('a possible duplicate is saved and counts in the budget like any other debit', async () => {
     await wire();
-    await seedFood();
-    await seedTx({
-      type: 'debit',
-      amount: '900',
-      counterparty_name: 'Acme Corp',
-      counterparty_normalized: 'acme corp',
-      note: 'x',
-      category_id: CAT,
-      counterparty_type: 'merchant',
-      payment_hash: await hashFor({ amount: '900.00', type: 'debit' }),
-    });
+    await seedTx({ type: 'debit', amount: '900', counterparty_name: 'Acme Corp', counterparty_normalized: 'acme corp', transaction_at: '2026-10-04T05:00:00.000Z' });
     const { ctx, flush } = makeCtx();
-    await postTx(debitBody(), {}, ctx);
+    const res = await postTx(debitBody(), {}, ctx);
+    expect((await res.json<Record<string, unknown>>())['possible_duplicate_of']).toBe(TX);
     await flush();
-    expect(await rowsOf('notifications')).toHaveLength(0);
+    expect(await dedupeKeys()).toEqual(['budget:monthly:100:2026-10']); // 1800 of 1000: over
   });
 
   it('a failing background evaluation never fails the response', async () => {
     await wire();
-    const env = { ...makeEnv(), DB: failingOn(/user_settings/, 'D1_ERROR: db down') } as unknown as Bindings;
+    const env = { ...makeEnv(), DB: failingOn(/budget_history/, 'D1_ERROR: db down') } as unknown as Bindings;
     const { ctx, flush } = makeCtx();
     const res = await postTx(debitBody(), { env }, ctx);
     expect(res.status).toBe(201);
@@ -941,24 +926,14 @@ describe('POST /transactions: Idempotency-Key (C2)', () => {
     expect(await rowsOf('transactions')).toHaveLength(0);
   });
 
-  it('stores created: false for a dedupe hit and replays it', async () => {
-    await seedFood();
-    await seedTx({
-      type: 'credit',
-      amount: '250.50',
-      counterparty_name: 'Acme Corp',
-      counterparty_normalized: 'acme corp',
-      note: 'x',
-      category_id: CAT,
-      counterparty_type: 'merchant',
-      payment_hash: await hashFor(),
-    });
+  it('stores possible_duplicate_of with the response and replays it unchanged', async () => {
+    await seedTx({ type: 'credit', amount: '250.50', counterparty_name: 'Acme Corp', counterparty_normalized: 'acme corp', transaction_at: '2026-10-04T05:00:00.000Z' });
     const first = await postTx(createBody(), withKey);
     const firstBody = await first.json<Record<string, unknown>>();
-    expect(firstBody).toMatchObject({ accepted: true, id: TX, created: false, transaction: { id: TX } });
+    expect(firstBody).toMatchObject({ accepted: true, created: true, possible_duplicate_of: TX });
     const replay = await postTx(createBody(), withKey);
     expect(await replay.json()).toEqual(firstBody);
-    expect(await rowsOf('transactions')).toHaveLength(1);
+    expect(await rowsOf('transactions')).toHaveLength(2); // the retry made no third row
   });
 
   it('replays a response stored before ids existed as 201 {accepted: true} (no id)', async () => {
@@ -1038,10 +1013,7 @@ describe('PATCH /transactions/{id}', () => {
     ...over,
   });
   const patchTx = (jsonBody: unknown, id = TX) => call(`/api/v1/transactions/${id}`, { method: 'PATCH', json: jsonBody });
-  const newHash = () =>
-    buildPaymentHash({ amount: '250.50', type: 'credit', counterpartyNormalized: 'new payee', counterpartyName: 'New Payee', transactionAtMs: Date.parse('2026-08-02T12:00:00Z') });
-
-  it('writes the editable fields, recomputes the hash and returns the enriched row', async () => {
+  it('writes the editable fields, moves the local day with the instant and returns the enriched row', async () => {
     await seedFood();
     await seedTx({ payment_hash: 'keep-me' });
     const res = await patchTx(body());
@@ -1058,13 +1030,16 @@ describe('PATCH /transactions/{id}', () => {
       counterparty_normalized: 'new payee',
       counterparty_type: 'person',
       payee_key: 'new payee',
-      payment_hash: await newHash(),
+      payment_hash: 'keep-me', // the identity of a row never changes on edit
+      kind: 'income',
+      local_date: '2026-08-02',
+      month_key: '2026-08',
       user_id: USER_ID,
     });
     expect(String(row?.['updated_at']) > '2026-10-04T10:00:05.123Z').toBe(true);
   });
 
-  it('keeps the hash stable when the fingerprint is unchanged', async () => {
+  it('keeps the row identity across edits', async () => {
     await seedFood();
     await seedTx({ payment_hash: 'keep-me' });
     await patchTx(body());
@@ -1073,39 +1048,12 @@ describe('PATCH /transactions/{id}', () => {
     expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ payment_hash: hash, note: 'second edit' });
   });
 
-  it('409 when the edit matches another active transaction', async () => {
+  it('an edit that makes the row look like another one is allowed (duplicates are only ever suggested)', async () => {
     await seedFood();
     await seedTx({ payment_hash: 'keep-me' });
-    await seedTransaction({ id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', payment_hash: await newHash() });
-    const res = await patchTx(body());
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ detail: 'Another transaction already has the same amount, payee, type and time.' });
-    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ amount: 48000, payment_hash: 'keep-me' });
-  });
-
-  it('a soft-deleted row with the same fingerprint is not a clash', async () => {
-    await seedFood();
-    await seedTx({ payment_hash: 'keep-me' });
-    await seedTransaction({ id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', payment_hash: await newHash(), deleted_at: '2026-10-05T00:00:00.000Z' });
+    await seedTransaction({ id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', type: 'credit', amount: '250.50', counterparty_name: 'New Payee', transaction_at: '2026-08-02T12:00:00Z' });
     expect((await patchTx(body())).status).toBe(200);
-    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ payment_hash: await newHash() });
-  });
-
-  it('a legacy row without a hash that would clash keeps its hash unset (200)', async () => {
-    await seedFood();
-    await seedTx({ payment_hash: null });
-    await seedTransaction({ id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', payment_hash: await newHash() });
-    expect((await patchTx(body())).status).toBe(200);
-    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ payment_hash: null, amount: 25050 });
-  });
-
-  it('two concurrent edits to the same fingerprint: one wins, the other is a 409 (unique index)', async () => {
-    await seedFood();
-    await seedTx({ payment_hash: 'keep-me' });
-    const other = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
-    await seedTransaction({ id: other, payment_hash: 'other-hash' });
-    const statuses = (await Promise.all([patchTx(body()), patchTx(body(), other)])).map((r) => r.status).sort();
-    expect(statuses).toEqual([200, 409]);
+    expect(await rowsOf('transactions')).toHaveLength(2);
   });
 
   it('clears the category when none resolves (matches Python) and keeps counterparty_type when absent', async () => {
@@ -1161,5 +1109,126 @@ describe('DELETE /transactions/{id}', () => {
     const res = await call(`/api/v1/transactions/${TX}`, { method: 'DELETE', token: other });
     expect(res.status).toBe(404);
     expect((await oneRow<{ deleted_at: string | null }>('transactions', 'id = ?', TX))?.deleted_at).toBeNull();
+  });
+});
+
+describe('input bounds (R8)', () => {
+  it('an amount must be above 0, at most Rs 1,00,00,000.00 and have at most two decimals: a third is refused, never rounded', async () => {
+    for (const amount of ['0', '-1', '0.001', '10000000.01', '12.345', 12.345, 1e8]) {
+      expect((await postTx(createBody({ amount }))).status, String(amount)).toBe(422);
+    }
+    for (const amount of ['0.01', '10000000', '10000000.00', '12.5', 99.99]) {
+      expect((await postTx(createBody({ amount }))).status, String(amount)).toBe(201);
+    }
+    expect(await rowsOf('transactions')).toHaveLength(5);
+  });
+
+  it('the same bounds apply to an edit', async () => {
+    await seedTransaction({ id: TX, amount: '480.00', type: 'debit', counterparty_name: 'Swiggy' });
+    const patch = (json: unknown) => call(`/api/v1/transactions/${TX}`, { method: 'PATCH', json });
+    expect((await patch({ amount: '12.345' })).status).toBe(422);
+    expect((await patch({ amount: '10000000.01' })).status).toBe(422);
+    expect((await patch({ amount: '10000000' })).status).toBe(200);
+  });
+
+  it('transaction_at: not before 2000-01-01, not more than two days ahead (a clock skew is fine, a typo is not)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.parse('2026-10-20T08:00:00Z'));
+    expect((await postTx(createBody({ transaction_at: '1999-12-31T23:59:59Z' }))).status).toBe(422);
+    expect((await postTx(createBody({ transaction_at: '2000-01-01T00:00:00Z' }))).status).toBe(201);
+    expect((await postTx(createBody({ transaction_at: '2026-10-22T07:59:00Z' }))).status).toBe(201); // 1 day 23 h 59 m ahead
+    expect((await postTx(createBody({ transaction_at: '2026-10-22T08:01:00Z' }))).status).toBe(422);
+    expect((await postTx(createBody({ transaction_at: '2030-01-01T00:00:00Z' }))).status).toBe(422);
+    const patch = (json: unknown) => call(`/api/v1/transactions/${TX}`, { method: 'PATCH', json });
+    await seedTransaction({ id: TX, amount: '480.00', type: 'debit', counterparty_name: 'Swiggy' });
+    expect((await patch({ transaction_at: '2031-01-01T00:00:00Z' })).status).toBe(422);
+    expect((await patch({ transaction_at: '1990-01-01T00:00:00Z' })).status).toBe(422);
+  });
+});
+
+describe('PATCH applies only the fields sent; expected_updated_at guards against a stale write (R8)', () => {
+  const seed = (over: Parameters<typeof seedTransaction>[0] = {}) =>
+    seedTransaction({ id: TX, amount: '480.00', type: 'debit', counterparty_name: 'Swiggy', note: 'dinner', transaction_at: '2026-10-04T10:00:00.000Z', ...over });
+  const patch = (json: unknown) => call(`/api/v1/transactions/${TX}`, { method: 'PATCH', json });
+  const get = async () => (await call(`/api/v1/transactions/${TX}`)).json<{ updated_at: string; amount: string; note: string | null }>();
+
+  it('a patch with one field leaves every other field as it was', async () => {
+    await seedFood();
+    await seed({ category_id: CAT });
+    const res = await patch({ note: 'late dinner' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ amount: '480.00', type: 'debit', merchant: 'Swiggy', category: 'Food', note: 'late dinner' });
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ amount: 48000, counterparty_name: 'Swiggy', category_id: CAT, transaction_at: '2026-10-04T10:00:00.000Z', note: 'late dinner' });
+    expect((await patch({ amount: '500' })).status).toBe(200);
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ amount: 50000, note: 'late dinner', counterparty_name: 'Swiggy' });
+  });
+
+  it('null clears the note and the category; an omitted category keeps it', async () => {
+    await seedFood();
+    await seed({ category_id: CAT });
+    await patch({ amount: '600' });
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ category_id: CAT });
+    await patch({ note: null, category_id: null });
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ note: null, category_id: null });
+  });
+
+  it('an unchanged expected_updated_at lets the edit through; a stale one is a 409 with code stale and nothing is written', async () => {
+    await seed();
+    const seen = (await get()).updated_at;
+    expect((await patch({ note: 'first', expected_updated_at: seen })).status).toBe(200);
+    const stale = await patch({ note: 'second', expected_updated_at: seen });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ code: 'stale' });
+    expect(await oneRow('transactions', 'id = ?', TX)).toMatchObject({ note: 'first' });
+    // Reading again gives the new version, which is accepted.
+    expect((await patch({ note: 'second', expected_updated_at: (await get()).updated_at })).status).toBe(200);
+  });
+
+  it('the guard is optional: an edit without it always applies (old app builds)', async () => {
+    await seed();
+    await patch({ note: 'a' });
+    expect((await patch({ note: 'b' })).status).toBe(200);
+  });
+
+  it('DELETE with a stale expected_updated_at (query or body) is a 409 and the row stays; a fresh one deletes it', async () => {
+    await seed();
+    const seen = (await get()).updated_at;
+    await patch({ note: 'changed elsewhere' });
+    const viaQuery = await call(`/api/v1/transactions/${TX}?expected_updated_at=${encodeURIComponent(seen)}`, { method: 'DELETE' });
+    expect(viaQuery.status).toBe(409);
+    expect(await viaQuery.json()).toMatchObject({ code: 'stale' });
+    const viaBody = await call(`/api/v1/transactions/${TX}`, { method: 'DELETE', json: { expected_updated_at: seen } });
+    expect(viaBody.status).toBe(409);
+    expect((await oneRow<{ deleted_at: string | null }>('transactions', 'id = ?', TX))?.deleted_at).toBeNull();
+    const fresh = (await get()).updated_at;
+    expect((await call(`/api/v1/transactions/${TX}?expected_updated_at=${encodeURIComponent(fresh)}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await call(`/api/v1/transactions/${TX}?expected_updated_at=nonsense`, { method: 'DELETE' })).status).toBe(422);
+  });
+});
+
+describe('payee keys keep non-Latin names (R8)', () => {
+  it('a Tamil or Japanese payee gets its own key instead of "unknown"', async () => {
+    expect((await postTx(createBody({ counterparty_name: 'ராம் ஸ்டோர்ஸ்', type: 'debit' }))).status).toBe(201);
+    expect((await postTx(createBody({ counterparty_name: '山田 商店', type: 'debit' }))).status).toBe(201);
+    expect((await rowsOf<{ payee_key: string; counterparty_normalized: string | null }>('transactions')).map((r) => [r.payee_key, r.counterparty_normalized])).toEqual([
+      ['ராம் ஸ்டோர்ஸ்', 'ராம் ஸ்டோர்ஸ்'],
+      ['山田 商店', '山田 商店'],
+    ]);
+  });
+});
+
+describe('restore and purge (R8)', () => {
+  it('POST /transactions/:id/restore brings a deleted row back; a live one is returned as it is; an unknown one is a 404', async () => {
+    await seedTransaction({ id: TX, amount: '480.00', type: 'debit', counterparty_name: 'Swiggy' });
+    expect((await call(`/api/v1/transactions/${TX}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await call(`/api/v1/transactions/${TX}`)).status).toBe(404);
+    const res = await call(`/api/v1/transactions/${TX}/restore`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: TX, amount: '480.00', deleted_at: null });
+    expect((await oneRow<{ deleted_at: string | null }>('transactions', 'id = ?', TX))?.deleted_at).toBeNull();
+    expect((await call(`/api/v1/transactions/${TX}/restore`, { method: 'POST' })).status).toBe(200);
+    expect((await call(`/api/v1/transactions/${CAT2}/restore`, { method: 'POST' })).status).toBe(404);
+    const other = await signToken({ sub: '99999999-9999-9999-9999-999999999999' });
+    expect((await call(`/api/v1/transactions/${TX}/restore`, { method: 'POST', token: other })).status).toBe(404);
   });
 });

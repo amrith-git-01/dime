@@ -14,6 +14,7 @@ export function buildManualPreview(
   return {
     amount: body.amount,
     type: body.type,
+    ...(body.kind ? { kind: body.kind } : {}),
     counterparty_name: body.counterparty_name,
     counterparty_type: body.counterparty_type,
     category: body.category,

@@ -14,6 +14,7 @@ import {
   estimateWhisperNeurons,
   neuronsFromTokens,
   neuronsUsedToday,
+  secondsUntilLocalMidnight,
   secondsUntilUtcMidnight,
   userCapturesToday,
   utcDay,
@@ -140,7 +141,7 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     expect(await storedKeys()).toEqual([]);
     expect(await rowsOf('jobs')).toHaveLength(0);
     expect(queue.sent).toEqual([]);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 0, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, Date.now(), 'Asia/Kolkata')).toEqual({ receipts: 0, voices: 0 });
   });
 
   it('under the cap the upload is accepted and counted against the user', async () => {
@@ -148,14 +149,14 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     const res = await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG), env: ingestEnv(queue) });
     expect(res.status).toBe(202);
     expect(queue.sent).toHaveLength(1);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 1, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, Date.now(), 'Asia/Kolkata')).toEqual({ receipts: 1, voices: 0 });
   });
 
   it('a failed job insert gives the claim back', async () => {
     const env = { ...ingestEnv(new FakeQueue()), DB: failingOn(/INSERT INTO jobs/) } as unknown as Bindings;
     const res = await call(`/api/v1/transactions/voice?${TZ}`, { method: 'POST', body: uploadForm(M4A), env });
     expect(res.status).toBe(500);
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 0, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, Date.now(), 'Asia/Kolkata')).toEqual({ receipts: 0, voices: 0 });
   });
 
   it('the AI_DAILY_NEURON_CAP var is honoured', async () => {
@@ -186,6 +187,18 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     expect(await second.json()).toEqual({ detail: "You've used today's 1 receipt scan. Try again tomorrow." });
   });
 
+  it('the daily limit counts the USER\'s own days: the stored timezone decides where the day turns', async () => {
+    // 20:00 UTC on Oct 10 is already Oct 11 in Kolkata (01:30) and still Oct 10 in Los Angeles (13:00).
+    const at = Date.UTC(2026, 9, 10, 20, 0, 0);
+    await claimCapture(db(), USER_ID, 'receipt', at, 10, 'Asia/Kolkata');
+    expect(await userCapturesToday(db(), USER_ID, at, 'Asia/Kolkata')).toEqual({ receipts: 1, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, at, 'America/Los_Angeles')).toEqual({ receipts: 0, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, at - 3 * 3600_000, 'Asia/Kolkata')).toEqual({ receipts: 0, voices: 0 }); // Oct 10 in Kolkata
+    expect(await rowsOf('ai_user_usage')).toMatchObject([{ day: '2026-10-11' }]);
+    expect(secondsUntilLocalMidnight(at, 'Asia/Kolkata')).toBe(22.5 * 3600);
+    expect(secondsUntilLocalMidnight(at, 'America/Los_Angeles')).toBe(11 * 3600);
+  });
+
   it('a replayed Idempotency-Key is answered 202 without counting', async () => {
     const queue = new FakeQueue();
     const env = ingestEnv(queue, { AI_USER_DAILY_RECEIPTS: '5' });
@@ -193,7 +206,7 @@ describe('POST /transactions/receipt|voice over the cap', () => {
     for (let i = 0; i < 3; i++) {
       expect((await call(`/api/v1/transactions/receipt?${TZ}`, { method: 'POST', body: uploadForm(JPEG), env, headers })).status).toBe(202);
     }
-    expect(await userCapturesToday(db(), USER_ID, Date.now())).toEqual({ receipts: 1, voices: 0 });
+    expect(await userCapturesToday(db(), USER_ID, Date.now(), 'Asia/Kolkata')).toEqual({ receipts: 1, voices: 0 });
     expect(queue.sent).toHaveLength(1);
   });
 });
@@ -217,7 +230,7 @@ describe('ingest consumer and the cap', () => {
     expect(await rowsOf('notifications')).toHaveLength(1);
   });
 
-  it('voice over the cap fails permanently without calling the AI (and raises no notification)', async () => {
+  it('voice over the cap fails permanently without calling the AI, and raises the voice capture-failed notification', async () => {
     await addNeurons(db(), Date.now(), 7990);
     const payload = mediaPayload({ object_path: `voice_inputs/${USER_ID}/voice_inputs/2026-10-04/1-abcd1234.m4a`, mime_type: 'audio/mp4' });
     await seedJob({ id: JOB, kind: 'voice', payload });
@@ -227,7 +240,7 @@ describe('ingest consumer and the cap', () => {
     expect(m.acked).toBe(true);
     expect(await job()).toMatchObject({ status: 'failed' });
     expect(fakeAi.calls).toHaveLength(0);
-    expect(await rowsOf('notifications')).toHaveLength(0);
+    expect(await rowsOf('notifications')).toMatchObject([{ kind: 'capture_failed', title: 'Voice note failed' }]);
   });
 
   it('a successful receipt and voice job book their neurons (actual usage, else estimate) into the global counter', async () => {

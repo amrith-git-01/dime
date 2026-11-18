@@ -1,6 +1,13 @@
 import { AxiosError, AxiosHeaders } from "axios";
 
-import { classifyFailure, SessionChangedError, SIGN_IN_AGAIN_MESSAGE, SubmitError } from "../failure";
+import {
+  classifyFailure,
+  failureStatus,
+  isStaleError,
+  SessionChangedError,
+  SIGN_IN_AGAIN_MESSAGE,
+  SubmitError,
+} from "../failure";
 
 function http(status: number, detail: string, headers: Record<string, string> = {}): AxiosError {
   const config = { headers: new AxiosHeaders() };
@@ -32,6 +39,23 @@ describe("classifyFailure", () => {
     const aborted = new Error("aborted");
     aborted.name = "AbortError";
     expect(classifyFailure(aborted).kind).toBe("retry");
+  });
+
+  it("a 409 stale (the row changed on another device) is its own kind: retrying cannot fix it", () => {
+    const stale = new AxiosError("Conflict", AxiosError.ERR_BAD_RESPONSE, undefined, null, {
+      status: 409,
+      statusText: "",
+      data: { detail: "changed on another device", code: "stale" },
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    });
+    expect(classifyFailure(stale)).toMatchObject({ kind: "stale" });
+    expect(isStaleError(stale)).toBe(true);
+    expect(classifyFailure(new SubmitError("changed", { status: 409, code: "stale" }))).toMatchObject({ kind: "stale" });
+    expect(isStaleError(new SubmitError("busy", { status: 409 }))).toBe(false);
+    expect(isStaleError(http(409, "busy"))).toBe(false);
+    expect(failureStatus(stale)).toBe(409);
+    expect(failureStatus(new Error("x"))).toBeUndefined();
   });
 
   it("5xx, 408 and 409 (still processing) are retries", () => {

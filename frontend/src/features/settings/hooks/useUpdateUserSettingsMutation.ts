@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { invalidateBudgetAlertQueries } from "@/features/budgets/cache/invalidateBudgetQueries";
+import { invalidateTransactionDerivedQueries } from "@/features/transactions/cache/invalidateTransactionQueries";
 import { useToastUiStore } from "@/stores/toastUiStore";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import {
@@ -108,6 +110,11 @@ export function useUpdateUserSettingsMutation() {
       if (userId && screens.length > 0) {
         // The server has this order now; it is no longer waiting to be sent.
         removePendingCardLayoutScreens(userId, screens);
+      }
+      // How ATM cash counts decides spent, left and the budget alerts: every number built on them is stale.
+      if (patch.countCashWithdrawalsAsSpend !== undefined) {
+        invalidateTransactionDerivedQueries(queryClient);
+        invalidateBudgetAlertQueries(queryClient);
       }
       if (queryClient.isMutating({ mutationKey }) > 1) {
         void queryClient.invalidateQueries({ queryKey, refetchType: "none" });

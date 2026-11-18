@@ -6,6 +6,7 @@ import { ConfirmModal } from "@/components/shared";
 import { spacing } from "@/constants";
 import { useCategoryDeleteImpactQuery } from "@/features/categories/hooks/useCategoryDeleteImpactQuery";
 import type { CategoryRow } from "@/features/categories/types";
+import { formatInrCompact } from "@/utils/currency";
 import { createThemedStyles } from "@/theme";
 
 type DeleteCategorySheetProps = {
@@ -82,16 +83,29 @@ export function DeleteCategorySheet({
     transactionCount,
   ]);
 
+  // Deleting a category also removes its monthly budget: say how much, so it is never a surprise.
+  const budgetNote =
+    impact?.budget_removed === true
+      ? impact.budget_amount
+        ? `Its monthly budget of ${formatInrCompact(impact.budget_amount)} will be removed too.`
+        : "Its monthly budget will be removed too."
+      : null;
+
   const message = useMemo(() => {
     if (impactLoading || transactionCount == null) {
       return null;
     }
     if (transactionCount === 0) {
-      return "This cannot be undone.";
+      return ["This cannot be undone.", budgetNote].filter(Boolean).join(" ");
     }
     const noun = transactionCount === 1 ? "transaction" : "transactions";
-    return `${transactionCount} ${noun} use this category. Choose where to move them, then delete.`;
-  }, [impactLoading, transactionCount]);
+    return [
+      `${transactionCount} ${noun} use this category. Choose where to move them, then delete.`,
+      budgetNote,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }, [budgetNote, impactLoading, transactionCount]);
 
   const reassignPicker = needsReassign ? (
     <View style={styles.reassignSection}>

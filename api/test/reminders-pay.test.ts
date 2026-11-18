@@ -83,7 +83,7 @@ describe('GET /pay', () => {
       ['pn too long', { pa: 'ravi@okhdfc', pn: 'a'.repeat(41) }],
       ['pn posing as Dime', { pa: 'ravi@okhdfc', pn: 'Dime Support' }],
       ['pn posing as Dime, any case', { pa: 'ravi@okhdfc', pn: 'official DIME payments' }],
-      ['pn with dime inside a word', { pa: 'ravi@okhdfc', pn: 'dimes' }],
+      ['pn posing as Dime, with punctuation', { pa: 'ravi@okhdfc', pn: 'Dime-Pay' }],
       ['tn with a script', { pa: 'ravi@okhdfc', tn: '<script>alert(1)</script>' }],
       ['tn with a control character', { pa: 'ravi@okhdfc', tn: 'line\nbreak' }],
       ['tn too long', { pa: 'ravi@okhdfc', tn: 'a'.repeat(81) }],
@@ -111,6 +111,15 @@ describe('GET /pay', () => {
     ];
     for (const query of limits) {
       expect((await get(q(query))).status, JSON.stringify(query)).toBe(200);
+    }
+  });
+
+  it('only names that impersonate Dime are refused: Dimple, Dimes and a non-Latin name pass', async () => {
+    for (const pn of ['Dimple', 'Dimple Sweets', 'dimes', 'Sundime', 'ராம்', 'Ravi Dimitri']) {
+      expect((await get(q({ pa: 'ravi@okhdfc', pn }))).status, pn).toBe(200);
+    }
+    for (const pn of ['Dime', 'dime', 'DIME', 'Dime Pay', 'the Dime app', 'dime.support']) {
+      expect((await get(q({ pa: 'ravi@okhdfc', pn }))).status, pn).toBe(400);
     }
   });
 

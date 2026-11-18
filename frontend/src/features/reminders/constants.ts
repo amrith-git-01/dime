@@ -14,8 +14,6 @@ export const MAX_LEAD_DAY_ENTRIES = 5;
 
 export const MAX_TITLE_LENGTH = 80;
 export const MAX_NAME_LENGTH = 80;
-/** The API stores money with at most 10 whole digits. */
-export const MAX_AMOUNT_WHOLE_DIGITS = 10;
 /** How far back a new reminder may be dated (the API refuses anything older). */
 export const MAX_DAYS_IN_PAST = 1;
 

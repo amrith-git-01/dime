@@ -20,6 +20,12 @@ export async function fetchByUserId(db: Db, userId: string): Promise<SettingsRow
   return row ? toSettingsRow(row) : null;
 }
 
+/** Just the timezone the app stored; null when there is no settings row or the app has not written one. */
+export async function fetchTimezone(db: Db, userId: string): Promise<string | null> {
+  const row = await first<{ timezone: string | null }>(db, 'SELECT timezone FROM user_settings WHERE user_id = ?', [userId]);
+  return row?.timezone || null;
+}
+
 /** Insert a row (defaults + overrides). Race-safe: returns null if another request created it first. */
 export async function insertDefaults(
   db: Db,

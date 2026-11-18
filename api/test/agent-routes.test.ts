@@ -9,7 +9,7 @@ import { verifyMemory } from '../src/features/agent/memory';
 import { PermanentAiError, TransientAiError } from '../src/features/ai/errors';
 import { JUNE_RESULT, JUNE_SQL, NOW, SECRET, fakeQueries } from './agent-fixtures';
 import { USER_ID, makeCtx, makeEnv, signToken } from './helpers';
-import { failingOn, oneRow, rowsOf, seedUser, testDb } from './db';
+import { failingOn, oneRow, rowsOf, seedSettings, seedUser, testDb } from './db';
 import { json, useSupabaseStub } from './supabase-stub';
 
 const stub = useSupabaseStub();
@@ -289,14 +289,24 @@ describe('kill switch and daily budget', () => {
     expect(await (await chat('hi', { db: null, env: envWith({ AGENT_DAILY_TOKEN_BUDGET: '900' }) })).json()).toMatchObject({ error: { code: 'daily_limit' } });
   });
 
-  it('the sixth question of the UTC day answers 429 (Retry-After to UTC midnight) without a model call', async () => {
+  it('the daily count follows the stored timezone: 04:30 UTC is still the previous day in Los Angeles', async () => {
+    await seedSettings({ timezone: 'America/Los_Angeles' });
+    deepseek([{ content: 'Hello!' }]);
+    for (let i = 0; i < 5; i++) expect((await (await chat('hi', { db: null })).json<{ answer?: string }>()).answer).toBe('Hello!');
+    expect(await rowsOf('agent_usage')).toEqual([expect.objectContaining({ day: '2026-10-04', turns: 5 })]); // NOW is Oct 5, 21:30 the evening before in LA
+    const res = await chat('hi', { db: null });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('9000'); // 2.5 h to LA midnight (07:00 UTC)
+  });
+
+  it('the sixth question of the user day answers 429 (Retry-After to the user midnight, IST here) without a model call', async () => {
     deepseek([{ content: 'Hello!' }]);
     for (let i = 0; i < 5; i++) expect((await (await chat('hi', { db: null })).json<{ answer?: string }>()).answer).toBe('Hello!');
     const llmCalls = stub.find('POST', '/chat/completions').length;
 
     const res = await chat('hi', { db: null });
     expect(res.status).toBe(429);
-    expect(res.headers.get('Retry-After')).toBe('70200'); // NOW is 04:30 UTC
+    expect(res.headers.get('Retry-After')).toBe('50400'); // NOW is 04:30 UTC = 10:00 IST: 14 h to IST midnight
     expect(await res.json()).toEqual({ error: { code: 'daily_limit', message: "You've used today's 5 questions. Try again tomorrow." } });
     expect((await chat('hi', { db: null, accept: 'text/event-stream' })).status).toBe(429);
     expect(stub.find('POST', '/chat/completions')).toHaveLength(llmCalls);

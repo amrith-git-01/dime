@@ -1,5 +1,5 @@
 import { formatCents } from '../../core/decimal';
-import type { PayeeRow } from '../transactions/repository';
+import type { PayeeRow } from '../transactions/ledger';
 import type { CounterpartyIncomeRow, CounterpartySpendRow } from './schemas';
 
 const TOP_PAYEES = 4;

@@ -6,7 +6,7 @@ import { refreshWidgetSnapshotFromApi } from "@/lib/widgets/refreshWidgetSnapsho
 import { resetMockMmkv } from "@/test-utils/mockMmkv";
 import { refreshWidgets } from "@/widgets/refreshWidgets";
 
-import { addedText } from "../captureText";
+import { addedText, needsReviewText } from "../captureText";
 import type { CaptureOutcome } from "../pollIngestJob";
 import { runCapture, type CapturePhase } from "../runCapture";
 
@@ -64,6 +64,26 @@ describe("runCapture", () => {
     expect(readPendingCaptureJobs()).toEqual([]);
     expect(refreshWidgetSnapshotFromApi).toHaveBeenCalledWith("user-a");
     expect(refreshWidgets).toHaveBeenCalled();
+  });
+
+  it("a foreign-currency capture ends in needs_review with what was read, and tells the widget (nothing was added)", async () => {
+    const { phases, run } = setup({
+      kind: "needs_review",
+      reason: "foreign_currency",
+      currency: "USD",
+      amount: "12.00",
+      counterpartyName: "Starbucks",
+    });
+    await expect(run()).resolves.toEqual({
+      phase: "needs_review",
+      review: { payee: "Starbucks", read: "USD 12.00" },
+    });
+    expect(phases[phases.length - 1]).toEqual(["needs_review", needsReviewText("USD", "12.00")]);
+    expect(needsReviewText("USD", "12.00")).toContain("rupee amount");
+    expect(readWidgetCaptureStatus()).toMatchObject({ kind: "failed", text: needsReviewText("USD", "12.00") });
+    expect(readPendingCaptureJobs()).toEqual([]);
+    // No "Added" and no snapshot refresh: no transaction was posted.
+    expect(refreshWidgetSnapshotFromApi).not.toHaveBeenCalled();
   });
 
   it("says 'Reading voice note…' for a voice capture", async () => {

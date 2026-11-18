@@ -1,3 +1,4 @@
+import { formatInrAmount } from "@/utils/currency";
 import { ScrollView } from "react-native";
 
 import { ThemeProvider } from "@/theme/ThemeProvider";
@@ -72,6 +73,7 @@ function rowProps(over: Partial<ReminderRowProps> = {}): ReminderRowProps {
     today: TODAY,
     onPress: jest.fn(),
     onMarkDone: jest.fn(),
+    onPartPayment: jest.fn(),
     onPayNow: jest.fn(),
     onNudge: jest.fn(),
     onSkip: jest.fn(),
@@ -241,6 +243,29 @@ describe("ReminderRow (list)", () => {
     unmountTree(onceTree);
   });
 
+  it("shows what is paid and what is left, and offers a part payment from the more menu", async () => {
+    const props = rowProps({
+      reminder: reminder("r1", {
+        title: "Rent",
+        amount: "1000.00",
+        paid_total: "300.00",
+        remaining: "700.00",
+      }),
+    });
+    const tree = await renderTree(wrap(<ReminderRow {...props} />));
+    expect(textsOf(tree).some((t) => t.includes(`${formatInrAmount(300)} paid`) && t.includes(`${formatInrAmount(700)} left`))).toBe(true);
+    press(tree, "More actions for Rent");
+    press(tree, "Part payment");
+    expect(props.onPartPayment).toHaveBeenCalledWith(props.reminder);
+    unmountTree(tree);
+  });
+
+  it("says nothing about part payments when nothing was paid", async () => {
+    const tree = await renderTree(wrap(<ReminderRow {...rowProps()} />));
+    expect(textsOf(tree).some((t) => t.includes("paid ·"))).toBe(false);
+    unmountTree(tree);
+  });
+
   it("disables the actions while one is running", async () => {
     const tree = await renderTree(wrap(<ReminderRow {...rowProps({ busy: true })} />));
     const markPaid = pressables(tree, "Mark paid")[0];
@@ -348,6 +373,7 @@ function listProps(over: Partial<RemindersListProps> = {}): RemindersListProps {
     onOpenSettings: jest.fn(),
     onEdit: jest.fn(),
     onMarkDone: jest.fn(),
+    onPartPayment: jest.fn(),
     onSkip: jest.fn(),
     onReopen: jest.fn(),
     onPayNow: jest.fn(),

@@ -78,4 +78,6 @@ export interface NewNotification {
   action_period_key?: string | null;
   action_reminder_id?: string | null;
   dedupe_key: string;
+  /** Stored already read and never pushed: an alert re-listed because its threshold is true again (it was announced before). */
+  silent?: boolean;
 }

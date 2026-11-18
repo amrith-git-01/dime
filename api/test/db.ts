@@ -2,7 +2,10 @@ import { env as workerEnv } from 'cloudflare:workers';
 
 import { decimalToCents } from '../src/core/decimal';
 import { nowIso } from '../src/core/db';
+import { dateKey, localDate } from '../src/core/timezone';
 import { normalizeCounterparty, normalizedOrNull, payeeKey } from '../src/features/transactions/dedupe';
+import { defaultKind } from '../src/features/transactions/schemas';
+import type { TransactionKind } from '../src/features/transactions/schemas';
 
 /** The local D1 the tests (and the app under test) share. */
 export const testDb = (): D1Database => workerEnv.DB;
@@ -11,6 +14,11 @@ export const USER_ID = '11111111-1111-1111-1111-111111111111';
 
 /** Tables in delete order (children first), so the reset works even when foreign keys are not enforced. */
 const TABLES = [
+  'transaction_offsets', // references transactions
+  'reminder_payments', // references reminders and transactions
+  'recurring_skips', // references recurring_items
+  'budget_history',
+  'budget_alert_marks',
   'ai_user_usage',
   'ai_usage',
   'auth_sessions',
@@ -77,7 +85,15 @@ export interface SeedTransaction {
   deleted_at?: string | null;
   payment_hash?: string | null;
   recurring_item_id?: string | null;
+  recurring_occurrence?: string | null;
   brand_id?: string | null;
+  /** Default: the direction (a self transfer is a transfer). */
+  kind?: TransactionKind;
+  /** The row's local day; default: the instant's day in `tz`. `null` leaves it unset (a row the backfill has not reached). */
+  local_date?: string | null;
+  /** The zone the default local date is cut in (default Asia/Kolkata). */
+  tz?: string;
+  needs_review?: number;
 }
 
 export async function seedTransaction(over: SeedTransaction = {}): Promise<string> {
@@ -85,20 +101,26 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
   const name = over.counterparty_name === undefined ? 'Swiggy' : over.counterparty_name;
   const normalized = over.counterparty_normalized === undefined ? normalizedOrNull(name ?? '') : over.counterparty_normalized;
   const at = over.transaction_at ?? '2026-10-04T10:00:00.000Z';
+  const type = over.type ?? 'debit';
+  const day = over.local_date === undefined ? dateKey(localDate(over.tz ?? 'Asia/Kolkata', Date.parse(at))) : over.local_date;
   await testDb()
     .prepare(
-      `INSERT INTO transactions (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, deleted_at,
-         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id, brand_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO transactions (id, user_id, amount, type, kind, note, detected_via, transaction_at, local_date, month_key, created_at, updated_at, deleted_at,
+         category_id, receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id,
+         recurring_occurrence, brand_id, needs_review)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
       over.user_id ?? USER_ID,
       decimalToCents(over.amount ?? '100.00'),
-      over.type ?? 'debit',
+      type,
+      over.kind ?? defaultKind(type, over.counterparty_type === undefined ? 'merchant' : over.counterparty_type),
       over.note ?? null,
       over.detected_via === undefined ? 'manual' : over.detected_via,
       at,
+      day,
+      day === null ? null : day.slice(0, 7),
       over.created_at ?? at,
       over.updated_at ?? over.created_at ?? at,
       over.deleted_at ?? null,
@@ -111,7 +133,9 @@ export async function seedTransaction(over: SeedTransaction = {}): Promise<strin
       over.payment_hash ?? null,
       payeeKey(normalized, name),
       over.recurring_item_id ?? null,
+      over.recurring_occurrence ?? null,
       over.brand_id ?? null,
+      over.needs_review ?? 0,
     )
     .run();
   return id;
@@ -139,20 +163,33 @@ export async function seedCategory(over: { id?: string; user_id?: string | null;
   return id;
 }
 
-export async function seedBudget(over: { user_id?: string; monthly?: string } = {}) {
+/** A monthly budget: the current value and, like a real write, the cap in the history (from `from`, default every month). */
+export async function seedBudget(over: { user_id?: string; monthly?: string; from?: string } = {}) {
   const now = nowIso();
-  await testDb()
-    .prepare('INSERT INTO budgets (id, user_id, monthly_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(uid(), over.user_id ?? USER_ID, decimalToCents(over.monthly ?? '0'), now, now)
-    .run();
+  const userId = over.user_id ?? USER_ID;
+  const cents = decimalToCents(over.monthly ?? '0');
+  await testDb().batch([
+    testDb()
+      .prepare('INSERT INTO budgets (id, user_id, monthly_budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(uid(), userId, cents, now, now),
+    testDb()
+      .prepare("INSERT INTO budget_history (user_id, month_key, scope, category_id, amount_cents) VALUES (?, ?, 'monthly', NULL, ?)")
+      .bind(userId, over.from ?? '2000-01', cents),
+  ]);
 }
 
-export async function seedCategoryBudget(categoryId: string, amount: string, userId: string = USER_ID) {
+/** A category budget: the current value and its cap in the history (from `from`, default every month). */
+export async function seedCategoryBudget(categoryId: string, amount: string, userId: string = USER_ID, from = '2000-01') {
   const now = nowIso();
-  await testDb()
-    .prepare('INSERT INTO category_budgets (id, user_id, category_id, monthly_amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(uid(), userId, categoryId, decimalToCents(amount), now, now)
-    .run();
+  const cents = decimalToCents(amount);
+  await testDb().batch([
+    testDb()
+      .prepare('INSERT INTO category_budgets (id, user_id, category_id, monthly_amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(uid(), userId, categoryId, cents, now, now),
+    testDb()
+      .prepare("INSERT INTO budget_history (user_id, month_key, scope, category_id, amount_cents) VALUES (?, ?, 'category', ?, ?)")
+      .bind(userId, from, categoryId, cents),
+  ]);
 }
 
 export async function seedSettings(over: Record<string, number | string> = {}, userId: string = USER_ID) {
@@ -249,6 +286,14 @@ export async function seedReminder(over: {
     )
     .run();
   return id;
+}
+
+/** What a transaction settled of a reminder occurrence (cents; `due` = the occurrence, '' for one that is over). */
+export async function seedReminderPayment(over: { reminder_id: string; txn_id?: string | null; cents: number; due?: string; user_id?: string }) {
+  await testDb()
+    .prepare('INSERT INTO reminder_payments (id, reminder_id, user_id, txn_id, amount_cents, due_date) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(uid(), over.reminder_id, over.user_id ?? USER_ID, over.txn_id ?? null, over.cents, over.due ?? '')
+    .run();
 }
 
 export async function seedJob(over: {

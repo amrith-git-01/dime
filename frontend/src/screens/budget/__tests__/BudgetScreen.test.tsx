@@ -53,10 +53,13 @@ jest.mock("@/features/budgets/components", () => {
 });
 jest.mock("@/features/settings/components", () => {
   const { Text: T } = jest.requireActual("react-native");
-  return { BudgetAlertsCard: () => <T>ALERTS</T> };
+  return { BudgetAlertsCard: () => <T>ALERTS</T>, MoneyRulesCard: () => <T>MONEY RULES</T> };
 });
 jest.mock("../useBudgetAlertsCardModel", () => ({
   useBudgetAlertsCardModel: () => ({}),
+}));
+jest.mock("../useMoneyRulesCardModel", () => ({
+  useMoneyRulesCardModel: () => ({}),
 }));
 jest.mock("@/features/recurring/components", () => {
   const { Text: T } = jest.requireActual("react-native");
@@ -163,6 +166,8 @@ describe("BudgetScreen", () => {
       "ROW rent first=false last=false tour=-",
       "ROW fun first=false last=true tour=-",
       "ALERTS",
+      // The money rules (cash withdrawals) sit with the alerts, in the same card slot.
+      "MONEY RULES",
       "ARRANGE budgets",
     ]);
     act(() => tree.unmount());
@@ -172,7 +177,7 @@ describe("BudgetScreen", () => {
     mockOrder.value.order = ["budgets.categories", "budgets.summary", "budgets.recurring", "budgets.alerts"];
     const tree = render();
     expect(texts(tree).slice(0, 3)).toEqual(["CATEGORIES HEADER", "ROW food first=true last=false tour=budgets.firstCategory", "ROW rent first=false last=false tour=-"]);
-    expect(texts(tree).slice(-4)).toEqual(["SUMMARY", "RECURRING", "ALERTS", "ARRANGE budgets"]);
+    expect(texts(tree).slice(-5)).toEqual(["SUMMARY", "RECURRING", "ALERTS", "MONEY RULES", "ARRANGE budgets"]);
     act(() => tree.unmount());
   });
 

@@ -60,6 +60,13 @@ export class ConflictError extends AppError {
   }
 }
 
+/** The row changed since the client read it (its `expected_updated_at` no longer matches): 409 with `code: 'stale'`. */
+export class StaleError extends AppError {
+  constructor(detail = 'This changed on another device. Refresh and try again.') {
+    super(409, detail, { code: 'stale' });
+  }
+}
+
 export class PayloadTooLargeError extends AppError {
   constructor(detail = 'Request body too large.') {
     super(413, detail);

@@ -9,6 +9,7 @@ import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
 import { useTourTarget } from "@/hooks/useTourTarget";
 import { createThemedStyles } from "@/theme";
+import { formatInrCompact } from "@/utils/currency";
 
 type HeroMonthCardProps = {
   monthLabel: string;
@@ -17,6 +18,10 @@ type HeroMonthCardProps = {
   hasBudget: boolean;
   /** Monthly budget (rupees); 0 when none is set. The bar is the budget when there is one. */
   budgetAmount?: number;
+  /** Budget left, signed (negative = over budget), from the server; null without a budget. */
+  budgetLeft?: number | null;
+  /** Fixed spend outside the budget (rupees); a quiet line says so when there is some. */
+  committed?: number;
   /** Recurring / flexible spend (rupees) for the bar; hidden when there is no budget and no recurring spend. */
   fixedSpent?: number;
   flexibleSpent?: number;
@@ -29,6 +34,8 @@ export const HeroMonthCard = memo(function HeroMonthCard({
   heroAmount,
   hasBudget,
   budgetAmount = 0,
+  budgetLeft = null,
+  committed = 0,
   fixedSpent = 0,
   flexibleSpent = 0,
   isLoading = false,
@@ -60,7 +67,13 @@ export const HeroMonthCard = memo(function HeroMonthCard({
           fixed={fixedSpent}
           flexible={flexibleSpent}
           budget={hasBudget ? budgetAmount : 0}
+          left={hasBudget ? budgetLeft : null}
         />
+      ) : null}
+      {!isLoading && committed > 0 ? (
+        <Text style={styles.committedLine}>
+          {`+${formatInrCompact(committed)} committed (rent, EMI) not in your budget`}
+        </Text>
       ) : null}
 
       {/* The breakdown (with what is left) lives in the bar; without a budget there is a link to set one. */}
@@ -138,6 +151,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 13,
     lineHeight: 18,
     color: colors.ink,
+  },
+  committedLine: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkFaint,
   },
   subtextSkeleton: {
     height: 14,

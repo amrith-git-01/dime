@@ -39,6 +39,10 @@ export type Reminder = {
   status: ReminderStatus;
   completed_at: string | null;
   next_fire_at: string | null;
+  /** Paid so far toward the current due date (part payments add up), decimal string; absent on servers that predate part payments. */
+  paid_total?: string;
+  /** What is still due on the current due date; null when the reminder has no amount. Absent on older servers. */
+  remaining?: string | null;
   suggested_match: ReminderSuggestedMatch | null;
 };
 

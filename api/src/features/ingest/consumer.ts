@@ -70,11 +70,12 @@ function describeError(err: unknown): string {
 
 const FAILURE_COPY = {
   receipt: { source: 'scan', title: 'Receipt scan failed', body: "We couldn't read this receipt. Try again or add manually." },
+  voice: { source: 'voice', title: 'Voice note failed', body: "We couldn't understand this voice note. Try again or add manually." },
 } as const;
 
-/** `capture_failed` notification (deduped per day by the emitter). Voice failures raise none. Never throws. */
+/** `capture_failed` notification for a receipt or a voice note (deduped per source and day by the emitter). Never throws. */
 async function notifyCaptureFailed(db: Db, userId: string, kind: JobKind): Promise<void> {
-  if (kind !== 'receipt') return;
+  if (kind !== 'receipt' && kind !== 'voice') return;
   const copy = FAILURE_COPY[kind];
   try {
     const settings = settingsFromRow(await fetchByUserId(db, userId));
@@ -103,7 +104,7 @@ async function forEachLimited<T>(items: readonly T[], limit: number, fn: (item: 
  * harmless, run the pipeline, then:
  * - success: `done` with `{transaction_id}`;
  * - transient error on a non-final attempt: release to `pending` and `retry` with backoff;
- * - permanent error or final attempt: `failed` + `capture_failed` notification (receipt).
+ * - permanent error or final attempt: `failed` + `capture_failed` notification (receipt or voice).
  * Every path acks or retries the message; nothing throws.
  */
 export async function processIngestMessage(message: IngestMessageHandle, deps: IngestDeps): Promise<void> {
@@ -141,7 +142,19 @@ export async function processIngestMessage(message: IngestMessageHandle, deps: I
   // One quick second try; if the database is still down the row stays `processing` and the sweep deals with it.
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      await jobs.markDone(db, job.id, { transaction_id: outcome.transactionId });
+      await jobs.markDone(
+        db,
+        job.id,
+        outcome.needsReview
+          ? {
+              needs_review: true,
+              reason: outcome.needsReview.reason,
+              currency: outcome.needsReview.currency,
+              amount: outcome.needsReview.amount,
+              counterparty_name: outcome.needsReview.counterpartyName,
+            }
+          : { transaction_id: outcome.transactionId },
+      );
       break;
     } catch (err) {
       log.error('ingest_mark_done_failed', { err, jobId: job.id, transactionId: outcome.transactionId, attempt });
@@ -161,7 +174,7 @@ async function handleFailure(message: IngestMessageHandle, deps: IngestDeps, job
     try {
       await jobs.releaseJob(db, job.id); // back to pending so the redelivery can claim it
     } catch (releaseErr) {
-      // Still `processing`: the sweep requeues it after 300 s; the redelivery below finds it held and acks.
+      // Still `processing`: the sweep requeues it after 10 min; the redelivery below finds it held and acks.
       log.error('ingest_release_failed', { err: releaseErr, jobId: job.id });
     }
     message.retry({ delaySeconds });

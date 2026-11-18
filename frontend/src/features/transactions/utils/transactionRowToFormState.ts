@@ -2,11 +2,14 @@ import {
   DEFAULT_COUNTERPARTY_TYPE,
   type CounterpartyType,
 } from "../counterpartyTypes";
-import type { TransactionRow, TransactionType } from "../types";
+import type { TransactionKind, TransactionRow, TransactionType } from "../types";
+import { kindOf } from "./transactionKind";
 
 export type ManualAddFormSnapshot = {
   amountText: string;
   txType: TransactionType;
+  /** How the entry counts (Spend / Income / Transfer; Payback for a refund or reimbursement). */
+  kind: TransactionKind;
   counterpartyName: string;
   counterpartyType: CounterpartyType;
   brandId: string | null;
@@ -34,6 +37,7 @@ export function transactionRowToFormState(
   return {
     amountText: amountToFormText(row.amount),
     txType: row.type === "credit" ? "credit" : "debit",
+    kind: kindOf(row),
     counterpartyName: name.length > 0 ? name : row.merchant.trim(),
     counterpartyType: row.counterparty_type || DEFAULT_COUNTERPARTY_TYPE,
     brandId: row.brand_id ?? null,

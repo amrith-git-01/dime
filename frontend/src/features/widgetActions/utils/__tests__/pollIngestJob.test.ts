@@ -43,6 +43,46 @@ describe("outcomeOfJob", () => {
   it("reports a failed job", () => {
     expect(outcomeOfJob({ status: "failed" })).toEqual({ kind: "failed" });
   });
+
+  it("reports a capture in a foreign currency as needing review, with what was read", () => {
+    expect(
+      outcomeOfJob({
+        status: "needs_review",
+        reason: "foreign_currency",
+        currency: "USD",
+        amount: "12.00",
+        counterparty_name: "  Starbucks ",
+      }),
+    ).toEqual({
+      kind: "needs_review",
+      reason: "foreign_currency",
+      currency: "USD",
+      amount: "12.00",
+      counterpartyName: "Starbucks",
+    });
+    // A number amount and missing fields are tolerated.
+    expect(outcomeOfJob({ status: "needs_review", amount: 9.5 })).toEqual({
+      kind: "needs_review",
+      reason: null,
+      currency: null,
+      amount: "9.5",
+      counterpartyName: null,
+    });
+  });
+});
+
+describe("pollIngestJob and needs_review", () => {
+  it("stops polling at needs_review: nothing more will happen to that job", async () => {
+    const clock = fakeClock();
+    const jobs: IngestJob[] = [
+      { status: "processing" },
+      { status: "needs_review", reason: "foreign_currency", currency: "EUR", amount: "20.00", counterparty_name: null },
+    ];
+    const fetchJob = jest.fn(async () => jobs.shift()!);
+    const outcome = await pollIngestJob("job-1", { fetchJob, ...clock });
+    expect(outcome).toMatchObject({ kind: "needs_review", currency: "EUR", amount: "20.00" });
+    expect(fetchJob).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("pollIngestJob", () => {

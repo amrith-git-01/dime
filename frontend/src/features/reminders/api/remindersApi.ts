@@ -116,6 +116,8 @@ export function mapReminder(raw: unknown): Reminder | null {
     status: state,
     completed_at: nonEmpty(item.completed_at),
     next_fire_at: nonEmpty(item.next_fire_at),
+    paid_total: money(item.paid_total) ?? "0.00",
+    remaining: money(item.remaining),
     suggested_match: mapMatch(item.suggested_match),
   };
 }
@@ -164,15 +166,25 @@ export async function deleteReminder(id: string): Promise<void> {
   await dimeApi.delete(`${PATH}/${id}`);
 }
 
-/** Marks a reminder paid; `transactionId` ties it to the transaction that paid it. A repeating one moves on. */
+/**
+ * Marks a reminder paid; `transactionId` ties it to the transaction that paid it (a transaction settles at most
+ * one reminder: another is a 409). `amount` (a decimal string) is what was paid: less than what is still due
+ * records a part payment and keeps the reminder open (`paid_total` / `remaining` say where it stands). Omitted,
+ * the payment is the transaction's amount, or all that is left. A repeating reminder moves on once it is paid in full.
+ */
 export async function completeReminder(
   id: string,
   transactionId?: string,
+  amount?: string,
 ): Promise<Reminder | null> {
-  const { data } = await dimeApi.post<unknown>(
-    `${PATH}/${id}/complete`,
-    transactionId ? { transaction_id: transactionId } : {},
-  );
+  const body: { transaction_id?: string; amount?: string } = {};
+  if (transactionId) {
+    body.transaction_id = transactionId;
+  }
+  if (amount) {
+    body.amount = amount;
+  }
+  const { data } = await dimeApi.post<unknown>(`${PATH}/${id}/complete`, body);
   return mapReminder(data);
 }
 

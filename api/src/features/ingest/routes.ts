@@ -15,6 +15,7 @@ import { getCaptureJobForUser } from '../jobs/repository';
 import { detectAudioFormat } from '../media/audio-format';
 import { mediaStore } from '../media/storage';
 import { idParamSchema } from '../transactions/schemas';
+import { resolveUserTimezone } from '../user-settings/service';
 import { getTransaction } from '../transactions/service';
 import { captureQuerySchema, resolveCapturedAt } from './schemas';
 import { acceptMedia, findReplayJobId } from './service';
@@ -31,14 +32,18 @@ ingestRoutes.use(requireAuth);
 /** Bytes inspected for magic-byte sniffing. */
 const SNIFF_BYTES = 32;
 
-function ingestContext(c: Context<AppBindings>): IngestContext {
+/** `timezone` is the request's own; the user's stored one wins (their daily limits count days there). */
+async function ingestContext(c: Context<AppBindings>, timezone: string): Promise<IngestContext> {
   const { workersAi } = getConfig(c.env);
+  const db = getDb(c);
+  const userId = currentUser(c).id;
   return {
-    db: getDb(c),
+    db,
     storage: mediaStore(c.env),
-    userId: currentUser(c).id,
+    userId,
     queue: c.env.INGEST_QUEUE,
     limits: { dailyNeuronCap: workersAi.dailyNeuronCap, userDailyReceipts: workersAi.userDailyReceipts, userDailyVoice: workersAi.userDailyVoice },
+    timezone: await resolveUserTimezone(db, userId, timezone),
   };
 }
 
@@ -79,7 +84,7 @@ ingestRoutes.post(
     const query = c.req.valid('query');
     const timezone = parseTimezone(query.timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
-    const ctx = ingestContext(c);
+    const ctx = await ingestContext(c, timezone);
     // C2: a known key is answered before the body is read or anything is uploaded.
     const replayJobId = await findReplayJobId(ctx.db, ctx.userId, key);
     if (replayJobId) return c.json(accepted(replayJobId), 202);
@@ -112,7 +117,7 @@ ingestRoutes.post(
     const query = c.req.valid('query');
     const timezone = parseTimezone(query.timezone); // 400 before anything is read or stored
     const key = parseIdempotencyKey(c.req.header(IDEMPOTENCY_KEY_HEADER));
-    const ctx = ingestContext(c);
+    const ctx = await ingestContext(c, timezone);
     const replayJobId = await findReplayJobId(ctx.db, ctx.userId, key);
     if (replayJobId) return c.json(accepted(replayJobId), 202);
     const capturedAt = resolveCapturedAt(query.captured_at, Date.now()); // after the replay check, as for receipts
@@ -141,6 +146,10 @@ ingestRoutes.post(
  */
 export const ingestJobRoutes = new Hono<AppBindings>();
 
+/** Capabilities a client announces on `GET /jobs/:id` (comma separated). `review`: it understands the `needs_review` status. */
+const CLIENT_CAPS_HEADER = 'X-Dime-Client-Caps';
+const clientSupportsReview = (header: string | undefined): boolean => (header ?? '').split(',').some((cap) => cap.trim().toLowerCase() === 'review');
+
 ingestJobRoutes.use(requireAuth);
 
 ingestJobRoutes.get('/jobs/:id', validate('param', idParamSchema), async (c) => {
@@ -149,6 +158,14 @@ ingestJobRoutes.get('/jobs/:id', validate('param', idParamSchema), async (c) => 
   const job = await getCaptureJobForUser(db, userId, c.req.valid('param').id);
   if (!job) throw new NotFoundError('Job not found.');
   if (job.status !== 'done') return c.json({ status: job.status });
+  // A capture that posted nothing because it needs the user (a foreign-currency amount): the app asks for the rupee amount.
+  if (job.result?.['needs_review'] === true) {
+    // An app build that does not know `needs_review` (1.5.0) would read an unknown status as "still working" and poll until it gives
+    // up: it gets the terminal `failed` shape it already handles (it then points the user at the notification the server sent).
+    if (!clientSupportsReview(c.req.header(CLIENT_CAPS_HEADER))) return c.json({ status: 'failed' });
+    const { reason, currency, amount, counterparty_name } = job.result;
+    return c.json({ status: 'needs_review', reason, currency, amount, counterparty_name });
+  }
 
   // A done job names its transaction (a payment-hash duplicate names the existing one). It may have been deleted since.
   const transactionId = job.result?.['transaction_id'];

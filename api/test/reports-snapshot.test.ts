@@ -29,7 +29,7 @@ let seq = 0;
 /** A debit at noon IST (06:30Z) on a day of October 2026, with a payee of its own unless one is given. */
 function debit(day: number, rupees: number, over: Partial<ReportDebit> = {}): ReportDebit {
   seq += 1;
-  return { amountCents: rupees * 100, at: `2026-10-${pad(day)}T06:30:00.000Z`, payeeKey: `payee-${seq}`, name: `Payee ${seq}`, categoryId: null, ...over };
+  return { amountCents: rupees * 100, at: `2026-10-${pad(day)}T06:30:00.000Z`, localDate: `2026-10-${pad(day)}`, payeeKey: `payee-${seq}`, name: `Payee ${seq}`, categoryId: null, ...over };
 }
 
 const earlierMonth = (periodKey: string, rupees: number, byCategory: Record<string, number> = {}): EarlierMonth => ({
@@ -39,7 +39,7 @@ const earlierMonth = (periodKey: string, rupees: number, byCategory: Record<stri
 });
 
 function input(debits: ReportDebit[], over: Partial<SnapshotInput> = {}): SnapshotInput {
-  return { year: 2026, month: 10, nowIso: NOW, debits, incomeCents: 0, categories: CATEGORIES, earlier: [], ...over };
+  return { year: 2026, month: 10, nowIso: NOW, timezone: 'Asia/Kolkata', debits, incomeCents: 0, categories: CATEGORIES, earlier: [], ...over };
 }
 
 /** Seven debits: spent 8,100 with Swiggy visited 3 times, rent the biggest spend, an unnamed small one. */
@@ -176,12 +176,12 @@ describe('buildSnapshot: usual spend and vs_usual', () => {
   });
 });
 
-describe('buildSnapshot: IST month edges', () => {
-  it('a debit at 2026-09-30T19:00Z is October 1st, 00:30 in Kolkata', () => {
+describe('buildSnapshot: month edges (a day is the stored local date of the row)', () => {
+  it('a debit at 2026-09-30T19:00Z filed under 2026-10-01 is October 1st, 00:30 in Kolkata', () => {
     const s = buildSnapshot(
       input([
-        debit(1, 100, { at: '2026-09-30T19:00:00.000Z' }), // Oct 1 00:30 IST
-        debit(31, 300, { at: '2026-10-31T18:29:59.000Z' }), // Oct 31 23:59:59 IST
+        debit(1, 100, { at: '2026-09-30T19:00:00.000Z', localDate: '2026-10-01' }), // Oct 1 00:30 IST
+        debit(31, 300, { at: '2026-10-31T18:29:59.000Z', localDate: '2026-10-31' }), // Oct 31 23:59:59 IST
         debit(12, 50),
         debit(13, 50),
         debit(14, 50),
@@ -196,7 +196,7 @@ describe('buildSnapshot: IST month edges', () => {
   });
 
   it('counts the days of the month, not of a 31-day month (September has 30)', () => {
-    const s = buildSnapshot({ ...input([]), month: 9, debits: ['01', '02', '03', '04', '05'].map((d) => debit(1, 10, { at: `2026-09-${d}T06:30:00.000Z` })) });
+    const s = buildSnapshot({ ...input([]), month: 9, debits: ['01', '02', '03', '04', '05'].map((d) => debit(1, 10, { at: `2026-09-${d}T06:30:00.000Z`, localDate: `2026-09-${d}` })) });
     expect(s.period_key).toBe('2026-09');
     expect(s.no_spend_days).toBe(25);
   });

@@ -6,6 +6,7 @@ import {
 } from "@/features/recurring/utils/recurringDisplay";
 
 import type { Reminder, ReminderCadence } from "../types";
+import { partPaymentLine } from "./partPayment";
 
 /** Calendar days from `today` to the due date (negative when overdue); null for a malformed date. */
 export function daysUntilDue(dueDate: string, today: Date): number | null {
@@ -86,5 +87,5 @@ export function formatCadenceLabel(cadence: ReminderCadence): string {
 export function reminderSubtitle(reminder: Reminder, today: Date): string {
   const when = dueLabel(reminder.due_date, today).text;
   const name = reminder.counterparty_name?.trim();
-  return [name, when].filter(Boolean).join(" · ");
+  return [name, when, partPaymentLine(reminder)].filter(Boolean).join(" · ");
 }

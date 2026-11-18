@@ -58,6 +58,8 @@ export const settingsPatchSchema = z.strictObject({
   upi_id: upiOrBlank.nullish(),
   /** IANA timezone, written by the app at bootstrap. */
   timezone: timezoneInput.nullish(),
+  /** Count ATM cash withdrawals as spend instead of as transfers. */
+  count_cash_withdrawals_as_spend: bool,
 });
 
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;

@@ -41,6 +41,20 @@ const summary = (
   transaction_count: count,
 });
 
+describe("reconcileDaySummaries and transfers", () => {
+  it("a transfer is a transaction of the day but in neither total, like on the server", () => {
+    const prev = data([], {});
+    const transfer = { ...tx("t", "5000.00", "debit", NOON), kind: "transfer" } as TransactionRow;
+    const spend = tx("a", "40.50", "debit", NOON);
+    const result = reconcileDaySummaries(prev, data([transfer, spend], {}));
+    expect(result.pages[0].day_summaries?.[DAY]).toMatchObject({
+      debit_total: "40.50",
+      credit_total: "0.00",
+      transaction_count: 2,
+    });
+  });
+});
+
 describe("reconcileDaySummaries", () => {
   it("adds an inserted row to a day that had no summary", () => {
     const prev = data([], {});

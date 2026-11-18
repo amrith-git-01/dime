@@ -1,5 +1,6 @@
 import type { Db } from '../../core/db';
 import { log } from '../../core/logging';
+import { IST, localDate, monthKeyOf, parseTimezone } from '../../core/timezone';
 import { replanUserReminders } from '../reminders/replan';
 import * as repo from './repository';
 import type { SettingsPatch } from './schemas';
@@ -10,6 +11,28 @@ export async function getOrCreate(db: Db, userId: string): Promise<UserSettings>
   let row = await repo.fetchByUserId(db, userId);
   if (!row) row = (await repo.insertDefaults(db, userId)) ?? (await repo.fetchByUserId(db, userId));
   return settingsFromRow(row);
+}
+
+/**
+ * The timezone a server-side surface (a new row's local date, budget alerts, digests, the Broke Report) uses for this user:
+ * the one the app stored, else `hint` (the request's or the job's own), else IST. An unknown stored name is skipped.
+ */
+export async function resolveUserTimezone(db: Db, userId: string, hint?: string | null): Promise<string> {
+  const stored = (await repo.fetchTimezone(db, userId)) ?? null;
+  for (const candidate of [stored, hint]) {
+    if (!candidate) continue;
+    try {
+      return parseTimezone(candidate);
+    } catch {
+      // an unknown name falls through to the next candidate
+    }
+  }
+  return IST;
+}
+
+/** The user's current calendar month (`YYYY-MM`) in their timezone. */
+export async function currentMonthKey(db: Db, userId: string, nowMs: number = Date.now(), hint?: string | null): Promise<string> {
+  return monthKeyOf(localDate(await resolveUserTimezone(db, userId, hint), nowMs));
 }
 
 /** Keys accepted for old app builds but no longer stored (the daily budget was removed). */

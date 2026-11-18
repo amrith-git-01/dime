@@ -23,8 +23,11 @@ import {
 import { buildInsightsMonthSummary } from "@/features/analytics/utils/buildInsightsMonthSummary";
 import type { CompareMonthParam } from "@/features/analytics/utils/compareMonths";
 import { isInsightsMonthEmpty } from "@/features/analytics/utils/insightsEmptyState";
-import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
+import { withPendingInsightsSummary } from "@/features/analytics/utils/pendingInsightsOverlay";
+import { resolveMonthBudget } from "@/features/budgets/utils/monthBudget";
+import { usePendingInMonth } from "@/features/outbox/hooks/usePendingInMonth";
 import { useRecurringMonthQuery } from "@/features/recurring/hooks/useRecurringMonthQuery";
+import { useMonthSummaryQuery } from "@/features/transactions/hooks/useTransactionsOverviewQueries";
 import type { TransactionRow } from "@/features/transactions/types";
 import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { useTourCommand } from "@/hooks/useTourCommand";
@@ -66,19 +69,33 @@ export function useAnalyticsScreenModel() {
     selectedMonth.year,
     selectedMonth.monthIndex0,
   );
-  const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  // The selected month's cap and budget numbers (a past month keeps the cap it had then) come from the server.
+  const monthSummaryQuery = useMonthSummaryQuery(
+    selectedMonth.year,
+    selectedMonth.monthIndex0,
+  );
   const recurringMonthQuery = useRecurringMonthQuery(
     selectedMonth.year,
     selectedMonth.monthIndex0,
   );
   const currentDay = useCurrentDay();
+  // Entries saved offline count in the month's numbers until the server has them (same overlay as Home / Budgets).
+  const pendingInMonthRows = usePendingInMonth(selectedMonth.year, selectedMonth.monthIndex0);
 
   const insightsData = insightsQuery.data;
-  const budgetMonthly = budgetResp?.budget?.monthly_budget ?? null;
-  const existingBudget = budgetMonthly ? Number.parseFloat(budgetMonthly) : 0;
-  const hasMonthlyBudget =
-    Number.isFinite(existingBudget) && existingBudget > 0;
-  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
+  const month = useMemo(
+    () =>
+      resolveMonthBudget(monthSummaryQuery.data, {
+        pending: pendingInMonthRows,
+        fixedSpend: monthSummaryQuery.data?.fixed_debit_total,
+      }),
+    [monthSummaryQuery.data, pendingInMonthRows],
+  );
+  const insightsSummary = useMemo(
+    () => withPendingInsightsSummary(insightsData?.summary, pendingInMonthRows),
+    [insightsData?.summary, pendingInMonthRows],
+  );
+  const hasMonthlyBudget = month.hasBudget;
 
   const insightsLoading = insightsQuery.isPending && !insightsQuery.data;
   // isPlaceholderData is true while keepPreviousData serves the old month's
@@ -87,7 +104,7 @@ export function useAnalyticsScreenModel() {
   const summaryLoading =
     insightsLoading ||
     isTransitioning ||
-    (isBudgetLoading && budgetResp === undefined);
+    (monthSummaryQuery.isPending && monthSummaryQuery.data === undefined);
   const summaryFailed = insightsQuery.isError;
   const chartLoading = insightsLoading || isTransitioning;
   const chartsDataSettled =
@@ -136,18 +153,13 @@ export function useAnalyticsScreenModel() {
       selectedMonth.monthIndex0,
       serverToday,
     );
-    return buildInsightsMonthSummary(
-      insightsData?.summary,
-      hasMonthlyBudget,
-      monthlyBudgetAmount,
-      isPast,
-      { expectedIncome },
-    );
+    return buildInsightsMonthSummary(insightsSummary, month, isPast, {
+      expectedIncome,
+    });
   }, [
     expectedIncome,
-    hasMonthlyBudget,
-    insightsData?.summary,
-    monthlyBudgetAmount,
+    insightsSummary,
+    month,
     selectedMonth.year,
     selectedMonth.monthIndex0,
     serverToday,

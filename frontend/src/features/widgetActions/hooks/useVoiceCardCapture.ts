@@ -15,7 +15,8 @@ import {
 } from "@/features/transactions/voice/voiceCaptureConstants";
 import { VOICE_RECORDING_OPTIONS } from "@/features/transactions/voice/voiceRecordingOptions";
 
-import { runCapture, type CapturePhase } from "../utils/runCapture";
+import { openCaptureReview } from "../utils/openCaptureReview";
+import { runCapture, type CapturePhase, type CaptureResult } from "../utils/runCapture";
 import { markCaptureFailed } from "../utils/settleCapture";
 import { closeCard, useCloseAfterCapture } from "./useCardClose";
 
@@ -52,6 +53,8 @@ export function useVoiceCardCapture(userId: string, autoStart: boolean) {
   const startedAtRef = useRef<number | null>(null);
   const recordedUriRef = useRef<string | null>(null);
   const idempotencyKeyRef = useRef(randomUUID());
+  // What a foreign-currency capture read: "Enter amount" opens the manual form with it.
+  const reviewRef = useRef<CaptureResult["review"] | null>(null);
 
   const stopRecorder = useCallback(async () => {
     try {
@@ -97,6 +100,7 @@ export function useVoiceCardCapture(userId: string, autoStart: boolean) {
       if (result.failure === "job") {
         idempotencyKeyRef.current = randomUUID();
       }
+      reviewRef.current = result.review ?? null;
     },
     [userId],
   );
@@ -224,5 +228,16 @@ export function useVoiceCardCapture(userId: string, autoStart: boolean) {
       : state.phase,
   );
 
-  return { ...state, elapsedSeconds, hint, start: begin, stop, retry, cancel: closeCard };
+  const onEnterAmount = useCallback(() => openCaptureReview(reviewRef.current), []);
+
+  return {
+    ...state,
+    elapsedSeconds,
+    hint,
+    start: begin,
+    stop,
+    retry,
+    cancel: closeCard,
+    onEnterAmount,
+  };
 }

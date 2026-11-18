@@ -3,14 +3,19 @@ import { log } from '../../core/logging';
 import type { Db } from '../../core/db';
 import * as jobs from '../jobs/repository';
 import { isPurgeSlot, purgeOldJobs } from '../jobs/purge';
+import { mediaStore } from '../media/storage';
+import { purgeDeletedTransactions } from '../transactions/purge';
 import { enqueueJobs } from './queue';
 import { INGEST_KINDS } from './schemas';
 import type { IngestMessage } from './schemas';
 
 /** Cron expression of the recovery sweep (keep in sync with `triggers.crons` in wrangler.jsonc). */
 export const SWEEP_CRON = '*/5 * * * *';
-/** A pending/processing job untouched for this long is considered lost. */
-const RECOVERY_AGE_SECONDS = 300;
+/**
+ * A pending/processing job untouched for this long is considered lost. Longer than the slowest a job can take (download, OCR or
+ * transcription, parse, fallback models and their retries), so the sweep never requeues a job that is still running.
+ */
+const RECOVERY_AGE_SECONDS = 600;
 /** Jobs re-sent per kind per run (oldest first); the rest wait for the next run. */
 const SWEEP_LIMIT_PER_KIND = 50;
 const REQUEUE_CONCURRENCY = 10;
@@ -59,12 +64,16 @@ export async function sweepJobs(db: Db, queue: Queue, nowMs: number = Date.now()
 }
 
 /**
- * Scheduled entry point: uses the D1 binding. The first run of each hour
- * also purges old job rows, after the recovery pass so a purge failure never delays recovery.
+ * Scheduled entry point: uses the D1 binding. The first run of each hour also purges old job rows and transactions deleted more
+ * than 30 days ago (with their R2 media), after the recovery pass so a purge failure never delays recovery.
  */
 export async function runSweep(env: Bindings, scheduledTimeMs: number = Date.now()): Promise<SweepResult> {
   const db = env.DB;
   const result = await sweepJobs(db, env.INGEST_QUEUE);
-  if (isPurgeSlot(scheduledTimeMs)) await purgeOldJobs(db, scheduledTimeMs);
+  if (isPurgeSlot(scheduledTimeMs)) {
+    const storage = mediaStore(env);
+    await purgeOldJobs(db, scheduledTimeMs, storage);
+    await purgeDeletedTransactions(db, storage, scheduledTimeMs);
+  }
   return result;
 }

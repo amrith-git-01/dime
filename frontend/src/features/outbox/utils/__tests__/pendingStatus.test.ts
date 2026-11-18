@@ -1,4 +1,4 @@
-import { manualItem, NOW, voiceItem } from "@/lib/outbox/__tests__/fixtures";
+import { deleteItem, manualItem, NOW, updateItem, voiceItem } from "@/lib/outbox/__tests__/fixtures";
 import { SIGN_IN_AGAIN_MESSAGE } from "@/lib/outbox/failure";
 import { TOO_OLD_MESSAGE } from "@/lib/outbox/outboxPolicy";
 import { formatInrCompact } from "@/utils/currency";
@@ -11,6 +11,15 @@ import {
 } from "../pendingStatus";
 
 const online = { now: NOW, isOnline: true };
+
+describe("describeItem for a queued edit or delete", () => {
+  it("uses the label made when it was queued", () => {
+    expect(describeItem(updateItem())).toBe("Edit ₹250 · Swiggy");
+    expect(describeItem(deleteItem())).toBe("Delete ₹250 · Swiggy");
+    expect(describeItem(updateItem({ label: undefined }))).toBe("Edit");
+    expect(describeItem(deleteItem({ label: undefined }))).toBe("Delete");
+  });
+});
 
 describe("pendingTone", () => {
   it("attention beats syncing beats waiting", () => {

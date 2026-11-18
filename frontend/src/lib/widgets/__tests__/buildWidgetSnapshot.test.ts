@@ -1,4 +1,4 @@
-import { budgetQueryKeys, categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
+import { categoryBudgetsQueryKeys } from "@/features/budgets/queryKeys";
 import { transactionsQueryKeys } from "@/features/transactions/queryKeys";
 import type { HomeOverview, TransactionRow } from "@/features/transactions/types";
 import { createTestQueryClient } from "@/test-utils/testQueryClient";
@@ -39,6 +39,11 @@ const OVERVIEW: HomeOverview = {
   spent_this_month: "-6177.50",
   fixed_spent_this_month: "2000.00",
   flexible_spent_this_month: "4177.50",
+  // The server's budget picture: recurring items are committed (outside the budget) by default.
+  budget_spent: "4177.50",
+  budget_left: "25822.50",
+  committed_total: "2000.00",
+  monthly_budget: "30000.00",
   top_categories: [
     { category_id: "cat-food", name: "Food", icon_name: "Utensils", color: "#112233", total: "3000.00" },
     { category_id: null, name: "Other", icon_name: null, color: null, total: "500.00" },
@@ -54,15 +59,6 @@ const OVERVIEW: HomeOverview = {
 function seed(queryClient = createTestQueryClient()) {
   queryClient.setQueryData(transactionsQueryKeys.home(USER, TZ), OVERVIEW, {
     updatedAt: new Date(2026, 9, 15, 10, 0).getTime(),
-  });
-  queryClient.setQueryData(budgetQueryKeys.current(USER), {
-    budget: {
-      id: "b",
-      user_id: USER,
-      monthly_budget: "30000.00",
-      created_at: "",
-      updated_at: "",
-    },
   });
   queryClient.setQueryData(categoryBudgetsQueryKeys.list(USER), [
     { category_id: "cat-food", monthly_amount: "5000.00" },
@@ -85,8 +81,10 @@ describe("buildWidgetSnapshot", () => {
       spentThisMonth: 6177.5,
       recurringSpent: 2000,
       flexibleSpent: 4177.5,
+      budgetSpent: 4177.5,
+      committed: 2000,
       monthlyBudget: 30000,
-      budgetLeft: 23822.5,
+      budgetLeft: 25822.5,
     });
     expect(snapshot?.updatedAt).toBe(new Date(2026, 9, 15, 10, 0).getTime());
   });
@@ -99,13 +97,27 @@ describe("buildWidgetSnapshot", () => {
     ]);
   });
 
-  it("has no budget when none is cached or set", () => {
+  it("has no budget when the month has no cap", () => {
     const queryClient = createTestQueryClient();
-    queryClient.setQueryData(transactionsQueryKeys.home(USER, TZ), OVERVIEW);
-    queryClient.setQueryData(budgetQueryKeys.current(USER), { budget: null });
+    queryClient.setQueryData(
+      transactionsQueryKeys.home(USER, TZ),
+      { ...OVERVIEW, monthly_budget: null, budget_left: null },
+      { updatedAt: new Date(2026, 9, 15, 10, 0).getTime() },
+    );
     const snapshot = buildWidgetSnapshot({ queryClient, userId: USER, timezone: TZ });
     expect(snapshot?.monthlyBudget).toBeNull();
     expect(snapshot?.budgetLeft).toBeNull();
+  });
+
+  it("keeps the server's signed left when over budget: negative, never clamped to zero", () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(
+      transactionsQueryKeys.home(USER, TZ),
+      { ...OVERVIEW, budget_spent: "32500.00", budget_left: "-2500.00" },
+      { updatedAt: new Date(2026, 9, 15, 10, 0).getTime() },
+    );
+    const snapshot = buildWidgetSnapshot({ queryClient, userId: USER, timezone: TZ });
+    expect(snapshot).toMatchObject({ budgetSpent: 32500, budgetLeft: -2500, monthlyBudget: 30000 });
   });
 
   it("never reads another user's cache", () => {
@@ -123,7 +135,6 @@ describe("buildWidgetSnapshotFromData", () => {
       userId: USER,
       updatedAt: AT,
       overview: OVERVIEW,
-      monthlyBudget: "30000.00",
       categoryBudgets: [{ category_id: "cat-food", monthly_amount: "5000.00" }],
     });
     expect(fromData).toEqual(buildWidgetSnapshot({ queryClient: seed(), userId: USER, timezone: TZ }));
@@ -135,6 +146,8 @@ describe("buildWidgetSnapshotFromData", () => {
       updatedAt: AT,
       overview: {
         ...OVERVIEW,
+        monthly_budget: null,
+        budget_left: null,
         top_categories: ["a", "b", "c", "d"].map((id) => ({
           category_id: id,
           name: id,
@@ -143,7 +156,6 @@ describe("buildWidgetSnapshotFromData", () => {
           total: "10.00",
         })),
       },
-      monthlyBudget: undefined,
       categoryBudgets: [],
     });
     expect(snapshot.monthlyBudget).toBeNull();

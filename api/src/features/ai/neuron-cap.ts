@@ -1,6 +1,7 @@
 import { first, run } from '../../core/db';
 import type { Db } from '../../core/db';
 import { TooManyRequestsError } from '../../core/errors';
+import { addDays, dateKey, localDate, startOfLocalDay } from '../../core/timezone';
 import { PermanentAiError } from './errors';
 
 /**
@@ -10,6 +11,9 @@ import { PermanentAiError } from './errors';
  * - at upload (`claimUpload`): 429 + Retry-After, nothing stored or queued;
  * - in the queue consumer (`assertJobAllowed`): a job queued earlier fails permanently when the day is used up;
  * - after each successful AI call (`addNeurons`): one atomic upsert-increment.
+ *
+ * The account-wide neuron total follows Cloudflare's UTC day. The per-user daily limits follow the USER's calendar day in their own
+ * timezone (`userDay`): a limit that resets at 05:30 local time is not "daily" to the person using it.
  */
 
 // ponytail: these are ESTIMATES from the published prices, used before a call and when the response has no
@@ -65,6 +69,15 @@ export function secondsUntilUtcMidnight(nowMs: number): number {
   return Math.max(1, Math.ceil((next - nowMs) / 1000));
 }
 
+/** The key of a per-user daily counter: the user's calendar day in `tz` (UTC by default, which is what the tests and the global counter use). */
+export const userDay = (nowMs: number, tz = 'UTC'): string => dateKey(localDate(tz, nowMs));
+
+/** Seconds until the next midnight in `tz`, at least 1: when the user's daily counters restart. */
+export function secondsUntilLocalMidnight(nowMs: number, tz = 'UTC'): number {
+  const next = startOfLocalDay(tz, addDays(localDate(tz, nowMs), 1));
+  return Math.max(1, Math.ceil((next - nowMs) / 1000));
+}
+
 export async function neuronsUsedToday(db: Db, nowMs: number): Promise<number> {
   const row = await first<{ neurons: number }>(db, 'SELECT neurons FROM ai_usage WHERE day = ?', [utcDay(nowMs)]);
   return row?.neurons ?? 0;
@@ -91,8 +104,8 @@ export interface UserCaptureCounts {
   voices: number;
 }
 
-export async function userCapturesToday(db: Db, userId: string, nowMs: number): Promise<UserCaptureCounts> {
-  const row = await first<UserCaptureCounts>(db, 'SELECT receipts, voices FROM ai_user_usage WHERE user_id = ? AND day = ?', [userId, utcDay(nowMs)]);
+export async function userCapturesToday(db: Db, userId: string, nowMs: number, tz = 'UTC'): Promise<UserCaptureCounts> {
+  const row = await first<UserCaptureCounts>(db, 'SELECT receipts, voices FROM ai_user_usage WHERE user_id = ? AND day = ?', [userId, userDay(nowMs, tz)]);
   return { receipts: row?.receipts ?? 0, voices: row?.voices ?? 0 };
 }
 
@@ -100,7 +113,7 @@ export async function userCapturesToday(db: Db, userId: string, nowMs: number): 
  * Counts one accepted upload of `kind` for this user today, atomically: the upsert only increments while the
  * counter is below `limit`, so concurrent requests cannot pass it. `false` = the limit is used up.
  */
-export async function claimCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number, limit: number): Promise<boolean> {
+export async function claimCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number, limit: number, tz = 'UTC'): Promise<boolean> {
   if (limit <= 0) return false;
   const col = KIND_COLUMN[kind]; // from the fixed map above, never user input
   const row = await first<{ n: number }>(
@@ -109,15 +122,15 @@ export async function claimCapture(db: Db, userId: string, kind: CaptureKind, no
      ON CONFLICT (user_id, day) DO UPDATE SET ${col} = ${col} + 1, updated_at = excluded.updated_at
      WHERE ${col} < ?
      RETURNING ${col} AS n`,
-    [userId, utcDay(nowMs), new Date(nowMs).toISOString(), limit],
+    [userId, userDay(nowMs, tz), new Date(nowMs).toISOString(), limit],
   );
   return row !== null;
 }
 
 /** Gives back a claim whose upload did not become a job (lost idempotency race, failed insert). Never goes below 0. */
-export async function releaseCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number): Promise<void> {
+export async function releaseCapture(db: Db, userId: string, kind: CaptureKind, nowMs: number, tz = 'UTC'): Promise<void> {
   const col = KIND_COLUMN[kind];
-  await run(db, `UPDATE ai_user_usage SET ${col} = MAX(${col} - 1, 0) WHERE user_id = ? AND day = ?`, [userId, utcDay(nowMs)]);
+  await run(db, `UPDATE ai_user_usage SET ${col} = MAX(${col} - 1, 0) WHERE user_id = ? AND day = ?`, [userId, userDay(nowMs, tz)]);
 }
 
 export interface NeuronLimits {
@@ -133,7 +146,7 @@ const KIND_LABEL: Record<CaptureKind, string> = { receipt: 'receipt scan', voice
 
 /**
  * Upload guard: 429 (+ `Retry-After` until 00:00 UTC) when today's neurons plus this capture's estimate would pass
- * the cap, or the user already used their daily uploads of this kind. On success the upload IS counted (atomic claim),
+ * the cap, or (+ `Retry-After` until the user's own midnight) the user already used their daily uploads of this kind today in `tz`. On success the upload IS counted (atomic claim),
  * so the caller must `releaseCapture` if it then fails to create the job. Throws before anything is stored or queued.
  */
 export async function claimUpload(
@@ -143,14 +156,14 @@ export async function claimUpload(
   limits: NeuronLimits,
   estimate: number,
   nowMs = Date.now(),
+  tz = 'UTC',
 ): Promise<void> {
-  const retryAfter = secondsUntilUtcMidnight(nowMs);
   if ((await neuronsUsedToday(db, nowMs)) + estimate > limits.dailyNeuronCap) {
-    throw new TooManyRequestsError('Scanning is paused for today. Try again tomorrow.', retryAfter);
+    throw new TooManyRequestsError('Scanning is paused for today. Try again tomorrow.', secondsUntilUtcMidnight(nowMs));
   }
   const limit = limitFor(limits, kind);
-  if (!(await claimCapture(db, userId, kind, nowMs, limit))) {
-    throw new TooManyRequestsError(`You've used today's ${limit} ${KIND_LABEL[kind]}${limit === 1 ? '' : 's'}. Try again tomorrow.`, retryAfter);
+  if (!(await claimCapture(db, userId, kind, nowMs, limit, tz))) {
+    throw new TooManyRequestsError(`You've used today's ${limit} ${KIND_LABEL[kind]}${limit === 1 ? '' : 's'}. Try again tomorrow.`, secondsUntilLocalMidnight(nowMs, tz));
   }
 }
 

@@ -41,26 +41,45 @@ export const initialAgentChatState: AgentChatState = {
   activeAssistantId: null,
 };
 
-const HISTORY_USER_TURNS = 3;
+const HISTORY_EXCHANGES = 3;
 const HISTORY_TURN_MAX_CHARS = 500;
 
+function usable(msg: ChatMessage | undefined, role: ChatMessage["role"]): msg is ChatMessage {
+  return (
+    msg !== undefined &&
+    msg.role === role &&
+    !msg.isError &&
+    !msg.isPending &&
+    msg.content.trim().length > 0
+  );
+}
+
 /**
- * History per contract C9: the server only reads user turns (assistant text is
- * never put in prompts), so send the last few, truncated, to keep the payload small.
+ * History for the next turn: the last three exchanges, each the user's question and the assistant's reply
+ * (so "and last month?" has something to refer to), truncated to keep the payload small. A question whose
+ * reply failed, was cancelled or is still pending goes alone; an errored question is left out.
  */
 export function buildAgentHistory(
   messages: ChatMessage[],
 ): AgentChatHistoryMessage[] {
-  return messages
-    .filter(
-      (msg) =>
-        msg.role === "user" && !msg.isError && msg.content.trim().length > 0,
-    )
-    .slice(-HISTORY_USER_TURNS)
-    .map((msg) => ({
-      role: "user",
-      content: msg.content.trim().slice(0, HISTORY_TURN_MAX_CHARS),
-    }));
+  const exchanges: AgentChatHistoryMessage[][] = [];
+  messages.forEach((msg, index) => {
+    if (!usable(msg, "user")) {
+      return;
+    }
+    const turn: AgentChatHistoryMessage[] = [
+      { role: "user", content: msg.content.trim().slice(0, HISTORY_TURN_MAX_CHARS) },
+    ];
+    const reply = messages[index + 1];
+    if (usable(reply, "assistant")) {
+      turn.push({
+        role: "assistant",
+        content: reply.content.trim().slice(0, HISTORY_TURN_MAX_CHARS),
+      });
+    }
+    exchanges.push(turn);
+  });
+  return exchanges.slice(-HISTORY_EXCHANGES).flat();
 }
 
 function patchActiveAssistant(

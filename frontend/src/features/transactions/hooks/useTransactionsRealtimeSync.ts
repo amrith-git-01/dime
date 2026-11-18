@@ -38,9 +38,15 @@ export function useTransactionsRealtimeSync(userId: string | null) {
 
     const onChange = (payload: RealtimeTransactionPayload) => {
       const transactionId = realtimePayloadTransactionId(payload);
-      // Echo of this device's own recent edit/delete; its mutation already refreshed the caches.
-      // Creates have no known id up front, so their (idempotent) INSERT event is applied normally.
-      if (transactionId && recentTransactionMutations.isRecent(transactionId)) {
+      // Echo of this device's own write (same `updated_at` as the server answered it); its mutation already
+      // refreshed the caches. Another device's change to the same row has a different `updated_at` and is applied.
+      if (
+        transactionId &&
+        recentTransactionMutations.isEcho(transactionId, {
+          updatedAt: typeof payload.new.updated_at === "string" ? payload.new.updated_at : null,
+          removal: payload.eventType === "DELETE" || Boolean(payload.new.deleted_at),
+        })
+      ) {
         return;
       }
       applyRealtimeTransactionChange(queryClient, {

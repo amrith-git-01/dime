@@ -11,8 +11,21 @@ const outboxMmkv = createMMKV({ id: "dime-outbox" });
 
 const keyFor = (userId: string): string => `outbox.v${OUTBOX_ITEM_VERSION}:${userId}`;
 
-const KINDS = new Set(["manual", "voice", "receipt"]);
+const KINDS = new Set(["manual", "voice", "receipt", "update", "delete"]);
 const STATUSES = new Set(["queued", "sending", "failed", "blocked"]);
+
+function hasPayload(item: Partial<OutboxItem>): boolean {
+  switch (item.kind) {
+    case "manual":
+      return typeof item.body === "object" && item.body !== null;
+    case "update":
+      return typeof item.targetId === "string" && typeof item.patch === "object" && item.patch !== null;
+    case "delete":
+      return typeof item.targetId === "string";
+    default:
+      return typeof item.file?.uri === "string";
+  }
+}
 
 function isOutboxItem(value: unknown): value is OutboxItem {
   if (typeof value !== "object" || value === null) {
@@ -31,7 +44,7 @@ function isOutboxItem(value: unknown): value is OutboxItem {
     typeof item.capturedAt === "string" &&
     typeof item.timezone === "string" &&
     typeof item.attempts === "number" &&
-    (item.kind === "manual" ? typeof item.body === "object" && item.body !== null : typeof item.file?.uri === "string")
+    hasPayload(item)
   );
 }
 

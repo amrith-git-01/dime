@@ -22,9 +22,18 @@ jest.mock("@/features/toast/useToast", () => ({
 jest.mock("@/features/transactions/hooks/useTransactionDetailQuery", () => ({
   useTransactionDetailQuery: (initial: TransactionRow) => ({ data: initial }),
 }));
-const mockDelete = jest.fn(() => Promise.resolve());
+const mockDelete = jest.fn(() => Promise.resolve({ status: "sent" }));
 jest.mock("@/features/transactions/hooks/useDeleteTransactionMutation", () => ({
   useDeleteTransactionMutation: () => ({ mutateAsync: mockDelete, isPending: false }),
+}));
+jest.mock("@/features/transactions/hooks/useRestoreTransactionMutation", () => ({
+  useRestoreTransactionMutation: () => ({ mutateAsync: jest.fn(), isPending: false }),
+}));
+jest.mock("@/features/transactions/hooks/useUpdateTransactionMutation", () => ({
+  useUpdateTransactionMutation: () => ({ mutateAsync: jest.fn(), isPending: false }),
+}));
+jest.mock("@/features/transactions/hooks/useStaleTransactionHandler", () => ({
+  useStaleTransactionHandler: () => jest.fn(),
 }));
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the renderer ships without types */
@@ -58,7 +67,7 @@ describe("a transaction opened from the tour's sample data", () => {
     id: `${TOUR_SAMPLE_ID_PREFIX}0000-4000-8000-000000000100`,
     merchant: "Chai",
   } as TransactionRow;
-  const realRow = { id: "real-1", merchant: "Chai" } as TransactionRow;
+  const realRow = { id: "real-1", merchant: "Chai", updated_at: "2026-10-15T08:00:00.000Z" } as TransactionRow;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -113,7 +122,12 @@ describe("a transaction opened from the tour's sample data", () => {
     await act(async () => {
       current().handleConfirmDelete();
     });
-    expect(mockDelete).toHaveBeenCalledWith("real-1");
+    // The delete is guarded by the updated_at the user saw: a row changed elsewhere meanwhile is not deleted blind.
+    expect(mockDelete).toHaveBeenCalledWith({
+      id: "real-1",
+      expectedUpdatedAt: "2026-10-15T08:00:00.000Z",
+      row: realRow,
+    });
     await act(async () => {
       renderer.unmount();
     });

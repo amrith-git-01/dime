@@ -22,6 +22,10 @@ type AcceptedResponse = {
   created?: boolean;
   /** The saved row (list-item shape). Absent from servers / replays that predate it. */
   transaction?: TransactionRow;
+  /** A live row with the same type, amount and payee on the same day: offered as "Looks like a duplicate". */
+  possible_duplicate_of?: string;
+  /** The recurring item occurrence this entry may be: offered as "Is this your bill?". */
+  possible_recurring?: { item_id: string; occurrence: string };
   /** Receipt / voice uploads: the queued job, polled on `GET /api/v1/ingest/jobs/:id`. */
   job_id?: string | null;
 };
@@ -283,6 +287,10 @@ export type PostedManualTransaction = {
   id?: string;
   created?: boolean;
   transaction?: TransactionRow;
+  /** The id of a row this one looks like a copy of (same type, amount, payee, day). The add still went through. */
+  possibleDuplicateOf?: string;
+  /** The recurring item and due date (`YYYY-MM-DD`) this entry looks like; `POST /recurring/:id/link` links it. */
+  possibleRecurring?: { itemId: string; occurrence: string };
 };
 
 /**
@@ -309,6 +317,19 @@ export async function postManualTransaction(
     ...(typeof data?.id === "string" ? { id: data.id } : {}),
     ...(typeof data?.created === "boolean" ? { created: data.created } : {}),
     ...(isSavedRow(data?.transaction) ? { transaction: data.transaction } : {}),
+    ...(typeof data?.possible_duplicate_of === "string"
+      ? { possibleDuplicateOf: data.possible_duplicate_of }
+      : {}),
+    ...(data?.possible_recurring &&
+    typeof data.possible_recurring.item_id === "string" &&
+    typeof data.possible_recurring.occurrence === "string"
+      ? {
+          possibleRecurring: {
+            itemId: data.possible_recurring.item_id,
+            occurrence: data.possible_recurring.occurrence,
+          },
+        }
+      : {}),
   };
 }
 

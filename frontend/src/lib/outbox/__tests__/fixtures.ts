@@ -60,3 +60,43 @@ export function voiceItem(over: Partial<OutboxItem> = {}): OutboxItem {
     ...over,
   };
 }
+
+/** An edit of a server transaction that waits in the outbox: only the changed fields, guarded by `expected_updated_at`. */
+export function updateItem(over: Partial<OutboxItem> = {}): OutboxItem {
+  return {
+    v: 1,
+    id: "optimistic-manual-3",
+    kind: "update",
+    idempotencyKey: "key-3",
+    createdAt: NOW - 30_000,
+    capturedAt: "2026-10-23T09:59:30.000Z",
+    timezone: "Asia/Kolkata",
+    status: "queued",
+    attempts: 0,
+    nextAttemptAt: null,
+    targetId: "srv-9",
+    patch: { note: "edited offline", expected_updated_at: "2026-10-23T09:00:00.000Z" },
+    label: "Edit ₹250 · Swiggy",
+    ...over,
+  };
+}
+
+/** A delete of a server transaction that waits in the outbox. */
+export function deleteItem(over: Partial<OutboxItem> = {}): OutboxItem {
+  return {
+    v: 1,
+    id: "optimistic-manual-4",
+    kind: "delete",
+    idempotencyKey: "key-4",
+    createdAt: NOW - 20_000,
+    capturedAt: "2026-10-23T09:59:40.000Z",
+    timezone: "Asia/Kolkata",
+    status: "queued",
+    attempts: 0,
+    nextAttemptAt: null,
+    targetId: "srv-9",
+    expectedUpdatedAt: "2026-10-23T09:00:00.000Z",
+    label: "Delete ₹250 · Swiggy",
+    ...over,
+  };
+}

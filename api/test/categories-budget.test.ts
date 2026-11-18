@@ -254,7 +254,7 @@ describe('PATCH /categories/{id} (C1)', () => {
 });
 
 describe('updateCategoryWithBudget (atomic C1 write)', () => {
-  const base = { userId: USER_ID, categoryId: CAT, name: null, iconName: null, color: null, setBudget: false, budgetAmount: null };
+  const base = { userId: USER_ID, categoryId: CAT, name: null, iconName: null, color: null, setBudget: false, budgetAmount: null, monthKey: '2026-10' };
 
   it('not visible -> NO_DATA_FOUND (404); system category edit -> INSUFFICIENT_PRIVILEGE (403)', async () => {
     await expect(updateCategoryWithBudget(testDb(), base)).rejects.toMatchObject({ code: NO_DATA_FOUND });
@@ -275,6 +275,8 @@ describe('updateCategoryWithBudget (atomic C1 write)', () => {
     expect(result.category).toMatchObject({ id: CAT, name: 'Treats', color: '#112233', icon_name: 'Tag', is_system: false });
     expect(result.monthly_amount).toBe('40.25');
     expect((await budgetOf(CAT))?.monthly_amount).toBe(4025);
+    // The cap is also written into the budget history for the month, so past months keep theirs.
+    expect(await rowsOf('budget_history', 'category_id = ?', CAT)).toMatchObject([{ month_key: '2026-10', scope: 'category', amount_cents: 4025 }]);
   });
 
   it('is all-or-nothing: a failing budget write rolls the category change back', async () => {
@@ -295,7 +297,14 @@ describe('DELETE /categories/{id} and delete-impact', () => {
     await seedTransaction({ category_id: CAT, deleted_at: '2026-10-05T00:00:00.000Z' });
     await seedTransaction({ category_id: FOOD });
     const res = await call(`/api/v1/categories/${CAT}/delete-impact`);
-    expect(await res.json()).toEqual({ transaction_count: 3 });
+    expect(await res.json()).toEqual({ transaction_count: 3, budget_removed: false, budget_amount: null });
+  });
+
+  it('delete-impact says the category budget is removed with it, and how much it was', async () => {
+    await seedCustom();
+    await seedCategoryBudget(CAT, '75');
+    const res = await call(`/api/v1/categories/${CAT}/delete-impact`);
+    expect(await res.json()).toEqual({ transaction_count: 0, budget_removed: true, budget_amount: '75.00' });
   });
 
   it('system categories: 403 for impact and delete; unknown id 404', async () => {

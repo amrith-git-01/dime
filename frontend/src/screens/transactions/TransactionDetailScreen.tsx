@@ -7,7 +7,7 @@ import {
   X,
 } from "lucide-react-native";
 import { useEffect, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,6 +21,7 @@ import { fontFamilies } from "@/constants/fonts";
 import { radius } from "@/constants/radius";
 import { spacing } from "@/constants/spacing";
 import { tourTargetIds } from "@/constants/tourTargetIds";
+import { PaidBackSection, TransactionKindBadge } from "@/features/transactions/components";
 import {
   formatTransactionListAmount,
   mapTransactionRowToUi,
@@ -150,6 +151,7 @@ export default function TransactionDetailScreen() {
                 style={[
                   styles.heroAmount,
                   isCredit ? styles.heroCredit : styles.heroDebit,
+                  ui.kind === "transfer" && styles.heroTransfer,
                 ]}
                 numberOfLines={1}
               >
@@ -174,13 +176,37 @@ export default function TransactionDetailScreen() {
                   {ui.category.name}
                 </Text>
               </View>
+              {ui.badges.length > 0 ? (
+                <View style={styles.badgeRow}>
+                  {ui.badges.map((badge) => (
+                    <TransactionKindBadge key={badge} kind={badge} />
+                  ))}
+                  {ui.kind === "transfer" ? (
+                    <Text style={styles.badgeNote}>Not counted as spent or earned</Text>
+                  ) : null}
+                </View>
+              ) : null}
+              {ui.needsReview && !model.isSample ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={model.markReviewedLoading}
+                  onPress={model.handleMarkReviewed}
+                  style={({ pressed }) => [styles.reviewButton, pressed && styles.closeBtnPressed]}
+                >
+                  <Text style={styles.reviewButtonText}>Looks right</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {/* Dashed separator */}
             <View style={styles.dashedSeparator} />
 
-            {/* Meta rows — fixed 4 rows, no scroll needed */}
-            <View>
+            {/* Meta rows and the paybacks: scroll when the card is taller than the screen */}
+            <ScrollView
+              style={styles.metaScroll}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
               <MetaRow
                 icon={<Calendar size={16} color={colors.inkFaint} strokeWidth={1.5} />}
                 label="Date"
@@ -204,7 +230,12 @@ export default function TransactionDetailScreen() {
                 value={hasNote ? transaction.note!.trim() : "—"}
                 isLast
               />
-            </View>
+              <PaidBackSection
+                transaction={transaction}
+                disabled={model.isSample}
+                openPickerOnMount={model.openPaidBack}
+              />
+            </ScrollView>
             <View style={styles.actionsRow}>
               <View style={styles.actionSlot}>
                 <Button
@@ -230,7 +261,7 @@ export default function TransactionDetailScreen() {
       <ConfirmModal
         visible={model.confirmVisible}
         title="Delete transaction?"
-        message="This removes it from Home, Insights, and budgets. You can’t undo this."
+        message="This removes it from Home, Insights, and budgets. You can undo it for a few seconds afterwards."
         cancelLabel="Cancel"
         confirmLabel="Delete"
         confirmBusyLabel="Deleting"
@@ -327,6 +358,34 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   heroCredit: {
     color: colors.success,
   },
+  heroTransfer: {
+    color: colors.inkSoft,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  badgeNote: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.inkSoft,
+  },
+  reviewButton: {
+    alignSelf: "flex-start",
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSunken,
+  },
+  reviewButtonText: {
+    fontFamily: fontFamilies.medium,
+    fontSize: 13,
+    color: colors.accentText,
+  },
   categoryChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -352,7 +411,7 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   // Meta rows
   metaScroll: {
-    maxHeight: 240,
+    maxHeight: 330,
   },
   metaRow: {
     flexDirection: "row",

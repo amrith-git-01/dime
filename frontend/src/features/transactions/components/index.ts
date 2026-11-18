@@ -27,6 +27,8 @@ export {
   TransactionDayCardUpcomingRow,
 } from "./TransactionDayCardSegments";
 export { RecurringBadge } from "./RecurringBadge";
+export { TransactionKindBadge } from "./TransactionKindBadge";
+export { PaidBackSection } from "./PaidBackSection";
 export { TransactionListRow } from "./TransactionListRow";
 export { TransactionListRowSkeleton } from "./TransactionListRowSkeleton";
 export { TransactionRow } from "./TransactionRow";

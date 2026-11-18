@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 
 import { REMINDER_LIST_STALE_MS } from "@/lib/queryDefaults";
 import { useToastUiStore } from "@/stores/toastUiStore";
@@ -48,10 +49,15 @@ async function settle(
       variant: "success",
       message: reminder.direction === "receive" ? "Marked received" : "Marked paid",
     });
-  } catch {
-    useToastUiStore
-      .getState()
-      .show({ variant: "error", message: "Couldn't update the reminder. Try again from Reminders." });
+  } catch (error) {
+    // 409: that transaction already settled another reminder (a payment settles at most one).
+    const used = isAxiosError(error) && error.response?.status === 409;
+    useToastUiStore.getState().show({
+      variant: "error",
+      message: used
+        ? "That payment already settled another reminder."
+        : "Couldn't update the reminder. Try again from Reminders.",
+    });
   } finally {
     settling.delete(reminder.id);
     invalidateReminderQueries(queryClient);

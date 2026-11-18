@@ -1,6 +1,8 @@
 import { log } from '../../core/logging';
 import { run } from '../../core/db';
 import type { Db, SqlParam } from '../../core/db';
+import type { MediaStore } from '../media/storage';
+import { storedMediaKey } from '../media/refs';
 import * as jobs from './repository';
 
 const DAY_MS = 86_400_000;
@@ -43,13 +45,14 @@ export function isPurgeSlot(scheduledTimeMs: number): boolean {
   return new Date(scheduledTimeMs).getUTCMinutes() < 5;
 }
 
-/** Delete old finished jobs, stale manual-create idempotency rows, dead sessions, old usage counters and old soft-deleted notifications. Never throws: the next hour retries. Returns rows deleted. */
-export async function purgeOldJobs(db: Db, nowMs: number = Date.now()): Promise<number> {
+/** Delete old finished jobs (and, given the media store, the uploads of captures that never became a transaction), stale manual-create idempotency rows, dead sessions, old usage counters and old soft-deleted notifications. Never throws: the next hour retries. Returns rows deleted. */
+export async function purgeOldJobs(db: Db, nowMs: number = Date.now(), storage?: MediaStore): Promise<number> {
   const rules: jobs.PurgeRule[] = [
-    { statuses: ['done', 'failed'], cutoffIso: new Date(nowMs - FINISHED_RETENTION_DAYS * DAY_MS).toISOString() },
+    { statuses: ['done', 'failed'], cutoffIso: new Date(nowMs - FINISHED_RETENTION_DAYS * DAY_MS).toISOString(), keepStranded: storage !== undefined },
     { kind: 'manual_create', cutoffIso: new Date(nowMs - MANUAL_CREATE_RETENTION_DAYS * DAY_MS).toISOString() },
   ];
-  let deleted = 0;
+  // With the media store, capture jobs whose upload no transaction holds go first, with that upload (see purgeStrandedCaptureMedia).
+  let deleted = storage ? await purgeStrandedCaptureMedia(db, storage, nowMs) : 0;
   try {
     for (const { table, where, params } of tableRules(nowMs)) {
       for (let batch = 0; batch < PURGE_MAX_BATCHES; batch += 1) {
@@ -70,4 +73,35 @@ export async function purgeOldJobs(db: Db, nowMs: number = Date.now()): Promise<
   }
   if (deleted > 0) log.info('jobs_purged', { deleted });
   return deleted;
+}
+
+/** Capture jobs per hourly run (each holds one R2 object). */
+const STRANDED_BATCH = 50;
+
+/**
+ * Hourly: a capture that ended without a transaction (it failed, or it was a foreign-currency amount left in review) has an upload
+ * in R2 that no row will ever reference. Once its job is 30 days old the object goes, then the job row. A job whose object could
+ * not be deleted stays (`purgeOldJobs` skips stranded jobs) and is retried next hour. Never throws; returns the jobs removed.
+ */
+export async function purgeStrandedCaptureMedia(db: Db, storage: MediaStore, nowMs: number = Date.now()): Promise<number> {
+  const cutoff = new Date(nowMs - FINISHED_RETENTION_DAYS * DAY_MS).toISOString();
+  let removed = 0;
+  try {
+    const rows = await jobs.listStranded(db, cutoff, STRANDED_BATCH);
+    for (const row of rows) {
+      const path = row.payload['object_path'];
+      const key = typeof path === 'string' ? storedMediaKey(path) : null;
+      try {
+        if (key) await storage.bucket.delete(key);
+      } catch (err) {
+        log.warn('stranded_media_delete_failed', { id: row.id, err: String(err) });
+        continue;
+      }
+      removed += await run(db, 'DELETE FROM jobs WHERE id = ?', [row.id]);
+    }
+  } catch (err) {
+    log.warn('stranded_media_purge_failed', { removed, err: String(err) });
+  }
+  if (removed > 0) log.info('stranded_media_purged', { removed });
+  return removed;
 }

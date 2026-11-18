@@ -34,7 +34,12 @@ export type WidgetSnapshot = {
   spentThisMonth: number;
   recurringSpent: number;
   flexibleSpent: number;
+  /** Spend that counts toward the budget (the server's `budget_spent`); `spentThisMonth` also holds fixed spend outside it. */
+  budgetSpent: number;
+  /** Fixed spend outside the budget (rent, EMI). */
+  committed: number;
   monthlyBudget: number | null;
+  /** Signed: negative means over budget. */
   budgetLeft: number | null;
   topCategories: WidgetSnapshotCategory[];
 };

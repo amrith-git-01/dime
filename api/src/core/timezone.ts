@@ -135,3 +135,44 @@ export function lastNDaysRange(tz: string, endDate: LocalDate, n: number): IsoRa
     to: iso(startOfLocalDay(tz, addDays(endDate, 1))),
   };
 }
+
+/* ----------------------------------------------------------------------------------------------
+ * Months (no timezone involved)
+ * -------------------------------------------------------------------------------------------- */
+
+export interface YearMonth {
+  year: number;
+  month: number; // 1-12
+}
+
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** `delta` months from `ym` (negative = earlier). */
+export function shiftMonth(ym: YearMonth, delta: number): YearMonth {
+  const index = ym.year * 12 + (ym.month - 1) + delta;
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+}
+
+/** `YYYY-MM`, the key of a month in `transactions.month_key`, `budget_history` and report periods. */
+export const monthKey = (year: number, month: number): string => `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+
+/** The month a local date is in, as a `YYYY-MM` key. */
+export const monthKeyOf = (date: LocalDate): string => monthKey(date.year, date.month);
+
+/** `2026-09` -> `{ 2026, 9 }`; null for anything else. */
+export function parseMonthKey(key: string): YearMonth | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return null;
+  const month = Number(m[2]);
+  return month >= 1 && month <= 12 ? { year: Number(m[1]), month } : null;
+}
+
+/** First and last local date (inclusive, `YYYY-MM-DD`) of a month. */
+export function monthDates(year: number, month: number): { from: string; to: string } {
+  return { from: dateKey({ year, month, day: 1 }), to: dateKey({ year, month, day: daysInMonth(year, month) }) };
+}
+
+/** The zone every user was reported in before timezones were stored; still the default for a user with none. */
+export const IST = 'Asia/Kolkata';

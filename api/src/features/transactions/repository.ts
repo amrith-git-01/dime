@@ -1,15 +1,14 @@
-import { all, first, newId, nowIso } from '../../core/db';
+import { all, chunks, first, newId, nowIso, placeholders, run } from '../../core/db';
 import type { Db, SqlParam } from '../../core/db';
 import { decimalToCents, formatCents } from '../../core/decimal';
 import { normalizeCounterparty, payeeKey } from './dedupe';
-import type { AmountTypeAtRow, PeriodSummary } from './aggregates';
 import { DETAIL_COLUMNS, LIST_COLUMNS } from './schemas';
 import type { TransactionRow } from './schemas';
 
 /** Raw `transactions` row: money in integer cents. */
-type TransactionDbRow = Omit<TransactionRow, 'amount'> & { amount: number };
+export type TransactionDbRow = Omit<TransactionRow, 'amount'> & { amount: number };
 
-function toRow(row: TransactionDbRow): TransactionRow {
+export function toRow(row: TransactionDbRow): TransactionRow {
   return { ...row, amount: formatCents(row.amount) };
 }
 
@@ -106,6 +105,7 @@ export async function fetchActive(db: Db, userId: string, id: string): Promise<T
   return row ? toRow(row) : null;
 }
 
+/** The live row with this idempotency identity (`job:<job id>` for a capture), or null. */
 export async function findByPaymentHash(db: Db, userId: string, paymentHash: string): Promise<TransactionRow | null> {
   const row = await first<TransactionDbRow>(
     db,
@@ -115,44 +115,89 @@ export async function findByPaymentHash(db: Db, userId: string, paymentHash: str
   return row ? toRow(row) : null;
 }
 
+/** The live row standing for a recurring item's occurrence (`YYYY-MM-DD`), or null. */
+export async function findByOccurrence(db: Db, userId: string, itemId: string, occurrence: string): Promise<TransactionRow | null> {
+  const row = await first<TransactionDbRow>(
+    db,
+    `SELECT ${DETAIL_COLUMNS} FROM transactions
+     WHERE user_id = ?1 AND recurring_item_id = ?2 AND deleted_at IS NULL
+       AND (recurring_occurrence = ?3 OR (recurring_occurrence IS NULL AND payment_hash = 'recurring:' || ?2 || ':' || ?3)) LIMIT 1`,
+    [userId, itemId, occurrence],
+  );
+  return row ? toRow(row) : null;
+}
+
+/**
+ * A live row that looks like the same payment: same type, amount and payee on the same local day. Only a suggestion for the
+ * caller ("possible duplicate"); nothing is merged or blocked. `excludeId` leaves out a row (the one being edited).
+ */
+export async function findPossibleDuplicate(
+  db: Db,
+  userId: string,
+  probe: { type: string; amountCents: number; payeeKey: string; localDate: string; excludeId?: string | undefined },
+): Promise<string | null> {
+  const row = await first<{ id: string }>(
+    db,
+    `SELECT id FROM transactions
+     WHERE user_id = ? AND deleted_at IS NULL AND payee_key = ? AND local_date = ? AND type = ? AND amount = ? AND id <> ?
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId, probe.payeeKey, probe.localDate, probe.type, probe.amountCents, (probe.excludeId ?? '').toLowerCase()],
+  );
+  return row?.id ?? null;
+}
+
 /** The columns a caller may write. `amount` is a decimal string ("250.50"); the repository stores cents. */
 export interface NewTransactionRow {
   user_id: string;
   amount: string;
   type: string;
+  kind: string;
   note: string | null;
   detected_via: string;
   transaction_at: string;
+  /** The row's calendar day in the user's timezone (`YYYY-MM-DD`) and its month (`YYYY-MM`). */
+  local_date: string;
+  month_key: string;
   category_id: string | null;
   receipt_url: string | null;
   voice_url: string | null;
   counterparty_name: string;
   counterparty_normalized: string | null;
-  payment_hash: string;
+  /** Idempotency identity (`job:<id>`), null for manual and recurring rows. */
+  payment_hash: string | null;
   counterparty_type?: string;
-  /** Set by the recurring poster only. */
+  /** Set by the recurring poster / link only: the item and the period (its due date) the row stands for. */
   recurring_item_id?: string | null;
+  recurring_occurrence?: string | null;
   brand_id?: string | null;
+  needs_review?: boolean;
 }
 
-/** Insert one row (`payee_key` is derived here) and return the stored row. A `(user_id, payment_hash)` clash throws a unique violation. */
+/**
+ * Insert one row (`payee_key` is derived here) and return the stored row. A clash on an idempotency identity (the job hash, the
+ * recurring occurrence) throws a unique violation.
+ */
 export async function insertTransactionRow(db: Db, row: NewTransactionRow): Promise<TransactionRow> {
   const id = newId();
   const now = nowIso();
   const stored = await first<TransactionDbRow>(
     db,
     `INSERT INTO transactions
-       (id, user_id, amount, type, note, detected_via, transaction_at, created_at, updated_at, category_id,
-        receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key, recurring_item_id, brand_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${DETAIL_COLUMNS}`,
+       (id, user_id, amount, type, kind, note, detected_via, transaction_at, local_date, month_key, created_at, updated_at, category_id,
+        receipt_url, voice_url, counterparty_name, counterparty_type, counterparty_normalized, payment_hash, payee_key,
+        recurring_item_id, recurring_occurrence, brand_id, needs_review)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING ${DETAIL_COLUMNS}`,
     [
       id,
       row.user_id,
       decimalToCents(row.amount),
       row.type,
+      row.kind,
       row.note,
       row.detected_via,
       row.transaction_at,
+      row.local_date,
+      row.month_key,
       now,
       now,
       row.category_id,
@@ -164,7 +209,9 @@ export async function insertTransactionRow(db: Db, row: NewTransactionRow): Prom
       row.payment_hash,
       payeeKey(row.counterparty_normalized, row.counterparty_name),
       row.recurring_item_id ?? null,
+      row.recurring_occurrence ?? null,
       row.brand_id ?? null,
+      row.needs_review ? 1 : 0,
     ],
   );
   if (!stored) throw new Error('transaction insert returned no row');
@@ -174,35 +221,41 @@ export async function insertTransactionRow(db: Db, row: NewTransactionRow): Prom
 const PATCHABLE = new Set([
   'amount',
   'type',
+  'kind',
   'note',
   'detected_via',
   'transaction_at',
+  'local_date',
+  'month_key',
   'category_id',
   'receipt_url',
   'voice_url',
   'counterparty_name',
   'counterparty_type',
   'counterparty_normalized',
-  'payment_hash',
   'brand_id',
+  'needs_review',
+  'recurring_item_id',
+  'recurring_occurrence',
 ]);
 
 /**
- * Update an active row owned by the user and return it; null when it does not exist (or is deleted).
- * Changing the payee fields recomputes `payee_key`.
+ * Update an active row owned by the user and return it; null when it does not exist (or is deleted), or, with `onlyIfUpdatedAt`
+ * (the raw `updated_at` the caller read), when it changed since. Changing the payee fields recomputes `payee_key`.
  */
 export async function updateForUser(
   db: Db,
   userId: string,
   id: string,
   patch: Record<string, unknown>,
+  onlyIfUpdatedAt?: string,
 ): Promise<TransactionRow | null> {
   const sets: string[] = [];
   const params: SqlParam[] = [];
   for (const [column, value] of Object.entries(patch)) {
     if (!PATCHABLE.has(column)) throw new Error(`Column '${column}' is not patchable.`);
     sets.push(`${column} = ?`);
-    params.push(column === 'amount' ? decimalToCents(value as string) : ((value ?? null) as SqlParam));
+    params.push(column === 'amount' ? decimalToCents(value as string) : typeof value === 'boolean' ? (value ? 1 : 0) : ((value ?? null) as SqlParam));
   }
   if ('counterparty_name' in patch || 'counterparty_normalized' in patch) {
     sets.push('payee_key = ?');
@@ -210,9 +263,10 @@ export async function updateForUser(
   }
   sets.push('updated_at = ?');
   params.push(nowIso(), id.toLowerCase(), userId);
+  if (onlyIfUpdatedAt !== undefined) params.push(onlyIfUpdatedAt);
   const row = await first<TransactionDbRow>(
     db,
-    `UPDATE transactions SET ${sets.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL RETURNING ${DETAIL_COLUMNS}`,
+    `UPDATE transactions SET ${sets.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL${onlyIfUpdatedAt === undefined ? '' : ' AND updated_at = ?'} RETURNING ${DETAIL_COLUMNS}`,
     params,
   );
   return row ? toRow(row) : null;
@@ -222,135 +276,113 @@ export async function softDelete(db: Db, userId: string, id: string): Promise<bo
   return (await softDeleteRow(db, userId, id)) !== null;
 }
 
-/** `softDelete`, returning the row as stored after the delete (null when there was nothing to delete). */
-export async function softDeleteRow(db: Db, userId: string, id: string): Promise<TransactionRow | null> {
+/**
+ * `softDelete`, returning the row as stored after the delete (null when there was nothing to delete, or, with `onlyIfUpdatedAt`,
+ * when the row changed since the caller read it).
+ */
+export async function softDeleteRow(db: Db, userId: string, id: string, onlyIfUpdatedAt?: string): Promise<TransactionRow | null> {
   const now = nowIso();
   const row = await first<TransactionDbRow>(
     db,
-    `UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL RETURNING ${DETAIL_COLUMNS}`,
-    [now, now, id.toLowerCase(), userId],
+    `UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL${onlyIfUpdatedAt === undefined ? '' : ' AND updated_at = ?'} RETURNING ${DETAIL_COLUMNS}`,
+    [now, now, id.toLowerCase(), userId, ...(onlyIfUpdatedAt === undefined ? [] : [onlyIfUpdatedAt])],
   );
   return row ? toRow(row) : null;
 }
 
-/** Largest single flexible debits in `[from, to)` (newest first on ties); fixed (recurring-category) spend is left out. */
-export async function topDebits(
-  db: Db,
-  userId: string,
-  range: { from: string; to: string },
-  limit: number,
-): Promise<TransactionRow[]> {
-  const rows = await all<TransactionDbRow>(
-    db,
-    `SELECT ${LIST_COLUMNS} FROM transactions
-     WHERE user_id = ? AND type = 'debit' AND deleted_at IS NULL AND transaction_at >= ? AND transaction_at < ?
-       AND (category_id IS NULL OR category_id NOT IN (SELECT id FROM categories WHERE scope <> 'spend'))
-     ORDER BY amount DESC, transaction_at DESC LIMIT ?`,
-    [userId, range.from, range.to, limit],
-  );
-  return rows.map(toRow);
+/** The user's row whether live or soft-deleted (null when it never existed or was purged). */
+export async function fetchAny(db: Db, userId: string, id: string): Promise<TransactionRow | null> {
+  const row = await first<TransactionDbRow>(db, `SELECT ${DETAIL_COLUMNS} FROM transactions WHERE id = ? AND user_id = ? LIMIT 1`, [id.toLowerCase(), userId]);
+  return row ? toRow(row) : null;
 }
 
-/* ----------------------------------------------------------------------------------------------
- * Aggregates (single GROUP BY queries)
- * -------------------------------------------------------------------------------------------- */
-
-/**
- * SQL for "this transaction's category is a recurring (fixed) one"; needs `LEFT JOIN categories c ON c.id = t.category_id`.
- * Uncategorized rows and everyday spend categories are flexible.
- */
-const IS_FIXED = "(COALESCE(c.scope, 'spend') <> 'spend')";
-
-/** Credit/debit totals (and their fixed part), row count and debit-by-category over the half-open `[from, to)`. */
-export async function periodSummary(db: Db, userId: string, range: { from: string; to: string }): Promise<PeriodSummary> {
-  const rows = await all<{ type: string; category_id: string | null; fixed: number; total: number; n: number }>(
+/** Bring a soft-deleted row back (null when it is not deleted, or gone). A taken recurring occurrence is a unique violation. */
+export async function restoreRow(db: Db, userId: string, id: string): Promise<TransactionRow | null> {
+  const row = await first<TransactionDbRow>(
     db,
-    `SELECT t.type AS type, t.category_id AS category_id, ${IS_FIXED} AS fixed, SUM(t.amount) AS total, COUNT(*) AS n
-     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-     WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ?
-     GROUP BY t.type, t.category_id`,
-    [userId, range.from, range.to],
+    `UPDATE transactions SET deleted_at = NULL, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL RETURNING ${DETAIL_COLUMNS}`,
+    [nowIso(), id.toLowerCase(), userId],
   );
-  const summary: PeriodSummary = { creditCents: 0, debitCents: 0, fixedCreditCents: 0, fixedDebitCents: 0, count: 0, debitByCategory: new Map(), fixedDebitCategories: new Set() };
-  for (const row of rows) {
-    summary.count += row.n;
-    if (row.type === 'credit') {
-      summary.creditCents += row.total;
-      if (row.fixed) summary.fixedCreditCents += row.total;
-    } else if (row.type === 'debit') {
-      summary.debitCents += row.total;
-      if (row.fixed) summary.fixedDebitCents += row.total;
-      const key = row.category_id ?? '';
-      if (row.fixed) summary.fixedDebitCategories.add(key);
-      summary.debitByCategory.set(key, (summary.debitByCategory.get(key) ?? 0) + row.total);
-    }
+  return row ? toRow(row) : null;
+}
+
+/** Sum (cents) of the live paybacks linked to each given row, as a map (rows without any are absent). */
+export async function offsetTotals(db: Db, userId: string, ids: readonly string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const part of chunks(ids, 45)) {
+    const marks = placeholders(part.length);
+    const lowered = part.map((id) => id.toLowerCase());
+    const rows = await all<{ id: string; total: number }>(
+      db,
+      `SELECT o.debit_id AS id, SUM(o.amount) AS total FROM transaction_offsets o
+         JOIN transactions p ON p.id = o.credit_id AND p.deleted_at IS NULL
+         WHERE o.user_id = ? AND o.debit_id IN (${marks}) GROUP BY o.debit_id
+       UNION ALL
+       SELECT o.credit_id AS id, SUM(o.amount) AS total FROM transaction_offsets o
+         JOIN transactions p ON p.id = o.debit_id AND p.deleted_at IS NULL
+         WHERE o.user_id = ? AND o.credit_id IN (${marks}) GROUP BY o.credit_id`,
+      [userId, ...lowered, userId, ...lowered],
+    );
+    for (const r of rows) out.set(r.id, (out.get(r.id) ?? 0) + r.total);
   }
-  return summary;
+  return out;
 }
 
 /**
- * Amount / type / instant (and whether the category is a fixed one) of every row in `[from, to)`, for the
- * local-day bucketing in `dayTotalsFromRows` (SQLite has no IANA timezone support, so days are cut in TypeScript).
+ * After a restore: a link whose other side was edited (or linked elsewhere) while this row was deleted can now overfill one side.
+ * Drops such links, newest first, until both sides fit again; the ledger would clamp anyway, this keeps the stored links honest.
+ * Returns how many links were dropped.
  */
-export async function fetchAmountTypeAtRows(
-  db: Db,
-  userId: string,
-  range: { from: string; to: string },
-): Promise<AmountTypeAtRow[]> {
-  const rows = await all<{ amount: number; type: string; transaction_at: string; fixed: number }>(
+export async function dropOverfullOffsets(db: Db, userId: string, row: Pick<TransactionRow, 'id' | 'amount'>): Promise<number> {
+  const id = row.id.toLowerCase();
+  const links = await all<{ id: string; amount: number; partner: string }>(
     db,
-    `SELECT t.amount AS amount, t.type AS type, t.transaction_at AS transaction_at, ${IS_FIXED} AS fixed
-     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-     WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ?`,
-    [userId, range.from, range.to],
+    `SELECT o.id AS id, o.amount AS amount, p.id AS partner FROM transaction_offsets o
+     JOIN transactions p ON p.id = CASE WHEN o.credit_id = ?1 THEN o.debit_id ELSE o.credit_id END AND p.deleted_at IS NULL
+     WHERE o.user_id = ?2 AND (o.credit_id = ?1 OR o.debit_id = ?1) ORDER BY o.created_at DESC, o.id DESC`,
+    [id, userId],
   );
-  return rows.map((r) => ({ amount: formatCents(r.amount), type: r.type, transaction_at: r.transaction_at, is_fixed: r.fixed === 1 }));
+  if (links.length === 0) return 0;
+  const partnerIds = [...new Set(links.map((l) => l.partner))];
+  const [totals, partners] = await Promise.all([offsetTotals(db, userId, partnerIds), fetchActiveMany(db, userId, partnerIds)]);
+  const limits = new Map(partners.map((p) => [p.id.toLowerCase(), decimalToCents(p.amount)]));
+  let own = links.reduce((sum, l) => sum + l.amount, 0);
+  const ownLimit = decimalToCents(row.amount);
+  let dropped = 0;
+  for (const l of links) {
+    const partnerTotal = totals.get(l.partner) ?? 0;
+    if (own <= ownLimit && partnerTotal <= (limits.get(l.partner) ?? 0)) continue;
+    await run(db, 'DELETE FROM transaction_offsets WHERE id = ? AND user_id = ?', [l.id, userId]);
+    own -= l.amount;
+    totals.set(l.partner, partnerTotal - l.amount);
+    dropped += 1;
+  }
+  return dropped;
 }
 
-export interface PayeeRow {
-  type: 'debit' | 'credit';
-  payee_key: string;
-  display_name: string;
-  total_cents: number;
-  count: number;
+/** The live rows linked to `id` by an offset (either side), for the months a change to `id` also moves. */
+export async function offsetPartners(db: Db, userId: string, id: string): Promise<Pick<TransactionRow, 'kind' | 'month_key' | 'transaction_at'>[]> {
+  const lowered = id.toLowerCase();
+  return all<Pick<TransactionRow, 'kind' | 'month_key' | 'transaction_at'>>(
+    db,
+    `SELECT p.kind AS kind, p.month_key AS month_key, p.transaction_at AS transaction_at
+     FROM transaction_offsets o
+     JOIN transactions p ON p.id = CASE WHEN o.credit_id = ? THEN o.debit_id ELSE o.credit_id END AND p.deleted_at IS NULL
+     WHERE o.user_id = ? AND (o.credit_id = ? OR o.debit_id = ?)`,
+    [lowered, userId, lowered, lowered],
+  );
 }
 
-/**
- * Per (type, payee) totals and counts. `display_name` is the name of the OLDEST row of the group
- * that has a non-empty name ('Unknown' when none). Ordered by type, then total descending (ties:
- * most recent transaction first).
- */
-export async function payeeTotals(
-  db: Db,
-  userId: string,
-  range: { from: string; to: string },
-  opts: { flexibleDebitsOnly?: boolean } = {},
-): Promise<PayeeRow[]> {
-  // Fixed spend (recurring-category debits) can be left out of the debit side; credits are never filtered.
-  const skipFixed = opts.flexibleDebitsOnly ? `AND NOT (t.type = 'debit' AND ${IS_FIXED})` : '';
-  const rows = await all<{ type: 'debit' | 'credit'; payee_key: string; display_name: string; total: number; n: number }>(
-    db,
-    `WITH src AS (
-       SELECT t.type AS type, t.payee_key AS payee_key, t.amount AS amount, t.transaction_at AS transaction_at,
-              NULLIF(TRIM(t.counterparty_name), '') AS pname
-       FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.transaction_at >= ? AND t.transaction_at < ? ${skipFixed}
-     )
-     SELECT type, payee_key,
-            COALESCE((SELECT s2.pname FROM src s2
-                      WHERE s2.type = src.type AND s2.payee_key = src.payee_key AND s2.pname IS NOT NULL
-                      ORDER BY s2.transaction_at ASC LIMIT 1), 'Unknown') AS display_name,
-            SUM(amount) AS total, COUNT(*) AS n
-     FROM src
-     GROUP BY type, payee_key
-     ORDER BY type, total DESC, MAX(transaction_at) DESC, payee_key`,
-    [userId, range.from, range.to],
-  );
-  return rows.map((r) => ({
-    type: r.type,
-    payee_key: r.payee_key,
-    display_name: r.display_name,
-    total_cents: r.total,
-    count: r.n,
-  }));
+/** The live rows among `ids` owned by the user (any order). */
+export async function fetchActiveMany(db: Db, userId: string, ids: readonly string[]): Promise<TransactionRow[]> {
+  const out: TransactionRow[] = [];
+  for (const part of chunks(ids, 80)) {
+    const rows = await all<TransactionDbRow>(
+      db,
+      `SELECT ${DETAIL_COLUMNS} FROM transactions WHERE user_id = ? AND deleted_at IS NULL AND id IN (${placeholders(part.length)})`,
+      [userId, ...part.map((id) => id.toLowerCase())],
+    );
+    out.push(...rows.map(toRow));
+  }
+  return out;
 }

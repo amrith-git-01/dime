@@ -15,6 +15,8 @@ export default function EditTransactionScreen() {
       txType={model.txType}
       onSetExpense={model.setExpenseType}
       onSetIncome={model.setIncomeType}
+      kind={model.kind}
+      onSelectKind={model.selectKind}
       counterpartyType={model.counterpartyType}
       onCounterpartyTypeChange={model.setCounterpartyType}
       counterpartyName={model.counterpartyName}

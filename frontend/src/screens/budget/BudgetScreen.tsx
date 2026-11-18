@@ -26,11 +26,12 @@ import {
   BudgetSummaryCard,
 } from "@/features/budgets/components";
 import { RecurringSection } from "@/features/recurring/components";
-import { BudgetAlertsCard } from "@/features/settings/components";
+import { BudgetAlertsCard, MoneyRulesCard } from "@/features/settings/components";
 import { useTourCommand } from "@/hooks/useTourCommand";
 import { useTourScroller } from "@/hooks/useTourScroller";
 
 import { useBudgetAlertsCardModel } from "./useBudgetAlertsCardModel";
+import { useMoneyRulesCardModel } from "./useMoneyRulesCardModel";
 import { useBudgetRecurringModel } from "./useBudgetRecurringModel";
 import { useBudgetSectionScroll } from "./useBudgetSectionScroll";
 import {
@@ -78,6 +79,7 @@ export default function BudgetScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const recurring = useBudgetRecurringModel();
   const alerts = useBudgetAlertsCardModel();
+  const moneyRules = useMoneyRulesCardModel();
   const { onCardLayout } = useBudgetSectionScroll(scrollRef, showCurrentMonth);
   // Lets the guided tour scroll the screen so each spotlighted part is in view.
   const { onScroll } = useTourScroller("budgets", (y, animated) =>
@@ -186,6 +188,9 @@ export default function BudgetScreen() {
     "budgets.alerts": (
       <View style={styles.alertsCard}>
         <BudgetAlertsCard {...alerts} />
+        <View style={styles.moneyRulesCard}>
+          <MoneyRulesCard {...moneyRules} />
+        </View>
       </View>
     ),
   };
@@ -239,6 +244,9 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
   },
   alertsCard: {
     marginHorizontal: spacing.lg,
+  },
+  moneyRulesCard: {
+    marginTop: spacing.lg,
   },
   emptyCard: {
     backgroundColor: colors.surface,

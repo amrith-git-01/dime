@@ -83,6 +83,8 @@ describe("syncWidgetSnapshot", () => {
       spentThisMonth: 750,
       recurringSpent: 0,
       flexibleSpent: 750,
+      budgetSpent: 750,
+      committed: 0,
       monthlyBudget: null,
       budgetLeft: null,
       topCategories: [],

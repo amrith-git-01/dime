@@ -5,6 +5,7 @@ import { askNotificationsInContext } from "@/features/onboarding/utils/askNotifi
 import {
   createRecurring,
   deleteRecurring,
+  linkRecurringOccurrence,
   updateRecurring,
 } from "../api/recurringApi";
 import { invalidateRecurringQueries } from "../cache/invalidateRecurringQueries";
@@ -37,6 +38,19 @@ export function useDeleteRecurringMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteRecurring(id),
+    onSuccess: () => invalidateRecurringQueries(qc),
+  });
+}
+
+/** "Is this your <item> bill?" answered yes: the transaction becomes that occurrence, so the month's totals move. */
+export function useLinkRecurringMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { itemId: string; transactionId: string; occurrence: string }) =>
+      linkRecurringOccurrence(input.itemId, {
+        transaction_id: input.transactionId,
+        occurrence: input.occurrence,
+      }),
     onSuccess: () => invalidateRecurringQueries(qc),
   });
 }

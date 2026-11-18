@@ -1,4 +1,4 @@
-import { dateKey, localDate, startOfLocalDay } from '../../core/timezone';
+import { dateKey, daysInMonth, localDate, startOfLocalDay } from '../../core/timezone';
 import type { LocalDate } from '../../core/timezone';
 
 /**
@@ -16,8 +16,6 @@ export interface Schedule {
 
 /** Local hour a due date is posted at. */
 export const POST_HOUR = 6;
-
-const daysInMonth = (year: number, month: number): number => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 const clamped = (year: number, month: number, day: number): LocalDate => ({ year, month, day: Math.min(day, daysInMonth(year, month)) });
 
@@ -49,6 +47,41 @@ export function periodRange(s: Schedule, tz: string, due: LocalDate): { from: st
       ? [{ year: due.year, month: 1, day: 1 }, { year: due.year + 1, month: 1, day: 1 }]
       : [{ year: due.year, month: due.month, day: 1 }, due.month === 12 ? { year: due.year + 1, month: 1, day: 1 } : { year: due.year, month: due.month + 1, day: 1 }];
   return { from: new Date(startOfLocalDay(tz, a)).toISOString(), to: new Date(startOfLocalDay(tz, b)).toISOString() };
+}
+
+/** The period a due-date key (`YYYY-MM-DD`) belongs to: its month for a monthly item, its year for a yearly one. One live row or skip per period is enough. */
+export const periodOf = (cadence: Cadence, key: string): string => (cadence === 'yearly' ? key.slice(0, 4) : key.slice(0, 7));
+
+/** Periods a plan looks ahead from an item's start: far more than a real item can be behind, and a bound on a bad row. */
+const MAX_PLAN_PERIODS = 600;
+
+export interface OccurrencePlan {
+  /** Occurrences to post now, oldest first: their posting instant has passed and no live row or skip covers their period. */
+  due: LocalDate[];
+  /** The first occurrence left after `due` (the cached `next_due_date`): the first uncovered one, past or future. */
+  next: LocalDate;
+}
+
+/**
+ * What an item owes, from facts only (docs/MONEY-MODEL-FIX-PLAN.md R6). Walks the item's periods from `startsOn` and skips every
+ * period that already holds a live posting or a skip (`taken`: the occurrence dates, whatever day of the period they are on, so a
+ * changed day never posts a period twice). The uncovered ones whose 06:00 local has passed (`nowMs`) are `due`, at most `limit`
+ * of them; the first uncovered one after those is `next`. Nothing is read from a moving pointer.
+ */
+export function planOccurrences(s: Schedule, tz: string, startsOn: string, taken: Iterable<string>, nowMs: number, limit: number): OccurrencePlan {
+  const covered = new Set<string>();
+  for (const key of taken) covered.add(periodOf(s.cadence, key));
+  const start = parseDateKey(startsOn);
+  const due: LocalDate[] = [];
+  let d = dueInPeriod(s, start.year, start.month);
+  for (let i = 0; i < MAX_PLAN_PERIODS; i += 1) {
+    if (!covered.has(periodOf(s.cadence, dateKey(d)))) {
+      if (due.length >= limit || dueInstantMs(tz, d) > nowMs) break;
+      due.push(d);
+    }
+    d = nextAfter(s, d);
+  }
+  return { due, next: d };
 }
 
 /**

@@ -9,6 +9,9 @@ import type { CategorySpendRowData } from "@/components/categories/CategorySpend
 import type { BudgetMonthBentoSummary } from "@/features/budgets/components";
 import { useBudgetQuery } from "@/features/budgets/hooks/useBudget";
 import { useCategoryBudgetsQuery } from "@/features/budgets/hooks/useCategoryBudgetsQuery";
+import { resolveMonthBudget } from "@/features/budgets/utils/monthBudget";
+import { usePendingInMonth } from "@/features/outbox/hooks/usePendingInMonth";
+import { pendingTotals } from "@/features/outbox/utils/pendingMerge";
 import { isTourSampleId } from "@/features/tourPreview";
 import { useSuggestedMonthlyBudget } from "@/features/onboarding/hooks/useSuggestedMonthlyBudget";
 import { buildBudgetCategoryRows } from "./buildBudgetCategoryRows";
@@ -69,7 +72,7 @@ export function useBudgetScreenModel() {
     restore: (index) => handleSelectBudgetMonth(index as number),
   });
 
-  const { data: budgetResp, isPending: isBudgetLoading } = useBudgetQuery();
+  const { data: budgetResp } = useBudgetQuery();
   const { data: categoryBudgets = [] } = useCategoryBudgetsQuery();
   const monthSummaryQuery = useMonthSummaryQuery(
     selectedMonth.year,
@@ -97,11 +100,15 @@ export function useBudgetScreenModel() {
   }, [categoryBudgets]);
 
   const budgetListKey = `${selectedMonth.year}-${selectedMonth.monthIndex0}`;
-  const budgetMonthly = budgetResp?.budget?.monthly_budget ?? null;
-  const existingBudget = budgetMonthly ? Number.parseFloat(budgetMonthly) : 0;
-  const hasMonthlyBudget =
-    Number.isFinite(existingBudget) && existingBudget > 0;
-  const monthlyBudgetAmount = hasMonthlyBudget ? existingBudget : 0;
+  // The selected month's own numbers (a past month keeps the cap it had then) from the server, with the
+  // entries still waiting in the outbox that fall in it laid over (the same overlay as Insights / compare).
+  const pendingInMonthRows = usePendingInMonth(selectedMonth.year, selectedMonth.monthIndex0);
+  const month = resolveMonthBudget(monthSummaryQuery.data, {
+    pending: pendingInMonthRows,
+    fixedSpend: monthSummaryQuery.data?.fixed_debit_total,
+  });
+  const hasMonthlyBudget = month.hasBudget;
+  const monthlyBudgetAmount = month.budget;
   // The amount typed in profile setup is offered only while no budget is set.
   const storedBudgetSuggestion = useSuggestedMonthlyBudget();
   const suggestedBudget = hasMonthlyBudget ? undefined : storedBudgetSuggestion;
@@ -171,8 +178,10 @@ export function useBudgetScreenModel() {
     [selectedMonth.monthIndex0, selectedMonth.year, stackNavigation],
   );
 
+  const pendingSpentPaise = pendingTotals(pendingInMonthRows).debitPaise;
+  // Total spend of the month (fixed included) for the "no budget" view; the budget numbers are `month`'s.
   const spentMonthNum = monthSummaryQuery.data
-    ? Math.abs(Number.parseFloat(monthSummaryQuery.data.debit_total))
+    ? (Math.abs(toPaise(monthSummaryQuery.data.debit_total)) + pendingSpentPaise) / 100
     : Number.NaN;
   const hasSpentMonth = Number.isFinite(spentMonthNum);
   const monthSummaryFailed = monthSummaryQuery.isError;
@@ -180,28 +189,12 @@ export function useBudgetScreenModel() {
   // pattern as Analytics (useAnalyticsScreenModel).
   const isMonthDataTransitioning = monthSummaryQuery.isPlaceholderData;
 
-  const isOverBudget =
-    hasMonthlyBudget && hasSpentMonth && spentMonthNum > monthlyBudgetAmount;
-  const remainingValue =
-    hasMonthlyBudget && hasSpentMonth && !monthSummaryFailed
-      ? Math.max(0, monthlyBudgetAmount - spentMonthNum)
-      : 0;
-  const overageValue =
-    isOverBudget && hasSpentMonth ? spentMonthNum - monthlyBudgetAmount : 0;
-  const usagePct =
-    hasMonthlyBudget &&
-    hasSpentMonth &&
-    !monthSummaryFailed &&
-    monthlyBudgetAmount > 0
-      ? Math.min(1, spentMonthNum / monthlyBudgetAmount)
-      : 0;
-  const usagePercentUsed =
-    hasMonthlyBudget &&
-    hasSpentMonth &&
-    !monthSummaryFailed &&
-    monthlyBudgetAmount > 0
-      ? Math.round((spentMonthNum / monthlyBudgetAmount) * 100)
-      : 0;
+  // Signed: over budget is "₹X over", never a left of 0.
+  const isOverBudget = month.isOver;
+  const remainingValue = month.left !== null && month.left > 0 ? month.left : 0;
+  const overageValue = month.overBy;
+  const usagePct = month.usedFraction;
+  const usagePercentUsed = month.usedPercent;
   const usageLabel = isOverBudget
     ? "Over budget"
     : hasMonthlyBudget && hasSpentMonth
@@ -212,8 +205,7 @@ export function useBudgetScreenModel() {
 
   const summaryLoading =
     (monthSummaryQuery.isPending && !monthSummaryQuery.data) ||
-    isMonthDataTransitioning ||
-    (isBudgetLoading && budgetResp === undefined);
+    isMonthDataTransitioning;
 
   const monthSplit = monthSummaryQuery.data;
   const fixedPaise = toPaise(monthSplit?.fixed_debit_total);
@@ -239,8 +231,11 @@ export function useBudgetScreenModel() {
           usagePct,
           usagePercentUsed,
           usageLabel,
-          fixedSpent: fixedPaise / 100,
-          flexibleSpent: flexiblePaise / 100,
+          // With a budget the bar is the budget: recurring that counts toward it plus everyday spend.
+          fixedSpent: hasMonthlyBudget ? month.recurringInBudget : fixedPaise / 100,
+          flexibleSpent: hasMonthlyBudget ? month.flexibleInBudget : flexiblePaise / 100,
+          budgetLeft: month.left,
+          committed: month.committed,
           upcomingRecurring: upcomingPaise / 100,
         };
 

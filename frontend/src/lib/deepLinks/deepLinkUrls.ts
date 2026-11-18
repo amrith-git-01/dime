@@ -15,6 +15,21 @@ export const deepLinkUrls = {
   reminders: `${DEEP_LINK_SCHEME}://reminders`,
 } as const;
 
+/**
+ * Quick add with a payee and a note filled in (a capture that needs the rupee amount, e.g. a receipt in a foreign
+ * currency): the keypad is focused for the amount. Parsed by `parseDeepLink`.
+ */
+export function addDeepLinkUrl(input: { payee?: string | null; note?: string | null }): string {
+  const params = [`focus=amount`];
+  if (input.payee) {
+    params.push(`payee=${encodeURIComponent(input.payee)}`);
+  }
+  if (input.note) {
+    params.push(`note=${encodeURIComponent(input.note)}`);
+  }
+  return `${DEEP_LINK_SCHEME}://add?${params.join("&")}`;
+}
+
 /** A Broke Report: `dime://reports/YYYY-MM`. Parsed by `parseDeepLink`. */
 export function reportDeepLinkUrl(periodKey: string): string {
   return `${DEEP_LINK_SCHEME}://reports/${periodKey}`;

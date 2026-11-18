@@ -22,9 +22,9 @@ export type InsightsMonthSummary = {
   spentDisplay: string;
   incomeDisplay: string;
   netDisplay: string;
-  /** Net when income exists; otherwise spend (unsigned). */
-  heroDisplay: string;
   netValue: number;
+  /** Budget left, SIGNED (negative = over), the server's figure; null without a budget. */
+  budgetLeft: number | null;
   savingsRatePct: number | null;
   /** Some of the month's spend is fixed (recurring categories). */
   hasFixed: boolean;
@@ -44,15 +44,12 @@ export type InsightsMonthSummaryCardProps = {
   hasMonthlyBudget?: boolean;
 };
 
-function heroColor(
-  summary: InsightsMonthSummary | null,
-  loading: boolean,
-  colors: ThemeColors,
-): string {
-  if (loading || !summary || !summary.hasIncome) return colors.accentText;
+/** Net is the secondary number: green when money came in ahead of what went out, red when it did not. */
+function netColor(summary: InsightsMonthSummary | null, colors: ThemeColors): string {
+  if (!summary) return colors.ink;
   if (summary.netValue > 0) return colors.success;
   if (summary.netValue < 0) return colors.danger;
-  return colors.accentText;
+  return colors.ink;
 }
 function buildSubtitle(summary: InsightsMonthSummary): string {
   const parts: string[] = [];
@@ -75,7 +72,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
 }: InsightsMonthSummaryCardProps) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const heroCol = heroColor(summary, summaryLoading, colors);
+  const heroCol = colors.accentText;
   const subtitle = summary ? buildSubtitle(summary) : "";
   const showBudgetBar = Boolean(hasMonthlyBudget ?? summary?.hasMonthlyBudget);
   const hasIncome = Boolean(summary?.hasIncome);
@@ -99,8 +96,9 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         ) : (
           <>
             <Text style={[styles.heroAmount, { color: heroCol }]}>
-              {summary?.heroDisplay ?? "₹\u202F0"}
+              {summary?.spentDisplay ?? "₹\u202F0"}
             </Text>
+            <Text style={styles.heroSuffix}>spent</Text>
             {subtitle.length > 0 ? (
               <Text style={styles.heroSubtitle}>{subtitle}</Text>
             ) : null}
@@ -108,35 +106,35 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
         )}
       </View>
 
-      {/* Stats row */}
-      <View style={styles.divider} />
-      <View style={styles.statsRow}>
-        <View style={styles.statCell}>
-          <Text style={styles.statLabel}>Spent</Text>
-          {summaryLoading ? (
-            <SkeletonBlock style={styles.statSkeleton} />
-          ) : (
-            <Text style={styles.statValue}>
-              {summary?.spentDisplay ?? "₹\u202F0"}
-            </Text>
-          )}
-        </View>
-        {hasIncome || summaryLoading ? (
-          <>
-            <View style={styles.statDivider} />
+      {/* Stats row: the headline above is what was spent; income and net sit beside it */}
+      {hasIncome || summaryLoading ? (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.statsRow}>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Income</Text>
               {summaryLoading ? (
                 <SkeletonBlock style={styles.statSkeleton} />
               ) : (
                 <Text style={[styles.statValue, styles.incomeValue]}>
-                  {summary?.incomeDisplay ?? "\u2014"}
+                  {summary?.incomeDisplay ?? "—"}
                 </Text>
               )}
             </View>
-          </>
-        ) : null}
-      </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Text style={styles.statLabel}>Net</Text>
+              {summaryLoading ? (
+                <SkeletonBlock style={styles.statSkeleton} />
+              ) : (
+                <Text style={[styles.statValue, { color: netColor(summary, colors) }]}>
+                  {summary?.netDisplay ?? "—"}
+                </Text>
+              )}
+            </View>
+          </View>
+        </>
+      ) : null}
 
       {/* Recurring / flexible / left breakdown (inside the budget when there is one) + what is still expected */}
       {summary &&
@@ -150,6 +148,7 @@ export const InsightsMonthSummaryCard = memo(function InsightsMonthSummaryCard({
                 fixed={summary.fixedValue}
                 flexible={summary.flexibleValue}
                 budget={showBudgetBar ? summary.budgetValue : 0}
+                left={showBudgetBar ? summary.budgetLeft : null}
               />
             ) : null}
             {summary.expectedIncomeDisplay ? (
@@ -197,6 +196,12 @@ const useStyles = createThemedStyles(({ colors, shadows }) => ({
     fontSize: 40,
     lineHeight: 48,
     fontVariant: ["tabular-nums"],
+  },
+  heroSuffix: {
+    fontFamily: fontFamilies.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.inkSoft,
   },
   heroSubtitle: {
     fontFamily: fontFamilies.regular,

@@ -8,7 +8,10 @@ const SCHEMA =
   '{"counterparty_name":string,' +
   '"counterparty_type":"merchant"|"person"|"self_transfer"|"unknown",' +
   '"amount":number,' +
+  '"currency":"INR"|<ISO 4217 code>,' +
   '"type":"debit"|"credit",' +
+  '"kind":"spend"|"income"|"transfer"|"payback",' +
+  '"transfer_reason":"cash_withdrawal"|"card_bill"|"own_account"|null,' +
   '"date":"YYYY-MM-DD"|null,' +
   '"category":string,' +
   '"note":string|null,' +
@@ -35,12 +38,27 @@ function referenceRules(reference: DateReference | undefined): string {
   );
 }
 
+/** The amount is read in the currency it is printed or spoken in; the app tracks rupees only and never converts. */
+const CURRENCY_RULES =
+  '- currency: the 3-letter ISO 4217 code of the amount as printed or spoken (₹, Rs and rupees are INR; $ is USD; € is EUR). ' +
+  'Use INR when no currency is shown. NEVER convert: amount is the number in that currency.\n';
+
 const TYPE_RULES =
   '- type=debit: money LEFT your account (purchase, withdrawal, payment, transfer out).\n' +
   '- type=credit: money ARRIVED in your account (refund, salary, incoming transfer).\n' +
   "- CRITICAL: 'paid by credit card' / 'credit card payment' = debit (you spent money). " +
   "'credit card' is the payment method, NOT the direction.\n" +
   "- CRITICAL: 'debited' = debit. 'credited' = credit.\n";
+
+/** How a row counts. A transfer is neither spending nor income (it just moves money), a payback gives money back for a spend. */
+const KIND_RULES =
+  '- kind=spend: money spent on something (purchase, bill, fee, a payment to a merchant or person). Always a debit.\n' +
+  '- kind=income: money earned or received for yourself (salary, interest, a gift, a sale). Always a credit.\n' +
+  '- kind=transfer: money moved between your OWN accounts or into cash: own-account or wallet top-up transfer, ' +
+  'ATM or cash withdrawal, paying your credit-card BILL (paying the card company, not buying with the card). ' +
+  'Either direction. Set transfer_reason to cash_withdrawal, card_bill or own_account; for any other kind it is null.\n' +
+  '- kind=payback: money received BACK for something paid before: refund, cashback, reversal of a failed or cancelled payment. Always a credit. A person sending you money is kind=income.\n' +
+  "- A purchase made WITH a credit card is kind=spend; paying the card's bill is kind=transfer.\n";
 
 const COUNTERPARTY_RULES =
   '- counterparty_type=person: payment to/from a named individual or family member.\n' +
@@ -79,6 +97,8 @@ export function buildReceiptParsePrompt(
     `Schema: ${SCHEMA}\n` +
     'Rules:\n' +
     TYPE_RULES +
+    CURRENCY_RULES +
+    KIND_RULES +
     DATE_RULES +
     referenceRules(reference) +
     COUNTERPARTY_RULES +
@@ -104,6 +124,8 @@ export function buildVoiceParsePrompt(
     `Schema: ${SCHEMA}\n` +
     'Rules:\n' +
     TYPE_RULES +
+    CURRENCY_RULES +
+    KIND_RULES +
     DATE_RULES +
     referenceRules(reference) +
     COUNTERPARTY_RULES +

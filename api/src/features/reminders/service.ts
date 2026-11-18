@@ -1,5 +1,6 @@
 import { decimalToCents, formatCents } from '../../core/decimal';
 import type { Db } from '../../core/db';
+import { isUniqueViolation } from '../../core/db-errors';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors';
 import { isoUtcOrNull } from '../../core/timestamps';
 import { addDays, dateKey, localDate, startOfLocalDay } from '../../core/timezone';
@@ -24,16 +25,7 @@ import type {
 } from './schemas';
 
 const NOT_FOUND = 'Reminder not found.';
-const MAX_USED_TXN_IDS = 10;
 
-function usedIds(raw: string | null): string[] {
-  try {
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 /** "Looks paid" window: a transaction this many days before / after the due date can match. */
 const MATCH_DAYS_BEFORE = 7;
 const MATCH_DAYS_AFTER = 14;
@@ -46,8 +38,12 @@ function payeeKeyOf(name: string | null): string | null {
   return normalized ? payeeKey(normalized, name) : null;
 }
 
-function toResponse(row: ReminderRow, settings: UserSettings, match: SuggestedMatch | null): ReminderResponse {
+/** What is still due on the current occurrence (cents), or null when the reminder has no amount. */
+const remainingOf = (row: Pick<ReminderRow, 'amount'>, paidCents: number): number | null => (row.amount === null ? null : Math.max(row.amount - paidCents, 0));
+
+function toResponse(row: ReminderRow, settings: UserSettings, match: SuggestedMatch | null, paidCents: number): ReminderResponse {
   const leadDays = parseLeadDays(row.lead_days, null);
+  const remaining = remainingOf(row, paidCents);
   return {
     id: row.id,
     direction: row.direction,
@@ -64,6 +60,8 @@ function toResponse(row: ReminderRow, settings: UserSettings, match: SuggestedMa
     status: row.status,
     completed_at: isoUtcOrNull(row.completed_at),
     next_fire_at: isoUtcOrNull(row.next_fire_at),
+    paid_total: formatCents(paidCents),
+    remaining: remaining === null ? null : formatCents(remaining),
     suggested_match: match,
   };
 }
@@ -71,10 +69,11 @@ function toResponse(row: ReminderRow, settings: UserSettings, match: SuggestedMa
 /**
  * The "looks paid" suggestion of each open reminder that has a payee and/or an amount: ONE batched query for the whole list
  * (see `repo.listMatches`) that finds, per reminder, the best live transaction of the right type (pay = debit, receive =
- * credit) inside `[due - 7 days, due + 14 days]` (local days of the reminder's timezone) whose payee and amount equal the
- * reminder's (whichever it has), the one closest to the due date.
+ * credit) inside `[due - 7 days, due + 14 days]` (local days of the reminder's timezone) that no reminder has used yet, whose
+ * payee equals the reminder's and whose amount is at most what is still due (a partial payment counts; a reminder with no payee
+ * needs the exact amount), the one closest to the due date.
  */
-async function suggestMatches(db: Db, userId: string, rows: readonly ReminderRow[]): Promise<Map<string, SuggestedMatch>> {
+async function suggestMatches(db: Db, userId: string, rows: readonly ReminderRow[], paid: ReadonlyMap<string, number>): Promise<Map<string, SuggestedMatch>> {
   const matches = new Map<string, SuggestedMatch>();
   const open = rows.filter((r) => r.status === 'open' && (r.payee_key !== null || r.amount !== null));
   if (open.length === 0) return matches;
@@ -89,7 +88,7 @@ async function suggestMatches(db: Db, userId: string, rows: readonly ReminderRow
       to: new Date(startOfLocalDay(r.timezone, addDays(due, MATCH_DAYS_AFTER + 1))).toISOString(),
       at: new Date(startOfLocalDay(r.timezone, due)).toISOString(),
       key: r.payee_key,
-      amount: r.amount,
+      remaining: remainingOf(r, paid.get(r.id) ?? 0),
     };
   });
   for (const m of await repo.listMatches(db, userId, windows)) {
@@ -106,8 +105,9 @@ async function suggestMatches(db: Db, userId: string, rows: readonly ReminderRow
 }
 
 async function present(db: Db, userId: string, rows: readonly ReminderRow[], settings: UserSettings): Promise<ReminderResponse[]> {
-  const matches = await suggestMatches(db, userId, rows);
-  return rows.map((r) => toResponse(r, settings, matches.get(r.id) ?? null));
+  const paid = await repo.paidTotals(db, userId, rows);
+  const matches = await suggestMatches(db, userId, rows, paid);
+  return rows.map((r) => toResponse(r, settings, matches.get(r.id) ?? null, paid.get(r.id) ?? 0));
 }
 
 export async function listReminders(db: Db, userId: string, q: ReminderListQuery): Promise<ReminderListResponse> {
@@ -157,7 +157,6 @@ export async function createReminder(db: Db, userId: string, body: ReminderCreat
     status: 'open' as const,
     completed_at: null,
     completed_txn_id: null,
-    used_txn_ids: null,
     fired_through: null,
   };
   const row = await repo.insert(db, { ...draft, next_fire_at: nextFireIso(reminderInput(draft, settings), nowMs, draft.cadence !== 'none') });
@@ -229,9 +228,14 @@ function rolled(row: ReminderRow, settings: UserSettings, nowMs: number): Remind
   return next;
 }
 
+const ALREADY_SETTLED = 'That transaction already settled a reminder.';
+
 /**
- * Mark paid / received. A one-off becomes `done`; a repeating one stays open and moves to its next occurrence (its
- * `completed_at` / `completed_txn_id` then describe the last completion). Completing something already finished is a no-op.
+ * Mark paid / received, wholly or in part. The payment (`amount`, else the transaction's amount, else all that is left) is
+ * recorded against the current occurrence; while what was paid is less than what is due the reminder stays open and answers with
+ * `paid_total` and `remaining`. When paid reaches due (or the reminder has no amount) a one-off becomes `done` and a repeating one
+ * stays open and moves to its next occurrence (its `completed_at` / `completed_txn_id` then describe the last completion). A
+ * transaction settles at most one reminder: one that already did is a 409. Completing something already finished is a no-op.
  */
 export async function completeReminder(db: Db, userId: string, id: string, body: ReminderCompleteBody, nowMs: number = Date.now()): Promise<ReminderResponse> {
   const existing = await repo.fetchForUser(db, userId, id);
@@ -240,17 +244,70 @@ export async function completeReminder(db: Db, userId: string, id: string, body:
   if (existing.status !== 'open') return (await present(db, userId, [existing], settings))[0] as ReminderResponse;
 
   const txnId = body.transaction_id ?? null;
-  if (txnId !== null && !(await repo.transactionExists(db, userId, txnId))) throw new BadRequestError('Transaction not found.');
+  const txn = txnId === null ? null : await repo.liveTransaction(db, userId, txnId);
+  if (txnId !== null && !txn) throw new BadRequestError('Transaction not found.');
 
-  // Remember the latest transactions used, so "looks paid" never offers them again for a later occurrence (a repeating reminder
-  // is completed over and over, and the window of the next one can still contain an older payment).
-  const used = txnId === null ? existing.used_txn_ids : JSON.stringify([...usedIds(existing.used_txn_ids), txnId].slice(-MAX_USED_TXN_IDS));
-  const completion: ReminderRow = { ...existing, completed_at: new Date(nowMs).toISOString(), completed_txn_id: txnId, used_txn_ids: used };
+  const paidBefore = await repo.paidFor(db, existing.id, existing.due_date);
+  const left = existing.amount === null ? null : Math.max(existing.amount - paidBefore, 0);
+  const pays = body.amount != null ? decimalToCents(body.amount) : (txn?.amount ?? left);
+  if (txnId !== null && pays !== null && pays > 0) {
+    const used = await repo.paymentForTxn(db, userId, txnId);
+    // The same transaction on the same occurrence is a retry of this very call: nothing to record again.
+    if (used && (used.reminder_id !== existing.id || used.due_date !== existing.due_date)) throw new ConflictError(ALREADY_SETTLED);
+    if (!used) {
+      try {
+        await repo.addPayment(db, { reminderId: existing.id, userId, txnId, amountCents: pays, dueDate: existing.due_date });
+      } catch (err) {
+        if (isUniqueViolation(err)) throw new ConflictError(ALREADY_SETTLED); // another request settled with it first
+        throw err;
+      }
+    }
+  } else if (txnId === null && pays !== null && pays > 0) {
+    await repo.addPayment(db, { reminderId: existing.id, userId, txnId: null, amountCents: pays, dueDate: existing.due_date });
+  }
+
+  const paidAfter = await repo.paidFor(db, existing.id, existing.due_date);
+  if (existing.amount !== null && paidAfter < existing.amount) {
+    return (await present(db, userId, [existing], settings))[0] as ReminderResponse; // a partial payment: still open, `remaining` says what is left
+  }
+  const completion: ReminderRow = { ...existing, completed_at: new Date(nowMs).toISOString(), completed_txn_id: txnId };
   const next: ReminderRow =
     existing.cadence === 'none' ? { ...completion, status: 'done', fired_through: null, next_fire_at: null } : rolled(completion, settings, nowMs);
   const row = await repo.update(db, userId, next);
   if (!row) throw new NotFoundError(NOT_FOUND);
   return (await present(db, userId, [row], settings))[0] as ReminderResponse;
+}
+
+/**
+ * A transaction was deleted: its payment towards a reminder is withdrawn, and when that leaves the occurrence it settled no longer
+ * covered, the occurrence is open again (a one-off goes back to `open`; a repeating reminder that had moved on returns to that
+ * occurrence, unless it already holds payments of its own). A partly paid reminder just shows the smaller `paid_total`.
+ */
+export async function releaseTransaction(db: Db, userId: string, txnId: string, nowMs: number = Date.now()): Promise<void> {
+  const payment = await repo.paymentForTxn(db, userId, txnId);
+  if (!payment) return;
+  const reminder = await repo.fetchForUser(db, userId, payment.reminder_id);
+  const paidBefore = payment.due_date === '' ? 0 : await repo.paidFor(db, payment.reminder_id, payment.due_date);
+  await repo.deletePayment(db, payment.id);
+  if (!reminder || payment.due_date === '') return;
+
+  // Settled = what was paid reaches what is due; a reminder without an amount is settled by any payment on the occurrence (decided
+  // from the payment rows, never from `completed_txn_id`, which only names the LAST completion of a repeating reminder).
+  const settled = (paid: number): boolean => (reminder.amount === null ? paid > 0 : paid >= reminder.amount);
+  const paidAfter = paidBefore - payment.amount_cents;
+  if (!settled(paidBefore) || settled(paidAfter)) return;
+
+  const settings = await loadSettings(db, userId);
+  const reopened: ReminderRow = { ...reminder, status: 'open', completed_at: null, completed_txn_id: null, fired_through: null };
+  if (reminder.cadence === 'none') {
+    if (reminder.status !== 'done' || reminder.due_date !== payment.due_date) return;
+  } else {
+    // It had moved on: go back to the occurrence, unless the next one already has payments of its own.
+    if (reminder.due_date <= payment.due_date || (await repo.paidFor(db, reminder.id, reminder.due_date)) > 0) return;
+    reopened.due_date = payment.due_date;
+  }
+  reopened.next_fire_at = nextFireIso(reminderInput(reopened, settings), nowMs, reopened.cadence !== 'none');
+  await repo.update(db, userId, reopened);
 }
 
 /** Repeating reminders only: move to the next occurrence without completing this one. */

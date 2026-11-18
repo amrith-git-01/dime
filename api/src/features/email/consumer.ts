@@ -111,7 +111,7 @@ export async function handleEmailBatch(batch: MessageBatch<unknown>, env: Bindin
 /**
  * `queue()` handler for `dime-email-dlq`: a digest the queue gave up on after its
  * retries. Every failed attempt already released its `email_sends` claim (and a claim left behind by
- * a crashed Worker is reclaimed after 30 minutes), so there is nothing to undo: log it for
+ * a crashed Worker is reclaimed after 5 minutes), so there is nothing to undo: log it for
  * `wrangler tail` / Workers Logs and ack. Idempotent, touches no external service, never throws.
  */
 export function handleEmailDlq(batch: MessageBatch<unknown>): void {

@@ -22,9 +22,13 @@ export const payRoutes = new Hono<AppBindings>();
 const MIN_CENTS = 1;
 const MAX_CENTS = 100_000_000;
 const AMOUNT_RE = /^\d{1,7}(?:\.\d{1,2})?$/;
-const NAME_RE = /^[\p{L}\p{N} .-]{1,40}$/u;
-/** A payee name that poses as the app is refused: the page would lend a crafted link Dime's credibility. */
-const IMPERSONATION_RE = /dime/i;
+const NAME_RE = /^[\p{L}\p{M}\p{N} .-]{1,40}$/u;
+/**
+ * A payee name that poses as the app is refused: the page would lend a crafted link Dime's credibility. Only the word "dime" (or
+ * the brand with a role word: "Dime Pay", "Dime Support") counts; a name that merely contains those letters ("Dimple") is
+ * somebody else's.
+ */
+const IMPERSONATION_RE = /(?<![\p{L}\p{M}\p{N}])dime(?:[ ._-]?(?:app|pay|official|support|team|india))?(?![\p{L}\p{M}\p{N}])/iu;
 const NOTE_RE = /^[\p{L}\p{N} .,\-_'#&()/:@!?%+*]{1,80}$/u;
 
 export interface PayParams {

@@ -1,3 +1,5 @@
+import { parseAmountInputToRupees } from "@/utils/paise";
+
 /** Preset checkpoints + custom for budget limit sliders. */
 
 export const MONTHLY_BUDGET_PRESETS = [15_000, 20_000, 30_000, 40_000] as const;
@@ -64,16 +66,9 @@ export function formatBudgetAmountText(amount: number): string {
   return String(Math.round(amount));
 }
 
+/** Strict like every money field (two decimals at most, no trailing junk): "12abc" is invalid, not 12. */
 export function parsePositiveBudgetAmount(text: string): number | null {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const parsed = Number.parseFloat(trimmed);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return parsed;
+  return parseAmountInputToRupees(text);
 }
 
 /** Unset → 0; preset/custom → positive amount or null if invalid. */

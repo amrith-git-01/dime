@@ -1,5 +1,6 @@
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { isAxiosError } from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 
@@ -20,6 +21,11 @@ import {
   payNow,
   shareNudge,
 } from "@/features/reminders/utils/reminderActions";
+import {
+  partPaymentLine,
+  remainingPaise,
+  validatePartPayment,
+} from "@/features/reminders/utils/partPayment";
 import { useCurrentUserProfileQuery } from "@/features/profile/hooks/useCurrentUserProfileQuery";
 import { useUserSettingsQuery } from "@/features/settings/hooks/useUserSettingsQuery";
 import { useToast } from "@/features/toast/useToast";
@@ -27,6 +33,7 @@ import { useCurrentDay } from "@/hooks/useCurrentDay";
 import { useSessionUserId } from "@/hooks/useSessionUserId";
 import { parseFastApiError } from "@/lib/api/parseFastApiError";
 import { triggerConfirmHaptic, triggerHaptic } from "@/lib/haptics/nativeHaptics";
+import { formatInrAmount } from "@/utils/currency";
 import type { MainStackParamList } from "@/navigation/types";
 
 type RemindersNavigation = NativeStackNavigationProp<MainStackParamList, "Reminders">;
@@ -79,6 +86,9 @@ export function useRemindersScreenModel() {
   const { mutateAsync: removeAsync } = useDeleteReminderMutation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Reminder | null>(null);
+  const [partPayment, setPartPayment] = useState<Reminder | null>(null);
+  const [partPaymentText, setPartPaymentText] = useState("");
+  const [partPaymentError, setPartPaymentError] = useState<string | null>(null);
 
   /** Runs one row action: marks the row busy, reports a failure, always clears the busy mark. */
   const run = useCallback(
@@ -89,7 +99,14 @@ export function useRemindersScreenModel() {
         void triggerConfirmHaptic();
         showToast({ variant: "success", message });
       } catch (error) {
-        showToast({ variant: "error", message: parseFastApiError(error) });
+        // 409: that transaction already settled another reminder (a payment settles at most one).
+        showToast({
+          variant: "error",
+          message:
+            isAxiosError(error) && error.response?.status === 409
+              ? "That payment already settled another reminder."
+              : parseFastApiError(error),
+        });
       } finally {
         setBusyId(null);
       }
@@ -120,6 +137,35 @@ export function useRemindersScreenModel() {
       }),
     [completeAsync, run],
   );
+
+  const onPartPayment = useCallback((reminder: Reminder) => {
+    void triggerHaptic();
+    setPartPaymentText("");
+    setPartPaymentError(null);
+    setPartPayment(reminder);
+  }, []);
+  const onPartPaymentCancel = useCallback(() => setPartPayment(null), []);
+  const onPartPaymentTextChange = useCallback((text: string) => {
+    setPartPaymentText(text);
+    setPartPaymentError(null);
+  }, []);
+  const onPartPaymentConfirm = useCallback(async () => {
+    const reminder = partPayment;
+    if (!reminder) {
+      return;
+    }
+    const checked = validatePartPayment(reminder, partPaymentText);
+    if (!checked.ok) {
+      setPartPaymentError(checked.error);
+      return;
+    }
+    setPartPayment(null);
+    await run(reminder, async () => {
+      const saved = await completeAsync({ reminder, amount: checked.amount });
+      // Paid in full closes a one-off; anything less keeps it open with what is left.
+      return (saved && partPaymentLine(saved)) ?? (reminder.direction === "receive" ? "Marked received" : "Marked paid");
+    });
+  }, [completeAsync, partPayment, partPaymentText, run]);
 
   const onSkip = useCallback(
     (reminder: Reminder) =>
@@ -236,6 +282,17 @@ export function useRemindersScreenModel() {
     highlightedId,
     busyId,
     pendingDelete,
+    partPayment,
+    partPaymentText,
+    partPaymentError,
+    partPaymentPrompt:
+      partPayment && remainingPaise(partPayment) !== null
+        ? `${formatInrAmount((remainingPaise(partPayment) ?? 0) / 100)} is still due. How much did you pay?`
+        : "How much did you pay?",
+    onPartPaymentCancel,
+    onPartPaymentTextChange,
+    onPartPaymentConfirm: () => void onPartPaymentConfirm(),
+    onPartPayment: (reminder: Reminder) => onPartPayment(reminder),
     deleting: busyId !== null && pendingDelete?.id === busyId,
     onRetry: () => void refetchOpen(),
     onRetryDone: () => void refetchDone(),

@@ -100,7 +100,12 @@ export type ReminderListQuery = z.output<typeof reminderListQuerySchema>;
 
 export const reminderIdParamSchema = z.object({ id: uuidString });
 
-export const reminderCompleteSchema = z.object({ transaction_id: uuidString.nullish() });
+/**
+ * `POST /reminders/:id/complete`. `transaction_id`: the payment that settled it (a transaction settles at most one reminder).
+ * `amount`: what was paid (rupees); omitted = the transaction's amount, or all that is left when there is no transaction. Less than what is
+ * still due records a partial payment and keeps the reminder open.
+ */
+export const reminderCompleteSchema = z.object({ transaction_id: uuidString.nullish(), amount: amountInput.nullish() });
 export type ReminderCompleteBody = z.output<typeof reminderCompleteSchema>;
 
 export interface ReminderRow {
@@ -123,8 +128,6 @@ export interface ReminderRow {
   status: ReminderStatus;
   completed_at: string | null;
   completed_txn_id: string | null;
-  /** JSON array of the (up to 10) latest transactions it was completed with: they are never suggested again. */
-  used_txn_ids: string | null;
   fired_through: string | null;
   next_fire_at: string | null;
   created_at: string;
@@ -157,6 +160,10 @@ export interface ReminderResponse {
   status: ReminderStatus;
   completed_at: string | null;
   next_fire_at: string | null;
+  /** Paid so far toward the current occurrence (partial payments add up), `0.00` when nothing was. */
+  paid_total: string;
+  /** What is still due on the current occurrence (`amount - paid_total`, never below 0); null when the reminder has no amount. */
+  remaining: string | null;
   suggested_match: SuggestedMatch | null;
 }
 

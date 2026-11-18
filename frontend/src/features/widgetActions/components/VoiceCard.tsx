@@ -35,6 +35,7 @@ export function VoiceCard({ userId, trusted }: { userId: string; trusted: boolea
           text={voice.text}
           onRetry={voice.retry}
           onClose={closeCard}
+          onEnterAmount={voice.onEnterAmount}
         />
       </CardFrame>
     );

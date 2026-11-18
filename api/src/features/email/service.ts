@@ -5,7 +5,6 @@ import type { Db } from '../../core/db';
 import { BrevoClient } from './brevo';
 import { buildDigestPayload } from './digest-payload';
 import { renderDigestHtml, renderWelcomeHtml } from './html';
-import { IST } from './periods';
 import type { DigestPeriod } from './periods';
 import { createQuoteSource } from './quotes';
 import type { Quote } from './quotes';
@@ -144,10 +143,9 @@ export async function sendDigest(deps: EmailDeps, input: { userId: string; perio
     const [payload, urls, [quoteText, quoteAuthor]] = await Promise.all([
       buildDigestPayload(deps.db, {
         userId,
-        range: period.range,
+        dates: period.dates,
         budgetYear: period.budgetYear,
         budgetMonth: period.budgetMonth,
-        tz: IST,
       }),
       unsubscribeUrls(deps.config, userId),
       deps.quote(),
@@ -181,7 +179,7 @@ export async function sendDigest(deps: EmailDeps, input: { userId: string; perio
     try {
       await sends.deletePending(deps.db, key);
     } catch (releaseErr) {
-      // The stale claim is reclaimed after 30 minutes.
+      // The stale claim is reclaimed after 5 minutes.
       log.error('email_release_claim_failed', { err: releaseErr, userId, kind: period.kind });
     }
     throw err;

@@ -398,12 +398,27 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
     flexible_credit_total: formatPaise(totals.credit - totals.fixedCredit),
   });
 
+  // The sample budget picture, shaped like the server's: recurring items default to committed money outside the
+  // budget, so the budget counts the everyday spend only.
+  const budgetPicture = (totals: Totals) => {
+    const budgetSpent = totals.debit - totals.fixedDebit;
+    return {
+      budget_spent: formatPaise(budgetSpent),
+      budget_left: formatPaise(MONTHLY_BUDGET_CENTS - budgetSpent),
+      committed_total: formatPaise(totals.fixedDebit),
+      transfer_total: formatPaise(0),
+      payback_total: formatPaise(0),
+      monthly_budget: formatPaise(MONTHLY_BUDGET_CENTS),
+    };
+  };
+
   const monthSummary: MonthSummary = {
     credit_total: formatPaise(month.credit),
     debit_total: formatPaise(month.debit),
     net: formatPaise(month.credit - month.debit),
     transaction_count: month.count,
     ...splitFields(month),
+    ...budgetPicture(month),
     debit_by_category,
     category_meta: [...metaById.values()],
   };
@@ -454,6 +469,7 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
     spent_this_month: formatPaise(month.debit),
     fixed_spent_this_month: formatPaise(month.fixedDebit),
     flexible_spent_this_month: formatPaise(month.debit - month.fixedDebit),
+    ...budgetPicture(month),
     top_categories,
     recent_transactions: txs.slice(0, RECENT_COUNT).map((tx) => tx.row),
     // Exactly seven rows ending on device-local today: any other window makes Home refetch.
@@ -665,6 +681,10 @@ export function buildSampleMonth(input: BuildSampleMonthInput): TourSampleMonth 
       net: monthSummary.net,
       transaction_count: month.count,
       ...splitFields(month),
+      budget_spent: budgetPicture(month).budget_spent,
+      committed_total: budgetPicture(month).committed_total,
+      transfer_total: budgetPicture(month).transfer_total,
+      payback_total: budgetPicture(month).payback_total,
     },
     daily_cashflow,
     counterparty_spend,

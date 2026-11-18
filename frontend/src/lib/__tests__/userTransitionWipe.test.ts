@@ -80,6 +80,8 @@ function seedUserData(queryClient: QueryClient, userId: string): void {
     spentThisMonth: 100,
     recurringSpent: 0,
     flexibleSpent: 100,
+    budgetSpent: 100,
+    committed: 0,
     monthlyBudget: null,
     budgetLeft: null,
     topCategories: [],

@@ -7,7 +7,7 @@ import {
   loadOutboxItems,
   saveOutboxItems,
 } from "../outboxStorage";
-import { manualItem, voiceItem } from "./fixtures";
+import { deleteItem, manualItem, updateItem, voiceItem } from "./fixtures";
 
 jest.mock("react-native-mmkv", () => jest.requireActual("@/test-utils/mockMmkv"));
 
@@ -29,6 +29,21 @@ describe("outboxStorage", () => {
     const item = manualItem({ attempts: 2, nextAttemptAt: 123, lastError: "boom" });
     saveOutboxItems("u", [item]);
     expect(loadOutboxItems("u")).toEqual([item]);
+  });
+
+  it("round-trips a queued edit and delete with their guards", () => {
+    saveOutboxItems("u", [updateItem(), deleteItem()]);
+    expect(loadOutboxItems("u")).toEqual([updateItem(), deleteItem()]);
+  });
+
+  it("skips an edit with no target or no patch, and a delete with no target", () => {
+    saveOutboxItems("u", [
+      updateItem({ id: "no-target", targetId: undefined }),
+      updateItem({ id: "no-patch", patch: undefined }),
+      deleteItem({ id: "no-target-d", targetId: undefined }),
+      updateItem({ id: "ok" }),
+    ]);
+    expect(loadOutboxItems("u").map((item) => item.id)).toEqual(["ok"]);
   });
 
   it("removes the key when the outbox becomes empty", () => {
