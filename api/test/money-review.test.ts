@@ -29,7 +29,7 @@ const setNow = (iso: string) => {
   vi.setSystemTime(new Date(iso));
 };
 
-/** The way the old (pre-money-model) Worker inserts a transaction: no kind, local_date, month_key or occurrence. */
+/** A raw insert with no kind (column default 'spend'), local_date, month_key or occurrence, like a pre-money-model writer. */
 const oldInsert = (over: { id: string; type?: string; counterparty_type?: string; hash?: string | null; item?: string | null }) =>
   testDb()
     .prepare(
@@ -48,62 +48,32 @@ const insertItem = (active = 1, startsOn: string | null = '2026-10-05') =>
     .bind(ITEM, USER_ID, active, startsOn)
     .run();
 
-describe('deploy window: an older Worker writing against the new schema', () => {
+describe('kind and occurrence invariants (0019: the deploy-window repair triggers are gone)', () => {
   const kindOf = async (id: string) => (await oneRow<{ kind: string }>('transactions', 'id = ?', id))?.kind;
 
-  it('an insert without a kind is repaired by direction, and a self transfer is a transfer in both directions', async () => {
+  it('an insert whose kind does not fit its direction is refused, not repaired; a transfer fits either direction', async () => {
+    await expect(oldInsert({ id: 'a0000000-0000-4000-8000-000000000002', type: 'credit' })).rejects.toThrow(/direction/);
     await oldInsert({ id: 'a0000000-0000-4000-8000-000000000001', type: 'debit' });
-    await oldInsert({ id: 'a0000000-0000-4000-8000-000000000002', type: 'credit' });
-    await oldInsert({ id: 'a0000000-0000-4000-8000-000000000003', type: 'credit', counterparty_type: 'self_transfer' });
-    await oldInsert({ id: 'a0000000-0000-4000-8000-000000000004', type: 'debit', counterparty_type: 'self_transfer' });
     expect(await kindOf('a0000000-0000-4000-8000-000000000001')).toBe('spend');
-    expect(await kindOf('a0000000-0000-4000-8000-000000000002')).toBe('income');
-    expect(await kindOf('a0000000-0000-4000-8000-000000000003')).toBe('transfer');
-    expect(await kindOf('a0000000-0000-4000-8000-000000000004')).toBe('transfer');
+    await seedTransaction({ type: 'credit', kind: 'transfer', counterparty_type: 'self_transfer' });
   });
 
-  it('an old PATCH that flips the type without a kind is not refused: the kind is rewritten to fit', async () => {
+  it('flipping the type without a fitting kind is refused; flipping both together is fine', async () => {
     const id = await seedTransaction({ type: 'debit' });
-    await testDb().prepare("UPDATE transactions SET type = 'credit' WHERE id = ?").bind(id).run();
+    await expect(testDb().prepare("UPDATE transactions SET type = 'credit' WHERE id = ?").bind(id).run()).rejects.toThrow(/direction/);
+    await testDb().prepare("UPDATE transactions SET type = 'credit', kind = 'income' WHERE id = ?").bind(id).run();
     expect(await kindOf(id)).toBe('income');
-    await testDb().prepare("UPDATE transactions SET type = 'debit' WHERE id = ?").bind(id).run();
-    expect(await kindOf(id)).toBe('spend');
-    const transfer = await seedTransaction({ type: 'debit', kind: 'transfer', counterparty_type: 'self_transfer' });
-    await testDb().prepare("UPDATE transactions SET type = 'credit' WHERE id = ?").bind(transfer).run();
-    expect(await kindOf(transfer)).toBe('transfer'); // a transfer fits either direction
-    // Naming an impossible kind is still refused.
-    await expect(testDb().prepare("UPDATE transactions SET kind = 'spend', type = 'credit' WHERE id = ?").bind(id).run()).rejects.toThrow(/direction/);
+    await expect(testDb().prepare("UPDATE transactions SET kind = 'spend' WHERE id = ?").bind(id).run()).rejects.toThrow(/direction/);
   });
 
-  it('a recurring posting by the old Worker takes its occurrence from the hash, so the occurrence index covers it', async () => {
+  it('a legacy recurring posting (hash only, no occurrence) still counts as its occurrence for linking and the poster', async () => {
     await insertItem();
-    const hash = `recurring:${ITEM}:2026-10-05`;
-    await oldInsert({ id: 'b0000000-0000-4000-8000-000000000001', hash, item: ITEM });
-    expect(await oneRow('transactions', 'id = ?', 'b0000000-0000-4000-8000-000000000001')).toMatchObject({ recurring_occurrence: '2026-10-05' });
-    // The new poster's "already posted" check finds it ...
-    const { listOccurrences } = await import('../src/features/recurring/repository');
-    expect(await listOccurrences(testDb(), USER_ID, ITEM)).toEqual(['2026-10-05']);
-    // ... and a second posting of the same occurrence (either Worker) is refused by the database.
-    await expect(oldInsert({ id: 'b0000000-0000-4000-8000-000000000002', hash: `${hash}x`.slice(0, 57), item: ITEM })).rejects.toThrow(/UNIQUE/);
-  });
-
-  it('a row with a legacy hash and no occurrence (before the trigger) still counts as its occurrence for linking and the poster', async () => {
-    await insertItem();
-    await testDb().prepare('DROP TRIGGER transactions_recurring_occurrence_after_insert').run();
-    const hash = `recurring:${ITEM}:2026-10-05`;
-    await oldInsert({ id: 'b0000000-0000-4000-8000-000000000003', hash, item: ITEM });
+    await oldInsert({ id: 'b0000000-0000-4000-8000-000000000003', hash: `recurring:${ITEM}:2026-10-05`, item: ITEM });
+    expect(await oneRow('transactions', 'id = ?', 'b0000000-0000-4000-8000-000000000003')).toMatchObject({ recurring_occurrence: null });
     const { listOccurrences } = await import('../src/features/recurring/repository');
     const { findByOccurrence } = await import('../src/features/transactions/repository');
     expect(await listOccurrences(testDb(), USER_ID, ITEM)).toEqual(['2026-10-05']);
     expect((await findByOccurrence(testDb(), USER_ID, ITEM, '2026-10-05'))?.id).toBe('b0000000-0000-4000-8000-000000000003');
-    // put the trigger back for the other tests of this file's database (the schema is shared)
-    await testDb()
-      .prepare(
-        `CREATE TRIGGER transactions_recurring_occurrence_after_insert AFTER INSERT ON transactions
-         WHEN NEW.recurring_occurrence IS NULL AND NEW.recurring_item_id IS NOT NULL AND NEW.payment_hash LIKE 'recurring:%' AND length(NEW.payment_hash) = 57
-         BEGIN UPDATE transactions SET recurring_occurrence = substr(NEW.payment_hash, 48) WHERE id = NEW.id; END`,
-      )
-      .run();
   });
 });
 

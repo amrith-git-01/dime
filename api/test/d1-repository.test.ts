@@ -123,11 +123,11 @@ describe('transactions: idempotency identities and payee_key', () => {
     expect(await rowsOf('transactions')).toHaveLength(3);
   });
 
-  it('a hash an older Worker wrote stays unique among live rows (its race protection in the deploy window); a deleted twin does not clash', async () => {
+  it('a content hash is not an identity any more: two live rows may carry the same one (only job: hashes are unique)', async () => {
     await seedTransaction({ payment_hash: 'a-content-hash' });
-    await expect(seedTransaction({ payment_hash: 'a-content-hash' })).rejects.toThrow(/UNIQUE/);
+    await seedTransaction({ payment_hash: 'a-content-hash' });
     await seedTransaction({ payment_hash: 'a-content-hash', deleted_at: '2026-10-05T00:00:00.000Z' });
-    expect(await rowsOf('transactions')).toHaveLength(2);
+    expect(await rowsOf('transactions')).toHaveLength(3);
   });
 
   it('a live row per (user, recurring item, occurrence) at most; a deleted one frees it', async () => {

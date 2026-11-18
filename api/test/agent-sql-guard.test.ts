@@ -155,15 +155,12 @@ describe('sql guard: user A cannot reach user B or internals', () => {
     const covered = new Set<string>([...Object.keys(EXPOSED_TABLES), ...SHADOWED_TABLES]);
     expect(results.map((r) => r.name).filter((n) => !covered.has(n) && n !== 'd1_migrations')).toEqual([]);
     expect(results.length).toBeGreaterThanOrEqual(15);
-    // Triggers and views would be new attack surface too: only the kind and occurrence triggers of the money model and the
-    // recurring start trigger exist (they fire on writes, which the guard never lets through).
+    // Triggers and views would be new attack surface too: only the two kind/direction checks of the money model exist (they
+    // fire on writes, which the guard never lets through).
     const extra = await testDb().prepare("SELECT name FROM sqlite_master WHERE type IN ('view', 'trigger')").all<{ name: string }>();
     expect(extra.results.map((r) => r.name).sort()).toEqual([
-      'recurring_items_starts_on_after_insert',
-      'transactions_kind_after_insert',
-      'transactions_kind_after_type_update',
-      'transactions_kind_before_update',
-      'transactions_recurring_occurrence_after_insert',
+      'transactions_kind_check_insert',
+      'transactions_kind_check_update',
     ]);
   });
 
